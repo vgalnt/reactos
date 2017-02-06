@@ -439,7 +439,14 @@ HidClass_ReadCompleteIrp(
     //
     // remove from pending list
     //
-    RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
+    //RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
+    /* HACK: use Context->ReadIrpLink instead Irp->Tail.Overlay.ListEntry (use usbport) */
+    RemoveEntryList(&IrpContext->ReadIrpLink);
+
+    if (IrpContext->OriginalIrp->IoStatus.Status == STATUS_DEVICE_NOT_CONNECTED)
+    {
+        DPRINT("HidClass_ReadCompleteIrp with STATUS_DEVICE_NOT_CONNECTED\n");
+    }
 
     //
     // is list empty
@@ -751,10 +758,11 @@ HidClass_Read(
     //
     KeAcquireSpinLock(&Context->Lock, &OldLevel);
 
-    //
-    // insert irp into pending list
-    //
-    InsertTailList(&Context->ReadPendingIrpListHead, &NewIrp->Tail.Overlay.ListEntry);
+    /* insert irp into pending list
+       HACK: use Context->ReadIrpLink instead Irp->Tail.Overlay.ListEntry (use usbport)
+    */
+    //InsertTailList(&Context->ReadPendingIrpListHead, &NewIrp->Tail.Overlay.ListEntry);
+    InsertTailList(&Context->ReadPendingIrpListHead, &NewIrpContext->ReadIrpLink);
 
     //
     // set completion routine

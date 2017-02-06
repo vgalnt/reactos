@@ -174,6 +174,10 @@ typedef struct
     //
     PIO_WORKITEM CompletionWorkItem;
 
+    /* for HACK: use instead Irp->Tail.Overlay.ListEntry (use usbport)
+       link with pending IRPs list 
+    */
+    LIST_ENTRY ReadIrpLink;
 } HIDCLASS_IRP_CONTEXT, *PHIDCLASS_IRP_CONTEXT;
 
 /* fdo.c */
