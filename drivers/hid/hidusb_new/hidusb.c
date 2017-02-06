@@ -423,6 +423,7 @@ HidUsb_ReadReportCompletion(
 {
     PURB Urb;
     PHID_USB_RESET_CONTEXT ResetContext;
+    NTSTATUS Status = STATUS_SUCCESS;
 
     //
     // get urb
@@ -430,52 +431,53 @@ HidUsb_ReadReportCompletion(
     Urb = Context;
     ASSERT(Urb);
 
-    DPRINT("[HIDUSB] HidUsb_ReadReportCompletion %p Status %x Urb Status %x\n", Irp, Irp->IoStatus, Urb->UrbHeader.Status);
-
-    if (Irp->PendingReturned)
-    {
-        //
-        // mark irp pending
-        //
-        IoMarkIrpPending(Irp);
-    }
+    DPRINT("[HIDUSB] HidUsb_ReadReportCompletion %p Status %x Urb Status %x\n",
+           Irp,
+           Irp->IoStatus, Urb->UrbHeader.Status);
 
     //
-    // did the reading report succeed / cancelled
+    // did the reading report succeed
     //
-    if (NT_SUCCESS(Irp->IoStatus.Status) || Irp->IoStatus.Status == STATUS_CANCELLED || Irp->IoStatus.Status == STATUS_DEVICE_NOT_CONNECTED)
+    if (NT_SUCCESS(Irp->IoStatus.Status))
     {
         //
         // store result length
         //
         Irp->IoStatus.Information = Urb->UrbBulkOrInterruptTransfer.TransferBufferLength;
+        goto Exit;
+    }
 
-        //
-        // FIXME handle error
-        //
-        ASSERT(Urb->UrbHeader.Status == USBD_STATUS_SUCCESS);
+    //
+    // did the reading report cancelled
+    //
+    if (Irp->IoStatus.Status == STATUS_CANCELLED)
+    {
+        ASSERT(!Irp->CancelRoutine);
+        goto Exit;
+    }
 
-        //
-        // free the urb
-        //
-        ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
-
-        //
-        // finish completion
-        //
-        return STATUS_CONTINUE_COMPLETION;
+    //
+    // did the reading report no device
+    //
+    if (Irp->IoStatus.Status == STATUS_DEVICE_NOT_CONNECTED)
+    {
+        goto Exit;
     }
 
     //
     // allocate reset context
     //
-    ResetContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(HID_USB_RESET_CONTEXT), HIDUSB_TAG);
+    ResetContext = ExAllocatePoolWithTag(NonPagedPool,
+                                         sizeof(HID_USB_RESET_CONTEXT),
+                                         HIDUSB_TAG);
+
     if (ResetContext)
     {
         //
         // allocate work item
         //
         ResetContext->WorkItem = IoAllocateWorkItem(DeviceObject);
+
         if (ResetContext->WorkItem)
         {
             //
@@ -487,7 +489,9 @@ HidUsb_ReadReportCompletion(
             //
             // queue the work item
             //
-            IoQueueWorkItem(ResetContext->WorkItem, HidUsb_ResetWorkerRoutine, DelayedWorkQueue, ResetContext);
+            IoQueueWorkItem(ResetContext->WorkItem,
+                            HidUsb_ResetWorkerRoutine,
+                            DelayedWorkQueue, ResetContext);
 
             //
             // free urb
@@ -499,23 +503,35 @@ HidUsb_ReadReportCompletion(
             //
             return STATUS_MORE_PROCESSING_REQUIRED;
         }
+
         //
         // free context
         //
         ExFreePoolWithTag(ResetContext, HIDUSB_TAG);
+
+        //FIXME Status = ? 
     }
+
+Exit:
 
     //
     // free urb
     //
     ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
 
+    if (Irp->PendingReturned)
+    {
+        //
+        // mark irp pending
+        //
+        IoMarkIrpPending(Irp);
+    }
+
     //
     // complete request
     //
-    return STATUS_CONTINUE_COMPLETION;
+    return Status;
 }
-
 
 NTSTATUS
 NTAPI
