@@ -461,16 +461,9 @@ HidClass_ReadCompleteIrp(
     //
     IoCompleteRequest(IrpContext->OriginalIrp, IO_NO_INCREMENT);
 
-
-    DPRINT("StopInProgress %x IsEmpty %x\n", IrpContext->FileOp->StopInProgress, IsEmpty);
-    if (IrpContext->FileOp->StopInProgress && IsEmpty)
-    {
-        //
-        // last pending irp
-        //
-        DPRINT1("[HIDCLASS] LastPendingTransfer Signalling\n");
-        KeSetEvent(&IrpContext->FileOp->IrpReadComplete, 0, FALSE);
-    }
+    DPRINT("StopInProgress %x IsEmpty %x\n",
+           IrpContext->FileOp->StopInProgress,
+           IsEmpty);
 
     if (IrpContext->FileOp->StopInProgress && IsEmpty)
     {
