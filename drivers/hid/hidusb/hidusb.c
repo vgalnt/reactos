@@ -604,6 +604,7 @@ HidUsb_ReadReport(
     PIO_STACK_LOCATION IoStack;
     PURB Urb;
     PUSBD_PIPE_INFORMATION PipeInformation;
+    NTSTATUS Status;
 
     //
     // get device extension
@@ -685,18 +686,23 @@ HidUsb_ReadReport(
     IoStack->Parameters.DeviceIoControl.Type3InputBuffer = NULL;
     IoStack->Parameters.Others.Argument1 = Urb;
 
-
     //
     // set completion routine
     //
     IoSetCompletionRoutine(Irp, HidUsb_ReadReportCompletion, Urb, TRUE, TRUE, TRUE);
 
-    //
-    // call driver
-    //
-    return IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-}
+    if (!NT_SUCCESS(Hid_IncrementPendingRequests(HidDeviceExtension)))
+    {
+        ExFreePool(Urb);
+        Status = STATUS_NO_SUCH_DEVICE;
+    }
+    else
+    {
+        Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
+    }
 
+    return Status;
+}
 
 NTSTATUS
 NTAPI
