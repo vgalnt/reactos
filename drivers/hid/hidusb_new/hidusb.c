@@ -1030,6 +1030,18 @@ Hid_PnpCompletion(
 }
 
 NTSTATUS
+NTAPI
+HidDispatchUrbComplete(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp,
+    IN PVOID Context)
+{
+    /* set event to signaled state  */
+    KeSetEvent((PRKEVENT)Context, IO_NO_INCREMENT, FALSE);
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
+NTSTATUS
 Hid_DispatchUrb(
     IN PDEVICE_OBJECT DeviceObject,
     IN PURB Urb)
@@ -1084,7 +1096,7 @@ Hid_DispatchUrb(
     //
     // set completion routine
     //
-    IoSetCompletionRoutine(Irp, Hid_PnpCompletion, &Event, TRUE, TRUE, TRUE);
+    IoSetCompletionRoutine(Irp, HidDispatchUrbComplete, &Event, TRUE, TRUE, TRUE);
 
     //
     // call driver
