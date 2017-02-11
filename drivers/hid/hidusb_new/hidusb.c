@@ -1919,6 +1919,9 @@ HidAddDevice(
     /* set HidState as not initialized value */
     HidDeviceExtension->HidState = 0;
 
+    /* default pending requests */
+    HidDeviceExtension->RequestCount = 0;
+
     return STATUS_SUCCESS;
 }
 

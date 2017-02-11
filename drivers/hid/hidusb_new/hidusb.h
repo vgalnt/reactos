@@ -55,6 +55,8 @@ typedef struct
 
     /* current state for device */
     ULONG HidState;
+    /* current num pending requests */
+    LONG RequestCount;
 } HID_USB_DEVICE_EXTENSION, *PHID_USB_DEVICE_EXTENSION;
 
 typedef struct
