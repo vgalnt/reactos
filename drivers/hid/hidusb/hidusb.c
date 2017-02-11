@@ -241,6 +241,8 @@ HidUsb_AbortPipe(
     NTSTATUS Status;
     PUSBD_PIPE_INFORMATION PipeInformation;
 
+    DPRINT("HidUsb_AbortPipe: ... \n");
+
     //
     // get device extension
     //
@@ -1285,6 +1287,8 @@ Hid_SelectConfiguration(
     PURB Urb;
     PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
     PHID_DEVICE_EXTENSION DeviceExtension;
+
+    DPRINT("Hid_SelectConfiguration: DeviceObject - %p\n", DeviceObject);
 
     //
     // get device extension
