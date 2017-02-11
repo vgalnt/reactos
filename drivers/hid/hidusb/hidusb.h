@@ -14,6 +14,13 @@
 
 #include <hidport.h>
 
+#define HIDUSB_STATE_STARTING 1
+#define HIDUSB_STATE_RUNNING  2
+#define HIDUSB_STATE_STOPPING 3
+#define HIDUSB_STATE_STOPPED  4
+#define HIDUSB_STATE_REMOVED  5
+#define HIDUSB_STATE_FAILED   6
+
 typedef struct
 {
     //
@@ -46,6 +53,8 @@ typedef struct
     //
     PHID_DESCRIPTOR HidDescriptor;
 
+    /* current state for device */
+    ULONG HidState;
 } HID_USB_DEVICE_EXTENSION, *PHID_USB_DEVICE_EXTENSION;
 
 typedef struct

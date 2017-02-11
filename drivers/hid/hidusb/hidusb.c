@@ -1916,9 +1916,9 @@ HidAddDevice(
     //
     KeInitializeEvent(&HidDeviceExtension->Event, NotificationEvent, FALSE);
 
-    //
-    // done
-    //
+    /* set HidState as not initialized value */
+    HidDeviceExtension->HidState = 0;
+
     return STATUS_SUCCESS;
 }
 
