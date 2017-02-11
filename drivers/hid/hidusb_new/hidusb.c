@@ -1930,12 +1930,14 @@ HidPnp(
     NTSTATUS Status;
     PIO_STACK_LOCATION IoStack;
     PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
     KEVENT Event;
 
     //
     // get device extension
     //
     DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
 
     //
     // get current stack location
@@ -1943,184 +1945,110 @@ HidPnp(
     IoStack = IoGetCurrentIrpStackLocation(Irp);
     DPRINT("[HIDUSB] Pnp %x\n", IoStack->MinorFunction);
 
-    //
-    // handle requests based on request type
-    //
+    /* handle request before sending to lower device */
     switch (IoStack->MinorFunction)
     {
-        case IRP_MN_REMOVE_DEVICE:
-        {
-            //
-            // unconfigure device
-            // FIXME: Call this on IRP_MN_SURPRISE_REMOVAL, but don't send URBs
-            // FIXME: Don't call this after we've already seen a surprise removal or stop
-            //
-            Hid_CloseConfiguration(DeviceObject);
-
-            //
-            // pass request onto lower driver
-            //
-            IoSkipCurrentIrpStackLocation(Irp);
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-
-            return Status;
-        }
-        case IRP_MN_QUERY_PNP_DEVICE_STATE:
-        {
-            //
-            // device can not be disabled
-            //
-            Irp->IoStatus.Information |= PNP_DEVICE_NOT_DISABLEABLE;
-
-            //
-            // pass request to next request
-            //
-            IoSkipCurrentIrpStackLocation(Irp);
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-
-            //
-            // done
-            //
-            return Status;
-        }
-        case IRP_MN_QUERY_STOP_DEVICE:
-        case IRP_MN_QUERY_REMOVE_DEVICE:
-        {
-            //
-            // we're fine with it
-            //
-            Irp->IoStatus.Status = STATUS_SUCCESS;
-
-            //
-            // pass request to next driver
-            //
-            IoSkipCurrentIrpStackLocation(Irp);
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-
-            //
-            // done
-            //
-            return Status;
-        }
-        case IRP_MN_STOP_DEVICE:
-        {
-            //
-            // unconfigure device
-            //
-            Hid_CloseConfiguration(DeviceObject);
-
-            //
-            // prepare irp
-            //
-            KeInitializeEvent(&Event, NotificationEvent, FALSE);
-            IoCopyCurrentIrpStackLocationToNext(Irp);
-            IoSetCompletionRoutine(Irp, Hid_PnpCompletion, &Event, TRUE, TRUE, TRUE);
-
-            //
-            // send irp and wait for completion
-            //
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-            if (Status == STATUS_PENDING)
-            {
-                KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
-                Status = Irp->IoStatus.Status;
-            }
-
-            //
-            // done
-            //
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return Status;
-        }
-        case IRP_MN_QUERY_CAPABILITIES:
-        {
-            //
-            // prepare irp
-            //
-            KeInitializeEvent(&Event, NotificationEvent, FALSE);
-            IoCopyCurrentIrpStackLocationToNext(Irp);
-            IoSetCompletionRoutine(Irp, Hid_PnpCompletion, &Event, TRUE, TRUE, TRUE);
-
-            //
-            // send irp and wait for completion
-            //
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-            if (Status == STATUS_PENDING)
-            {
-                KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
-                Status = Irp->IoStatus.Status;
-            }
-
-            if (NT_SUCCESS(Status) && IoStack->Parameters.DeviceCapabilities.Capabilities != NULL)
-            {
-                //
-                // don't need to safely remove
-                //
-                IoStack->Parameters.DeviceCapabilities.Capabilities->SurpriseRemovalOK = TRUE;
-            }
-
-            //
-            // done
-            //
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return Status;
-        }
         case IRP_MN_START_DEVICE:
-        {
-            //
-            // prepare irp
-            //
-            KeInitializeEvent(&Event, NotificationEvent, FALSE);
-            IoCopyCurrentIrpStackLocationToNext(Irp);
-            IoSetCompletionRoutine(Irp, Hid_PnpCompletion, &Event, TRUE, TRUE, TRUE);
+            Status = Hid_Init(DeviceObject);
 
-            //
-            // send irp and wait for completion
-            //
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-            if (Status == STATUS_PENDING)
-            {
-                KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
-                Status = Irp->IoStatus.Status;
-            }
-
-            //
-            // did the device successfully start
-            //
             if (!NT_SUCCESS(Status))
             {
-                //
-                // failed
-                //
-                DPRINT1("HIDUSB: IRP_MN_START_DEVICE failed with %x\n", Status);
+                Irp->IoStatus.Status = Status;
                 IoCompleteRequest(Irp, IO_NO_INCREMENT);
                 return Status;
             }
+            break;
 
-            //
-            // start device
-            //
-            Status = Hid_PnpStart(DeviceObject);
+        case IRP_MN_STOP_DEVICE:
+            if (HidDeviceExtension->HidState == HIDUSB_STATE_STARTING)
+            {
+                Status = Hid_StopDevice(DeviceObject);
 
-            //
-            // complete request
-            //
-            Irp->IoStatus.Status = Status;
-            DPRINT("[HIDUSB] IRP_MN_START_DEVICE Status %x\n", Status);
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return Status;
-        }
+                if (!NT_SUCCESS(Status))
+                {
+                    Irp->IoStatus.Status = Status;
+                    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+                    return Status;
+                }
+            }
+            break;
+
+        case IRP_MN_REMOVE_DEVICE:
+            return Hid_RemoveDevice(DeviceObject, Irp);
+
+        case IRP_MN_QUERY_PNP_DEVICE_STATE:
+            if (HidDeviceExtension->HidState == HIDUSB_STATE_FAILED)
+            {
+                Irp->IoStatus.Information |= PNP_DEVICE_FAILED;
+            }
+            break;
+
         default:
+            break;
+    }
+
+    /* prepare request */
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    IoSetCompletionRoutine(Irp,
+                           Hid_PnpCompletion,
+                           &Event,
+                           TRUE,
+                           TRUE,
+                           TRUE);
+
+    /* send request to driver for lower device and wait for completion */
+    Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
+
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event,
+                              Executive,
+                              KernelMode,
+                              0,
+                              NULL);
+    }
+
+    Status = Irp->IoStatus.Status;
+
+    /* complete handle request */
+    if (IoStack->MinorFunction != IRP_MN_START_DEVICE)
+    {
+        if (IoStack->MinorFunction == IRP_MN_STOP_DEVICE)
         {
-             //
-             // forward and forget request
-             //
-             IoSkipCurrentIrpStackLocation(Irp);
-             return IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
+            HidDeviceExtension->HidState = HIDUSB_STATE_STOPPED;
+
+            /* free resources */
+            Hid_Cleanup(DeviceObject);
+        }
+        else if (IoStack->MinorFunction == IRP_MN_QUERY_CAPABILITIES &&
+                 NT_SUCCESS(Status))
+        {
+            IoStack->Parameters.DeviceCapabilities.Capabilities->SurpriseRemovalOK = TRUE;
         }
     }
-}
+    else if (!NT_SUCCESS(Status))
+    {
+        HidDeviceExtension->HidState = HIDUSB_STATE_FAILED;
+    }
+    else
+    {
+        /* IRP_MN_START_DEVICE */
+        HidDeviceExtension->HidState = HIDUSB_STATE_STARTING;
 
+        Status = Hid_StartDevice(DeviceObject);
+
+        if (!NT_SUCCESS(Status))
+        {
+            HidDeviceExtension->HidState = HIDUSB_STATE_FAILED;
+        }
+    }
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return Status;
+}
 NTSTATUS
 NTAPI
 HidAddDevice(
