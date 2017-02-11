@@ -1664,7 +1664,7 @@ Hid_Init(PDEVICE_OBJECT DeviceObject)
 }
 
 NTSTATUS
-Hid_PnpStart(
+Hid_StartDevice(
     IN PDEVICE_OBJECT DeviceObject)
 {
     PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
@@ -1715,19 +1715,21 @@ Hid_PnpStart(
                                0);
     if (!NT_SUCCESS(Status))
     {
-        //
-        // failed to obtain device descriptor
-        //
-        DPRINT1("[HIDUSB] failed to get device descriptor %x\n", Status);
+        /* failed to obtain configuration descriptor */
+        DPRINT1("[HIDUSB] failed to get configuration descriptor %x\n", Status);
         return Status;
     }
 
-    //
-    // sanity check
-    //
+    /* sanity check */
     ASSERT(DescriptorLength);
+    ASSERT(DescriptorLength >= sizeof(USB_CONFIGURATION_DESCRIPTOR));
     ASSERT(HidDeviceExtension->ConfigurationDescriptor);
-    ASSERT(HidDeviceExtension->ConfigurationDescriptor->bLength);
+
+    if (HidDeviceExtension->ConfigurationDescriptor->bLength == 0)
+    {
+        DPRINT1("[HIDUSB] ConfigurationDescriptor->bLength == 0\n");
+        return STATUS_DEVICE_DATA_ERROR;
+    }
 
     //
     // store full length
@@ -1753,11 +1755,20 @@ Hid_PnpStart(
                                0);
     if (!NT_SUCCESS(Status))
     {
-        //
-        // failed to obtain device descriptor
-        //
-        DPRINT1("[HIDUSB] failed to get device descriptor %x\n", Status);
+        /* failed to obtain full configuration descriptor */
+        DPRINT1("[HIDUSB] failed to get full configuration descriptor %x\n", Status);
         return Status;
+    }
+
+    DescriptorLength = HidDeviceExtension->ConfigurationDescriptor->bLength;
+
+    /* sanity check */
+    ASSERT(DescriptorLength >= sizeof(USB_CONFIGURATION_DESCRIPTOR));
+
+    if (DescriptorLength < sizeof(USB_CONFIGURATION_DESCRIPTOR))
+    {
+        DPRINT1("[HIDUSB] bad ConfigurationDescriptor->bLength\n");
+        DescriptorLength = sizeof(USB_CONFIGURATION_DESCRIPTOR);
     }
 
     //
@@ -1779,18 +1790,31 @@ Hid_PnpStart(
         return STATUS_UNSUCCESSFUL;
     }
 
-    //
-    // sanity check
-    //
-    ASSERT(InterfaceDescriptor->bInterfaceClass == USB_DEVICE_CLASS_HUMAN_INTERFACE);
+    if (InterfaceDescriptor->bInterfaceClass != USB_DEVICE_CLASS_HUMAN_INTERFACE)
+    {
+        DPRINT1("[HIDUSB] bad InterfaceDescriptor->bInterfaceClass \n");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (InterfaceDescriptor->bLength < sizeof(USB_INTERFACE_DESCRIPTOR))
+    {
+        DPRINT1("[HIDUSB] InterfaceDescriptor->bLength is invalid");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    /* sanity check */
     ASSERT(InterfaceDescriptor->bDescriptorType == USB_INTERFACE_DESCRIPTOR_TYPE);
-    ASSERT(InterfaceDescriptor->bLength == sizeof(USB_INTERFACE_DESCRIPTOR));
 
     //
     // move to next descriptor
     //
     HidDescriptor = (PHID_DESCRIPTOR)((ULONG_PTR)InterfaceDescriptor + InterfaceDescriptor->bLength);
-    ASSERT(HidDescriptor->bLength >= 2);
+
+    if (HidDescriptor->bLength < 2)
+    {
+        DPRINT1("[HIDUSB] HidDescriptor->bLength is invalid");
+        return STATUS_UNSUCCESSFUL;
+    }
 
     //
     // check if this is the hid descriptor
@@ -1839,7 +1863,6 @@ Hid_PnpStart(
     }
     return Status;
 }
-
 
 NTSTATUS
 NTAPI
