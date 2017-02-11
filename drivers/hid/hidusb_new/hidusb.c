@@ -1635,6 +1635,35 @@ Hid_GetProtocol(
 }
 
 NTSTATUS
+NTAPI
+Hid_Init(PDEVICE_OBJECT DeviceObject)
+{
+    ULONG OldState;
+    PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
+
+    OldState = HidDeviceExtension->HidState;
+    HidDeviceExtension->HidState = HIDUSB_STATE_STARTING;
+
+    KeResetEvent(&HidDeviceExtension->Event);
+
+    if (OldState == HIDUSB_STATE_STOPPING ||
+        OldState == HIDUSB_STATE_STOPPED ||
+        OldState == HIDUSB_STATE_REMOVED)
+    {
+        /* start after stop */
+        Hid_IncrementPendingRequests(HidDeviceExtension);
+    }
+
+    HidDeviceExtension->InterfaceInfo = NULL;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
 Hid_PnpStart(
     IN PDEVICE_OBJECT DeviceObject)
 {
