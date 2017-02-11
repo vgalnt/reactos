@@ -1865,6 +1865,63 @@ Hid_StartDevice(
 }
 
 NTSTATUS
+NTAPI 
+Hid_RemoveDevice(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp)
+{
+    ULONG OldDeviceState;
+    NTSTATUS Status;
+    PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
+
+    /* get device extension */
+    DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
+
+    /* save current state and set HIDUSB_STATE_REMOVED */
+    OldDeviceState = HidDeviceExtension->HidState;
+    HidDeviceExtension->HidState = HIDUSB_STATE_REMOVED;
+
+    DPRINT("[HIDUSB] Hid_RemoveDevice: OldDeviceState - %x\n", OldDeviceState);
+
+    if (OldDeviceState != HIDUSB_STATE_STOPPING &&
+        OldDeviceState != HIDUSB_STATE_STOPPED)
+    {
+        Hid_DecrementPendingRequests(HidDeviceExtension);
+    }
+
+    /* abort pending requests if state was "running" */
+    if (OldDeviceState == HIDUSB_STATE_RUNNING)
+    {
+        HidUsb_AbortPipe(DeviceObject);
+    }
+
+    KeWaitForSingleObject(&HidDeviceExtension->Event,
+                          Executive,
+                          KernelMode,
+                          0,
+                          NULL);
+
+    DPRINT("[HIDUSB] Hid_RemoveDevice: State - %x\n", HidDeviceExtension->HidState);
+
+    /* select configuration with NULL pointer for ConfigurationDescriptor */
+    //Hid_CloseConfiguration(DeviceObject);
+
+    /* prepare request */
+    IoSkipCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+
+    /* send request to driver for lower device */
+    Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
+
+    /* free resources */
+    Hid_Cleanup(DeviceObject);
+
+    return Status;
+}
+
+NTSTATUS
 NTAPI
 HidPnp(
     IN PDEVICE_OBJECT DeviceObject,
