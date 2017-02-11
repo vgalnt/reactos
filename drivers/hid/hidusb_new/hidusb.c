@@ -1017,14 +1017,15 @@ Hid_PnpCompletion(
     IN PIRP Irp,
     IN PVOID Context)
 {
-    //
-    // signal event
-    //
-    KeSetEvent(Context, 0, FALSE);
+    if (Irp->PendingReturned)
+    {
+        /* mark request as pending */
+        IoMarkIrpPending(Irp);
+    }
 
-    //
-    // done
-    //
+    /* set event to signaled state  */
+    KeSetEvent((PRKEVENT)Context, EVENT_INCREMENT, FALSE);
+
     return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
