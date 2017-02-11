@@ -1407,6 +1407,40 @@ Hid_CloseConfiguration(
 }
 
 NTSTATUS
+NTAPI
+Hid_Cleanup(PDEVICE_OBJECT DeviceObject)
+{
+    PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
+
+    HidDeviceExtension->ConfigurationHandle = NULL;
+
+    if (HidDeviceExtension->InterfaceInfo)
+    {
+        ExFreePoolWithTag(HidDeviceExtension->InterfaceInfo, HIDUSB_TAG);
+        HidDeviceExtension->InterfaceInfo = NULL;
+    }
+
+    if (HidDeviceExtension->ConfigurationDescriptor)
+    {
+        ExFreePoolWithTag(HidDeviceExtension->ConfigurationDescriptor, HIDUSB_TAG);
+        HidDeviceExtension->ConfigurationDescriptor = NULL;
+        HidDeviceExtension->HidDescriptor = NULL;
+    }
+
+    if (HidDeviceExtension->DeviceDescriptor)
+    {
+        ExFreePoolWithTag(HidDeviceExtension->DeviceDescriptor, HIDUSB_TAG);
+        HidDeviceExtension->DeviceDescriptor = NULL;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
 Hid_SetIdle(
     IN PDEVICE_OBJECT DeviceObject)
 {
