@@ -1349,7 +1349,7 @@ Hid_SelectConfiguration(
 }
 
 NTSTATUS
-Hid_DisableConfiguration(
+Hid_CloseConfiguration(
     IN PDEVICE_OBJECT DeviceObject)
 {
     PHID_DEVICE_EXTENSION DeviceExtension;
@@ -1369,12 +1369,12 @@ Hid_DisableConfiguration(
     Urb = ExAllocatePoolWithTag(NonPagedPool,
                                 sizeof(struct _URB_SELECT_CONFIGURATION),
                                 HIDUSB_URB_TAG);
+
     if (!Urb)
     {
-        //
-        // no memory
-        //
-        return STATUS_INSUFFICIENT_RESOURCES;
+        /* no memory */
+        HidDeviceExtension->HidState = HIDUSB_STATE_STOPPED;
+        return STATUS_UNSUCCESSFUL;
     }
 
     //
@@ -1391,6 +1391,7 @@ Hid_DisableConfiguration(
     if (!NT_SUCCESS(Status))
     {
         DPRINT1("[HIDUSB] Dispatching unconfigure URB failed with %lx\n", Status);
+        HidDeviceExtension->HidState = HIDUSB_STATE_STOPPED;
     }
     else if (!USBD_SUCCESS(Urb->UrbHeader.Status))
     {
@@ -1402,33 +1403,6 @@ Hid_DisableConfiguration(
     //
     ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
 
-    //
-    // free resources
-    //
-    HidDeviceExtension->ConfigurationHandle = NULL;
-
-    if (HidDeviceExtension->InterfaceInfo)
-    {
-        ExFreePoolWithTag(HidDeviceExtension->InterfaceInfo, HIDUSB_TAG);
-        HidDeviceExtension->InterfaceInfo = NULL;
-    }
-
-    if (HidDeviceExtension->ConfigurationDescriptor)
-    {
-        ExFreePoolWithTag(HidDeviceExtension->ConfigurationDescriptor, HIDUSB_TAG);
-        HidDeviceExtension->ConfigurationDescriptor = NULL;
-        HidDeviceExtension->HidDescriptor = NULL;
-    }
-
-    if (HidDeviceExtension->DeviceDescriptor)
-    {
-        ExFreePoolWithTag(HidDeviceExtension->DeviceDescriptor, HIDUSB_TAG);
-        HidDeviceExtension->DeviceDescriptor = NULL;
-    }
-
-    //
-    // done
-    //
     return Status;
 }
 
@@ -1786,7 +1760,7 @@ HidPnp(
             // FIXME: Call this on IRP_MN_SURPRISE_REMOVAL, but don't send URBs
             // FIXME: Don't call this after we've already seen a surprise removal or stop
             //
-            Hid_DisableConfiguration(DeviceObject);
+            Hid_CloseConfiguration(DeviceObject);
 
             //
             // pass request onto lower driver
@@ -1838,7 +1812,7 @@ HidPnp(
             //
             // unconfigure device
             //
-            Hid_DisableConfiguration(DeviceObject);
+            Hid_CloseConfiguration(DeviceObject);
 
             //
             // prepare irp
