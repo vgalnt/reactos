@@ -39,6 +39,33 @@ Hid_DecrementPendingRequests(
     return Result;
 }
 
+NTSTATUS
+NTAPI
+Hid_IncrementPendingRequests(
+    IN PHID_USB_DEVICE_EXTENSION HidDeviceExtension)
+{
+    NTSTATUS Status;
+
+    Status = STATUS_SUCCESS;
+
+    InterlockedIncrement(&HidDeviceExtension->RequestCount);
+
+    //DPRINT("Hid_IncrementPendingRequests: RequestCount - %x\n",
+    //       HidDeviceExtension->RequestCount);
+
+    if (HidDeviceExtension->HidState != HIDUSB_STATE_STARTING &&
+        HidDeviceExtension->HidState != HIDUSB_STATE_RUNNING)
+    {
+        DPRINT("Hid_IncrementPendingRequests: Not active! RequestCount - %x\n",
+               HidDeviceExtension->RequestCount);
+
+        Hid_DecrementPendingRequests(HidDeviceExtension);
+        Status = STATUS_NO_SUCH_DEVICE;
+    }
+
+    return Status;
+}
+
 PUSBD_PIPE_INFORMATION
 HidUsb_GetInputInterruptInterfaceHandle(
     PUSBD_INTERFACE_INFORMATION InterfaceInformation)
