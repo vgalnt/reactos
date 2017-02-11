@@ -1441,6 +1441,35 @@ Hid_Cleanup(PDEVICE_OBJECT DeviceObject)
 }
 
 NTSTATUS
+Hid_StopDevice(
+    IN PDEVICE_OBJECT DeviceObject)
+{
+    PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
+    NTSTATUS Status;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
+
+    HidDeviceExtension->HidState = HIDUSB_STATE_STOPPING;
+
+    /* abort pending requests */
+    HidUsb_AbortPipe(DeviceObject);
+    Hid_DecrementPendingRequests(HidDeviceExtension);
+
+    KeWaitForSingleObject(&HidDeviceExtension->Event,
+                          Executive,
+                          KernelMode,
+                          0,
+                          NULL);
+
+    /* select configuration with NULL pointer for ConfigurationDescriptor */
+    Status = Hid_CloseConfiguration(DeviceObject);
+
+    return Status;
+}
+
+NTSTATUS
 Hid_SetIdle(
     IN PDEVICE_OBJECT DeviceObject)
 {
