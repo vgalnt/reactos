@@ -10,6 +10,35 @@
 
 #include "hidusb.h"
 
+LONG
+NTAPI
+Hid_DecrementPendingRequests(
+    IN PHID_USB_DEVICE_EXTENSION HidDeviceExtension)
+{
+    LONG Result;
+
+    ASSERT(HidDeviceExtension->RequestCount >= 0);
+
+    Result = InterlockedDecrement(&HidDeviceExtension->RequestCount);
+
+    //DPRINT("Hid_DecrementPendingRequests: RequestCount - %x\n",
+    //       HidDeviceExtension->RequestCount);
+
+    if (Result < 0)
+    {
+        ASSERT(HidDeviceExtension->HidState != HIDUSB_STATE_RUNNING);
+
+       /* set event to signaled state  */
+        Result = KeSetEvent(&HidDeviceExtension->Event,
+                            IO_NO_INCREMENT,
+                            FALSE);
+
+        DPRINT("Hid_DecrementPendingRequests: set event to signaled state\n");
+    }
+
+    return Result;
+}
+
 PUSBD_PIPE_INFORMATION
 HidUsb_GetInputInterruptInterfaceHandle(
     PUSBD_INTERFACE_INFORMATION InterfaceInformation)
