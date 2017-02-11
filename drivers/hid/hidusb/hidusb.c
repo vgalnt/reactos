@@ -477,9 +477,15 @@ HidUsb_ReadReportCompletion(
     IN PIRP Irp,
     IN PVOID Context)
 {
+    PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
     PURB Urb;
     PHID_USB_RESET_CONTEXT ResetContext;
     NTSTATUS Status = STATUS_SUCCESS;
+
+    /* get device extension */
+    DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
 
     //
     // get urb
@@ -489,51 +495,59 @@ HidUsb_ReadReportCompletion(
 
     DPRINT("[HIDUSB] HidUsb_ReadReportCompletion %p Status %x Urb Status %x\n",
            Irp,
-           Irp->IoStatus, Urb->UrbHeader.Status);
+           Irp->IoStatus.Status,
+           Urb->UrbHeader.Status);
 
-    //
-    // did the reading report succeed
-    //
+    /* did the reading report succeed */
     if (NT_SUCCESS(Irp->IoStatus.Status))
     {
-        //
-        // store result length
-        //
+        /* store result length */
         Irp->IoStatus.Information = Urb->UrbBulkOrInterruptTransfer.TransferBufferLength;
         goto Exit;
     }
 
-    //
-    // did the reading report cancelled
-    //
+    /* did the reading report cancelled */
     if (Irp->IoStatus.Status == STATUS_CANCELLED)
     {
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion Irp %p - STATUS_CANCELLED\n",
+                Irp);
+
         ASSERT(!Irp->CancelRoutine);
         goto Exit;
     }
 
-    //
-    // did the reading report no device
-    //
+    /* did the reading report no device */
     if (Irp->IoStatus.Status == STATUS_DEVICE_NOT_CONNECTED)
     {
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion Irp %p - STATUS_DEVICE_NOT_CONNECTED\n",
+                Irp);
+
+        goto Exit;
+    }
+
+    DPRINT1("[HIDUSB] Read IRP %p failed with Status %x. Need reset.\n",
+            Irp,
+            Irp->IoStatus.Status);
+
+    /* did the not active state */
+    if (!NT_SUCCESS(Hid_IncrementPendingRequests(HidDeviceExtension)))
+    {
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion Irp %p hid state is not active\n",
+                Irp);
+
         goto Exit;
     }
 
     //
     // allocate reset context
     //
-    ResetContext = ExAllocatePoolWithTag(NonPagedPool,
-                                         sizeof(HID_USB_RESET_CONTEXT),
-                                         HIDUSB_TAG);
-
+    ResetContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(HID_USB_RESET_CONTEXT), HIDUSB_TAG);
     if (ResetContext)
     {
         //
         // allocate work item
         //
         ResetContext->WorkItem = IoAllocateWorkItem(DeviceObject);
-
         if (ResetContext->WorkItem)
         {
             //
@@ -545,28 +559,19 @@ HidUsb_ReadReportCompletion(
             //
             // queue the work item
             //
-            IoQueueWorkItem(ResetContext->WorkItem,
-                            HidUsb_ResetWorkerRoutine,
-                            DelayedWorkQueue, ResetContext);
+            IoQueueWorkItem(ResetContext->WorkItem, HidUsb_ResetWorkerRoutine, DelayedWorkQueue, ResetContext);
 
-            //
-            // free urb
-            //
-            ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
-
-            //
-            // defer completion
-            //
-            return STATUS_MORE_PROCESSING_REQUIRED;
+            Status = STATUS_MORE_PROCESSING_REQUIRED;
+            goto Exit;
         }
 
-        //
-        // free context
-        //
+        /* free reset context */ 
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: IoAllocateWorkItem failed\n");
         ExFreePoolWithTag(ResetContext, HIDUSB_TAG);
-
-        //FIXME Status = ? 
     }
+
+    DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: ExAllocatePoolWithTag failed\n");
+    Hid_DecrementPendingRequests(HidDeviceExtension);
 
 Exit:
 
@@ -574,6 +579,8 @@ Exit:
     // free urb
     //
     ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
+
+    Hid_DecrementPendingRequests(HidDeviceExtension);
 
     if (Irp->PendingReturned)
     {
@@ -583,9 +590,6 @@ Exit:
         IoMarkIrpPending(Irp);
     }
 
-    //
-    // complete request
-    //
     return Status;
 }
 
