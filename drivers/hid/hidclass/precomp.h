@@ -189,6 +189,11 @@ NTAPI
 RefDriverExt(
     IN PDRIVER_OBJECT DriverObject);
 
+PHIDCLASS_DRIVER_EXTENSION
+NTAPI
+DerefDriverExt(
+    IN PDRIVER_OBJECT DriverObject);
+
 /* fdo.c */
 NTSTATUS
 HidClassFDO_PnP(

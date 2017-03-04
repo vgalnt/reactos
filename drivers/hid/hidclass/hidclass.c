@@ -95,6 +95,64 @@ Exit:
     return DriverExtension;
 }
 
+PHIDCLASS_DRIVER_EXTENSION
+NTAPI
+DerefDriverExt(
+    IN PDRIVER_OBJECT DriverObject)
+{
+    PHIDCLASS_DRIVER_EXTENSION Result = NULL;
+    PLIST_ENTRY Entry;
+    PHIDCLASS_DRIVER_EXTENSION DriverExtension;
+    BOOLEAN IsRemoveEntry;
+
+    DPRINT("DerefDriverExt: DriverObject - %p\n", DriverObject);
+
+    /* decrements the given driver object extension's reference count */
+
+    ExAcquireFastMutex(&DriverExtListMutex);
+
+    Entry = DriverExtList.Flink;
+
+    if (!IsListEmpty(&DriverExtList))
+    {
+        while (TRUE)
+        {
+            DriverExtension = CONTAINING_RECORD(Entry,
+                                                HIDCLASS_DRIVER_EXTENSION,
+                                                DriverExtLink.Flink);
+
+            if (DriverExtension->DriverObject == DriverObject)
+            {
+                break;
+            }
+
+            Entry = Entry->Flink;
+
+            if (Entry == &DriverExtList)
+            {
+                goto Exit;
+            }
+        }
+
+        --DriverExtension->RefCount;
+        IsRemoveEntry = DriverExtension->RefCount < 0;
+
+        /* if reference count < 0 then remove given driver object extension's link */
+        if (IsRemoveEntry)
+        {
+            RemoveEntryList(Entry);
+        }
+
+        Result = DriverExtension;
+    }
+
+Exit:
+
+    ExReleaseFastMutex(&DriverExtListMutex);
+    DPRINT("DerefDriverExt: Result - %p\n", Result);
+    return Result;
+}
+
 NTSTATUS
 NTAPI
 HidClassAddDevice(
