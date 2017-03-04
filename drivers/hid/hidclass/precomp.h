@@ -8,6 +8,15 @@
 #include <hidport.h>
 
 #define HIDCLASS_TAG 'CdiH'
+#define HIDCLASS_NULL_POINTER (PVOID)0xFFFFFFB0
+
+#define HIDCLASS_STATE_NOT_INIT  1
+#define HIDCLASS_STATE_STARTING  2
+#define HIDCLASS_STATE_STARTED   3
+#define HIDCLASS_STATE_FAILED    4
+#define HIDCLASS_STATE_STOPPING  5
+#define HIDCLASS_STATE_DISABLED  6
+#define HIDCLASS_STATE_REMOVED   7
 
 typedef struct
 {
@@ -80,6 +89,9 @@ typedef struct
     //
     PDEVICE_RELATIONS DeviceRelations;
 
+    /* FDO PnP state */
+    ULONG HidFdoState;
+
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 
 typedef struct
@@ -113,6 +125,9 @@ typedef struct
     // fdo device extension
     //
     PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+
+    /* PDO PnP state */
+    ULONG HidPdoState;
 
 } HIDCLASS_PDO_DEVICE_EXTENSION, *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
