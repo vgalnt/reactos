@@ -1209,6 +1209,45 @@ HidClassDispatch(
     }
 }
 
+BOOLEAN
+NTAPI
+InsertDriverExtList(
+    IN PHIDCLASS_DRIVER_EXTENSION DriverExtension)
+{
+    BOOLEAN Result = TRUE;
+    PLIST_ENTRY Entry;
+    PHIDCLASS_DRIVER_EXTENSION driverExtension = NULL;
+
+    DPRINT("InsertDriverExtList: DriverExtension - %p\n", DriverExtension);
+
+    ExAcquireFastMutex(&DriverExtListMutex);
+
+    /* Add link for DriverExtension to end list */
+    for (Entry = DriverExtList.Flink; ; Entry = Entry->Flink)
+    {
+        if (Entry == &DriverExtList)
+        {
+            InsertTailList(&DriverExtList, &DriverExtension->DriverExtLink);
+            goto Exit;
+        }
+
+        driverExtension = CONTAINING_RECORD(Entry,
+                                            HIDCLASS_DRIVER_EXTENSION,
+                                            DriverExtLink.Flink);
+
+        if (driverExtension == DriverExtension)
+        {
+            break;
+        }
+    }
+
+    Result = FALSE;
+
+Exit:
+    ExReleaseFastMutex(&DriverExtListMutex);
+    return Result;
+}
+
 NTSTATUS
 NTAPI
 HidRegisterMinidriver(
