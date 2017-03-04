@@ -14,10 +14,13 @@ typedef struct
     PDRIVER_OBJECT DriverObject;
     ULONG DeviceExtensionSize;
     BOOLEAN DevicesArePolled;
+    UCHAR Reserved[3];
     PDRIVER_DISPATCH MajorFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];
     PDRIVER_ADD_DEVICE AddDevice;
     PDRIVER_UNLOAD DriverUnload;
     KSPIN_LOCK Lock;
+    LONG RefCount;
+    LIST_ENTRY DriverExtLink;
 
 } HIDCLASS_DRIVER_EXTENSION, *PHIDCLASS_DRIVER_EXTENSION;
 
@@ -179,6 +182,12 @@ typedef struct
     */
     LIST_ENTRY ReadIrpLink;
 } HIDCLASS_IRP_CONTEXT, *PHIDCLASS_IRP_CONTEXT;
+
+/* hidclass.c */
+PHIDCLASS_DRIVER_EXTENSION
+NTAPI
+RefDriverExt(
+    IN PDRIVER_OBJECT DriverObject);
 
 /* fdo.c */
 NTSTATUS
