@@ -543,6 +543,8 @@ HidClassFDO_RemoveDevice(
     Irp->IoStatus.Status = Status;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
+    DerefDriverExt(FDODeviceExtension->Common.DriverExtension->DriverObject);
+
     //
     // detach and delete device
     //
