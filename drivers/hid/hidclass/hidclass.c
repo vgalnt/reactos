@@ -14,13 +14,28 @@
 #include <debug.h>
 
 static LPWSTR ClientIdentificationAddress = L"HIDCLASS";
-static ULONG HidClassDeviceNumber = 0;
+static ULONG HidClassDeviceNumber;
+LIST_ENTRY DriverExtList;
+FAST_MUTEX DriverExtListMutex;
+
+NTSTATUS
+NTAPI
+DriverEntry(
+    IN PDRIVER_OBJECT DriverObject,
+    IN PUNICODE_STRING RegistryPath)
+{
+    return STATUS_SUCCESS;
+}
 
 NTSTATUS
 NTAPI
 DllInitialize(
     IN PUNICODE_STRING RegistryPath)
 {
+    InitializeListHead(&DriverExtList);
+    ExInitializeFastMutex(&DriverExtListMutex);
+    HidClassDeviceNumber = 0;
+
     return STATUS_SUCCESS;
 }
 
@@ -29,6 +44,55 @@ NTAPI
 DllUnload(VOID)
 {
     return STATUS_SUCCESS;
+}
+
+PHIDCLASS_DRIVER_EXTENSION
+NTAPI
+RefDriverExt(
+    IN PDRIVER_OBJECT DriverObject)
+{
+    PHIDCLASS_DRIVER_EXTENSION DriverExtension = NULL;
+    PLIST_ENTRY Entry;
+    PDRIVER_OBJECT driverObject;
+    PHIDCLASS_DRIVER_EXTENSION driverExtension;
+
+    DPRINT("RefDriverExt: DriverObject - %p\n", DriverObject);
+
+    /* increments the given driver object extension's reference count */
+
+    ExAcquireFastMutex(&DriverExtListMutex);
+
+    Entry = DriverExtList.Flink;
+
+    if (!IsListEmpty(&DriverExtList))
+    {
+        driverExtension = CONTAINING_RECORD(Entry,
+                                            HIDCLASS_DRIVER_EXTENSION,
+                                            DriverExtLink.Flink);
+
+        driverObject = driverExtension->DriverObject;
+
+        while (driverObject != DriverObject)
+        {
+            Entry = Entry->Flink;
+
+            if (Entry == &DriverExtList)
+            {
+                goto Exit;
+            }
+        }
+
+        DriverExtension = CONTAINING_RECORD(Entry,
+                                            HIDCLASS_DRIVER_EXTENSION,
+                                            DriverExtLink.Flink);
+
+        ++DriverExtension->RefCount;
+    }
+
+Exit:
+    ExReleaseFastMutex(&DriverExtListMutex);
+    DPRINT("RefDriverExt: return DriverExtension - %p\n", DriverExtension);
+    return DriverExtension;
 }
 
 NTSTATUS
