@@ -646,6 +646,7 @@ HidClassFDO_PnP(
     // get current irp stack location
     //
     IoStack = IoGetCurrentIrpStackLocation(Irp);
+    DPRINT1("[HIDCLASS]: FDO IoStack->MinorFunction %x\n", IoStack->MinorFunction);
     switch (IoStack->MinorFunction)
     {
         case IRP_MN_START_DEVICE:
