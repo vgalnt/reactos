@@ -248,7 +248,12 @@ NTAPI
 HidClassDriverUnload(
     IN PDRIVER_OBJECT DriverObject)
 {
-    UNIMPLEMENTED;
+    PHIDCLASS_DRIVER_EXTENSION DriverExtension;
+
+    DPRINT("HidClassDriverUnload: ... \n");
+
+    DriverExtension = DerefDriverExt(DriverObject);
+    DriverExtension->DriverUnload(DriverObject);
 }
 
 NTSTATUS
