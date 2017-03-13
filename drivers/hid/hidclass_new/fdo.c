@@ -469,6 +469,102 @@ Exit:
 
 NTSTATUS
 NTAPI
+HidClassAllocCollectionResources(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN ULONG CollectionNumber)
+{
+    PHIDCLASS_COLLECTION HIDCollection;
+    ULONG DescriptorSize;
+    PHIDP_COLLECTION_DESC CollectionDescArray;
+    PVOID CollectionData;
+    PVOID InputReport;
+    PHIDP_DEVICE_DESC DeviceDescription;
+    ULONG InputLength;
+    NTSTATUS Status;
+
+    DPRINT("[HIDCLASS] HidClassAllocCollectionResources (%x)\n", CollectionNumber);
+
+    DeviceDescription = &FDODeviceExtension->Common.DeviceDescription;
+
+    HIDCollection = GetHidclassCollection(FDODeviceExtension, CollectionNumber);
+
+    if (!HIDCollection)
+    {
+        DPRINT1("[HIDCLASS] No HIDCollection\n");
+        return STATUS_DEVICE_DATA_ERROR;
+    }
+
+    DescriptorSize = HIDCollection->HidCollectInfo.DescriptorSize;
+
+    if (!DescriptorSize)
+    {
+        DPRINT1("[HIDCLASS] DescriptorSize is 0\n");
+        return STATUS_DEVICE_CONFIGURATION_ERROR;
+    }
+
+    CollectionData = ExAllocatePoolWithTag(NonPagedPool,
+                                           DescriptorSize,
+                                           HIDCLASS_TAG);
+
+    HIDCollection->CollectionData = CollectionData;
+
+    if (CollectionData)
+    {
+        Status = HidClassGetCollectionDescriptor(FDODeviceExtension,
+                                                 HIDCollection->CollectionNumber,
+                                                 CollectionData,
+                                                 &DescriptorSize);
+    }
+    else
+    {
+        DPRINT1("[HIDCLASS] Failed allocate CollectionData\n");
+        HIDCollection->CollectionData = HIDCLASS_NULL_POINTER;
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    CollectionDescArray = DeviceDescription->CollectionDesc;
+    InputLength = CollectionDescArray[HIDCollection->CollectionIdx].InputLength;
+
+    if (InputLength)
+    {
+        if (HIDCollection->HidCollectInfo.Polled)
+        {
+            HIDCollection->InputReport = HIDCLASS_NULL_POINTER;
+        }
+        else
+        {
+            InputReport = ExAllocatePoolWithTag(NonPagedPool,
+                                                InputLength,
+                                                HIDCLASS_TAG);
+
+
+            HIDCollection->InputReport = InputReport;
+
+            if (!InputReport)
+            {
+                DPRINT1("[HIDCLASS] Failed allocate InputReport\n");
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+            }
+        }
+
+        FDODeviceExtension->NotAllocCollectResources = FALSE;
+    }
+    else
+    {
+        DPRINT1("[HIDCLASS] InputLength is 0\n");
+        HIDCollection->InputReport = HIDCLASS_NULL_POINTER;
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 HidClassInitializeCollection(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
     IN ULONG CollectionIdx)
