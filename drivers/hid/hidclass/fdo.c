@@ -51,6 +51,44 @@ GetCollectionDesc(
     return HidCollectionDesc;
 }
 
+PHIDCLASS_COLLECTION
+NTAPI
+GetHidclassCollection(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN ULONG CollectionNumber)
+{
+    PHIDCLASS_COLLECTION HidCollections;
+    ULONG NumCollections;
+    ULONG Idx = 0;
+    PHIDCLASS_COLLECTION HidCollection = NULL;
+
+    DPRINT("GetHidclassCollection: CollectionNumber - %x\n", CollectionNumber);
+
+    HidCollections = FDODeviceExtension->HidCollections;
+
+    if (HidCollections && HidCollections != HIDCLASS_NULL_POINTER)
+    {
+        NumCollections = FDODeviceExtension->Common.DeviceDescription.CollectionDescLength;
+
+        if (NumCollections)
+        {
+            while (HidCollections[Idx].CollectionNumber != CollectionNumber)
+            {
+                ++Idx;
+
+                if (Idx >= NumCollections)
+                {
+                    return HidCollection;
+                }
+            }
+
+            HidCollection = &HidCollections[Idx];
+        }
+    }
+
+    return HidCollection;
+}
+
 NTSTATUS
 NTAPI
 HidClassFDO_QueryCapabilitiesCompletionRoutine(
