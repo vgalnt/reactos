@@ -1911,6 +1911,34 @@ ExitError:
 
 NTSTATUS
 NTAPI
+HidClassCleanUpFDO(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    NTSTATUS Status;
+
+    DPRINT("HidClassCleanUpFDO: OpenCount - %x\n", FDODeviceExtension->OpenCount);
+
+    if (FDODeviceExtension->OpenCount)
+    {
+        Status = STATUS_UNSUCCESSFUL;
+    }
+    else
+    {
+        HidClassFreeDeviceResources(FDODeviceExtension);
+
+        // FIXME:
+        //IoWMIRegistrationControl(FDODeviceExtension->FDODeviceObject,
+        //                         WMIREG_ACTION_DEREGISTER);
+
+        HidClassDeleteDeviceObjects(FDODeviceExtension);
+        Status = STATUS_SUCCESS;
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 HidClassFDO_RemoveDevice(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
