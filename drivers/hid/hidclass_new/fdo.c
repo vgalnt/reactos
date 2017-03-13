@@ -1911,6 +1911,57 @@ ExitError:
 
 VOID
 NTAPI
+HidClassFreeDeviceResources(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    PHIDCLASS_COLLECTION HidCollections;
+    PHIDP_REPORT_DESCRIPTOR ReportDesc;
+    ULONG ix;
+
+    DPRINT("HidClassFreeDeviceResources: CollectionDescLength - %x\n",
+           FDODeviceExtension->Common.DeviceDescription.CollectionDescLength);
+
+    ix = 0;
+
+    if (FDODeviceExtension->Common.DeviceDescription.CollectionDescLength)
+    {
+        do
+        {
+            HidClassFreeCollectionResources(FDODeviceExtension,
+                                            FDODeviceExtension->HidCollections[ix].CollectionNumber);
+            ++ix;
+        }
+        while (ix < FDODeviceExtension->Common.DeviceDescription.CollectionDescLength);
+    }
+
+    if (FDODeviceExtension->IsDeviceResourcesAlloceted)
+    {
+        HidP_FreeCollectionDescription(&FDODeviceExtension->Common.DeviceDescription);
+    }
+
+    ReportDesc = FDODeviceExtension->ReportDescriptor;
+    FDODeviceExtension->Common.DeviceDescription.CollectionDescLength = 0;
+
+    if (ReportDesc &&
+        ReportDesc != HIDCLASS_NULL_POINTER)
+    {
+        ExFreePoolWithTag(ReportDesc, 0);
+    }
+
+    HidCollections = FDODeviceExtension->HidCollections;
+    FDODeviceExtension->ReportDescriptor = HIDCLASS_NULL_POINTER;
+
+    if (HidCollections &&
+        HidCollections != HIDCLASS_NULL_POINTER)
+    {
+        ExFreePoolWithTag(HidCollections, 0);
+    }
+
+    FDODeviceExtension->HidCollections = HIDCLASS_NULL_POINTER;
+}
+
+VOID
+NTAPI
 HidClassDeleteDeviceObjects(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
 {
