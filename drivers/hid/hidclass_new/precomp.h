@@ -237,6 +237,8 @@ typedef struct _HIDCLASS_FILEOP_CONTEXT {
     /* Report list */
     LIST_ENTRY ReportList;
     LIST_ENTRY InterruptReportLink;
+    ULONG MaxReportQueueSize;
+    LONG PendingReports;
 
 } HIDCLASS_FILEOP_CONTEXT, *PHIDCLASS_FILEOP_CONTEXT;
 

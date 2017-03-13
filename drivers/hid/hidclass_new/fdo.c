@@ -13,6 +13,36 @@
 #define NDEBUG
 #include <debug.h>
 
+VOID
+NTAPI
+HidClassEnqueueInterruptReport(
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext,
+    IN PHIDCLASS_INT_REPORT_HEADER Header)
+{
+    PLIST_ENTRY Entry;
+
+    DPRINT("HidClassEnqueueInterruptReport: ... \n");
+
+    Entry = NULL;
+
+    if (FileContext->PendingReports >= FileContext->MaxReportQueueSize)
+    {
+        DPRINT1("[HIDCLASS] Report queue (size %x) is full \n",
+                FileContext->MaxReportQueueSize);
+
+        Entry = RemoveHeadList(&FileContext->ReportList);
+        FileContext->PendingReports--;
+    }
+
+    InsertTailList(&FileContext->ReportList, &Header->ReportLink);
+    FileContext->PendingReports++;
+
+    if (Entry)
+    {
+        ExFreePoolWithTag(Entry, 0);
+    }
+}
+
 PHIDP_COLLECTION_DESC
 NTAPI
 GetCollectionDesc(
