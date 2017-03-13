@@ -163,6 +163,11 @@ typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION {
     //
     HIDCLASS_COMMON_DEVICE_EXTENSION Common;
 
+    /* PDO device object */
+    PDEVICE_OBJECT SelfDevice;
+    /* PDO index */
+    ULONG PdoIdx;
+
     //
     // device capabilities
     //

@@ -80,6 +80,38 @@ HidClassDequeueInterruptReport(
     return Header;
 }
 
+NTSTATUS
+NTAPI
+HidClassEnqueueInterruptReadIrp(
+    IN PHIDCLASS_COLLECTION HidCollection,
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext,
+    IN PIRP Irp)
+{
+    DPRINT("HidClassEnqueueInterruptReadIrp: Irp - %p\n", Irp);
+
+    IoSetCancelRoutine(Irp, HidClassCancelReadIrp);
+
+    if (Irp->Cancel)
+    {
+        if (IoSetCancelRoutine(Irp, NULL))
+        {
+            return STATUS_CANCELLED;
+        }
+
+        InitializeListHead(&Irp->Tail.Overlay.ListEntry);
+    }
+    else
+    {
+        InsertTailList(&FileContext->InterruptReadIrpList,
+                       &Irp->Tail.Overlay.ListEntry);
+    }
+
+    ++HidCollection->NumPendingReads;
+    IoMarkIrpPending(Irp);
+
+    return STATUS_PENDING;
+}
+
 PHIDP_COLLECTION_DESC
 NTAPI
 GetCollectionDesc(
