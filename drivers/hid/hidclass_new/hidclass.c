@@ -1181,6 +1181,21 @@ HidClass_PnP(
 
 NTSTATUS
 NTAPI
+HidClass_SystemControl(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp)
+{
+    DPRINT("HidClass_SystemControl: FIXME. DeviceObject - %p, Irp - %p\n",
+           DeviceObject,
+           Irp);
+
+    UNIMPLEMENTED;
+    //WmiSystemControl()
+    return 0;
+}
+
+NTSTATUS
+NTAPI
 HidClass_DispatchDefault(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
@@ -1220,7 +1235,10 @@ HidClassDispatch(
     // get current stack location
     //
     IoStack = IoGetCurrentIrpStackLocation(Irp);
-    DPRINT("[HIDCLASS] Dispatch Major %x Minor %x\n", IoStack->MajorFunction, IoStack->MinorFunction);
+
+    DPRINT("[HIDCLASS] Dispatch Major %x Minor %x\n",
+           IoStack->MajorFunction,
+           IoStack->MinorFunction);
 
     //
     // dispatch request based on major function
@@ -1229,20 +1247,31 @@ HidClassDispatch(
     {
         case IRP_MJ_CREATE:
             return HidClass_Create(DeviceObject, Irp);
+
         case IRP_MJ_CLOSE:
             return HidClass_Close(DeviceObject, Irp);
+
         case IRP_MJ_READ:
             return HidClass_Read(DeviceObject, Irp);
+
         case IRP_MJ_WRITE:
             return HidClass_Write(DeviceObject, Irp);
+
         case IRP_MJ_DEVICE_CONTROL:
             return HidClass_DeviceControl(DeviceObject, Irp);
+
         case IRP_MJ_INTERNAL_DEVICE_CONTROL:
            return HidClass_InternalDeviceControl(DeviceObject, Irp);
+
         case IRP_MJ_POWER:
             return HidClass_Power(DeviceObject, Irp);
+
         case IRP_MJ_PNP:
             return HidClass_PnP(DeviceObject, Irp);
+
+        case IRP_MJ_SYSTEM_CONTROL:
+            return HidClass_SystemControl(DeviceObject, Irp);
+
         default:
             return HidClass_DispatchDefault(DeviceObject, Irp);
     }
