@@ -1911,6 +1911,53 @@ ExitError:
 
 VOID
 NTAPI
+HidClassFreeCollectionResources(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN UCHAR CollectionNumber)
+{
+    PHIDCLASS_COLLECTION HidCollection;
+
+    DPRINT("HidClassFreeCollectionResources: ... \n");
+
+    HidCollection = GetHidclassCollection(FDODeviceExtension, CollectionNumber);
+
+    if (!HidCollection)
+    {
+        return;
+    }
+
+    if (HidCollection->HidCollectInfo.Polled)
+    {
+        if (HidCollection->PollReport &&
+            HidCollection->PollReport != HIDCLASS_NULL_POINTER)
+        {
+            ExFreePoolWithTag(HidCollection->PollReport, 0);
+        }
+
+        HidCollection->PollReport = HIDCLASS_NULL_POINTER;
+    }
+    else
+    {
+        if (HidCollection->InputReport &&
+            HidCollection->InputReport != HIDCLASS_NULL_POINTER)
+        {
+            ExFreePoolWithTag(HidCollection->InputReport, 0);
+        }
+    }
+
+    HidCollection->InputReport = HIDCLASS_NULL_POINTER;
+
+    if (HidCollection->CollectionData &&
+        HidCollection->CollectionData != HIDCLASS_NULL_POINTER)
+    {
+        ExFreePoolWithTag(HidCollection->CollectionData, 0);
+    }
+
+    HidCollection->CollectionData = HIDCLASS_NULL_POINTER;
+}
+
+VOID
+NTAPI
 HidClassFreeDeviceResources(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
 {
