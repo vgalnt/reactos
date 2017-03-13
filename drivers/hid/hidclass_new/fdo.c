@@ -431,6 +431,55 @@ Exit:
 
 NTSTATUS
 NTAPI
+HidClassInitializeCollection(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN ULONG CollectionIdx)
+{
+    PHIDCLASS_COLLECTION HIDCollection;
+    PHIDP_COLLECTION_DESC HidCollectionDesc;
+    HID_COLLECTION_INFORMATION CollectionInfo;
+    PHIDP_DEVICE_DESC DeviceDescription;
+    ULONG CollectionNumber;
+
+    DPRINT("[HIDCLASS] HidClassAllocCollectionResources (%x)\n", CollectionIdx);
+
+    DeviceDescription = &FDODeviceExtension->Common.DeviceDescription;
+    HIDCollection = &FDODeviceExtension->HidCollections[CollectionIdx];
+
+    RtlZeroMemory(HIDCollection, sizeof(HIDCLASS_COLLECTION));
+
+    CollectionNumber = DeviceDescription->CollectionDesc[CollectionIdx].CollectionNumber;
+    HIDCollection->CollectionNumber = CollectionNumber;
+    HIDCollection->CollectionIdx = CollectionIdx;
+    HIDCollection->CloseFlag = 0;
+
+    InitializeListHead(&HIDCollection->InterruptReportList);
+    KeInitializeSpinLock(&HIDCollection->CollectSpinLock);
+    KeInitializeSpinLock(&HIDCollection->CollectCloseSpinLock);
+
+    HidCollectionDesc = GetCollectionDesc(FDODeviceExtension, CollectionNumber);
+
+    if (!HidCollectionDesc)
+    {
+        DPRINT1("[HIDCLASS] No HidCollectionDesc (%x)\n", CollectionNumber);
+        return STATUS_DATA_ERROR;
+    }
+
+    CollectionInfo.DescriptorSize = HidCollectionDesc->PreparsedDataLength;
+    CollectionInfo.Polled = FDODeviceExtension->Common.DriverExtension->DevicesArePolled;
+    CollectionInfo.VendorID = FDODeviceExtension->Common.Attributes.VendorID;
+    CollectionInfo.ProductID = FDODeviceExtension->Common.Attributes.ProductID;
+    CollectionInfo.VersionNumber = FDODeviceExtension->Common.Attributes.VersionNumber;
+
+    RtlCopyMemory(&HIDCollection->HidCollectInfo,
+                  &CollectionInfo,
+                  sizeof(HID_COLLECTION_INFORMATION));
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 HidClassFDO_StartDevice(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
