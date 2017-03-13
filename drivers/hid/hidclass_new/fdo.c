@@ -1909,6 +1909,65 @@ ExitError:
     return Status;
 }
 
+VOID
+NTAPI
+HidClassDeleteDeviceObjects(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    PDEVICE_RELATIONS DeviceRelations;
+    PDEVICE_OBJECT FDODeviceObject;
+    ULONG  ix;
+
+    DPRINT("HidClassDeleteDeviceObjects: ... \n");
+
+    FDODeviceObject = FDODeviceExtension->FDODeviceObject;
+
+    DeviceRelations = FDODeviceExtension->DeviceRelations;
+    FDODeviceExtension->FDODeviceObject = HIDCLASS_NULL_POINTER;
+
+    if (DeviceRelations &&
+        DeviceRelations != HIDCLASS_NULL_POINTER)
+    {
+        ix = 0;
+
+        DPRINT("HidClassDeleteDeviceObjects: DeviceRelations->Count - %x\n",
+               DeviceRelations->Count);
+
+        if (DeviceRelations->Count)
+        {
+            do
+            {
+                DPRINT("HidClassDeleteDeviceObjects: IoDeleteDevice(PDO %p)\n",
+                       FDODeviceExtension->DeviceRelations->Objects[ix]);
+
+                ObDereferenceObject(FDODeviceExtension->DeviceRelations->Objects[ix]);
+                IoDeleteDevice(FDODeviceExtension->DeviceRelations->Objects[ix]);
+
+                ++ix;
+            }
+            while (ix < FDODeviceExtension->DeviceRelations->Count);
+        }
+
+        ExFreePoolWithTag(FDODeviceExtension->DeviceRelations, 0);
+    }
+
+    FDODeviceExtension->DeviceRelations = HIDCLASS_NULL_POINTER;
+
+    if (FDODeviceExtension->ClientPdoExtensions &&
+        FDODeviceExtension->ClientPdoExtensions != HIDCLASS_NULL_POINTER)
+    {
+        ExFreePoolWithTag(FDODeviceExtension->ClientPdoExtensions, 0);
+    }
+
+    FDODeviceExtension->ClientPdoExtensions = HIDCLASS_NULL_POINTER;
+
+    DPRINT("HidClassDeleteDeviceObjects: IoDeleteDevice(FDO %p)\n",
+           FDODeviceObject);
+
+    ObDereferenceObject(FDODeviceObject);
+    IoDeleteDevice(FDODeviceObject);
+}
+
 NTSTATUS
 NTAPI
 HidClassCleanUpFDO(
