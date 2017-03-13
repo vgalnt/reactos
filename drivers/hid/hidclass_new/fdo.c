@@ -80,6 +80,41 @@ HidClassDequeueInterruptReport(
     return Header;
 }
 
+VOID
+NTAPI
+HidClassCancelReadIrp(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp)
+{
+    PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PHIDCLASS_COLLECTION HidCollection;
+    PIO_STACK_LOCATION IoStack;
+    PHIDCLASS_FILEOP_CONTEXT FileContext;
+    KIRQL OldIrql;
+
+    DPRINT("HidClassCancelReadIrp: Irp - %p\n", Irp);
+
+    PDODeviceExtension = DeviceObject->DeviceExtension;
+    FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
+
+    HidCollection = &FDODeviceExtension->HidCollections[PDODeviceExtension->PdoIdx];
+    IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+
+    FileContext = IoStack->FileObject->FsContext;
+
+    IoReleaseCancelSpinLock(Irp->CancelIrql);
+
+    KeAcquireSpinLock(&FileContext->Lock, &OldIrql);
+    RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
+
+    HidCollection->NumPendingReads--;
+    KeReleaseSpinLock(&FileContext->Lock, OldIrql);
+
+    Irp->IoStatus.Status = STATUS_CANCELLED;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+}
+
 NTSTATUS
 NTAPI
 HidClassEnqueueInterruptReadIrp(
