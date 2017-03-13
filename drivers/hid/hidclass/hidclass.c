@@ -1201,26 +1201,35 @@ HidClass_DispatchDefault(
     IN PIRP Irp)
 {
     PHIDCLASS_COMMON_DEVICE_EXTENSION CommonDeviceExtension;
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PHID_DEVICE_EXTENSION HidDeviceExtension;
+    NTSTATUS Status;
 
-    //
-    // get common device extension
-    //
+    DPRINT("DispatchDefault: DeviceObject - %p, Irp - %p\n", DeviceObject, Irp);
+
+    /* Get common device extension */
     CommonDeviceExtension = DeviceObject->DeviceExtension;
 
-    //
-    // FIXME: support PDO
-    //
-    ASSERT(CommonDeviceExtension->IsFDO == TRUE);
+    if ( CommonDeviceExtension->IsFDO )
+    {
+        /* Get device extensions */
+        FDODeviceExtension = DeviceObject->DeviceExtension;
+        HidDeviceExtension = &FDODeviceExtension->Common.HidDeviceExtension;
 
-    //
-    // skip current irp stack location
-    //
-    IoSkipCurrentIrpStackLocation(Irp);
+        /* Copy current IRP stack location to next*/
+        IoCopyCurrentIrpStackLocationToNext(Irp);
 
-    //
-    // dispatch to lower device object
-    //
-    return IoCallDriver(CommonDeviceExtension->HidDeviceExtension.NextDeviceObject, Irp);
+        /* Dispatch to lower PDO */
+        Status = HidClassFDO_DispatchRequest(HidDeviceExtension->PhysicalDeviceObject,
+                                             Irp);
+    }
+    else
+    {
+        Status = Irp->IoStatus.Status;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    }
+
+    return Status;
 }
 
 NTSTATUS
