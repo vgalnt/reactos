@@ -2100,17 +2100,16 @@ HidClassFDO_PnP(
     NTSTATUS Status;
     BOOLEAN IsCompleteIrp = FALSE;
 
-    //
     // get device extension
-    //
     FDODeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(FDODeviceExtension->Common.IsFDO);
 
-    //
     // get current irp stack location
-    //
     IoStack = IoGetCurrentIrpStackLocation(Irp);
-    DPRINT1("[HIDCLASS]: FDO IoStack->MinorFunction %x\n", IoStack->MinorFunction);
+
+    DPRINT1("[HIDCLASS]: FDO IoStack->MinorFunction %x\n",
+            IoStack->MinorFunction);
+
     switch (IoStack->MinorFunction)
     {
         case IRP_MN_START_DEVICE:
@@ -2142,24 +2141,57 @@ HidClassFDO_PnP(
             IsCompleteIrp = 1;
             break;
         }
+        case IRP_MN_SURPRISE_REMOVAL:
+        {
+            /* FIXME cancel IdleNotification */
+            HidClassDestroyShuttles(FDODeviceExtension);
+            /* fall through */
+        }
         case IRP_MN_QUERY_REMOVE_DEVICE:
+        {
+            /* FIXME handle power Irps */
+            Irp->IoStatus.Status = STATUS_SUCCESS;
+            FDODeviceExtension->HidFdoPrevState = FDODeviceExtension->HidFdoState;
+            FDODeviceExtension->HidFdoState = HIDCLASS_STATE_REMOVED;
+            break;
+        }
         case IRP_MN_QUERY_STOP_DEVICE:
+        {
+            Irp->IoStatus.Status = STATUS_SUCCESS;
+            FDODeviceExtension->HidFdoPrevState = FDODeviceExtension->HidFdoState;
+            FDODeviceExtension->HidFdoState = HIDCLASS_STATE_STOPPING;
+            break;
+        }
         case IRP_MN_CANCEL_REMOVE_DEVICE:
+        {
+            Irp->IoStatus.Status = STATUS_SUCCESS;
+            FDODeviceExtension->HidFdoState = FDODeviceExtension->HidFdoPrevState;
+            break;
+        }
         case IRP_MN_CANCEL_STOP_DEVICE:
         {
-            //
-            // set status to success and fall through
-            //
             Irp->IoStatus.Status = STATUS_SUCCESS;
+            FDODeviceExtension->HidFdoState = FDODeviceExtension->HidFdoPrevState;
+            break;
+        }
+        case IRP_MN_STOP_DEVICE:
+        {
+            if (FDODeviceExtension->HidFdoPrevState == HIDCLASS_STATE_STARTED)
+            {
+                HidClassCancelAllShuttleIrps(FDODeviceExtension);
+            }
+
+            FDODeviceExtension->HidFdoState = HIDCLASS_STATE_DISABLED;
+            IoCopyCurrentIrpStackLocationToNext(Irp);
+
+            Status = HidClassFDO_DispatchRequestSynchronous(DeviceObject, Irp);
+
+            IsCompleteIrp = 1;
+            break;
         }
         default:
         {
-            //
-            // dispatch to mini driver
-            //
-           IoCopyCurrentIrpStackLocationToNext(Irp);
-           Status = HidClassFDO_DispatchRequest(DeviceObject, Irp);
-           return Status;
+            break;
         }
     }
 
