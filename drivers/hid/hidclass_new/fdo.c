@@ -43,6 +43,43 @@ HidClassEnqueueInterruptReport(
     }
 }
 
+PHIDCLASS_INT_REPORT_HEADER
+NTAPI
+HidClassDequeueInterruptReport(
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext,
+    IN ULONG  ReadLength)
+{
+    PLIST_ENTRY ReportList;
+    PHIDCLASS_INT_REPORT_HEADER Header;
+
+    DPRINT("HidClassDequeueInterruptReport: ... \n");
+
+    if (IsListEmpty(&FileContext->ReportList))
+    {
+        return NULL;
+    }
+
+    ReportList = &FileContext->ReportList;
+
+    Header = CONTAINING_RECORD(ReportList->Flink,
+                               HIDCLASS_INT_REPORT_HEADER,
+                               ReportLink);
+
+    RemoveHeadList(ReportList);
+
+    if (ReadLength > 0 && (Header->InputLength > ReadLength))
+    {
+        InsertHeadList(ReportList, &Header->ReportLink);
+        return NULL;
+    }
+
+    InitializeListHead(&Header->ReportLink);
+
+    FileContext->PendingReports--;
+
+    return Header;
+}
+
 PHIDP_COLLECTION_DESC
 NTAPI
 GetCollectionDesc(
