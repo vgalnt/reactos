@@ -262,6 +262,76 @@ HidClassGetCollectionDescriptor(
 
 VOID
 NTAPI
+HidClassHandleInterruptReport(
+    IN PHIDCLASS_COLLECTION HidCollection,
+    IN PVOID InputReport,
+    IN ULONG InputLength,
+    IN BOOLEAN IsSessionSecurity)
+{
+    PHIDCLASS_FILEOP_CONTEXT FileContext;
+    PLIST_ENTRY Entry;
+    LIST_ENTRY IrpList;
+    PIRP Irp;
+    KIRQL OldIrql;
+
+    DPRINT("HidClassHandleInterruptReport: ... \n");
+
+    InitializeListHead(&IrpList);
+
+    KeAcquireSpinLock(&HidCollection->CollectSpinLock, &OldIrql);
+
+    Entry = HidCollection->InterruptReportList.Flink;
+
+    while (Entry != &HidCollection->InterruptReportList)
+    {
+        FileContext = CONTAINING_RECORD(Entry,
+                                        HIDCLASS_FILEOP_CONTEXT,
+                                        InterruptReportLink);
+
+        if ((!HidCollection->CloseFlag || FileContext->IsMyPrivilegeTrue) &&
+            !IsSessionSecurity)
+        {
+            HidClassProcessInterruptReport(HidCollection,
+                                           FileContext,
+                                           InputReport,
+                                           InputLength,
+                                           &Irp);
+
+            if (Irp)
+            {
+                InsertTailList(&IrpList, &Irp->Tail.Overlay.ListEntry);
+            }
+        }
+
+        Entry = Entry->Flink;
+    }
+
+    KeReleaseSpinLock(&HidCollection->CollectSpinLock, OldIrql);
+
+    while (TRUE)
+    {
+        Entry = IrpList.Flink;
+
+        if (IsListEmpty(&IrpList))
+        {
+            break;
+        }
+
+        RemoveHeadList(&IrpList);
+
+        Irp = CONTAINING_RECORD(Entry,
+                                IRP,
+                                Tail.Overlay.ListEntry);
+
+        DPRINT("HidClassHandleInterruptReport: IoCompleteRequest - %p\n",
+               Irp);
+
+        IoCompleteRequest(Irp, IO_KEYBOARD_INCREMENT);
+    }
+}
+
+VOID
+NTAPI
 HidClassSetDeviceBusy(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
 {
@@ -393,10 +463,10 @@ HidClassInterruptReadComplete(
                 //                      HidCollection->InputReport,
                 //                      HidCollectionDesc->InputLength);
 
-                HidClassDistributeInterruptReport(HidCollection,
-                                                  HidCollection->InputReport,
-                                                  HidCollectionDesc->InputLength,
-                                                  PDODeviceExtension->IsSessionSecurity);
+                HidClassHandleInterruptReport(HidCollection,
+                                              HidCollection->InputReport,
+                                              HidCollectionDesc->InputLength,
+                                              PDODeviceExtension->IsSessionSecurity);
 
 NextData:
                 /* Next hid data (HID_DATA) */
