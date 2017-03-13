@@ -153,6 +153,9 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
     /* Self FDO device object */
     PDEVICE_OBJECT FDODeviceObject;
     LONG OutstandingRequests;
+    /* SpinLocks */
+    KSPIN_LOCK HidRelationSpinLock;
+    KSPIN_LOCK HidRemoveDeviceSpinLock;
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 
@@ -316,7 +319,7 @@ HidClassSubmitInterruptRead(
 
 /* pdo.c */
 NTSTATUS
-HidClassPDO_CreatePDO(
+HidClassCreatePDOs(
     IN PDEVICE_OBJECT DeviceObject,
     OUT PDEVICE_RELATIONS *OutDeviceRelations);
 

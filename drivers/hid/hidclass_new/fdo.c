@@ -1949,78 +1949,20 @@ HidClassFDO_RemoveDevice(
 }
 
 NTSTATUS
-HidClassFDO_CopyDeviceRelations(
-    IN PDEVICE_OBJECT DeviceObject,
-    OUT PDEVICE_RELATIONS *OutRelations)
-{
-    PDEVICE_RELATIONS DeviceRelations;
-    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
-    ULONG Index;
-
-    //
-    // get device extension
-    //
-    FDODeviceExtension = DeviceObject->DeviceExtension;
-    ASSERT(FDODeviceExtension->Common.IsFDO);
-
-    //
-    // allocate result
-    //
-    DeviceRelations = ExAllocatePoolWithTag(NonPagedPool,
-                                            sizeof(DEVICE_RELATIONS) + (FDODeviceExtension->DeviceRelations->Count - 1) * sizeof(PDEVICE_OBJECT),
-                                            HIDCLASS_TAG);
-    if (!DeviceRelations)
-    {
-        //
-        // no memory
-        //
-        *OutRelations = NULL;
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-
-    //
-    // copy device objects
-    //
-    for (Index = 0; Index < FDODeviceExtension->DeviceRelations->Count; Index++)
-    {
-        //
-        // reference pdo
-        //
-        ObReferenceObject(FDODeviceExtension->DeviceRelations->Objects[Index]);
-
-        //
-        // store object
-        //
-        DeviceRelations->Objects[Index] = FDODeviceExtension->DeviceRelations->Objects[Index];
-    }
-
-    //
-    // set object count
-    //
-    DeviceRelations->Count = FDODeviceExtension->DeviceRelations->Count;
-
-    //
-    // store result
-    //
-    *OutRelations = DeviceRelations;
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS
 HidClassFDO_DeviceRelations(
-    IN PDEVICE_OBJECT DeviceObject,
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
     IN PIRP Irp)
 {
-    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
     PIO_STACK_LOCATION IoStack;
     NTSTATUS Status;
     PDEVICE_RELATIONS DeviceRelations;
+    ULONG PdoIdx;
+    KIRQL OldIrql;
 
-    //
-    // get device extension
-    //
-    FDODeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(FDODeviceExtension->Common.IsFDO);
+
+    DPRINT("[HIDCLASS]: HidClassFDO_DeviceRelations FDODeviceExtension %p\n",
+           FDODeviceExtension);
 
     //
     // get current irp stack location
@@ -2036,45 +1978,115 @@ HidClassFDO_DeviceRelations(
         // only bus relations are handled
         //
         IoSkipCurrentIrpStackLocation(Irp);
-        return IoCallDriver(FDODeviceExtension->Common.HidDeviceExtension.NextDeviceObject, Irp);
+
+        return IoCallDriver(FDODeviceExtension->Common.HidDeviceExtension.NextDeviceObject,
+                            Irp);
     }
 
-    if (FDODeviceExtension->DeviceRelations == NULL)
+    if (FDODeviceExtension->DeviceRelations &&
+        FDODeviceExtension->DeviceRelations != HIDCLASS_NULL_POINTER)
     {
-        //
-        // time to create the pdos
-        //
-        Status = HidClassPDO_CreatePDO(DeviceObject, &FDODeviceExtension->DeviceRelations);
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        /* time to create the pdos */
+        Status = HidClassCreatePDOs(FDODeviceExtension->FDODeviceObject,
+                                    &FDODeviceExtension->DeviceRelations);
+
         if (!NT_SUCCESS(Status))
         {
-            //
-            // failed
-            //
             DPRINT1("[HIDCLASS] HidClassPDO_CreatePDO failed with %x\n", Status);
             Irp->IoStatus.Status = Status;
             IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_SUCCESS;
+            return Status;
         }
-        //
-        // sanity check
-        //
+
         ASSERT(FDODeviceExtension->DeviceRelations->Count > 0);
     }
 
-    //
-    // now copy device relations
-    //
-    Status = HidClassFDO_CopyDeviceRelations(DeviceObject, &DeviceRelations);
-    //
-    // store result
-    //
-    Irp->IoStatus.Status = Status;
-    Irp->IoStatus.Information = (ULONG_PTR)DeviceRelations;
+    DeviceRelations = FDODeviceExtension->DeviceRelations;
+    KeAcquireSpinLock(&FDODeviceExtension->HidRelationSpinLock, &OldIrql);
 
-    //
-    // complete request
-    //
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    DPRINT("[HIDCLASS] IsNotifyPresence - %x\n",
+           FDODeviceExtension->IsNotifyPresence);
+
+    if (FDODeviceExtension->IsNotifyPresence)
+    {
+        PDEVICE_RELATIONS NewDeviceRelations;
+        PDEVICE_OBJECT DeviceObject;
+        ULONG Length;
+
+        FDODeviceExtension->IsRelationsOn = TRUE;
+        KeReleaseSpinLock(&FDODeviceExtension->HidRelationSpinLock, OldIrql);
+
+        /* now copy device relations */
+        Length = sizeof(DEVICE_RELATIONS) +
+                 DeviceRelations->Count * sizeof(PDEVICE_OBJECT);
+
+        NewDeviceRelations = ExAllocatePoolWithTag(PagedPool,
+                                                   Length,
+                                                   HIDCLASS_TAG);
+
+        RtlCopyMemory(NewDeviceRelations, DeviceRelations, Length);
+
+        /* store result */
+        Irp->IoStatus.Status = Status;
+        Irp->IoStatus.Information = (ULONG_PTR)NewDeviceRelations;
+
+        DPRINT("[HIDCLASS] IoStatus: Status %x, Information - %p\n",
+               Status,
+               NewDeviceRelations);
+
+        if (NewDeviceRelations)
+        {
+            PdoIdx = 0;
+
+            DPRINT("[HIDCLASS] DeviceRelations->Count - %x\n",
+                   DeviceRelations->Count);
+
+            if ( FDODeviceExtension->DeviceRelations->Count )
+            {
+                do
+                {
+                    ObReferenceObject(FDODeviceExtension->DeviceRelations->Objects[PdoIdx]);
+                    DeviceObject = FDODeviceExtension->DeviceRelations->Objects[PdoIdx];
+                    DeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
+                    ++PdoIdx;
+                }
+                while ( PdoIdx < FDODeviceExtension->DeviceRelations->Count );
+            }
+        }
+    }
+    else
+    {
+        FDODeviceExtension->IsRelationsOn = FALSE;
+        KeReleaseSpinLock(&FDODeviceExtension->HidRelationSpinLock, OldIrql);
+
+        DeviceRelations = ExAllocatePoolWithTag(PagedPool,
+                                                sizeof(DEVICE_RELATIONS),
+                                                HIDCLASS_TAG);
+
+        Irp->IoStatus.Information = (ULONG_PTR)DeviceRelations;
+
+        if (DeviceRelations)
+        {
+            if (DeviceRelations != HIDCLASS_NULL_POINTER)
+            {
+                ExFreePoolWithTag(DeviceRelations, 0);
+            }
+
+            DeviceRelations = HIDCLASS_NULL_POINTER;
+            DeviceRelations->Count = 0;
+            DeviceRelations->Objects[0] = NULL;
+        }
+    }
+
+    if (!Irp->IoStatus.Information)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+    }
+
     return Status;
 }
 
@@ -2086,6 +2098,7 @@ HidClassFDO_PnP(
     PIO_STACK_LOCATION IoStack;
     PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
     NTSTATUS Status;
+    BOOLEAN IsCompleteIrp = FALSE;
 
     //
     // get device extension
@@ -2110,7 +2123,24 @@ HidClassFDO_PnP(
         }
         case IRP_MN_QUERY_DEVICE_RELATIONS:
         {
-             return HidClassFDO_DeviceRelations(DeviceObject, Irp);
+            DPRINT("HidClassFDO_PnP: QueryDeviceRelations.Type - %x\n",
+                   IoStack->Parameters.QueryDeviceRelations.Type);
+
+            if (IoStack->Parameters.QueryDeviceRelations.Type != BusRelations)
+            {
+                break;
+            }
+
+            Status = HidClassFDO_DeviceRelations(FDODeviceExtension, Irp);
+
+            if (NT_SUCCESS(Status))
+            {
+                Irp->IoStatus.Status = Status;
+                break;
+            }
+
+            IsCompleteIrp = 1;
+            break;
         }
         case IRP_MN_QUERY_REMOVE_DEVICE:
         case IRP_MN_QUERY_STOP_DEVICE:
@@ -2132,4 +2162,15 @@ HidClassFDO_PnP(
            return Status;
         }
     }
+
+    if (!IsCompleteIrp)
+    {
+        IoCopyCurrentIrpStackLocationToNext(Irp);
+        Status = HidClassFDO_DispatchRequest(DeviceObject, Irp);
+        return Status;
+    }
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return Status;
 }

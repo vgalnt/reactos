@@ -631,7 +631,7 @@ HidClassPDO_PnP(
 }
 
 NTSTATUS
-HidClassPDO_CreatePDO(
+HidClassCreatePDOs(
     IN PDEVICE_OBJECT DeviceObject,
     OUT PDEVICE_RELATIONS *OutDeviceRelations)
 {
