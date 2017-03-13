@@ -178,6 +178,31 @@ HidClassGetCollectionDescriptor(
     return Status;
 }
 
+VOID
+NTAPI
+HidClassShuttleTimerDpc(
+    IN KDPC *Dpc,
+    IN PVOID DeferredContext,
+    IN PVOID SystemArgument1,
+    IN PVOID SystemArgument2)
+{
+    PHIDCLASS_SHUTTLE Shuttle;
+    LONG TimerValue;
+    BOOLEAN IsSending;
+
+    Shuttle = (PHIDCLASS_SHUTTLE)DeferredContext;
+    TimerValue = Shuttle->TimerPeriod.LowPart;
+
+    if (TimerValue > (-5000 * 10000))
+    {
+        Shuttle->TimerPeriod.LowPart = TimerValue - 1000 * 10000;
+    }
+
+    HidClassSubmitInterruptRead(Shuttle->FDODeviceExtension,
+                                Shuttle,
+                                &IsSending);
+}
+
 NTSTATUS
 NTAPI
 HidClassInitializeShuttleIrps(
