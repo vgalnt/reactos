@@ -260,6 +260,86 @@ HidClassGetCollectionDescriptor(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+HidClassProcessInterruptReport(
+    IN PHIDCLASS_COLLECTION HidCollection,
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext,
+    IN PVOID InputReport,
+    IN ULONG InputLength,
+    IN PIRP * OutIrp)
+{
+    PIRP Irp;
+    PIO_STACK_LOCATION IoStack;
+    PVOID VAddress;
+    NTSTATUS Status;
+    PHIDCLASS_INT_REPORT_HEADER ReportHeader;
+    KIRQL OldIrql;
+    ULONG ReturnedLength;
+
+    KeAcquireSpinLock(&FileContext->Lock, &OldIrql);
+
+    Irp = HidClassDequeueInterruptReadIrp(HidCollection, FileContext);
+
+    DPRINT("HidClassProcessInterruptReport: FileContext - %p, Irp - %p\n",
+           FileContext,
+           Irp);
+
+    if (Irp)
+    {
+        IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+
+        VAddress = HidClassGetSystemAddressForMdlSafe(Irp->MdlAddress);
+
+        if (VAddress)
+        {
+            ReturnedLength = IoStack->Parameters.DeviceIoControl.OutputBufferLength;
+
+            Status = HidClassCopyInputReportToUser(FileContext,
+                                                   InputReport,
+                                                   &ReturnedLength,
+                                                   VAddress);
+
+            Irp->IoStatus.Status = Status;
+            Irp->IoStatus.Information = ReturnedLength;
+        }
+        else
+        {
+            Status = STATUS_INVALID_USER_BUFFER;
+            Irp->IoStatus.Status = STATUS_INVALID_USER_BUFFER;
+        }
+    }
+    else
+    {
+        ReportHeader = ExAllocatePoolWithTag(NonPagedPool,
+                                             InputLength + sizeof(HIDCLASS_INT_REPORT_HEADER),
+                                             HIDCLASS_TAG);
+
+        if (ReportHeader)
+        {
+            ReportHeader->InputLength = InputLength;
+
+            RtlCopyMemory((PVOID)((ULONG_PTR)ReportHeader + sizeof(HIDCLASS_INT_REPORT_HEADER)),
+                          InputReport,
+                          InputLength);
+
+            HidClassEnqueueInterruptReport(FileContext, ReportHeader);
+
+            Status = STATUS_PENDING;
+        }
+        else
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    KeReleaseSpinLock(&FileContext->Lock, OldIrql);
+
+    *OutIrp = Irp;
+
+    return Status;
+}
+
 VOID
 NTAPI
 HidClassHandleInterruptReport(
