@@ -463,6 +463,69 @@ HidClassGetCollectionDescriptor(
 
 NTSTATUS
 NTAPI
+HidClassCopyInputReportToUser(
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext,
+    IN PVOID InputReportBuffer,
+    IN PULONG OutLength,
+    IN PVOID VAddress)
+{
+    PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PHIDP_REPORT_IDS ReportId;
+    UCHAR CollectionNumber;
+    PHIDP_COLLECTION_DESC HidCollectionDesc;
+    ULONG InputLength;
+    UCHAR Id;
+    NTSTATUS Status = STATUS_DEVICE_DATA_ERROR;
+
+    DPRINT("HidClassCopyInputReportToUser: FileContext - %x\n", FileContext);
+
+    PDODeviceExtension = FileContext->DeviceExtension;
+    FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
+
+    /* first byte of the buffer is the report ID for the report */
+    Id = *(PUCHAR)InputReportBuffer;
+
+    ReportId = GetReportIdentifier(FDODeviceExtension, Id);
+
+    if (!ReportId)
+    {
+        return Status;
+    }
+
+    CollectionNumber = ReportId->CollectionNumber;
+    HidCollectionDesc = GetCollectionDesc(FDODeviceExtension, CollectionNumber);
+
+    if (!HidCollectionDesc)
+    {
+        return Status;
+    }
+
+    if (!GetHidclassCollection(FDODeviceExtension, CollectionNumber))
+    {
+        return Status;
+    }
+
+    InputLength = HidCollectionDesc->InputLength;
+
+    if (*OutLength < InputLength)
+    {
+        Status = STATUS_INVALID_BUFFER_SIZE;
+    }
+    else
+    {
+        RtlCopyMemory(VAddress, InputReportBuffer, InputLength);
+
+        Status = STATUS_SUCCESS;
+    }
+
+    *OutLength = InputLength;
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 HidClassProcessInterruptReport(
     IN PHIDCLASS_COLLECTION HidCollection,
     IN PHIDCLASS_FILEOP_CONTEXT FileContext,
