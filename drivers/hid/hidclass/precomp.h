@@ -29,6 +29,12 @@
 typedef struct _HIDCLASS_FDO_EXTENSION *PHIDCLASS_FDO_EXTENSION;
 typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
+/* Header for interrupt report */
+typedef struct _HIDCLASS_INT_REPORT_HEADER {
+    LIST_ENTRY ReportLink;
+    ULONG InputLength;
+} HIDCLASS_INT_REPORT_HEADER, *PHIDCLASS_INT_REPORT_HEADER;
+
 typedef struct _HIDCLASS_SHUTTLE {
     LONG ShuttleState;
     PIRP ShuttleIrp;
