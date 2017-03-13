@@ -13,6 +13,33 @@
 #define NDEBUG
 #include <debug.h>
 
+PVOID
+NTAPI
+HidClassGetSystemAddressForMdlSafe(
+    IN PMDL MemoryDescriptorList)
+{
+    PVOID VAddress = NULL;
+
+    if (MemoryDescriptorList)
+    {
+        MemoryDescriptorList->MdlFlags |= MDL_MAPPING_CAN_FAIL;
+
+        if (MemoryDescriptorList->MdlFlags & (MDL_MAPPED_TO_SYSTEM_VA |
+                                              MDL_SOURCE_IS_NONPAGED_POOL))
+        {
+            VAddress = MemoryDescriptorList->MappedSystemVa;
+        }
+        else
+        {
+            VAddress = MmMapLockedPages(MemoryDescriptorList, KernelMode);
+        }
+
+        MemoryDescriptorList->MdlFlags &= ~MDL_MAPPING_CAN_FAIL;
+    }
+
+    return VAddress;
+}
+
 VOID
 NTAPI
 HidClassEnqueueInterruptReport(
