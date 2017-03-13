@@ -89,6 +89,49 @@ GetHidclassCollection(
     return HidCollection;
 }
 
+PHIDP_REPORT_IDS
+NTAPI
+GetReportIdentifier(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN UCHAR Id)
+{
+    PHIDP_DEVICE_DESC DeviceDescription;
+    PHIDP_REPORT_IDS ReportIDs;
+    PHIDP_REPORT_IDS Result = NULL;
+    ULONG NumCollections;
+    ULONG Idx;
+
+    DPRINT("GetReportIdentifier: Id - %x\n", Id);
+
+    DeviceDescription = &FDODeviceExtension->Common.DeviceDescription;
+
+    ReportIDs = DeviceDescription->ReportIDs;
+
+    if (ReportIDs)
+    {
+        NumCollections = DeviceDescription->ReportIDsLength;
+
+        Idx = 0;
+
+        if (NumCollections)
+        {
+            while (DeviceDescription->ReportIDs[Idx].ReportID != Id)
+            {
+                ++Idx;
+
+                if (Idx >= NumCollections)
+                {
+                    return Result;
+                }
+            }
+
+            Result = &ReportIDs[Idx];
+        }
+    }
+
+    return Result;
+}
+
 PHIDCLASS_SHUTTLE
 NTAPI
 GetShuttleFromIrp(
