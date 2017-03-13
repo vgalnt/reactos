@@ -138,6 +138,8 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
     PHIDCLASS_SHUTTLE Shuttles;
     /* Maximum length of reports */
     ULONG MaxReportSize;
+    /* Self FDO device object */
+    PDEVICE_OBJECT FDODeviceObject;
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 

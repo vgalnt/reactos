@@ -180,6 +180,99 @@ HidClassGetCollectionDescriptor(
 
 NTSTATUS
 NTAPI
+HidClassInitializeShuttleIrps(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    PHIDCLASS_SHUTTLE Shuttles;
+    PIRP Irp;
+    SIZE_T NumberOfBytes;
+    NTSTATUS Status = 0;
+    ULONG ix;
+
+    DPRINT("HidClassInitializeShuttleIrps: ... \n");
+
+    Shuttles = ExAllocatePoolWithTag(NonPagedPool,
+                                     FDODeviceExtension->ShuttleCount * sizeof(HIDCLASS_SHUTTLE),
+                                     HIDCLASS_TAG);
+
+    FDODeviceExtension->Shuttles = Shuttles;
+
+    if (!Shuttles)
+    {
+        DPRINT1("[HIDCLASS] Alocate shuttles failed\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    NumberOfBytes = FDODeviceExtension->MaxReportSize;
+
+    RtlZeroMemory(Shuttles,
+                  FDODeviceExtension->ShuttleCount * sizeof(HIDCLASS_SHUTTLE));
+
+    ix = 0;
+
+    if (!FDODeviceExtension->ShuttleCount)
+    {
+        return Status;
+    }
+
+    while (TRUE)
+    {
+        FDODeviceExtension->Shuttles[ix].FDODeviceExtension = FDODeviceExtension;
+        FDODeviceExtension->Shuttles[ix].CancellingShuttle = 0;
+        FDODeviceExtension->Shuttles[ix].TimerPeriod.HighPart = -1;
+        FDODeviceExtension->Shuttles[ix].TimerPeriod.LowPart = -1000 * 10000;
+
+        KeInitializeTimer(&FDODeviceExtension->Shuttles[ix].ShuttleTimer);
+
+        KeInitializeDpc(&FDODeviceExtension->Shuttles[ix].ShuttleTimerDpc,
+                        HidClassShuttleTimerDpc,
+                        &FDODeviceExtension->Shuttles[ix]);
+
+        FDODeviceExtension->Shuttles[ix].ShuttleBuffer = ExAllocatePoolWithTag(NonPagedPool,
+                                                                               NumberOfBytes,
+                                                                               HIDCLASS_TAG);
+
+        if (!FDODeviceExtension->Shuttles[ix].ShuttleBuffer)
+        {
+            DPRINT1("[HIDCLASS] Alocate shuttle buffer failed\n");
+            break;
+        }
+
+        Irp = IoAllocateIrp(FDODeviceExtension->FDODeviceObject->StackSize - 1,
+                            FALSE);
+
+        if (!Irp)
+        {
+            DPRINT1("[HIDCLASS] Alocate shuttle IRP failed\n");
+            break;
+        }
+
+        DPRINT("HidClassInitializeShuttleIrps: Allocate Irp - %p\n", Irp);
+
+        Irp->UserBuffer = FDODeviceExtension->Shuttles[ix].ShuttleBuffer;
+        FDODeviceExtension->Shuttles[ix].ShuttleIrp = Irp;
+
+        KeInitializeEvent(&FDODeviceExtension->Shuttles[ix].ShuttleEvent,
+                          NotificationEvent,
+                          TRUE);
+
+        KeInitializeEvent(&FDODeviceExtension->Shuttles[ix].ShuttleDoneEvent,
+                          NotificationEvent,
+                          TRUE);
+
+        ++ix;
+
+        if (ix >= FDODeviceExtension->ShuttleCount)
+        {
+            return Status;
+        }
+    }
+
+    return STATUS_INSUFFICIENT_RESOURCES;
+}
+
+NTSTATUS
+NTAPI
 HidClassFDO_QueryCapabilitiesCompletionRoutine(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp,
