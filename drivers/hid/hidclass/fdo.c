@@ -1910,40 +1910,51 @@ ExitError:
 }
 
 NTSTATUS
+NTAPI
 HidClassFDO_RemoveDevice(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
 {
     NTSTATUS Status;
     PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PHID_DEVICE_EXTENSION HidDeviceExtension;
+    ULONG FdoPrevState;
 
-    //
+    DPRINT("HidClassFDO_RemoveDevice: Irp - %p\n", Irp);
+
     // get device extension
-    //
     FDODeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(FDODeviceExtension->Common.IsFDO);
 
-    /* FIXME cleanup */
+    FdoPrevState = FDODeviceExtension->HidFdoPrevState;
 
-    //
-    // dispatch to minidriver
-    //
-    IoSkipCurrentIrpStackLocation(Irp);
-    Status = HidClassFDO_DispatchRequestSynchronous(DeviceObject, Irp);
+    if (FdoPrevState == HIDCLASS_STATE_FAILED ||
+        FdoPrevState == HIDCLASS_STATE_DISABLED ||
+        HidClassAllPdoInitialized(FDODeviceExtension, 0))
+    {
+        HidClassDestroyShuttles(FDODeviceExtension);
 
-    //
-    // complete request
-    //
-    Irp->IoStatus.Status = Status;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        Irp->IoStatus.Status = STATUS_SUCCESS;
 
-    DerefDriverExt(FDODeviceExtension->Common.DriverExtension->DriverObject);
+        IoSkipCurrentIrpStackLocation(Irp);
 
-    //
-    // detach and delete device
-    //
-    IoDetachDevice(FDODeviceExtension->Common.HidDeviceExtension.NextDeviceObject);
-    IoDeleteDevice(DeviceObject);
+        Status = HidClassFDO_DispatchRequest(FDODeviceExtension->FDODeviceObject,
+                                             Irp);
+
+        FDODeviceExtension->HidFdoState = HIDCLASS_STATE_DELETED;
+
+        DerefDriverExt(FDODeviceExtension->Common.DriverExtension->DriverObject);
+        FDODeviceExtension->Common.DriverExtension = HIDCLASS_NULL_POINTER;
+
+        HidDeviceExtension = &FDODeviceExtension->Common.HidDeviceExtension;
+        IoDetachDevice(HidDeviceExtension->NextDeviceObject);
+
+        HidClassCleanUpFDO(FDODeviceExtension);
+    }
+    else
+    {
+        Status = STATUS_DEVICE_CONFIGURATION_ERROR;
+    }
 
     return Status;
 }
