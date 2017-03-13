@@ -13,6 +13,44 @@
 #define NDEBUG
 #include <debug.h>
 
+PHIDP_COLLECTION_DESC
+NTAPI
+GetCollectionDesc(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN UCHAR CollectionNumber)
+{
+    PHIDP_COLLECTION_DESC CollectionDescArray;
+    PHIDP_COLLECTION_DESC HidCollectionDesc = NULL;
+    ULONG NumCollections;
+    ULONG Idx = 0;
+
+    DPRINT("GetCollectionDesc: CollectionNumber - %x\n", CollectionNumber);
+
+    CollectionDescArray = FDODeviceExtension->Common.DeviceDescription.CollectionDesc;
+
+    if (CollectionDescArray)
+    {
+        NumCollections = FDODeviceExtension->Common.DeviceDescription.CollectionDescLength;
+
+        if (NumCollections)
+        {
+            while (CollectionDescArray[Idx].CollectionNumber != CollectionNumber)
+            {
+                ++Idx;
+
+                if (Idx >= NumCollections)
+                {
+                    return HidCollectionDesc;
+                }
+            }
+
+            HidCollectionDesc = &CollectionDescArray[Idx];
+        }
+    }
+
+    return HidCollectionDesc;
+}
+
 NTSTATUS
 NTAPI
 HidClassFDO_QueryCapabilitiesCompletionRoutine(
