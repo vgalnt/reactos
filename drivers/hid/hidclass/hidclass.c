@@ -236,6 +236,10 @@ HidClassAddDevice(
     FDODeviceExtension->IsRelationsOn = TRUE;
     FDODeviceExtension->IsDeviceResourcesAlloceted = FALSE;
 
+    /* Initialize SpinLocks */
+    KeInitializeSpinLock(&FDODeviceExtension->HidRelationSpinLock);
+    KeInitializeSpinLock(&FDODeviceExtension->HidRemoveDeviceSpinLock);
+
     /* Calculate and save pointer to minidriver-specific portion device extension */
     HidDeviceExtension->MiniDeviceExtension = (PVOID)((ULONG_PTR)FDODeviceExtension +
                                                sizeof(HIDCLASS_FDO_EXTENSION));
