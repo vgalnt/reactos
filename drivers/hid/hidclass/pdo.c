@@ -351,6 +351,40 @@ HidClassPDO_HandleQueryCompatibleId(
 
 BOOLEAN
 NTAPI
+HidClassAnyPdoInitialized(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    PDEVICE_RELATIONS DeviceRelations;
+    PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
+    ULONG ix = 0;
+
+    DPRINT("HidClassAnyPdoInitialized: ... \n");
+
+    DeviceRelations = FDODeviceExtension->DeviceRelations;
+
+    if (!DeviceRelations || DeviceRelations == HIDCLASS_NULL_POINTER)
+    {
+        return FALSE;
+    }
+
+    do
+    {
+        PDODeviceExtension = DeviceRelations->Objects[ix]->DeviceExtension;
+
+        if (PDODeviceExtension->HidPdoState != HIDCLASS_STATE_NOT_INIT)
+        {
+            return TRUE;
+        }
+
+        ++ix;
+    }
+    while (ix < DeviceRelations->Count);
+
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
 HidClassAllPdoInitialized(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
     IN BOOLEAN Type)
