@@ -430,6 +430,7 @@ Exit:
 }
 
 NTSTATUS
+NTAPI
 HidClassFDO_StartDevice(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
@@ -437,31 +438,32 @@ HidClassFDO_StartDevice(
     NTSTATUS Status;
     PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
     ULONG OldFdoState;
-    //
-    // get device extension
-    //
+    PHIDCLASS_COLLECTION HidCollections;
+    PHIDP_DEVICE_DESC DeviceDescription;
+    ULONG CollectionIdx;
+    ULONG CollectionNumber;
+    SIZE_T Length;
+
+    /* Get device extension */
     FDODeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(FDODeviceExtension->Common.IsFDO);
 
-    /* begin FDO start device*/
+    /* Begin FDO start */
     OldFdoState = FDODeviceExtension->HidFdoState;
     FDODeviceExtension->HidFdoState = HIDCLASS_STATE_STARTING;
 
-    //
-    // query capabilities
-    //
-    Status = HidClassFDO_QueryCapabilities(DeviceObject, &FDODeviceExtension->Capabilities);
+    /* Query capabilities */
+    Status = HidClassFDO_QueryCapabilities(DeviceObject,
+                                           &FDODeviceExtension->Capabilities);
 
     if (!NT_SUCCESS(Status))
     {
         DPRINT1("[HIDCLASS] Failed to retrieve capabilities %x\n", Status);
         FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
-        goto Exit;
+        goto ExitError;
     }
 
-    //
-    // let's start the lower device too
-    //
+    /* Let's start the lower device too */
     IoSkipCurrentIrpStackLocation(Irp);
     Status = HidClassFDO_DispatchRequestSynchronous(DeviceObject, Irp);
 
@@ -469,12 +471,13 @@ HidClassFDO_StartDevice(
     {
         DPRINT1("[HIDCLASS] Failed to start lower device with %x\n", Status);
         FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
-        goto Exit;
+        goto ExitError;
     }
 
+    /* Only first time initialize needed */
     if (OldFdoState == HIDCLASS_STATE_NOT_INIT)
     {
-        /* let's get the descriptors */
+        /* Let's get the descriptors */
         Status = HidClassFDO_GetDescriptors(DeviceObject);
 
         if (!NT_SUCCESS(Status))
@@ -482,34 +485,141 @@ HidClassFDO_StartDevice(
             DPRINT1("[HIDCLASS] Failed to retrieve the descriptors %x\n", Status);
             FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
             FDODeviceExtension->ReportDescriptor = HIDCLASS_NULL_POINTER;
-            goto Exit;
+            goto ExitError;
         }
 
-        /* now get the the collection description */
+        DeviceDescription = &FDODeviceExtension->Common.DeviceDescription;
+
+        /* Now get the the collection description */
         Status = HidP_GetCollectionDescription(FDODeviceExtension->ReportDescriptor,
                                                FDODeviceExtension->HidDescriptor.DescriptorList[0].wReportLength,
                                                NonPagedPool,
-                                               &FDODeviceExtension->Common.DeviceDescription);
+                                               DeviceDescription);
 
         if (!NT_SUCCESS(Status))
         {
             DPRINT1("[HIDCLASS] Failed to retrieve the collection description %x\n", Status);
             FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
-            goto Exit;
+            goto ExitError;
         }
+
+        /* Device resources alloceted successful */
+        FDODeviceExtension->IsDeviceResourcesAlloceted = TRUE;
+
+        /* Now allocete array of HIDCLASS_COLLECTION */
+        Length = DeviceDescription->CollectionDescLength * sizeof(HIDCLASS_COLLECTION);
+        HidCollections = ExAllocatePoolWithTag(NonPagedPool, Length, HIDCLASS_TAG);
+        FDODeviceExtension->HidCollections = HidCollections;
+
+        if (HidCollections)
+        {
+            RtlZeroMemory(HidCollections, Length);
+        }
+        else
+        {
+            DPRINT1("[HIDCLASS] HidCollections not allocated\n");
+            FDODeviceExtension->ReportDescriptor = HIDCLASS_NULL_POINTER;
+            FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto ExitError;
+        }
+
+        /* Initialize collections array */
+        if (DeviceDescription->CollectionDescLength)
+        {
+            CollectionIdx = 0;
+
+            do
+            {
+                Status = HidClassInitializeCollection(FDODeviceExtension,
+                                                      CollectionIdx);
+
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("[HIDCLASS] Failed initialize Collection (Idx %x)\n",
+                            CollectionIdx);
+                    break;
+                }
+
+                CollectionNumber = DeviceDescription->CollectionDesc[CollectionIdx].CollectionNumber;
+
+                /* Allocete resources for current collection */
+                Status = HidClassAllocCollectionResources(FDODeviceExtension,
+                                                          CollectionNumber);
+
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("[HIDCLASS] Failed alloc Collection (Idx %x) resources\n",
+                            CollectionIdx);
+                    break;
+                }
+
+                ++CollectionIdx;
+            }
+            while (CollectionIdx < DeviceDescription->CollectionDescLength);
+        }
+
+        /* For polled devices shuttles not needed */
+        if (FDODeviceExtension->Common.DriverExtension->DevicesArePolled)
+        {
+            DPRINT("[HIDCLASS] DevicesArePolled \n");
+            FDODeviceExtension->ShuttleCount = 0;
+            FDODeviceExtension->Shuttles = HIDCLASS_NULL_POINTER;
+        }
+
+        /* Initialize shuttle IRPs for first time */
+        if (!FDODeviceExtension->NotAllocCollectResources &&
+            !FDODeviceExtension->Common.DriverExtension->DevicesArePolled)
+        {
+            HidClassDestroyShuttles(FDODeviceExtension);
+
+            if (HidClassSetMaxReportSize(FDODeviceExtension))
+            {
+                FDODeviceExtension->ShuttleCount = HIDCLASS_MINIMUM_SHUTTLE_IRPS;
+
+                Status = HidClassInitializeShuttleIrps(FDODeviceExtension);
+
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("[HIDCLASS] Failed initialize ShuttleIrps\n");
+                    FDODeviceExtension->ShuttleCount = 0;
+                }
+            }
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("[HIDCLASS] Failed alloc Collection (Idx %x) resources\n",
+                    CollectionIdx);
+
+            FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
+            goto ExitError;
+        }
+
+        /* Re-enumerate PhysicalDeviceObject */
+        IoInvalidateDeviceRelations(FDODeviceExtension->Common.HidDeviceExtension.PhysicalDeviceObject,
+                                    BusRelations);
     }
     else if (OldFdoState != HIDCLASS_STATE_DISABLED)
     {
-        DPRINT1("[HIDCLASS] FDO (%p) not stopped before starting. Current FdoState - %x\n",
-                DeviceObject,
-                FDODeviceExtension->HidFdoState);
+        DPRINT1("[HIDCLASS] FDO (%p) should be stopped before starting.\n",
+                DeviceObject);
 
         FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
         Status = STATUS_DEVICE_CONFIGURATION_ERROR;
     }
 
-Exit:
-    /* complete request */
+    if (!NT_SUCCESS(Status))
+    {
+ExitError:
+        FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
+        return Status;
+    }
+
+    /* FDO start successful */
+    FDODeviceExtension->HidFdoState = HIDCLASS_STATE_STARTED;
+
+    /* Complete request */
     Irp->IoStatus.Status = Status;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return Status;
