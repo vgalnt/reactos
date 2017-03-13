@@ -6,6 +6,7 @@
 #include <hidpddi.h>
 #include <stdio.h>
 #include <hidport.h>
+#include <poclass.h>
 
 #define HIDCLASS_TAG 'CdiH'
 #define HIDCLASS_NULL_POINTER (PVOID)0xFFFFFFB0
@@ -17,6 +18,22 @@
 #define HIDCLASS_STATE_STOPPING  5
 #define HIDCLASS_STATE_DISABLED  6
 #define HIDCLASS_STATE_REMOVED   7
+
+typedef struct _HIDCLASS_FDO_EXTENSION *PHIDCLASS_FDO_EXTENSION;
+typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION *PHIDCLASS_PDO_DEVICE_EXTENSION;
+
+typedef struct _HIDCLASS_SHUTTLE {
+    LONG ShuttleState;
+    PIRP ShuttleIrp;
+    PVOID ShuttleBuffer;
+    LONG CancellingShuttle;
+    KEVENT ShuttleEvent;
+    KEVENT ShuttleDoneEvent;
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    KTIMER ShuttleTimer;
+    KDPC ShuttleTimerDpc;
+    LARGE_INTEGER TimerPeriod;
+} HIDCLASS_SHUTTLE, *PHIDCLASS_SHUTTLE;
 
 typedef struct _HIDCLASS_COLLECTION {
     ULONG CollectionNumber;
@@ -34,8 +51,7 @@ typedef struct _HIDCLASS_COLLECTION {
     UNICODE_STRING SymbolicLinkName;
 } HIDCLASS_COLLECTION, *PHIDCLASS_COLLECTION;
 
-typedef struct
-{
+typedef struct {
     PDRIVER_OBJECT DriverObject;
     ULONG DeviceExtensionSize;
     BOOLEAN DevicesArePolled;
@@ -45,11 +61,10 @@ typedef struct
     PDRIVER_UNLOAD DriverUnload;
     LONG RefCount;
     LIST_ENTRY DriverExtLink;
-
 } HIDCLASS_DRIVER_EXTENSION, *PHIDCLASS_DRIVER_EXTENSION;
 
-typedef struct
-{
+typedef struct {
+
     //
     // hid device extension
     //
@@ -77,8 +92,8 @@ typedef struct
 
 } HIDCLASS_COMMON_DEVICE_EXTENSION, *PHIDCLASS_COMMON_DEVICE_EXTENSION;
 
-typedef struct
-{
+typedef struct _HIDCLASS_FDO_EXTENSION {
+
     //
     // parts shared by fdo and pdo
     //
@@ -109,8 +124,8 @@ typedef struct
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 
-typedef struct
-{
+typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION {
+
     //
     // parts shared by fdo and pdo
     //
@@ -146,8 +161,8 @@ typedef struct
 
 } HIDCLASS_PDO_DEVICE_EXTENSION, *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
-typedef struct __HIDCLASS_FILEOP_CONTEXT__
-{
+typedef struct _HIDCLASS_FILEOP_CONTEXT {
+
     //
     // device extension
     //
