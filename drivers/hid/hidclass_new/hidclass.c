@@ -1101,9 +1101,18 @@ HidClass_DeviceControl(
             IoCompleteRequest(Irp, IO_NO_INCREMENT);
             return STATUS_SUCCESS;
         }
+        case IOCTL_GET_SYS_BUTTON_CAPS:
+        {
+            DPRINT1("[HIDCLASS] IOCTL_GET_SYS_BUTTON_CAPS not implemented\n");
+            Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
+            IoCompleteRequest(Irp, IO_NO_INCREMENT);
+            return STATUS_NOT_IMPLEMENTED;
+        }
         default:
         {
-            DPRINT1("[HIDCLASS] DeviceControl IoControlCode 0x%x not implemented\n", IoStack->Parameters.DeviceIoControl.IoControlCode);
+            DPRINT1("[HIDCLASS] DeviceControl IoControlCode 0x%x not implemented\n",
+                    IoStack->Parameters.DeviceIoControl.IoControlCode);
+
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
             IoCompleteRequest(Irp, IO_NO_INCREMENT);
             return STATUS_NOT_IMPLEMENTED;
