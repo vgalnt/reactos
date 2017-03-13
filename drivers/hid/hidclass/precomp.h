@@ -339,4 +339,10 @@ HidClassPDO_GetReportDescription(
     PHIDP_DEVICE_DESC DeviceDescription,
     ULONG CollectionNumber);
 
+BOOLEAN
+NTAPI
+HidClassAllPdoInitialized(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN BOOLEAN Type);
+
 #endif /* _HIDCLASS_PCH_ */
