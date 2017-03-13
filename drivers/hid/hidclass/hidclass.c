@@ -229,6 +229,7 @@ HidClassAddDevice(
     FDODeviceExtension->Common.IsFDO = TRUE;
     FDODeviceExtension->Common.DriverExtension = DriverExtension;
     HidDeviceExtension->PhysicalDeviceObject = PhysicalDeviceObject;
+    FDODeviceExtension->OutstandingRequests = 0;
 
     /* Initialize FDO flags */
     FDODeviceExtension->IsNotifyPresence = TRUE;

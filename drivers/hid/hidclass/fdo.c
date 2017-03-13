@@ -178,6 +178,96 @@ HidClassGetCollectionDescriptor(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+HidClassSubmitInterruptRead(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN PHIDCLASS_SHUTTLE Shuttle,
+    IN BOOLEAN * OutIsSending)
+{
+    PIRP Irp;
+    PIO_STACK_LOCATION IoStack;
+    LARGE_INTEGER DueTime;
+    LONG OldState;
+    NTSTATUS Status;
+
+    Irp = Shuttle->ShuttleIrp;
+
+    *OutIsSending = 0;
+
+    DPRINT("HidClassSubmitInterruptRead: ShuttleIrp - %p\n", Irp);
+
+    do
+    {
+        HidClassSetDeviceBusy(FDODeviceExtension);
+
+        InterlockedExchange(&Shuttle->ShuttleState, HIDCLASS_SHUTTLE_START_READ);
+
+        IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+        Irp->Cancel = FALSE;
+        Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+        IoStack--;
+
+        IoStack->MajorFunction = IRP_MJ_INTERNAL_DEVICE_CONTROL;
+        IoStack->Parameters.DeviceIoControl.IoControlCode = IOCTL_HID_READ_REPORT;
+        IoStack->Parameters.DeviceIoControl.InputBufferLength = 0;
+        IoStack->Parameters.DeviceIoControl.OutputBufferLength = FDODeviceExtension->MaxReportSize;
+
+        IoSetCompletionRoutine(Irp,
+                               HidClassInterruptReadComplete,
+                               FDODeviceExtension,
+                               TRUE,
+                               TRUE,
+                               TRUE);
+
+        KeResetEvent(&Shuttle->ShuttleEvent);
+
+        if (Shuttle->CancellingShuttle)
+        {
+            DPRINT("HidClassSubmitInterruptRead: Shuttle->CancellingShuttle\n");
+            KeSetEvent(&Shuttle->ShuttleEvent, IO_NO_INCREMENT, FALSE);
+            KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
+            return STATUS_CANCELLED;
+        }
+
+        InterlockedExchangeAdd(&FDODeviceExtension->OutstandingRequests, 1);
+
+        Status = HidClassFDO_DispatchRequest(FDODeviceExtension->FDODeviceObject,
+                                             Irp);
+
+        KeSetEvent(&Shuttle->ShuttleEvent, IO_NO_INCREMENT, FALSE);
+
+        *OutIsSending = TRUE;
+
+        OldState = InterlockedExchange(&Shuttle->ShuttleState,
+                                       HIDCLASS_SHUTTLE_END_READ);
+
+        if (OldState != HIDCLASS_SHUTTLE_DISABLED)
+        {
+            return Status;
+        }
+
+        Status = Irp->IoStatus.Status;
+    }
+    while (Irp->IoStatus.Status >= 0);
+
+    if (Shuttle->CancellingShuttle)
+    {
+        DPRINT("HidClassSubmitInterruptRead: Shuttle->CancellingShuttle\n");
+        KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
+        return Status;
+    }
+
+    DueTime = Shuttle->TimerPeriod;
+
+    KeSetTimer(&Shuttle->ShuttleTimer,
+               DueTime,
+               &Shuttle->ShuttleTimerDpc);
+
+    return Status;
+}
+
 VOID
 NTAPI
 HidClassDestroyShuttles(
