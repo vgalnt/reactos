@@ -21,6 +21,11 @@
 
 #define HIDCLASS_MINIMUM_SHUTTLE_IRPS    2
 
+/* Shuttle state */
+#define HIDCLASS_SHUTTLE_START_READ      1
+#define HIDCLASS_SHUTTLE_END_READ        2
+#define HIDCLASS_SHUTTLE_DISABLED        3
+
 typedef struct _HIDCLASS_FDO_EXTENSION *PHIDCLASS_FDO_EXTENSION;
 typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
@@ -140,6 +145,7 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
     ULONG MaxReportSize;
     /* Self FDO device object */
     PDEVICE_OBJECT FDODeviceObject;
+    LONG OutstandingRequests;
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 
