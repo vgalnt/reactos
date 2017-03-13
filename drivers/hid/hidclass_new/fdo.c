@@ -89,6 +89,45 @@ GetHidclassCollection(
     return HidCollection;
 }
 
+PHIDCLASS_SHUTTLE
+NTAPI
+GetShuttleFromIrp(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN PIRP Irp)
+{
+    ULONG ShuttleCount;
+    ULONG ix;
+    PHIDCLASS_SHUTTLE Shuttle;
+    PHIDCLASS_SHUTTLE Result = NULL;
+
+    ShuttleCount = FDODeviceExtension->ShuttleCount;
+
+    ix = 0;
+
+    if (ShuttleCount)
+    {
+        Shuttle = &FDODeviceExtension->Shuttles[0];
+
+        while (Shuttle[ix].ShuttleIrp != Irp)
+        {
+            ++ix;
+
+            if (ix >= ShuttleCount)
+            {
+                return Result;
+            }
+        }
+
+        Result = &Shuttle[ix];
+    }
+
+    DPRINT("GetShuttleFromIrp: Irp - %p, Shuttle - %p\n",
+           Irp,
+           Result);
+
+    return Result;
+}
+
 ULONG
 NTAPI
 HidClassSetMaxReportSize(
