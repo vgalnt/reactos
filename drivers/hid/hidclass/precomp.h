@@ -157,6 +157,8 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
     /* SpinLocks */
     KSPIN_LOCK HidRelationSpinLock;
     KSPIN_LOCK HidRemoveDeviceSpinLock;
+    /* Opens Counter */
+    LONG OpenCount;
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 
@@ -205,6 +207,8 @@ typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION {
     BOOLEAN IsGenericHid;
     BOOLEAN IsSessionSecurity;
     UCHAR Reserved1[2];
+    /* Opens Counter */
+    LONG OpenCount;
 
 } HIDCLASS_PDO_DEVICE_EXTENSION, *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
