@@ -178,6 +178,14 @@ HidClassGetCollectionDescriptor(
     return Status;
 }
 
+VOID
+NTAPI
+HidClassSetDeviceBusy(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    DPRINT("HidClassSetDeviceBusy: FIXME \n");
+}
+
 NTSTATUS
 NTAPI
 HidClassSubmitInterruptRead(
@@ -266,6 +274,52 @@ HidClassSubmitInterruptRead(
                &Shuttle->ShuttleTimerDpc);
 
     return Status;
+}
+
+VOID
+NTAPI
+HidClassCancelAllShuttleIrps(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    PHIDCLASS_SHUTTLE Shuttle;
+    ULONG ix;
+
+    DPRINT("HidClassCancelAllShuttleIrps: ShuttleCount - %x\n",
+           FDODeviceExtension->ShuttleCount);
+
+
+    if (FDODeviceExtension->ShuttleCount)
+    {
+        ix = 0;
+
+        do
+        {
+            Shuttle = &FDODeviceExtension->Shuttles[ix];
+
+            InterlockedExchangeAdd(&Shuttle->CancellingShuttle, 1);
+
+            KeWaitForSingleObject(&Shuttle->ShuttleEvent,
+                                  Executive,
+                                  KernelMode,
+                                  FALSE,
+                                  NULL);
+
+            IoCancelIrp(Shuttle->ShuttleIrp);
+
+            KeWaitForSingleObject(&Shuttle->ShuttleDoneEvent,
+                                  Executive,
+                                  KernelMode,
+                                  FALSE,
+                                  NULL);
+
+            InterlockedExchangeAdd(&Shuttle->CancellingShuttle, -1);
+
+            ++ix;
+        }
+        while (ix < FDODeviceExtension->ShuttleCount);
+    }
+
+    return;
 }
 
 VOID
