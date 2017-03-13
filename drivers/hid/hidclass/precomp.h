@@ -18,6 +18,22 @@
 #define HIDCLASS_STATE_DISABLED  6
 #define HIDCLASS_STATE_REMOVED   7
 
+typedef struct _HIDCLASS_COLLECTION {
+    ULONG CollectionNumber;
+    ULONG CollectionIdx;
+    ULONG NumPendingReads;
+    LIST_ENTRY InterruptReportList;
+    KSPIN_LOCK CollectSpinLock;
+    KSPIN_LOCK CollectCloseSpinLock;
+    HID_COLLECTION_INFORMATION HidCollectInfo;
+    PVOID CollectionData;
+    PVOID InputReport;
+    ULONG CloseFlag;
+    PVOID PollReport;
+    ULONG PollReportLength;
+    UNICODE_STRING SymbolicLinkName;
+} HIDCLASS_COLLECTION, *PHIDCLASS_COLLECTION;
+
 typedef struct
 {
     PDRIVER_OBJECT DriverObject;
