@@ -180,6 +180,45 @@ HidClassGetCollectionDescriptor(
 
 VOID
 NTAPI
+HidClassDestroyShuttles(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    PHIDCLASS_SHUTTLE Shuttles;
+    ULONG ix;
+
+    DPRINT("HidClassDestroyShuttles: ShuttleCount - %x\n",
+           FDODeviceExtension->ShuttleCount);
+
+    Shuttles = FDODeviceExtension->Shuttles;
+
+    if (Shuttles && Shuttles != HIDCLASS_NULL_POINTER)
+    {
+        HidClassCancelAllShuttleIrps(FDODeviceExtension);
+
+        ix = 0;
+
+        if (FDODeviceExtension->ShuttleCount)
+        {
+            do
+            {
+                DPRINT("HidClassDestroyShuttles: Free ShuttleIrp - %p\n",
+                       FDODeviceExtension->Shuttles[ix].ShuttleIrp);
+
+                IoFreeIrp(FDODeviceExtension->Shuttles[ix].ShuttleIrp);
+                ExFreePoolWithTag(FDODeviceExtension->Shuttles[ix].ShuttleBuffer, 0);
+
+                ++ix;
+            }
+            while (ix < FDODeviceExtension->ShuttleCount);
+        }
+
+        ExFreePoolWithTag(FDODeviceExtension->Shuttles, 0);
+        FDODeviceExtension->Shuttles = HIDCLASS_NULL_POINTER;
+    }
+}
+
+VOID
+NTAPI
 HidClassShuttleTimerDpc(
     IN KDPC *Dpc,
     IN PVOID DeferredContext,
