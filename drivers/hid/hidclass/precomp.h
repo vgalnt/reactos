@@ -219,11 +219,18 @@ typedef struct _HIDCLASS_FILEOP_CONTEXT {
     // stop in progress indicator
     //
     BOOLEAN StopInProgress;
+    BOOLEAN IsMyPrivilegeTrue;
+    UCHAR Reserved1[2];
 
     //
     // read complete event
     //
     KEVENT IrpReadComplete;
+    /* Read IRP pending list */
+    LIST_ENTRY InterruptReadIrpList;
+    /* Report list */
+    LIST_ENTRY ReportList;
+    LIST_ENTRY InterruptReportLink;
 
 } HIDCLASS_FILEOP_CONTEXT, *PHIDCLASS_FILEOP_CONTEXT;
 
