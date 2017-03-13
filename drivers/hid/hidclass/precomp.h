@@ -125,7 +125,8 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
     // device relations
     //
     PDEVICE_RELATIONS DeviceRelations;
-
+    /* An array of pointers to _HIDCLASS_PDO_DEVICE_EXTENSION */
+    PHIDCLASS_PDO_DEVICE_EXTENSION * ClientPdoExtensions;
     /* FDO PnP state */
     ULONG HidFdoState;
     /* Previous FDO PnP state */
@@ -183,6 +184,12 @@ typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION {
 
     /* PDO PnP state */
     ULONG HidPdoState;
+    /* Previous PDO PnP state */
+    ULONG HidPdoPrevState;
+    /* PDO flags */
+    BOOLEAN IsGenericHid;
+    BOOLEAN IsSessionSecurity;
+    UCHAR Reserved1[2];
 
 } HIDCLASS_PDO_DEVICE_EXTENSION, *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
@@ -279,6 +286,13 @@ NTSTATUS
 HidClassFDO_DispatchRequestSynchronous(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp);
+
+NTSTATUS
+NTAPI
+HidClassSubmitInterruptRead(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN PHIDCLASS_SHUTTLE Shuttle,
+    IN BOOLEAN * OutIsSending);
 
 /* pdo.c */
 NTSTATUS

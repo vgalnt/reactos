@@ -188,6 +188,183 @@ HidClassSetDeviceBusy(
 
 NTSTATUS
 NTAPI
+HidClassInterruptReadComplete(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp,
+    IN PVOID Context)
+{
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PHIDCLASS_SHUTTLE Shuttle;
+    PHIDP_REPORT_IDS ReportId;
+    ULONG HidDataLen;
+    PHIDCLASS_COLLECTION HidCollection;
+    PHIDP_COLLECTION_DESC HidCollectionDesc;
+    PHIDCLASS_PDO_DEVICE_EXTENSION * ClientPdoExtensions;
+    PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
+    LONG Length;
+    PVOID InputReport;
+    LONG OldState;
+    UCHAR Id;
+
+    DPRINT("HidClassInterruptReadComplete: Irp - %p\n", Irp);
+
+    FDODeviceExtension = (PHIDCLASS_FDO_EXTENSION)Context;
+
+    InterlockedExchangeAdd(&FDODeviceExtension->OutstandingRequests, -1);
+
+    Shuttle = GetShuttleFromIrp(FDODeviceExtension, Irp);
+
+    if (!Shuttle)
+    {
+        DPRINT1("[HIDCLASS] Shuttle could not be found\n");
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    OldState = InterlockedCompareExchange(&Shuttle->ShuttleState,
+                                          HIDCLASS_SHUTTLE_DISABLED,
+                                          HIDCLASS_SHUTTLE_START_READ);
+
+    if (Irp->IoStatus.Status >= 0)
+    {
+        InputReport = Irp->UserBuffer;
+        Length = Irp->IoStatus.Information;
+
+        if (Irp->IoStatus.Information > 0)
+        {
+            while (TRUE)
+            {
+                if (FDODeviceExtension->Common.DeviceDescription.ReportIDs->ReportID)
+                {
+                    /* First byte of the buffer is the report ID for the report */
+                    Id = *(PUCHAR)InputReport;
+                    InputReport = (PUCHAR)InputReport + 1;
+                    --Length;
+                }
+                else
+                {
+                    Id = 0;
+                }
+
+                ReportId = GetReportIdentifier(FDODeviceExtension, Id);
+
+                if (!ReportId)
+                {
+                    break;
+                }
+
+                if (Id)
+                {
+                    HidDataLen = ReportId->InputLength - 1;
+                }
+                else
+                {
+                    HidDataLen = ReportId->InputLength;
+                }
+
+                if (HidDataLen <= 0 || HidDataLen > Length)
+                {
+                    break;
+                }
+
+                HidCollection = GetHidclassCollection(FDODeviceExtension,
+                                                      ReportId->CollectionNumber);
+
+                HidCollectionDesc = GetCollectionDesc(FDODeviceExtension,
+                                                      ReportId->CollectionNumber);
+
+                if (!HidCollection || !HidCollectionDesc)
+                {
+                    break;
+                }
+
+                ClientPdoExtensions = FDODeviceExtension->ClientPdoExtensions;
+
+                if (!ClientPdoExtensions ||
+                    ClientPdoExtensions == HIDCLASS_NULL_POINTER)
+                {
+                    goto NextData;
+                }
+
+                PDODeviceExtension = ClientPdoExtensions[HidCollection->CollectionIdx];
+
+                if (!PDODeviceExtension)
+                {
+                    goto NextData;
+                }
+
+                if (PDODeviceExtension == HIDCLASS_NULL_POINTER ||
+                    PDODeviceExtension->HidPdoState != HIDCLASS_STATE_STARTED)
+                {
+                    goto NextData;
+                }
+
+                /* First byte of the buffer is the report ID for the report */
+                *(PUCHAR)HidCollection->InputReport = Id;
+
+                RtlCopyMemory((PUCHAR)HidCollection->InputReport + 1,
+                              InputReport,
+                              HidDataLen);
+
+                DPRINT("HidClassInterruptReadComplete: FIXME CheckReportPowerEvent()\n");
+                //CheckReportPowerEvent(FDODeviceExtension,
+                //                      HidCollection,
+                //                      HidCollection->InputReport,
+                //                      HidCollectionDesc->InputLength);
+
+                HidClassDistributeInterruptReport(HidCollection,
+                                                  HidCollection->InputReport,
+                                                  HidCollectionDesc->InputLength,
+                                                  PDODeviceExtension->IsSessionSecurity);
+
+NextData:
+                /* Next hid data (HID_DATA) */
+                InputReport = (PUCHAR)InputReport + HidDataLen;
+                Length -= HidDataLen;
+
+                if (Length <= 0)
+                {
+                    break;
+                }
+            }
+        }
+
+        Shuttle->TimerPeriod.HighPart = -1;
+        Shuttle->TimerPeriod.LowPart = -10000000;
+    }
+
+    if (OldState != HIDCLASS_SHUTTLE_START_READ)
+    {
+        if (Shuttle->CancellingShuttle)
+        {
+            DPRINT1("[HIDCLASS] Cancelling Shuttle %p\n", Shuttle);
+            KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
+        }
+        else if (Irp->IoStatus.Status < 0)
+        {
+            DPRINT1("[HIDCLASS] Status - %x, TimerPeriod - %p, Shuttle - %p\n",
+                     Irp->IoStatus.Status,
+                     Shuttle->TimerPeriod.LowPart,
+                     Shuttle);
+
+            KeSetTimer(&Shuttle->ShuttleTimer,
+                       Shuttle->TimerPeriod,
+                       &Shuttle->ShuttleTimerDpc);
+        }
+        else
+        {
+            BOOLEAN IsSending;
+
+            HidClassSubmitInterruptRead(FDODeviceExtension,
+                                        Shuttle,
+                                        &IsSending);
+        }
+    }
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
+NTSTATUS
+NTAPI
 HidClassSubmitInterruptRead(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
     IN PHIDCLASS_SHUTTLE Shuttle,
