@@ -349,6 +349,53 @@ HidClassPDO_HandleQueryCompatibleId(
     return STATUS_SUCCESS;
 }
 
+BOOLEAN
+NTAPI
+HidClassAllPdoInitialized(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN BOOLEAN Type)
+{
+    PDEVICE_RELATIONS DeviceRelations;
+    ULONG ix;
+    BOOLEAN Result = TRUE;
+
+    DPRINT("HidClassAllPdoInitialized: FDODeviceExtension - %p, Type - %x\n",
+           FDODeviceExtension,
+           Type);
+
+    DeviceRelations = FDODeviceExtension->DeviceRelations;
+
+    if (DeviceRelations &&
+        DeviceRelations != HIDCLASS_NULL_POINTER)
+    {
+        ix = 0;
+
+        if (DeviceRelations->Count)
+        {
+            while ((Type == FALSE) != 
+                   (((PHIDCLASS_PDO_DEVICE_EXTENSION)(DeviceRelations->Objects[ix]->DeviceExtension))->HidPdoState != 1))
+            {
+                ++ix;
+
+                if ( ix >= DeviceRelations->Count )
+                {
+                    DPRINT("HidClassAllPdoInitialized: Result - %x\n", Result);
+                    return Result;
+                }
+            }
+
+            Result = FALSE;
+        }
+    }
+    else
+    {
+        Result = (Type == FALSE);
+    }
+
+    DPRINT("HidClassAllPdoInitialized: Result - %x\n", Result);
+    return Result;
+}
+
 NTSTATUS
 HidClassPDO_PnP(
     IN PDEVICE_OBJECT DeviceObject,
