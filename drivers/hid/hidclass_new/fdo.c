@@ -91,6 +91,52 @@ GetHidclassCollection(
 
 NTSTATUS
 NTAPI
+HidClassGetCollectionDescriptor(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN UCHAR CollectionNumber,
+    OUT PVOID OutCollectionData,
+    OUT PULONG OutLength)
+{
+    PHIDP_COLLECTION_DESC HidCollectionDesc;
+    ULONG Length;
+    NTSTATUS Status;
+
+    DPRINT("HidClassGetCollectionDescriptor: CollectionNumber - %x\n", CollectionNumber);
+
+    HidCollectionDesc = GetCollectionDesc(FDODeviceExtension,
+                                          CollectionNumber);
+
+    if (HidCollectionDesc)
+    {
+        Length = HidCollectionDesc->PreparsedDataLength;
+
+        if (*OutLength >= Length)
+        {
+            Status = 0;
+        }
+        else
+        {
+            Length = *OutLength;
+            Status = STATUS_INVALID_BUFFER_SIZE;
+        }
+
+        RtlCopyMemory(OutCollectionData,
+                      HidCollectionDesc->PreparsedData,
+                      Length);
+
+        *OutLength = HidCollectionDesc->PreparsedDataLength;
+    }
+    else
+    {
+        DPRINT1("[HIDCLASS] Not found collection descriptor\n");
+        Status = STATUS_DATA_ERROR;
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 HidClassFDO_QueryCapabilitiesCompletionRoutine(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp,
