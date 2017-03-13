@@ -147,6 +147,46 @@ HidClassEnqueueInterruptReadIrp(
     return STATUS_PENDING;
 }
 
+PIRP
+NTAPI
+HidClassDequeueInterruptReadIrp(
+    IN PHIDCLASS_COLLECTION HidCollection,
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext)
+{
+    PLIST_ENTRY ReadIrpList;
+    PLIST_ENTRY Entry;
+    PIRP Irp = NULL;
+
+    ReadIrpList = &FileContext->InterruptReadIrpList;
+
+    do
+    {
+        if (ReadIrpList->Flink == ReadIrpList)
+        {
+            break;
+        }
+
+        Entry = RemoveHeadList(ReadIrpList);
+
+        Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
+
+        if (IoSetCancelRoutine(Irp, NULL))
+        {
+            HidCollection->NumPendingReads--;
+        }
+        else
+        {
+            InitializeListHead(Entry);
+            Irp = NULL;
+        }
+    }
+    while (!Irp);
+
+    DPRINT("HidClassDequeueInterruptReadIrp: Irp - %p\n", Irp);
+
+    return Irp;
+}
+
 PHIDP_COLLECTION_DESC
 NTAPI
 GetCollectionDesc(
