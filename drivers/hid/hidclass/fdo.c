@@ -89,6 +89,49 @@ GetHidclassCollection(
     return HidCollection;
 }
 
+ULONG
+NTAPI
+HidClassSetMaxReportSize(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    PHIDP_DEVICE_DESC DeviceDescription;
+    PHIDP_REPORT_IDS ReportId;
+    ULONG Idx = 0;
+    ULONG InputLength;
+
+    DeviceDescription = &FDODeviceExtension->Common.DeviceDescription;
+    FDODeviceExtension->MaxReportSize = 0;
+
+    DPRINT("HidClassSetMaxReportSize: ReportIDsLength - %x\n",
+           DeviceDescription->ReportIDsLength);
+
+    if (DeviceDescription->ReportIDsLength)
+    {
+        do
+        {
+            ReportId = &DeviceDescription->ReportIDs[Idx];
+
+            if (GetHidclassCollection(FDODeviceExtension, ReportId->CollectionNumber))
+            {
+                InputLength = ReportId->InputLength;
+
+                if (InputLength > FDODeviceExtension->MaxReportSize)
+                {
+                    FDODeviceExtension->MaxReportSize = InputLength;
+                }
+            }
+
+            ++Idx;
+        }
+        while (Idx < DeviceDescription->ReportIDsLength);
+    }
+
+    DPRINT("HidClassSetMaxReportSize: MaxReportSize - %x\n",
+           FDODeviceExtension->MaxReportSize);
+
+    return FDODeviceExtension->MaxReportSize;
+}
+
 NTSTATUS
 NTAPI
 HidClassGetCollectionDescriptor(

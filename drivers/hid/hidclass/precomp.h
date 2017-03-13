@@ -136,6 +136,8 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
     ULONG ShuttleCount;
     /* An array of PHIDCLASS_SHUTTLE structures */
     PHIDCLASS_SHUTTLE Shuttles;
+    /* Maximum length of reports */
+    ULONG MaxReportSize;
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 
