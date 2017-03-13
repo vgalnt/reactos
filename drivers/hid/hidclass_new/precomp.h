@@ -19,6 +19,8 @@
 #define HIDCLASS_STATE_DISABLED  6
 #define HIDCLASS_STATE_REMOVED   7
 
+#define HIDCLASS_MINIMUM_SHUTTLE_IRPS    2
+
 typedef struct _HIDCLASS_FDO_EXTENSION *PHIDCLASS_FDO_EXTENSION;
 typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
@@ -121,6 +123,19 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
 
     /* FDO PnP state */
     ULONG HidFdoState;
+    /* Previous FDO PnP state */
+    ULONG HidFdoPrevState;
+    /* FDO flags */
+    BOOLEAN NotAllocCollectResources;
+    BOOLEAN IsNotifyPresence;
+    BOOLEAN IsRelationsOn;
+    BOOLEAN IsDeviceResourcesAlloceted;
+    /* An array of HIDCLASS_COLLECTION structures */
+    PHIDCLASS_COLLECTION HidCollections;
+    /* Number of shuttles */
+    ULONG ShuttleCount;
+    /* An array of PHIDCLASS_SHUTTLE structures */
+    PHIDCLASS_SHUTTLE Shuttles;
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 

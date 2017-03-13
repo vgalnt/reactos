@@ -230,6 +230,11 @@ HidClassAddDevice(
     FDODeviceExtension->Common.DriverExtension = DriverExtension;
     HidDeviceExtension->PhysicalDeviceObject = PhysicalDeviceObject;
 
+    /* Initialize FDO flags */
+    FDODeviceExtension->IsNotifyPresence = TRUE;
+    FDODeviceExtension->IsRelationsOn = TRUE;
+    FDODeviceExtension->IsDeviceResourcesAlloceted = FALSE;
+
     /* Calculate and save pointer to minidriver-specific portion device extension */
     HidDeviceExtension->MiniDeviceExtension = (PVOID)((ULONG_PTR)FDODeviceExtension +
                                                sizeof(HIDCLASS_FDO_EXTENSION));
