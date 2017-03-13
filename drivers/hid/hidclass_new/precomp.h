@@ -27,7 +27,6 @@ typedef struct
     PDRIVER_DISPATCH MajorFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];
     PDRIVER_ADD_DEVICE AddDevice;
     PDRIVER_UNLOAD DriverUnload;
-    KSPIN_LOCK Lock;
     LONG RefCount;
     LIST_ENTRY DriverExtLink;
 

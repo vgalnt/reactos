@@ -1296,10 +1296,10 @@ HidRegisterMinidriver(
     PHIDCLASS_DRIVER_EXTENSION DriverExtension;
     PDRIVER_OBJECT MiniDriver;
 
-    /* check if the version matches */
+    /* Check if the version matches */
     if (MinidriverRegistration->Revision > HID_REVISION)
     {
-        /* revision mismatch */
+        /* Revision mismatch */
         DPRINT1("HIDCLASS revision is %d. Should be HID_REVISION (1)\n",
                 MinidriverRegistration->Revision);
 
@@ -1310,34 +1310,33 @@ HidRegisterMinidriver(
     MiniDriver = MinidriverRegistration->DriverObject;
     DPRINT("HidRegisterMinidriver: MiniDriver - %p\n", MiniDriver);
 
-    /* now allocate the driver object extension */
+    /* Now allocate the driver object extension */
     Status = IoAllocateDriverObjectExtension(MiniDriver,
                                              ClientIdentificationAddress,
                                              sizeof(HIDCLASS_DRIVER_EXTENSION),
                                              (PVOID *)&DriverExtension);
     if (!NT_SUCCESS(Status))
     {
-        /* failed to allocate driver extension */
-        DPRINT1("HidRegisterMinidriver: IoAllocateDriverObjectExtension failed %x\n", Status);
+        /* Failed to allocate driver extension */
+        DPRINT1("HidRegisterMinidriver: IoAllocateDriverObjectExtension failed %x\n",
+                Status);
+
         ASSERT(FALSE);
         return Status;
     }
 
-    /* zero driver extension */
+    /* Zero driver extension */
     RtlZeroMemory(DriverExtension, sizeof(HIDCLASS_DRIVER_EXTENSION));
 
-    /* init driver extension */
+    /* Initialize driver extension */
     DriverExtension->DriverObject = MiniDriver;
     DriverExtension->DeviceExtensionSize = MinidriverRegistration->DeviceExtensionSize;
     DriverExtension->DevicesArePolled = MinidriverRegistration->DevicesArePolled;
 
-    /* copy driver dispatch routines */
+    /* Copy driver dispatch routines */
     RtlCopyMemory(DriverExtension->MajorFunction,
                   MiniDriver->MajorFunction,
                   sizeof(PDRIVER_DISPATCH) * (IRP_MJ_MAXIMUM_FUNCTION + 1));
-
-    /* initialize lock */
-    KeInitializeSpinLock(&DriverExtension->Lock);
 
     MiniDriver->MajorFunction[IRP_MJ_CREATE] = HidClassDispatch;
     MiniDriver->MajorFunction[IRP_MJ_CLOSE] = HidClassDispatch;
@@ -1356,14 +1355,15 @@ HidRegisterMinidriver(
     DriverExtension->DriverUnload = MiniDriver->DriverUnload;
     MiniDriver->DriverUnload = HidClassDriverUnload;
 
+    /* Initialize reference counter */
     DriverExtension->RefCount = 0;
 
+    /* Add  driver extension to list */
     if (!InsertDriverExtList(DriverExtension))
     {
         DPRINT1("HidRegisterMinidriver: InsertDriverExtList failed\n");
         Status = STATUS_DEVICE_CONFIGURATION_ERROR;
     }
 
-    /* done */
     return STATUS_SUCCESS;
 }
