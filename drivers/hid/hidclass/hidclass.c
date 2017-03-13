@@ -168,100 +168,110 @@ HidClassAddDevice(
     PHIDCLASS_DRIVER_EXTENSION DriverExtension;
     PHID_DEVICE_EXTENSION HidDeviceExtension;
 
-    /* increment device number */
+    /* Increment device number */
     InterlockedIncrement((PLONG)&HidClassDeviceNumber);
 
-    /* construct device name */
+    /* Construct device name */
     swprintf(CharDeviceName, L"\\Device\\_HID%08x", HidClassDeviceNumber);
 
-    /* initialize device name */
+    /* Initialize device name */
     RtlInitUnicodeString(&DeviceName, CharDeviceName);
 
-    /* get driver object extension */
+    /* Get driver object extension */
     DriverExtension = RefDriverExt(DriverObject);
 
     if (!DriverExtension)
     {
-        /* device removed */
+        /* Device removed */
         ASSERT(FALSE);
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
 
     ASSERT(DriverObject == DriverExtension->DriverObject);
 
-    /* calculate device extension size */
-    DeviceExtensionSize = sizeof(HIDCLASS_FDO_EXTENSION) + DriverExtension->DeviceExtensionSize;
+    /* Calculate device extension size */
+    DeviceExtensionSize = sizeof(HIDCLASS_FDO_EXTENSION) +
+                                 DriverExtension->DeviceExtensionSize;
 
-    /* now create the device */
-    Status = IoCreateDevice(DriverObject, DeviceExtensionSize, &DeviceName, FILE_DEVICE_UNKNOWN, 0, FALSE, &NewDeviceObject);
+    /* Now create the device */
+    Status = IoCreateDevice(DriverObject,
+                            DeviceExtensionSize,
+                            &DeviceName,
+                            FILE_DEVICE_UNKNOWN,
+                            0,
+                            FALSE,
+                            &NewDeviceObject);
 
     if (!NT_SUCCESS(Status))
     {
-        /* failed to create device object */
+        /* Failed to create device object */
         DPRINT1("IoCreateDevice failed. Status - %x", Status);
         ASSERT(FALSE);
         DerefDriverExt(DriverObject);
         return Status;
     }
 
-    DPRINT("HidClassAddDevice: added FDO DeviceObject - %p\n", NewDeviceObject);
+    DPRINT("HidClassAddDevice: added FDO IoCreateDevice (%p)\n", NewDeviceObject);
     ObReferenceObject(NewDeviceObject);
 
     ASSERT(DriverObject->DeviceObject == NewDeviceObject);
     ASSERT(NewDeviceObject->DriverObject == DriverObject);
 
-    /* get device extension */
+    /* Get device extension */
     FDODeviceExtension = NewDeviceObject->DeviceExtension;
 
-    /* zero device extension */
+    /* Zero device extension */
     RtlZeroMemory(FDODeviceExtension, DeviceExtensionSize);
 
     HidDeviceExtension = &FDODeviceExtension->Common.HidDeviceExtension;
 
-    /* initialize device extension */
+    /* Initialize device extension */
     FDODeviceExtension->Common.IsFDO = TRUE;
     FDODeviceExtension->Common.DriverExtension = DriverExtension;
     HidDeviceExtension->PhysicalDeviceObject = PhysicalDeviceObject;
 
+    /* Calculate and save pointer to minidriver-specific portion device extension */
     HidDeviceExtension->MiniDeviceExtension = (PVOID)((ULONG_PTR)FDODeviceExtension +
                                                sizeof(HIDCLASS_FDO_EXTENSION));
 
     ASSERT((PhysicalDeviceObject->Flags & DO_DEVICE_INITIALIZING) == 0);
 
+    /* Attach new FDO to stack */
     HidDeviceExtension->NextDeviceObject = IoAttachDeviceToDeviceStack(NewDeviceObject,
                                                                        PhysicalDeviceObject);
 
     if (HidDeviceExtension->NextDeviceObject == NULL)
     {
-        /* no PDO */
+        DPRINT1("HidClassAddDevice: Attach failed. IoDeleteDevice (%p)\n",
+                NewDeviceObject);
+
         IoDeleteDevice(NewDeviceObject);
-        DPRINT1("[HIDCLASS] failed to attach to device stack\n");
         return STATUS_DEVICE_REMOVED;
     }
 
-    /* increment stack size */
+    /* Increment stack size */
     NewDeviceObject->StackSize++;
 
     /* FDO state is not initialized */
     FDODeviceExtension->HidFdoState = HIDCLASS_STATE_NOT_INIT;
 
-    /* init device object */
+    /* Init device object */
     NewDeviceObject->Flags |= DO_DIRECT_IO;
     NewDeviceObject->Flags |= PhysicalDeviceObject->Flags & DO_POWER_PAGABLE;
     NewDeviceObject->Flags  &= ~DO_DEVICE_INITIALIZING;
 
-    /* now call driver provided add device routine */
+    /* Now call driver provided add device routine */
     ASSERT(DriverExtension->AddDevice != 0);
     Status = DriverExtension->AddDevice(DriverObject, NewDeviceObject);
 
     if (NT_SUCCESS(Status))
     {
-        /* succeeded */
         return STATUS_SUCCESS;
     }
 
-    /* failed */
-    DPRINT1("HIDCLASS: AddDevice failed with %x\n", Status);
+    DPRINT1("HidClassAddDevice: Failed with %x, IoDeleteDevice(%p)\n",
+            Status,
+            NewDeviceObject);
 
     IoDetachDevice(HidDeviceExtension->NextDeviceObject);
     ObDereferenceObject(NewDeviceObject);
