@@ -168,6 +168,8 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
     /* Opens Counter */
     LONG OpenCount;
     IO_REMOVE_LOCK HidRemoveLock;
+    /* Bus number for IRP_MN_QUERY_BUS_INFORMATION */
+    ULONG BusNumber;
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 
