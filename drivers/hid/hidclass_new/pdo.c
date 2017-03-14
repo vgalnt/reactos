@@ -574,6 +574,57 @@ HidClassPdoStart(
 
 VOID
 NTAPI
+HidClassCompleteReadsForCollection(
+    IN PHIDCLASS_COLLECTION HidCollection)
+{
+    KIRQL OldIrql;
+    PLIST_ENTRY ReportList;
+    PLIST_ENTRY Entry;
+    LIST_ENTRY ListHead;
+    PKSPIN_LOCK SpinLock;
+    PHIDCLASS_FILEOP_CONTEXT FileContext;
+
+    DPRINT("HidClassCompleteReadsForCollection: HidCollection - %p\n", HidCollection);
+
+    InitializeListHead(&ListHead);
+
+    SpinLock = &HidCollection->CollectSpinLock;
+    KeAcquireSpinLock(&HidCollection->CollectSpinLock, &OldIrql);
+
+    ReportList = &HidCollection->InterruptReportList;
+
+    while (!IsListEmpty(ReportList))
+    {
+        Entry = RemoveHeadList(ReportList);
+        InsertTailList(&ListHead, Entry);
+    }
+
+    while (TRUE)
+    {
+        if (IsListEmpty(&ListHead))
+        {
+            break;
+        }
+
+        Entry = RemoveHeadList(&ListHead);
+        InsertTailList(&HidCollection->InterruptReportList, Entry);
+
+        KeReleaseSpinLock(SpinLock, OldIrql);
+
+        FileContext = CONTAINING_RECORD(Entry,
+                                        HIDCLASS_FILEOP_CONTEXT,
+                                        InterruptReportLink);
+
+        HidClassCompleteReadsForFileContext(HidCollection, FileContext);
+
+        KeAcquireSpinLock(SpinLock, &OldIrql);
+    }
+
+    KeReleaseSpinLock(SpinLock, OldIrql);
+}
+
+VOID
+NTAPI
 HidClassRemoveCollection(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
     IN PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension,
@@ -624,6 +675,35 @@ HidClassRemoveCollection(
             DPRINT("HidClassRemoveCollection: FIXME handle PowerEvent Irp\n");
         }
     }
+}
+
+NTSTATUS
+NTAPI
+HidClassQueryInterface(
+    IN PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension,
+    IN PIRP Irp)
+{
+    PIO_STACK_LOCATION IoStack;
+    //PINTERFACE Interface;
+
+    DPRINT("HidClassQueryInterface: ... \n");
+
+    IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+
+    if (RtlCompareMemory(IoStack->Parameters.QueryInterface.InterfaceType,
+                         &GUID_HID_INTERFACE_NOTIFY,
+                         sizeof(GUID)) == sizeof(GUID))
+    {
+        DPRINT("HidClassQueryInterface: GUID_HID_INTERFACE_NOTIFY not implemented \n");
+    }
+    else if (RtlCompareMemory(IoStack->Parameters.QueryInterface.InterfaceType,
+                              &GUID_HID_INTERFACE_HIDPARSE,
+                              sizeof(GUID)) == sizeof(GUID))
+    {
+        DPRINT("HidClassQueryInterface: GUID_HID_INTERFACE_HIDPARSE not implemented \n");
+    }
+
+    return Irp->IoStatus.Status;
 }
 
 NTSTATUS
