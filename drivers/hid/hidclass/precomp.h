@@ -161,6 +161,7 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
     KSPIN_LOCK HidRemoveDeviceSpinLock;
     /* Opens Counter */
     LONG OpenCount;
+    IO_REMOVE_LOCK HidRemoveLock;
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
 
@@ -216,6 +217,7 @@ typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION {
     LONG RestrictionsForRead;
     LONG RestrictionsForWrite;
     LONG RestrictionsForAnyOpen;
+    IO_REMOVE_LOCK ClientRemoveLock;
 
 } HIDCLASS_PDO_DEVICE_EXTENSION, *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
@@ -265,6 +267,7 @@ typedef struct _HIDCLASS_FILEOP_CONTEXT {
     USHORT ShareAccess;
     ULONG SessionId;
     ULONG DesiredAccess;
+    ULONG CloseCounter;
 
 } HIDCLASS_FILEOP_CONTEXT, *PHIDCLASS_FILEOP_CONTEXT;
 
@@ -340,6 +343,11 @@ HidClassSubmitInterruptRead(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
     IN PHIDCLASS_SHUTTLE Shuttle,
     IN BOOLEAN * OutIsSending);
+
+NTSTATUS
+NTAPI
+HidClassCleanUpFDO(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension);
 
 /* pdo.c */
 NTSTATUS

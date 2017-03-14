@@ -532,13 +532,16 @@ HidClass_Close(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
 {
+    NTSTATUS Status;
     PIO_STACK_LOCATION IoStack;
     PHIDCLASS_COMMON_DEVICE_EXTENSION CommonDeviceExtension;
+    PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
     PHIDCLASS_FILEOP_CONTEXT IrpContext;
-    BOOLEAN IsRequestPending = FALSE;
-    KIRQL OldLevel;
-    PLIST_ENTRY Entry;
-    PIRP ListIrp;
+    PHIDCLASS_COLLECTION HidCollection;
+    KIRQL OldIrql;
+
+    DPRINT("HidClass_Close: Irp - %p\n", Irp);
 
     //
     // get device extension
@@ -550,13 +553,17 @@ HidClass_Close(
     //
     if (CommonDeviceExtension->IsFDO)
     {
-        //
+        DPRINT1("HidClass_Close: Error ... \n");
         // how did the request get there
-        //
-        Irp->IoStatus.Status = STATUS_INVALID_PARAMETER_1;
-        IoCompleteRequest(Irp, IO_NO_INCREMENT);
-        return STATUS_INVALID_PARAMETER_1;
+        Status = STATUS_INVALID_PARAMETER_1;
+        goto Exit;
     }
+
+    Irp->IoStatus.Information = 0;
+
+    /* get device extensions */
+    PDODeviceExtension = DeviceObject->DeviceExtension;
+    FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
 
     //
     // get stack location
@@ -573,92 +580,115 @@ HidClass_Close(
     // get irp context
     //
     IrpContext = IoStack->FileObject->FsContext;
-    ASSERT(IrpContext);
 
-    //
-    // acquire lock
-    //
-    KeAcquireSpinLock(&IrpContext->Lock, &OldLevel);
-
-    if (!IsListEmpty(&IrpContext->ReadPendingIrpListHead))
+    if (!IrpContext)
     {
-        //
-        // FIXME cancel irp
-        //
-        IsRequestPending = TRUE;
+        DPRINT1("HidClass_Close: Error ... \n");
+        Status = STATUS_DEVICE_NOT_CONNECTED;
+        goto Exit;
     }
 
-    //
-    // signal stop
-    //
-    IrpContext->StopInProgress = TRUE;
+    InterlockedExchangeAdd(&FDODeviceExtension->OpenCount, -1);
 
-    //
-    // release lock
-    //
-    KeReleaseSpinLock(&IrpContext->Lock, OldLevel);
+    HidCollection = GetHidclassCollection(FDODeviceExtension,
+                                          PDODeviceExtension->CollectionNumber);
 
-    if (IsRequestPending)
+    if (!HidCollection)
     {
-        //
-        // wait for request to complete
-        //
-        DPRINT1("[HIDCLASS] Waiting for read irp completion...\n");
-        KeWaitForSingleObject(&IrpContext->IrpReadComplete, Executive, KernelMode, FALSE, NULL);
+        DPRINT1("HidClass_Close: Error ... \n");
+        Status = STATUS_DATA_ERROR;
+        goto Exit;
     }
 
-    //
-    // acquire lock
-    //
-    KeAcquireSpinLock(&IrpContext->Lock, &OldLevel);
-
-    //
-    // sanity check
-    //
-    ASSERT(IsListEmpty(&IrpContext->ReadPendingIrpListHead));
-
-    //
-    // now free all irps
-    //
-    while (!IsListEmpty(&IrpContext->IrpCompletedListHead))
+    if (FDODeviceExtension->HidFdoState == HIDCLASS_STATE_DELETED)
     {
-        //
-        // remove head irp
-        //
-        Entry = RemoveHeadList(&IrpContext->IrpCompletedListHead);
+        KeAcquireSpinLock(&HidCollection->CollectSpinLock, &OldIrql);
+        RemoveEntryList(&IrpContext->InterruptReportLink);
+        KeReleaseSpinLock(&HidCollection->CollectSpinLock, OldIrql);
 
-        //
-        // get irp
-        //
-        ListIrp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
+        if (IrpContext->IsMyPrivilegeTrue)
+        {
+            KeAcquireSpinLock(&HidCollection->CollectCloseSpinLock, &OldIrql);
 
-        //
-        // free the irp
-        //
-        IoFreeIrp(ListIrp);
+            while (IrpContext->CloseCounter)
+            {
+                IrpContext->CloseCounter--;
+                HidCollection->CloseFlag--;
+            }
+
+            IrpContext->CloseCounter--;
+
+            KeReleaseSpinLock(&HidCollection->CollectCloseSpinLock, OldIrql);
+        }
+
+        HidClassDestroyFileContext(HidCollection, IrpContext);
+
+        //FIXME RemoveLock support
+        ASSERT(FALSE);
+
+        if (0)//IoAcquireRemoveLock(&FDODeviceExtension->HidRemoveLock, 0))
+        {
+            HidClassCleanUpFDO(FDODeviceExtension);
+        }
+    }
+    else
+    {
+        KeAcquireSpinLock(&HidCollection->CollectSpinLock, &OldIrql);
+        InterlockedExchangeAdd(&PDODeviceExtension->OpenCount, -1);
+
+        if (IrpContext->DesiredAccess & FILE_READ_DATA)
+        {
+            PDODeviceExtension->OpensForRead--;
+        }
+
+        if (IrpContext->DesiredAccess & FILE_WRITE_DATA)
+        {
+            PDODeviceExtension->OpensForWrite--;
+        }
+
+        if (!(IrpContext->ShareAccess & FILE_SHARE_READ))
+        {
+            PDODeviceExtension->RestrictionsForRead--;
+        }
+
+        if (!(IrpContext->ShareAccess & FILE_SHARE_WRITE))
+        {
+            PDODeviceExtension->RestrictionsForWrite--;
+        }
+
+        if (!IrpContext->ShareAccess)
+        {
+            PDODeviceExtension->RestrictionsForAnyOpen--;
+        }
+
+        RemoveEntryList(&IrpContext->InterruptReportLink);
+        KeReleaseSpinLock(&HidCollection->CollectSpinLock, OldIrql);
+
+        if (IrpContext->IsMyPrivilegeTrue)
+        {
+            KeAcquireSpinLock(&HidCollection->CollectCloseSpinLock, &OldIrql);
+
+            while (IrpContext->CloseCounter)
+            {
+                IrpContext->CloseCounter--;
+                HidCollection->CloseFlag--;
+            }
+
+            IrpContext->CloseCounter--;
+
+            KeReleaseSpinLock(&HidCollection->CollectCloseSpinLock, OldIrql);
+        }
+
+        HidClassDestroyFileContext(HidCollection, IrpContext);
     }
 
-    //
-    // release lock
-    //
-    KeReleaseSpinLock(&IrpContext->Lock, OldLevel);
+    Status = STATUS_SUCCESS;
 
-    //
-    // remove context
-    //
-    IoStack->FileObject->FsContext = NULL;
-
-    //
-    // free context
-    //
-    ExFreePoolWithTag(IrpContext, HIDCLASS_TAG);
-
-    //
-    // complete request
-    //
-    Irp->IoStatus.Status = STATUS_SUCCESS;
+Exit:
+    /* complete request */
+    Irp->IoStatus.Status = Status;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    return Status;
 }
 
 NTSTATUS
