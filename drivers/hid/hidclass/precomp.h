@@ -349,6 +349,18 @@ NTAPI
 HidClassCleanUpFDO(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension);
 
+PIRP
+NTAPI
+HidClassDequeueInterruptReadIrp(
+    IN PHIDCLASS_COLLECTION HidCollection,
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext);
+
+PHIDCLASS_INT_REPORT_HEADER
+NTAPI
+HidClassDequeueInterruptReport(
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext,
+    IN ULONG  ReadLength);
+
 /* pdo.c */
 NTSTATUS
 HidClassCreatePDOs(

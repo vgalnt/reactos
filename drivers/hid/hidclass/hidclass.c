@@ -528,6 +528,58 @@ Exit:
 
 VOID
 NTAPI
+HidClassCompleteReadsForFileContext(
+    IN PHIDCLASS_COLLECTION HidCollection,
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext)
+{
+    KIRQL OldIrql;
+    PIRP Irp;
+    PLIST_ENTRY Entry;
+    LIST_ENTRY List;
+
+    DPRINT("HidClassCompleteReadsForFileContext: ... \n");
+
+    InitializeListHead(&List);
+
+    KeAcquireSpinLock(&FileContext->Lock, &OldIrql);
+
+    while (TRUE)
+    {
+        Irp = HidClassDequeueInterruptReadIrp(HidCollection, FileContext);
+
+        if (!Irp)
+        {
+            break;
+        }
+
+        InsertTailList(&List, &Irp->Tail.Overlay.ListEntry);
+    }
+
+    KeReleaseSpinLock(&FileContext->Lock, OldIrql);
+
+    while (TRUE)
+    {
+        if (IsListEmpty(&List))
+        {
+            break;
+        }
+
+        Entry = RemoveHeadList(&List);
+
+        Irp = CONTAINING_RECORD(Entry,
+                                IRP,
+                                Tail.Overlay.ListEntry);
+
+        Irp->IoStatus.Status = STATUS_DEVICE_NOT_CONNECTED;
+
+        DPRINT("HidClassCompleteReadsForFileContext: Irp - %p\n", Irp);
+
+        IoCompleteRequest(Irp, IO_KEYBOARD_INCREMENT);
+    }
+}
+
+VOID
+NTAPI
 HidClassFlushReportQueue(
     IN PHIDCLASS_FILEOP_CONTEXT FileContext)
 {
