@@ -1343,67 +1343,58 @@ HidClassFDO_DispatchRequestSynchronous(
     IN PIRP Irp)
 {
     KEVENT Event;
-    PHIDCLASS_COMMON_DEVICE_EXTENSION CommonDeviceExtension;
     NTSTATUS Status;
-    PIO_STACK_LOCATION IoStack;
+    LARGE_INTEGER Timeout = {{0, 0}};
 
-    //
-    // init event
-    //
+    /* Init event */
     KeInitializeEvent(&Event, NotificationEvent, FALSE);
 
-    //
-    // get device extension
-    //
-    CommonDeviceExtension = DeviceObject->DeviceExtension;
+    /* Set completion routine */
+    IoSetCompletionRoutine(Irp,
+                           HidClassFDO_DispatchRequestSynchronousCompletion,
+                           &Event,
+                           TRUE,
+                           TRUE,
+                           TRUE);
 
-    //
-    // set completion routine
-    //
-    IoSetCompletionRoutine(Irp, HidClassFDO_DispatchRequestSynchronousCompletion, &Event, TRUE, TRUE, TRUE);
+    /* Send request */
+    Status = HidClassFDO_DispatchRequest(DeviceObject, Irp);
 
-    ASSERT(Irp->CurrentLocation > 0);
-    //
-    // create stack location
-    //
-    IoSetNextIrpStackLocation(Irp);
-
-    //
-    // get next stack location
-    //
-    IoStack = IoGetCurrentIrpStackLocation(Irp);
-
-    //
-    // store device object
-    //
-    IoStack->DeviceObject = DeviceObject;
-
-    //
-    // sanity check
-    //
-    ASSERT(CommonDeviceExtension->DriverExtension->MajorFunction[IoStack->MajorFunction] != NULL);
-
-    //
-    // call minidriver (hidusb)
-    //
-    Status = CommonDeviceExtension->DriverExtension->MajorFunction[IoStack->MajorFunction](DeviceObject, Irp);
-
-    //
-    // wait for the request to finish
-    //
-    if (Status == STATUS_PENDING)
+    if (Status != STATUS_PENDING)
     {
-        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
-
-        //
-        // update status
-        //
-        Status = Irp->IoStatus.Status;
+        return Status;
     }
 
-    //
-    // done
-    //
+    Timeout.QuadPart -= 5000 * 10000; // (5 sec.)
+
+    /* Status == STATUS_PENDING */
+    if (KeWaitForSingleObject(&Event,
+                               Executive,
+                               KernelMode,
+                               FALSE,
+                               &Timeout) != STATUS_TIMEOUT)
+    {
+        Status = Irp->IoStatus.Status;
+        return Status;
+    }
+
+    /* Status == STATUS_TIMEOUT */
+    IoCancelIrp(Irp);
+
+    KeWaitForSingleObject(&Event,
+                          Executive,
+                          KernelMode,
+                          FALSE,
+                          NULL);
+
+    Status = Irp->IoStatus.Status;
+
+    if (Status == STATUS_CANCELLED)
+    {
+        Status = STATUS_IO_TIMEOUT;
+    }
+
+    Irp->IoStatus.Status = Status;
     return Status;
 }
 
