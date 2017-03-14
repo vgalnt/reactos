@@ -1120,115 +1120,293 @@ HidClass_Read(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
 {
-    PIO_STACK_LOCATION IoStack;
-    PHIDCLASS_FILEOP_CONTEXT Context;
-    KIRQL OldLevel;
-    NTSTATUS Status;
-    PIRP NewIrp;
-    PHIDCLASS_IRP_CONTEXT NewIrpContext;
     PHIDCLASS_COMMON_DEVICE_EXTENSION CommonDeviceExtension;
+    PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    PFILE_OBJECT FileObject;
+    PHIDCLASS_COLLECTION HidCollection;
+    PHIDP_COLLECTION_DESC HidCollectionDesc;
+    PHIDCLASS_FILEOP_CONTEXT FileContext;
+    PHIDCLASS_INT_REPORT_HEADER Header;
+    PHIDCLASS_COMPLETION_WORKITEM CompletionWorkItem;
+    ULONG HidFdoState;
+    ULONG HidPdoState;
+    ULONG Length;
+    PVOID VAddress;
+    PVOID StartVAddress;
+    ULONG ReportSize;
+    ULONG BufferRemaining;
+    PVOID InputReportBuffer;
+    NTSTATUS Status;
+    ULONG ix;
+    CCHAR Increment;
+    BOOLEAN IsNotRunning;
+    KIRQL OldIrql;
 
-    //
-    // get current stack location
-    //
-    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    DPRINT("HidClass_Read: Irp - %p\n", Irp);
 
-    //
-    // get device extension
-    //
+    /* Get device extensions */
     CommonDeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(CommonDeviceExtension->IsFDO == FALSE);
+    PDODeviceExtension = DeviceObject->DeviceExtension;
+    FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
 
-    //
-    // sanity check
-    //
-    ASSERT(IoStack->FileObject);
-    ASSERT(IoStack->FileObject->FsContext);
+    /* Get current stack location */
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
 
-    //
-    // get context
-    //
-    Context = IoStack->FileObject->FsContext;
-    ASSERT(Context);
+    FileObject = IoStack->FileObject;
 
-    //
-    // FIXME support polled devices
-    //
-    ASSERT(Context->DeviceExtension->Common.DriverExtension->DevicesArePolled == FALSE);
-
-    if (Context->StopInProgress)
+    if (!FileObject)
     {
-        //
-        // stop in progress
-        //
-        DPRINT1("[HIDCLASS] Stop In Progress\n");
-        Irp->IoStatus.Status = STATUS_CANCELLED;
+        DPRINT1("HidClass_Read: error ... \n");
+        Irp->IoStatus.Status = STATUS_PRIVILEGE_NOT_HELD;
         IoCompleteRequest(Irp, IO_NO_INCREMENT);
-        return STATUS_CANCELLED;
+        return STATUS_PRIVILEGE_NOT_HELD;
     }
 
-    //
-    // build irp request
-    //
-    Status = HidClass_BuildIrp(DeviceObject,
-                               Irp,
-                               Context,
-                               IOCTL_HID_READ_REPORT,
-                               IoStack->Parameters.Read.Length,
-                               &NewIrp,
-                               &NewIrpContext);
-    if (!NT_SUCCESS(Status))
+    FileContext = FileObject->FsContext;
+
+    if (!FileContext)
     {
-        //
-        // failed
-        //
-        DPRINT1("HidClass_BuildIrp failed with %x\n", Status);
-        Irp->IoStatus.Status = Status;
+        DPRINT1("HidClass_Read: error ... \n");
+        Irp->IoStatus.Status = STATUS_PRIVILEGE_NOT_HELD;
         IoCompleteRequest(Irp, IO_NO_INCREMENT);
-        return Status;
+        return STATUS_PRIVILEGE_NOT_HELD;
     }
 
-    //
-    // acquire lock
-    //
-    KeAcquireSpinLock(&Context->Lock, &OldLevel);
+    ASSERT(IoStack->FileObject->Type == IO_TYPE_FILE);
 
-    /* insert irp into pending list
-       HACK: use Context->ReadIrpLink instead Irp->Tail.Overlay.ListEntry (use usbport)
-    */
-    //InsertTailList(&Context->ReadPendingIrpListHead, &NewIrp->Tail.Overlay.ListEntry);
-    InsertTailList(&Context->ReadPendingIrpListHead, &NewIrpContext->ReadIrpLink);
+    HidFdoState = FDODeviceExtension->HidFdoState;
+    HidPdoState = PDODeviceExtension->HidPdoState;
 
-    //
-    // set completion routine
-    //
-    IoSetCompletionRoutine(NewIrp, HidClass_ReadCompleteIrp, NewIrpContext, TRUE, TRUE, TRUE);
+    if (((HidFdoState != HIDCLASS_STATE_STARTED) &&
+         (HidFdoState != HIDCLASS_STATE_STOPPING) &&
+         (HidFdoState != HIDCLASS_STATE_DISABLED)) ||
+        ((HidPdoState != HIDCLASS_STATE_STARTED) &&
+         (HidPdoState != HIDCLASS_STATE_FAILED) &&
+         (HidPdoState != HIDCLASS_STATE_STOPPING)))
+    {
+        DPRINT1("HidClass_Read: Not valid state. FdoState - %x, PdoState - %x\n",
+                HidFdoState,
+                HidPdoState);
 
-    //
-    // make next location current
-    //
-    IoSetNextIrpStackLocation(NewIrp);
+        Status = STATUS_DEVICE_NOT_CONNECTED;
+        goto Exit;
+    }
 
-    //
-    // release spin lock
-    //
-    KeReleaseSpinLock(&Context->Lock, OldLevel);
+    if (HidFdoState == HIDCLASS_STATE_DISABLED ||
+        HidFdoState == HIDCLASS_STATE_STOPPING ||
+        HidPdoState == HIDCLASS_STATE_FAILED ||
+        HidPdoState == HIDCLASS_STATE_STOPPING)
+    {
+        IsNotRunning = TRUE;
+    }
+    else
+    {
+        IsNotRunning = FALSE;
+    }
 
-    //
-    // mark irp pending
-    //
-    IoMarkIrpPending(Irp);
+    Irp->IoStatus.Information = 0;
 
-    //
-    // let's dispatch the request
-    //
-    ASSERT(Context->DeviceExtension);
-    Status = Context->DeviceExtension->Common.DriverExtension->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL](Context->DeviceExtension->FDODeviceObject, NewIrp);
+    HidCollection = GetHidclassCollection(FDODeviceExtension,
+                                          PDODeviceExtension->CollectionNumber);
 
-    //
-    // complete
-    //
-    return STATUS_PENDING;
+    HidCollectionDesc = GetCollectionDesc(FDODeviceExtension,
+                                          PDODeviceExtension->CollectionNumber);
+
+    if (!HidCollection || !HidCollectionDesc)
+    {
+        DPRINT1("HidClass_Read: error ... \n");
+        Status = STATUS_DEVICE_NOT_CONNECTED;
+
+        if (Status == STATUS_PENDING)
+        {
+            return STATUS_PENDING;
+        }
+
+        goto Exit;
+    }
+
+    Length = IoStack->Parameters.Read.Length;
+
+    if (Length < HidCollectionDesc->InputLength)
+    {
+        DPRINT1("HidClass_Read: error ... \n");
+        Status = STATUS_INVALID_BUFFER_SIZE;
+
+        if (Status == STATUS_PENDING)
+        {
+            return STATUS_PENDING;
+        }
+
+        goto Exit;
+    }
+
+    DPRINT("HidClass_Read: Polled - %x\n", HidCollection->HidCollectInfo.Polled);
+
+    if (!HidCollection->HidCollectInfo.Polled)
+    {
+        KeAcquireSpinLock(&FileContext->Lock, &OldIrql);
+
+        //FIXME: PowerState implement.
+        if (IsNotRunning /*|| (FDODeviceExtension->DevicePowerState != PowerDeviceD0)*/)
+        {
+            Status = HidClassEnqueueInterruptReadIrp(HidCollection, FileContext, Irp);
+        }
+        else
+        {
+            BufferRemaining = IoStack->Parameters.Read.Length;
+            VAddress = HidClassGetSystemAddressForMdlSafe(Irp->MdlAddress);
+            StartVAddress = VAddress;
+
+            if (!VAddress)
+            {
+                DPRINT1("HidClass_Read: Invalid buffer address\n");
+                Status = STATUS_INVALID_USER_BUFFER;
+                KeReleaseSpinLock(&FileContext->Lock, OldIrql);
+
+                if (Status == STATUS_PENDING)
+                {
+                    return STATUS_PENDING;
+                }
+
+                goto Exit;
+            }
+
+            ix = 0;
+            Status = STATUS_SUCCESS;
+
+            if (BufferRemaining > 0)
+            {
+                do
+                {
+                    ReportSize = BufferRemaining;
+                    Header = HidClassDequeueInterruptReport(FileContext, ReportSize);
+
+                    if (!Header)
+                    {
+                        break;
+                    }
+
+                    InputReportBuffer = (PVOID)((ULONG_PTR)Header +
+                                                sizeof(PHIDCLASS_INT_REPORT_HEADER));
+
+                    Status = HidClassCopyInputReportToUser(FileContext,
+                                                           InputReportBuffer,
+                                                           &ReportSize,
+                                                           VAddress);
+
+                    ExFreePoolWithTag(Header, 0);
+
+                    if (!NT_SUCCESS(Status))
+                    {
+                        KeReleaseSpinLock(&FileContext->Lock, OldIrql);
+
+                        if (Status == STATUS_PENDING)
+                        {
+                            return STATUS_PENDING;
+                        }
+
+                        goto Exit;
+                    }
+
+                    VAddress = (PVOID)((ULONG_PTR)VAddress + ReportSize);
+                    BufferRemaining -= ReportSize;
+
+                    ++ix;
+                }
+                while (BufferRemaining);
+
+                if (!NT_SUCCESS(Status))
+                {
+                    KeReleaseSpinLock(&FileContext->Lock, OldIrql);
+
+                    if (Status == STATUS_PENDING)
+                    {
+                        return STATUS_PENDING;
+                    }
+
+                    goto Exit;
+                }
+
+                if (ix > 0)
+                {
+                    Irp->IoStatus.Information = (ULONG_PTR)VAddress -
+                                                (ULONG_PTR)StartVAddress;
+
+                    KeReleaseSpinLock(&FileContext->Lock, OldIrql);
+
+                    if (Status == STATUS_PENDING)
+                    {
+                        return STATUS_PENDING;
+                    }
+
+                    goto Exit;
+                }
+            }
+
+            Status = HidClassEnqueueInterruptReadIrp(HidCollection,
+                                                     FileContext,
+                                                     Irp);
+        }
+
+        KeReleaseSpinLock(&FileContext->Lock, OldIrql);
+
+        if (Status == STATUS_PENDING)
+        {
+            return STATUS_PENDING;
+        }
+    }
+    else
+    {
+        DPRINT("HidClass_Read: Polled collection not implemented. FIXME\n");
+    }
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+
+    if (FileContext->RetryReads > 1)
+    {
+        DPRINT("HidClass_Read: RetryReads - %x\n", FileContext->RetryReads);
+    }
+
+    if (InterlockedIncrement(&FileContext->RetryReads) > 4)
+    {
+        CompletionWorkItem = ExAllocatePoolWithTag(NonPagedPool,
+                                                   sizeof(HIDCLASS_COMPLETION_WORKITEM),
+                                                   HIDCLASS_TAG);
+
+        if (CompletionWorkItem)
+        {
+            PIO_WORKITEM WorkItem;
+
+            WorkItem = IoAllocateWorkItem(PDODeviceExtension->SelfDevice);
+            CompletionWorkItem->CompleteWorkItem = WorkItem;
+
+            CompletionWorkItem->Irp = Irp;
+            IoMarkIrpPending(Irp);
+
+            IoQueueWorkItem(CompletionWorkItem->CompleteWorkItem,
+                            HidClassCompleteIrpAsynchronously,
+                            DelayedWorkQueue,
+                            CompletionWorkItem);
+
+            InterlockedExchangeAdd(&FileContext->RetryReads, -1);
+            return STATUS_PENDING;
+        }
+
+        Increment = IO_NO_INCREMENT;
+    }
+    else
+    {
+        Increment = IO_KEYBOARD_INCREMENT;
+    }
+
+    IoCompleteRequest(Irp, Increment);
+    InterlockedExchangeAdd(&FileContext->RetryReads, -1);
+    return Status;
 }
 
 NTSTATUS
