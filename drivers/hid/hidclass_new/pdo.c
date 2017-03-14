@@ -572,6 +572,60 @@ HidClassPdoStart(
     return Status;
 }
 
+VOID
+NTAPI
+HidClassRemoveCollection(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension,
+    IN PIRP Irp)
+{
+    PHIDCLASS_COLLECTION HidCollections;
+
+    DPRINT("HidClassRemoveCollection: Irp - %p\n", Irp);
+
+    if (PDODeviceExtension->HidPdoPrevState == HIDCLASS_STATE_NOT_INIT ||
+        PDODeviceExtension->HidPdoState == HIDCLASS_STATE_NOT_INIT)
+    {
+        PDODeviceExtension->HidPdoState = HIDCLASS_STATE_NOT_INIT;
+        return;
+    }
+
+    if (!PDODeviceExtension->IsGenericHid && FDODeviceExtension &&
+        FDODeviceExtension->Capabilities.DeviceWake > 1 && //FIXME const.
+        FDODeviceExtension->Capabilities.SystemWake > 1)
+    {
+        DPRINT("HidClassRemoveCollection: FIXME WMI\n");
+        //WMIRegistrationControl(PDODeviceExtension->SelfDevice,
+        //                         WMIREG_ACTION_DEREGISTER);
+    }
+
+    DPRINT("HidClassRemoveCollection: FIXME cancel Wake Irp\n");
+
+    PDODeviceExtension->HidPdoState = HIDCLASS_STATE_NOT_INIT;
+
+    if (FDODeviceExtension)
+    {
+        HidCollections = FDODeviceExtension->HidCollections;
+
+        if (HidCollections &&
+            HidCollections != (PVOID)HIDCLASS_NULL_POINTER)
+        {
+            PHIDCLASS_COLLECTION HidCollection;
+
+            HidCollection = &HidCollections[PDODeviceExtension->PdoIdx];
+
+            HidClassCompleteReadsForCollection(HidCollection);
+
+            if (HidCollection->HidCollectInfo.Polled)
+            {
+                DPRINT("HidClassRemoveCollection: FIXME stop polling\n");
+            }
+
+            DPRINT("HidClassRemoveCollection: FIXME handle PowerEvent Irp\n");
+        }
+    }
+}
+
 NTSTATUS
 HidClassPDO_PnP(
     IN PDEVICE_OBJECT DeviceObject,
