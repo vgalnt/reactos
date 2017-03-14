@@ -32,6 +32,8 @@ NTAPI
 DllInitialize(
     IN PUNICODE_STRING RegistryPath)
 {
+    DPRINT("DllInitialize: ... \n");
+
     InitializeListHead(&DriverExtList);
     ExInitializeFastMutex(&DriverExtListMutex);
     HidClassDeviceNumber = 0;
@@ -43,6 +45,7 @@ NTSTATUS
 NTAPI
 DllUnload(VOID)
 {
+    DPRINT("DllUnload: ... \n");
     return STATUS_SUCCESS;
 }
 
@@ -229,6 +232,7 @@ HidClassAddDevice(
     FDODeviceExtension->Common.IsFDO = TRUE;
     FDODeviceExtension->Common.DriverExtension = DriverExtension;
     HidDeviceExtension->PhysicalDeviceObject = PhysicalDeviceObject;
+    FDODeviceExtension->FDODeviceObject = NewDeviceObject;
     FDODeviceExtension->OutstandingRequests = 0;
     FDODeviceExtension->BusNumber = HidClassDeviceNumber;
 
@@ -240,6 +244,12 @@ HidClassAddDevice(
     /* Initialize SpinLocks */
     KeInitializeSpinLock(&FDODeviceExtension->HidRelationSpinLock);
     KeInitializeSpinLock(&FDODeviceExtension->HidRemoveDeviceSpinLock);
+
+    /* Initialize remove lock for FDO */
+    IoInitializeRemoveLock(&FDODeviceExtension->HidRemoveLock,
+                           HIDCLASS_REMOVE_LOCK_TAG,
+                           HIDCLASS_FDO_MAX_LOCKED_MINUTES,
+                           HIDCLASS_FDO_HIGH_WATERMARK);
 
     /* Calculate and save pointer to minidriver-specific portion device extension */
     HidDeviceExtension->MiniDeviceExtension = (PVOID)((ULONG_PTR)FDODeviceExtension +
