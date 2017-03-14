@@ -323,6 +323,12 @@ NTAPI
 DerefDriverExt(
     IN PDRIVER_OBJECT DriverObject);
 
+VOID
+NTAPI
+HidClassCompleteReadsForFileContext(
+    IN PHIDCLASS_COLLECTION HidCollection,
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext);
+
 /* fdo.c */
 PVOID
 NTAPI
