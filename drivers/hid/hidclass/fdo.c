@@ -1018,6 +1018,17 @@ HidClassCancelAllShuttleIrps(
 
     if (FDODeviceExtension->ShuttleCount)
     {
+{       /* HACK: force cancelling shuttles
+           (problem disconnecting from PC USB port CORE-9070)
+        */
+
+        for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
+        {
+            Shuttle = &FDODeviceExtension->Shuttles[ix];
+            Shuttle->CancellingShuttle = 1;
+        }
+}
+
         ix = 0;
 
         do
