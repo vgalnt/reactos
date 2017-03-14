@@ -431,6 +431,83 @@ HidClassAllPdoInitialized(
 }
 
 NTSTATUS
+NTAPI
+HidClassPdoStart(
+    IN PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension,
+    IN PIRP Irp)
+{
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PHIDCLASS_COLLECTION HidCollection;
+    NTSTATUS Status;
+
+    DPRINT("HidClassPdoStart: Irp - %p, HidPdoState - %x\n",
+           Irp,
+           PDODeviceExtension->HidPdoState);
+
+    FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
+
+    if (PDODeviceExtension->HidPdoState == HIDCLASS_STATE_NOT_INIT)
+    {
+        PDODeviceExtension->HidPdoState = HIDCLASS_STATE_STARTING;
+    }
+
+    HidCollection = GetHidclassCollection(FDODeviceExtension,
+                                          PDODeviceExtension->CollectionNumber);
+
+    if (!HidCollection)
+    {
+        return STATUS_DEVICE_DATA_ERROR;
+    }
+
+    // FIXME: HidclassGetSessionSecurityState(...);
+
+    if (HidClassAnyPdoInitialized(FDODeviceExtension))
+    {
+        DPRINT("[HIDCLASS] HidClassAnyPdoInitialized return TRUE\n");
+
+        if (HidCollection->HidCollectInfo.Polled)
+        {
+            DPRINT1("[HIDCLASS] Polled collections not implemented! FIXME\n");
+            ASSERT(PDODeviceExtension->Common.DriverExtension->DevicesArePolled == FALSE);
+            return STATUS_NOT_SUPPORTED;
+        }
+        else if (!FDODeviceExtension->NotAllocCollectResources)
+        {
+            Status = HidClassAllShuttlesStart(FDODeviceExtension);
+
+            if (!NT_SUCCESS(Status))
+            {
+                return Status;
+            }
+        }
+    }
+
+    PDODeviceExtension->HidPdoState = HIDCLASS_STATE_STARTED;
+
+    HidClassSymbolicLinkOnOff(PDODeviceExtension,
+                              PDODeviceExtension->CollectionNumber,
+                              TRUE,
+                              PDODeviceExtension->SelfDevice);
+
+    if (!PDODeviceExtension->IsGenericHid &&
+         PDODeviceExtension->Capabilities.DeviceWake > 1 &&
+         PDODeviceExtension->Capabilities.SystemWake > 1)
+    {
+        DPRINT("HidClassPdoStart: FIXME RemoteWake and WMI\n");
+        //IoWMIRegistrationControl(PDODeviceExtension->SelfDevice,
+        //                         WMIREG_ACTION_REGISTER);
+    }
+
+    if (HidClassAllPdoInitialized(FDODeviceExtension, 1))
+    {
+        DPRINT("HidClassPdoStart: FIXME HidClassStartIdleTimeout\n");
+        //HidClassStartIdleTimeout(FDODeviceExtension, 1);
+    }
+
+    return Status;
+}
+
+NTSTATUS
 HidClassPDO_PnP(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
