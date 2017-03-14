@@ -528,6 +528,31 @@ Exit:
 
 VOID
 NTAPI
+HidClassFlushReportQueue(
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext)
+{
+    KIRQL OldIrql;
+    PHIDCLASS_INT_REPORT_HEADER Header;
+
+    KeAcquireSpinLock(&FileContext->Lock, &OldIrql);
+
+    while (TRUE)
+    {
+        Header = HidClassDequeueInterruptReport(FileContext, MAXULONG);
+
+        if (!Header)
+        {
+            break;
+        }
+
+        ExFreePoolWithTag(Header, 0);
+    }
+
+    KeReleaseSpinLock(&FileContext->Lock, OldIrql);
+}
+
+VOID
+NTAPI
 HidClassDestroyFileContext(
     IN PHIDCLASS_COLLECTION HidCollection,
     IN PHIDCLASS_FILEOP_CONTEXT FileContext)
