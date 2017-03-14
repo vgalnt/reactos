@@ -305,6 +305,17 @@ HidClassDriverUnload(
     DriverExtension->DriverUnload(DriverObject);
 }
 
+BOOLEAN
+NTAPI
+HidClassPrivilegeCheck(
+    IN PIRP Irp)
+{
+    LUID PrivilegeValue;
+
+    PrivilegeValue = RtlConvertLongToLuid(SE_TCB_PRIVILEGE);
+    return SeSinglePrivilegeCheck(PrivilegeValue, Irp->RequestorMode);
+}
+
 NTSTATUS
 NTAPI
 HidClass_Create(
