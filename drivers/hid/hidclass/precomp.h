@@ -395,6 +395,11 @@ HidClassCopyInputReportToUser(
     IN PULONG OutLength,
     IN PVOID VAddress);
 
+NTSTATUS
+NTAPI
+HidClassAllShuttlesStart(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension);
+
 /* pdo.c */
 NTSTATUS
 HidClassCreatePDOs(

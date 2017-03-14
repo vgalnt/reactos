@@ -949,6 +949,61 @@ HidClassSubmitInterruptRead(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+HidClassAllShuttlesStart(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    ULONG ix = 0;
+    BOOLEAN IsSending;
+
+    DPRINT("HidClassAllShuttlesStart: ShuttleCount - %x\n",
+           FDODeviceExtension->ShuttleCount);
+
+    if (!(FDODeviceExtension->ShuttleCount))
+    {
+        DPRINT1("ShuttleCount is 0\n");
+        return Status;
+    }
+
+    do
+    {
+        if (KeReadStateEvent(&FDODeviceExtension->Shuttles[ix].ShuttleDoneEvent))
+        {
+            FDODeviceExtension->Shuttles[ix].ShuttleState = HIDCLASS_SHUTTLE_END_READ;
+
+            KeResetEvent(&FDODeviceExtension->Shuttles[ix].ShuttleDoneEvent);
+
+            Status = HidClassSubmitInterruptRead(FDODeviceExtension,
+                                                 &FDODeviceExtension->Shuttles[ix],
+                                                 &IsSending);
+
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("Submit read failed with %x\n", Status);
+
+                if (!IsSending)
+                {
+                    break;
+                }
+
+                Status = STATUS_SUCCESS;
+            }
+        }
+
+        ++ix;
+    }
+    while (ix < FDODeviceExtension->ShuttleCount);
+
+    if (Status == STATUS_PENDING)
+    {
+        Status = STATUS_SUCCESS;
+    }
+
+    return Status;
+}
+
 VOID
 NTAPI
 HidClassCancelAllShuttleIrps(
