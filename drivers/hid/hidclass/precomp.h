@@ -2,6 +2,7 @@
 #define _HIDCLASS_PCH_
 
 #define _HIDPI_NO_FUNCTION_MACROS_
+#include <ntddk.h>
 #include <wdm.h>
 #include <hidpddi.h>
 #include <stdio.h>
@@ -21,6 +22,7 @@
 #define HIDCLASS_STATE_DELETED   8
 
 #define HIDCLASS_MINIMUM_SHUTTLE_IRPS    2
+#define HIDCLASS_MAX_REPORT_QUEUE_SIZE   32
 
 /* Shuttle state */
 #define HIDCLASS_SHUTTLE_START_READ      1
@@ -209,6 +211,11 @@ typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION {
     UCHAR Reserved1[2];
     /* Opens Counter */
     LONG OpenCount;
+    LONG OpensForRead;
+    LONG OpensForWrite;
+    LONG RestrictionsForRead;
+    LONG RestrictionsForWrite;
+    LONG RestrictionsForAnyOpen;
 
 } HIDCLASS_PDO_DEVICE_EXTENSION, *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
@@ -252,6 +259,12 @@ typedef struct _HIDCLASS_FILEOP_CONTEXT {
     LIST_ENTRY InterruptReportLink;
     ULONG MaxReportQueueSize;
     LONG PendingReports;
+    LONG RetryReads;
+    PFILE_OBJECT FileObject;
+    USHORT FileAttributes;
+    USHORT ShareAccess;
+    ULONG SessionId;
+    ULONG DesiredAccess;
 
 } HIDCLASS_FILEOP_CONTEXT, *PHIDCLASS_FILEOP_CONTEXT;
 
@@ -300,6 +313,12 @@ DerefDriverExt(
     IN PDRIVER_OBJECT DriverObject);
 
 /* fdo.c */
+PHIDCLASS_COLLECTION
+NTAPI
+GetHidclassCollection(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN ULONG CollectionNumber);
+
 NTSTATUS
 HidClassFDO_PnP(
     IN PDEVICE_OBJECT DeviceObject,

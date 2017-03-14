@@ -322,80 +322,208 @@ HidClass_Create(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
 {
+    NTSTATUS Status;
     PIO_STACK_LOCATION IoStack;
     PHIDCLASS_COMMON_DEVICE_EXTENSION CommonDeviceExtension;
     PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
-    PHIDCLASS_FILEOP_CONTEXT Context;
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PHIDCLASS_FILEOP_CONTEXT FileContext;
+    PHIDCLASS_COLLECTION HidCollection;
+    //ULONG SessionId;
+    ULONG HidFdoState;
+    ULONG HidPdoState;
+    BOOLEAN IsPrivilege;
+    KIRQL OldIrql;
 
-    //
-    // get device extension
-    //
-    CommonDeviceExtension = DeviceObject->DeviceExtension;
-    if (CommonDeviceExtension->IsFDO)
+    DPRINT("HidClass_Create: Irp - %p\n", Irp);
+
+    Status = STATUS_SUCCESS;// IoGetRequestorSessionId(Irp, &SessionId); FIXME
+
+    if (!NT_SUCCESS(Status))
     {
-         //
-         // only supported for PDO
-         //
-         Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
-         IoCompleteRequest(Irp, IO_NO_INCREMENT);
-         return STATUS_UNSUCCESSFUL;
+        DPRINT1("HidClass_Create: unable to get requestor SessionId\n");
+        goto Exit;
     }
 
-    //
-    // must be a PDO
-    //
-    ASSERT(CommonDeviceExtension->IsFDO == FALSE);
+    /* Get common extension */
+    CommonDeviceExtension = DeviceObject->DeviceExtension;
 
-    //
-    // get device extension
-    //
+    if (CommonDeviceExtension->IsFDO)
+    {
+        DPRINT1("HidClass_Create: only supported for PDO\n");
+        Status = STATUS_UNSUCCESSFUL;
+        goto Exit;
+    }
+
+    /* Get device extensions */
     PDODeviceExtension = DeviceObject->DeviceExtension;
+    FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
 
-    //
-    // get stack location
-    //
+    /* Get stack location */
     IoStack = IoGetCurrentIrpStackLocation(Irp);
+    ASSERT(IoStack->FileObject);
+
+    Irp->IoStatus.Information = 0;
+
+    /* Get collection */
+    HidCollection = GetHidclassCollection(FDODeviceExtension,
+                                          PDODeviceExtension->CollectionNumber);
+
+    if (!HidCollection)
+    {
+        DPRINT1("HidClass_Create: couldn't find collection\n");
+        Status = STATUS_DEVICE_NOT_CONNECTED;
+        goto Exit;
+    }
+
+    /* Check privilege */
+    IsPrivilege = HidClassPrivilegeCheck(Irp);
 
     DPRINT("ShareAccess %x\n", IoStack->Parameters.Create.ShareAccess);
     DPRINT("Options %x\n", IoStack->Parameters.Create.Options);
     DPRINT("DesiredAccess %x\n", IoStack->Parameters.Create.SecurityContext->DesiredAccess);
 
-    //
-    // allocate context
-    //
-    Context = ExAllocatePoolWithTag(NonPagedPool, sizeof(HIDCLASS_FILEOP_CONTEXT), HIDCLASS_TAG);
-    if (!Context)
+    KeAcquireSpinLock(&HidCollection->CollectSpinLock, &OldIrql);
+
+    /* Validate parameters */
+
+    if (PDODeviceExtension->RestrictionsForAnyOpen ||
+        (PDODeviceExtension->OpenCount && !IoStack->Parameters.Create.ShareAccess))
     {
-        //
-        // no memory
-        //
-        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
-        IoCompleteRequest(Irp, IO_NO_INCREMENT);
-        return STATUS_INSUFFICIENT_RESOURCES;
+        DPRINT1("HidClass_Create: STATUS_SHARING_VIOLATION \n");
+        Status = STATUS_SHARING_VIOLATION;
+        goto UnlockExit;
     }
 
-    //
-    // init context
-    //
-    RtlZeroMemory(Context, sizeof(HIDCLASS_FILEOP_CONTEXT));
-    Context->DeviceExtension = PDODeviceExtension;
-    KeInitializeSpinLock(&Context->Lock);
-    InitializeListHead(&Context->ReadPendingIrpListHead);
-    InitializeListHead(&Context->IrpCompletedListHead);
-    KeInitializeEvent(&Context->IrpReadComplete, NotificationEvent, FALSE);
+    if (((IoStack->Parameters.Create.SecurityContext->DesiredAccess & FILE_READ_DATA) &&
+          PDODeviceExtension->RestrictionsForRead) ||
+        ((IoStack->Parameters.Create.SecurityContext->DesiredAccess & FILE_WRITE_DATA) &&
+          PDODeviceExtension->RestrictionsForWrite))
+    {
+        DPRINT1("HidClass_Create: STATUS_SHARING_VIOLATION \n");
+        Status = STATUS_SHARING_VIOLATION;
+        goto UnlockExit;
+    }
 
-    //
-    // store context
-    //
-    ASSERT(IoStack->FileObject);
-    IoStack->FileObject->FsContext = Context;
+    if ((PDODeviceExtension->OpensForRead > 0 &&
+         !(IoStack->Parameters.Create.ShareAccess & FILE_SHARE_READ)) ||
+        (PDODeviceExtension->OpensForWrite > 0 &&
+         !(IoStack->Parameters.Create.ShareAccess & FILE_SHARE_WRITE)))
+    {
+        DPRINT1("HidClass_Create: STATUS_SHARING_VIOLATION \n");
+        Status = STATUS_SHARING_VIOLATION;
+        goto UnlockExit;
+    }
 
-    //
-    // done
-    //
-    Irp->IoStatus.Status = STATUS_SUCCESS;
+    if (IoStack->Parameters.Create.Options & 1) // FIXME const.
+    {
+        DPRINT1("HidClass_Create: STATUS_NOT_A_DIRECTORY \n");
+        Status = STATUS_NOT_A_DIRECTORY;
+        goto UnlockExit;
+    }
+
+    /* Get PnP states */
+    HidFdoState = FDODeviceExtension->HidFdoState;
+    HidPdoState = PDODeviceExtension->HidPdoState;
+
+    DPRINT("HidClass_Create: HidFdoState - %p, HidPdoState - %p\n",
+           HidFdoState,
+           HidPdoState);
+
+    /* Validate PnP states */
+    if ((HidFdoState != HIDCLASS_STATE_STARTED &&
+         HidFdoState != HIDCLASS_STATE_STOPPING &&
+         HidFdoState != HIDCLASS_STATE_DISABLED) ||
+        (HidPdoState != HIDCLASS_STATE_STARTED &&
+         HidPdoState != HIDCLASS_STATE_FAILED &&
+         HidPdoState != HIDCLASS_STATE_STOPPING))
+    {
+        DPRINT1("HidClass_Create: STATUS_DEVICE_NOT_CONNECTED \n");
+        Status = STATUS_DEVICE_NOT_CONNECTED;
+        goto UnlockExit;
+    }
+
+    /* Allocate file context */
+    FileContext = ExAllocatePoolWithTag(NonPagedPool,
+                                        sizeof(HIDCLASS_FILEOP_CONTEXT),
+                                        HIDCLASS_TAG);
+
+    if (!FileContext)
+    {
+        DPRINT1("HidClass_Create: Allocate context failed\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto UnlockExit;
+    }
+
+    /* Initialize file context */
+
+    RtlZeroMemory(FileContext, sizeof(HIDCLASS_FILEOP_CONTEXT));
+
+    FileContext->DeviceExtension = PDODeviceExtension;
+    FileContext->FileObject = IoStack->FileObject;
+
+    KeInitializeSpinLock(&FileContext->Lock);
+    InitializeListHead(&FileContext->InterruptReadIrpList);
+    InitializeListHead(&FileContext->ReportList);
+
+//InitializeListHead(&FileContext->ReadPendingIrpListHead);
+//InitializeListHead(&FileContext->IrpCompletedListHead);
+//KeInitializeEvent(&FileContext->IrpReadComplete, NotificationEvent, FALSE);
+
+    FileContext->MaxReportQueueSize = HIDCLASS_MAX_REPORT_QUEUE_SIZE;
+    FileContext->PendingReports = 0;
+    FileContext->RetryReads = 0;
+
+    InsertTailList(&HidCollection->InterruptReportList,
+                   &FileContext->InterruptReportLink);
+
+    FileContext->FileAttributes = IoStack->Parameters.Create.FileAttributes;
+    FileContext->DesiredAccess = IoStack->Parameters.Create.SecurityContext->DesiredAccess;
+    FileContext->ShareAccess = IoStack->Parameters.Create.ShareAccess;
+
+    FileContext->IsMyPrivilegeTrue = IsPrivilege;
+    //FileContext->SessionId = SessionId; FIXME
+
+    /* Store pointer to file context */
+    IoStack->FileObject->FsContext = FileContext;
+
+    /* Increment open counters */
+    InterlockedExchangeAdd(&FDODeviceExtension->OpenCount, 1);
+    InterlockedExchangeAdd(&PDODeviceExtension->OpenCount, 1);
+
+    if (IoStack->Parameters.Create.SecurityContext->DesiredAccess & FILE_READ_DATA)
+    {
+        PDODeviceExtension->OpensForRead++;
+    }
+
+    if (IoStack->Parameters.Create.SecurityContext->DesiredAccess & FILE_WRITE_DATA)
+    {
+        PDODeviceExtension->OpensForWrite++;
+    }
+
+    if (!(IoStack->Parameters.Create.ShareAccess & FILE_SHARE_READ))
+    {
+        PDODeviceExtension->RestrictionsForRead++;
+    }
+
+    if (!(IoStack->Parameters.Create.ShareAccess & FILE_SHARE_WRITE))
+    {
+        PDODeviceExtension->RestrictionsForWrite++;
+    }
+
+    if (!IoStack->Parameters.Create.ShareAccess)
+    {
+        PDODeviceExtension->RestrictionsForAnyOpen++;
+    }
+
+UnlockExit:
+    KeReleaseSpinLock(&HidCollection->CollectSpinLock, OldIrql);
+
+Exit:
+    Irp->IoStatus.Status = Status;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_SUCCESS;
+    DPRINT("HidClass_Create: exit - %x\n", Status);
+    return Status;
 }
 
 NTSTATUS
