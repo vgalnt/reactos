@@ -526,6 +526,19 @@ Exit:
     return Status;
 }
 
+VOID
+NTAPI
+HidClassDestroyFileContext(
+    IN PHIDCLASS_COLLECTION HidCollection,
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext)
+{
+    DPRINT("HidClassDestroyFileContext: FileContext - %p\n", FileContext);
+
+    HidClassFlushReportQueue(FileContext); 
+    HidClassCompleteReadsForFileContext(HidCollection, FileContext);
+    ExFreePoolWithTag(FileContext, 0);
+}
+
 NTSTATUS
 NTAPI
 HidClass_Close(
