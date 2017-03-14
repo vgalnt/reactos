@@ -1412,12 +1412,19 @@ HidClassFDO_DispatchRequest(
     //
     CommonDeviceExtension = DeviceObject->DeviceExtension;
 
-    ASSERT(Irp->CurrentLocation > 0);
-
     //
     // create stack location
     //
     IoSetNextIrpStackLocation(Irp);
+
+    if (Irp->CurrentLocation <= 0)
+    {
+        KeBugCheckEx(NO_MORE_IRP_STACK_LOCATIONS,
+                     (ULONG_PTR)Irp,
+                     0,
+                     0,
+                     0);
+    }
 
     //
     // get next stack location
@@ -1853,6 +1860,8 @@ HidClassFDO_StartDevice(
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto ExitError;
         }
+
+        FDODeviceExtension->NotAllocCollectResources = TRUE;
 
         /* Initialize collections array */
         if (DeviceDescription->CollectionDescLength)
@@ -2339,12 +2348,19 @@ HidClassFDO_PnP(
 {
     PIO_STACK_LOCATION IoStack;
     PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
-    NTSTATUS Status;
+    NTSTATUS Status = ERROR_SEVERITY_WARNING;
     BOOLEAN IsCompleteIrp = FALSE;
 
     // get device extension
     FDODeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(FDODeviceExtension->Common.IsFDO);
+
+    if (0)//IoAcquireRemoveLock(&FDODeviceExtension->HidRemoveLock, 0))
+    {
+        Irp->IoStatus.Status = Status;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return Status;
+    }
 
     // get current irp stack location
     IoStack = IoGetCurrentIrpStackLocation(Irp);
@@ -2436,6 +2452,8 @@ HidClassFDO_PnP(
             break;
         }
     }
+
+    //IoReleaseRemoveLock(&FDODeviceExtension->HidRemoveLock, 0);
 
     if (!IsCompleteIrp)
     {
