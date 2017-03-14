@@ -32,6 +32,12 @@
 typedef struct _HIDCLASS_FDO_EXTENSION *PHIDCLASS_FDO_EXTENSION;
 typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
+/* Work item for completion IRPs */
+typedef struct _HIDCLASS_COMPLETION_WORKITEM {
+    PIO_WORKITEM CompleteWorkItem;
+    PIRP Irp;
+} HIDCLASS_COMPLETION_WORKITEM, *PHIDCLASS_COMPLETION_WORKITEM;
+
 /* Header for interrupt report */
 typedef struct _HIDCLASS_INT_REPORT_HEADER {
     LIST_ENTRY ReportLink;
@@ -316,6 +322,17 @@ DerefDriverExt(
     IN PDRIVER_OBJECT DriverObject);
 
 /* fdo.c */
+PVOID
+NTAPI
+HidClassGetSystemAddressForMdlSafe(
+    IN PMDL MemoryDescriptorList);
+
+PHIDP_COLLECTION_DESC
+NTAPI
+GetCollectionDesc(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN UCHAR CollectionNumber);
+
 PHIDCLASS_COLLECTION
 NTAPI
 GetHidclassCollection(
@@ -348,6 +365,13 @@ NTSTATUS
 NTAPI
 HidClassCleanUpFDO(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension);
+
+NTSTATUS
+NTAPI
+HidClassEnqueueInterruptReadIrp(
+    IN PHIDCLASS_COLLECTION HidCollection,
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext,
+    IN PIRP Irp);
 
 PIRP
 NTAPI
