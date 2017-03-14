@@ -781,6 +781,22 @@ Exit:
     return Status;
 }
 
+VOID
+NTAPI
+HidClassCompleteIrpAsynchronously(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PVOID Context)
+{
+    PHIDCLASS_COMPLETION_WORKITEM CompletionWorkItem;
+
+    DPRINT("HidClassCompleteIrpAsynchronously: ... \n");
+
+    CompletionWorkItem = (PHIDCLASS_COMPLETION_WORKITEM)Context;
+    IoCompleteRequest(CompletionWorkItem->Irp, 0);
+    IoFreeWorkItem(CompletionWorkItem->CompleteWorkItem);
+    ExFreePoolWithTag(CompletionWorkItem, 0);
+}
+
 NTSTATUS
 NTAPI
 HidClass_Read(

@@ -385,6 +385,14 @@ HidClassDequeueInterruptReport(
     IN PHIDCLASS_FILEOP_CONTEXT FileContext,
     IN ULONG  ReadLength);
 
+NTSTATUS
+NTAPI
+HidClassCopyInputReportToUser(
+    IN PHIDCLASS_FILEOP_CONTEXT FileContext,
+    IN PVOID InputReportBuffer,
+    IN PULONG OutLength,
+    IN PVOID VAddress);
+
 /* pdo.c */
 NTSTATUS
 HidClassCreatePDOs(
