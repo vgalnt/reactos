@@ -15,6 +15,71 @@
 #define NDEBUG
 #include <debug.h>
 
+NTSTATUS
+NTAPI
+HidClassSymbolicLinkOnOff(
+    IN PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension,
+    IN ULONG CollectionNumber,
+    IN BOOLEAN IsEnable,
+    IN PDEVICE_OBJECT PDODeviceObject)
+{
+    PHIDCLASS_COLLECTION HidCollection;
+    NTSTATUS Status;
+
+    DPRINT("HidClassSymbolicLinkOnOff: CollectionNumber - %x, IsEnable - %x\n",
+           CollectionNumber,
+           IsEnable);
+
+    HidCollection = GetHidclassCollection(PDODeviceExtension->FDODeviceExtension,
+                                          CollectionNumber);
+
+    if (!HidCollection)
+    {
+        return STATUS_DEVICE_CONFIGURATION_ERROR;
+    }
+
+    if (IsEnable)
+    {
+        PDODeviceObject->Flags |= DO_DIRECT_IO;
+        PDODeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
+
+        Status = IoRegisterDeviceInterface(PDODeviceObject,
+                                           &GUID_DEVINTERFACE_HID,
+                                           NULL,
+                                           &HidCollection->SymbolicLinkName);
+
+        DPRINT("HidClassSymbolicLinkOnOff: SymbolicLinkName - %wZ\n",
+               &HidCollection->SymbolicLinkName);
+
+        if (NT_SUCCESS(Status))
+        {
+            Status = IoSetDeviceInterfaceState(&HidCollection->SymbolicLinkName,
+                                               TRUE);
+        }
+    }
+    else
+    {
+        if (HidCollection->SymbolicLinkName.Buffer &&
+            HidCollection->SymbolicLinkName.Buffer != HIDCLASS_NULL_POINTER)
+        {
+            DPRINT("HidClassSymbolicLinkOnOff: SymbolicLinkName - %wZ\n",
+                   &HidCollection->SymbolicLinkName);
+
+            Status = IoSetDeviceInterfaceState(&HidCollection->SymbolicLinkName,
+                                               FALSE);
+
+            ExFreePoolWithTag(HidCollection->SymbolicLinkName.Buffer, 0);
+            HidCollection->SymbolicLinkName.Buffer = HIDCLASS_NULL_POINTER;
+        }
+        else
+        {
+            Status = STATUS_SUCCESS;
+        }
+    }
+
+    return Status;
+}
+
 PHIDP_COLLECTION_DESC
 HidClassPDO_GetCollectionDescription(
     PHIDP_DEVICE_DESC DeviceDescription,
