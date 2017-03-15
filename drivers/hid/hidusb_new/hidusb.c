@@ -1985,9 +1985,17 @@ HidPnp(
             return Hid_RemoveDevice(DeviceObject, Irp);
 
         case IRP_MN_QUERY_PNP_DEVICE_STATE:
+            DPRINT("[HIDUSB] IRP_MN_QUERY_PNP_DEVICE_STATE. HidState - %x\n",
+                   HidDeviceExtension->HidState);
+
             if (HidDeviceExtension->HidState == HIDUSB_STATE_FAILED)
             {
-                Irp->IoStatus.Information |= PNP_DEVICE_FAILED;
+                DPRINT1("[HIDUSB] PNP_DEVICE_FAILED!\n");
+                DPRINT1("[FIXME: PnP manager have bag (IoInvalidateDeviceState())!\n");
+                /* HACK: due problem disconnecting from PC USB port CORE-9070).
+                   W2003 not call this code in it case.
+                */
+                //Irp->IoStatus.Information |= PNP_DEVICE_FAILED;
             }
             break;
 
