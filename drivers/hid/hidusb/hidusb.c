@@ -570,10 +570,14 @@ HidUsb_ReadReportCompletion(
         /* free reset context */ 
         DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: IoAllocateWorkItem failed\n");
         ExFreePoolWithTag(ResetContext, HIDUSB_TAG);
-    }
 
-    DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: ExAllocatePoolWithTag failed\n");
-    Hid_DecrementPendingRequests(HidDeviceExtension);
+        Hid_DecrementPendingRequests(HidDeviceExtension);
+    }
+    else
+    {
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: ExAllocatePoolWithTag failed\n");
+        Hid_DecrementPendingRequests(HidDeviceExtension);
+    }
 
 Exit:
 
