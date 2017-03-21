@@ -13,6 +13,75 @@
 #define NDEBUG
 #include <debug.h>
 
+VOID
+NTAPI
+HidClassDumpDeviceDesc(IN PHIDP_DEVICE_DESC DeviceDescription)
+{
+    ULONG Idx;
+    PHIDP_COLLECTION_DESC CollectionDescription;
+    PHIDP_REPORT_IDS ReportIDs;
+
+    DPRINT("[HIDCLASS]: DeviceDescription - %p\n", DeviceDescription);
+    DPRINT("[HIDCLASS]: DeviceDescription->CollectionDesc       - %p\n", DeviceDescription->CollectionDesc);
+    DPRINT("[HIDCLASS]: DeviceDescription->CollectionDescLength - %x\n", DeviceDescription->CollectionDescLength);
+    DPRINT("[HIDCLASS]: DeviceDescription->ReportIDs       - %p\n", DeviceDescription->ReportIDs);
+    DPRINT("[HIDCLASS]: DeviceDescription->ReportIDsLength - %x\n", DeviceDescription->ReportIDsLength);
+
+    DPRINT("[HIDCLASS]: DeviceDescription->Dbg.BreakOffset - %x\n", DeviceDescription->Dbg.BreakOffset);
+    DPRINT("[HIDCLASS]: DeviceDescription->Dbg.ErrorCode   - %x\n", DeviceDescription->Dbg.ErrorCode);
+    DPRINT("[HIDCLASS]: DeviceDescription->Dbg.Args[0] - %x\n", DeviceDescription->Dbg.Args[0]);
+    DPRINT("[HIDCLASS]: DeviceDescription->Dbg.Args[1] - %x\n", DeviceDescription->Dbg.Args[1]);
+    DPRINT("[HIDCLASS]: DeviceDescription->Dbg.Args[2] - %x\n", DeviceDescription->Dbg.Args[2]);
+    DPRINT("[HIDCLASS]: DeviceDescription->Dbg.Args[3] - %x\n", DeviceDescription->Dbg.Args[3]);
+    DPRINT("[HIDCLASS]: DeviceDescription->Dbg.Args[4] - %x\n", DeviceDescription->Dbg.Args[4]);
+    DPRINT("[HIDCLASS]: DeviceDescription->Dbg.Args[5] - %x\n", DeviceDescription->Dbg.Args[5]);
+
+    if (DeviceDescription->CollectionDescLength)
+    {
+        Idx = 0;
+
+        do
+        {
+            CollectionDescription = &DeviceDescription->CollectionDesc[Idx];
+
+            DPRINT("[HIDCLASS]: CollectionDescription[%d]                   - %p\n", Idx, CollectionDescription);
+            DPRINT("[HIDCLASS]: CollectionDescription->UsagePage           - %x\n", CollectionDescription->UsagePage);
+            DPRINT("[HIDCLASS]: CollectionDescription->Usage               - %x\n", CollectionDescription->Usage);
+            DPRINT("[HIDCLASS]: CollectionDescription->CollectionNumber    - %x\n", CollectionDescription->CollectionNumber);
+            DPRINT("[HIDCLASS]: CollectionDescription->InputLength         - %x\n", CollectionDescription->InputLength);
+            DPRINT("[HIDCLASS]: CollectionDescription->OutputLength        - %x\n", CollectionDescription->OutputLength);
+            DPRINT("[HIDCLASS]: CollectionDescription->FeatureLength       - %x\n", CollectionDescription->FeatureLength);
+            DPRINT("[HIDCLASS]: CollectionDescription->PreparsedDataLength - %x\n", CollectionDescription->PreparsedDataLength);
+            DPRINT("[HIDCLASS]: CollectionDescription->PreparsedData       - %p\n", CollectionDescription->PreparsedData);
+            DPRINT("------------------------------------------------------\n");
+
+            ++Idx;
+        }
+        while (Idx < DeviceDescription->CollectionDescLength);
+    }
+
+    if (DeviceDescription->ReportIDsLength)
+    {
+        Idx = 0;
+
+        do
+        {
+            ReportIDs = &DeviceDescription->ReportIDs[Idx];
+
+            DPRINT("[HIDCLASS]: ReportIDs[%d]                - %p\n", Idx, ReportIDs);
+            DPRINT("[HIDCLASS]: ReportIDs->ReportID         - %x\n", ReportIDs->ReportID);
+            DPRINT("[HIDCLASS]: ReportIDs->CollectionNumber - %x\n", ReportIDs->CollectionNumber);
+            DPRINT("[HIDCLASS]: ReportIDs->InputLength      - %x\n", ReportIDs->InputLength);
+            DPRINT("[HIDCLASS]: ReportIDs->OutputLength     - %x\n", ReportIDs->OutputLength);
+            DPRINT("[HIDCLASS]: ReportIDs->FeatureLength    - %x\n", ReportIDs->FeatureLength);
+            DPRINT("----------------------------------------\n");
+
+            ++Idx;
+        }
+        while (Idx < DeviceDescription->ReportIDsLength);
+    }
+}
+
 PVOID
 NTAPI
 HidClassGetSystemAddressForMdlSafe(
@@ -1850,6 +1919,10 @@ HidClassFDO_StartDevice(
             FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
             goto ExitError;
         }
+
+#ifndef NDEBUG
+        HidClassDumpDeviceDesc(DeviceDescription);
+#endif
 
         /* Device resources alloceted successful */
         FDODeviceExtension->IsDeviceResourcesAlloceted = TRUE;
