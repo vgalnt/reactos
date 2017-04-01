@@ -791,14 +791,20 @@ HidClassInterruptReadComplete(
 
     if (Irp->IoStatus.Status >= 0)
     {
+        //PCHAR Report;
+
         InputReport = Irp->UserBuffer;
         Length = Irp->IoStatus.Information;
+
+        //Report = InputReport;
+        //DPRINT("[HIDCLASS] ReportData[%x] %02x %02x %02x %02x %02x %02x %02x %02x\n", Length,
+        //    Report[0] & 0xFF, Report[1] & 0xFF, Report[2] & 0xFF, Report[3] & 0xFF, Report[4] & 0xFF, Report[5] & 0xFF, Report[6] & 0xFF, Report[7] & 0xFF);
 
         if (Irp->IoStatus.Information > 0)
         {
             while (TRUE)
             {
-                if (FDODeviceExtension->Common.DeviceDescription.ReportIDs->ReportID)
+                if (FDODeviceExtension->Common.DeviceDescription.ReportIDs[0].ReportID)
                 {
                     /* First byte of the buffer is the report ID for the report */
                     Id = *(PUCHAR)InputReport;
@@ -894,14 +900,16 @@ NextData:
         }
 
         Shuttle->TimerPeriod.HighPart = -1;
-        Shuttle->TimerPeriod.LowPart = -10000000;
+        Shuttle->TimerPeriod.LowPart = -1000 * 10000;
     }
 
     if (OldState != HIDCLASS_SHUTTLE_START_READ)
     {
+        /* Checks if shuttle state is a cancelling */
         if (Shuttle->CancellingShuttle)
         {
             DPRINT1("[HIDCLASS] Cancelling Shuttle %p\n", Shuttle);
+            /* Sets a ShuttleDoneEvent to a signaled state */
             KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
         }
         else if (Irp->IoStatus.Status < 0)
@@ -971,21 +979,27 @@ HidClassSubmitInterruptRead(
                                TRUE,
                                TRUE);
 
+        /* Resets a ShuttleEvent to a not signaled state */
         KeResetEvent(&Shuttle->ShuttleEvent);
 
+        /* Checks if shuttle state is a cancelling */
         if (Shuttle->CancellingShuttle)
         {
             DPRINT("HidClassSubmitInterruptRead: Shuttle->CancellingShuttle\n");
+            /* Sets a Shuttle Event objects to a signaled state */
             KeSetEvent(&Shuttle->ShuttleEvent, IO_NO_INCREMENT, FALSE);
             KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
             return STATUS_CANCELLED;
         }
 
+        /* Increment count outstanding requests*/
         InterlockedExchangeAdd(&FDODeviceExtension->OutstandingRequests, 1);
 
+        /* Submit request */
         Status = HidClassFDO_DispatchRequest(FDODeviceExtension->FDODeviceObject,
                                              Irp);
 
+        /* Sets a ShuttleEvent to a signaled state */
         KeSetEvent(&Shuttle->ShuttleEvent, IO_NO_INCREMENT, FALSE);
 
         *OutIsSending = TRUE;
@@ -1002,9 +1016,11 @@ HidClassSubmitInterruptRead(
     }
     while (Irp->IoStatus.Status >= 0);
 
+    /* Checks if shuttle state is a cancelling */
     if (Shuttle->CancellingShuttle)
     {
         DPRINT("HidClassSubmitInterruptRead: Shuttle->CancellingShuttle\n");
+        /* Sets a ShuttleDoneEvent to a signaled state */
         KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
         return Status;
     }
@@ -1038,12 +1054,15 @@ HidClassAllShuttlesStart(
 
     do
     {
+        /* If ShuttleDoneEvent is currently set to a signaled state */
         if (KeReadStateEvent(&FDODeviceExtension->Shuttles[ix].ShuttleDoneEvent))
         {
             FDODeviceExtension->Shuttles[ix].ShuttleState = HIDCLASS_SHUTTLE_END_READ;
 
+            /* Resets a ShuttleDoneEvent to a not signaled state */
             KeResetEvent(&FDODeviceExtension->Shuttles[ix].ShuttleDoneEvent);
 
+            /* Send Shuttle IRP to a lower driver (usbhub) */
             Status = HidClassSubmitInterruptRead(FDODeviceExtension,
                                                  &FDODeviceExtension->Shuttles[ix],
                                                  &IsSending);
@@ -1094,6 +1113,7 @@ HidClassCancelAllShuttleIrps(
         for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
         {
             Shuttle = &FDODeviceExtension->Shuttles[ix];
+            /* Sets cancelling state for shuttle */
             Shuttle->CancellingShuttle = 1;
         }
 }
@@ -1268,10 +1288,12 @@ HidClassInitializeShuttleIrps(
         Irp->UserBuffer = FDODeviceExtension->Shuttles[ix].ShuttleBuffer;
         FDODeviceExtension->Shuttles[ix].ShuttleIrp = Irp;
 
+        /* Init state of the ShuttleEvent is a signaled state */
         KeInitializeEvent(&FDODeviceExtension->Shuttles[ix].ShuttleEvent,
                           NotificationEvent,
                           TRUE);
 
+        /* Init state of the ShuttleDoneEvent is a signaled state */
         KeInitializeEvent(&FDODeviceExtension->Shuttles[ix].ShuttleDoneEvent,
                           NotificationEvent,
                           TRUE);
@@ -1809,7 +1831,7 @@ HidClassInitializeCollection(
     PHIDP_DEVICE_DESC DeviceDescription;
     ULONG CollectionNumber;
 
-    DPRINT("[HIDCLASS] HidClassAllocCollectionResources (%x)\n", CollectionIdx);
+    DPRINT("[HIDCLASS] HidClassInitializeCollection (%x)\n", CollectionIdx);
 
     DeviceDescription = &FDODeviceExtension->Common.DeviceDescription;
     HIDCollection = &FDODeviceExtension->HidCollections[CollectionIdx];
@@ -1860,6 +1882,8 @@ HidClassFDO_StartDevice(
     ULONG CollectionIdx;
     ULONG CollectionNumber;
     SIZE_T Length;
+
+    DPRINT("[HIDCLASS] HidClassFDO_StartDevice: DeviceObject - %p, Irp - %p\n", DeviceObject, Irp);
 
     /* Get device extension */
     FDODeviceExtension = DeviceObject->DeviceExtension;
@@ -1921,7 +1945,8 @@ HidClassFDO_StartDevice(
         }
 
 #ifndef NDEBUG
-        HidClassDumpDeviceDesc(DeviceDescription);
+        if (DeviceDescription->ReportIDsLength > 1)
+            HidClassDumpDeviceDesc(DeviceDescription);
 #endif
 
         /* Device resources alloceted successful */
@@ -2035,6 +2060,7 @@ HidClassFDO_StartDevice(
     if (!NT_SUCCESS(Status))
     {
 ExitError:
+        DPRINT("[HIDCLASS] HidClassFDO_StartDevice failed with %x\n", Status);
         FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
         return Status;
     }
