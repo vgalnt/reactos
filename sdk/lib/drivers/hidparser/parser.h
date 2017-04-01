@@ -260,7 +260,12 @@ typedef struct
 #define HID_REPORT_TYPE_OUTPUT		0x02
 #define HID_REPORT_TYPE_FEATURE		0x04
 
-ULONG
+UCHAR
+HidParser_GetReportId(
+    IN PVOID CollectionContext,
+    IN UCHAR ReportType);
+
+BOOLEAN
 HidParser_UsesReportId(
     IN PVOID CollectionContext,
     IN UCHAR  ReportType);
