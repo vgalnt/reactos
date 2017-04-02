@@ -1109,11 +1109,125 @@ HidClass_Write(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE);
-    Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
-    return STATUS_NOT_IMPLEMENTED;
+    PHIDCLASS_COMMON_DEVICE_EXTENSION CommonDeviceExtension;
+    PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    PFILE_OBJECT FileObject;
+    PVOID Report;
+    PHIDP_REPORT_IDS ReportId;
+    PHIDP_COLLECTION_DESC HidCollectionDesc;
+    PHID_XFER_PACKET XferPacket;
+    NTSTATUS Status;
+
+    DPRINT("HidClass_Write: PDO - %p, Irp - %p\n", DeviceObject, Irp);
+
+    /* Get device extensions */
+    CommonDeviceExtension = DeviceObject->DeviceExtension;
+    ASSERT(CommonDeviceExtension->IsFDO == FALSE);
+    PDODeviceExtension = DeviceObject->DeviceExtension;
+    FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
+
+    if (PDODeviceExtension->HidPdoState != HIDCLASS_STATE_STARTED ||
+        FDODeviceExtension->HidFdoState != HIDCLASS_STATE_STARTED)
+    {
+        Status = STATUS_DEVICE_NOT_CONNECTED;
+        goto Exit;
+    }
+
+    /* Get current stack location */
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    FileObject = IoStack->FileObject;
+
+    if (FileObject && FileObject->FsContext == NULL)
+    {
+        Status = STATUS_PRIVILEGE_NOT_HELD;
+        goto Exit;
+    }
+
+    // FIXME CheckIdleState();
+
+    Report = HidClassGetSystemAddressForMdlSafe(Irp->MdlAddress);
+
+    if (!Report)
+    {
+        Status = STATUS_INVALID_USER_BUFFER;
+        goto Exit;
+    }
+
+    /* first byte of the buffer is the report ID for the report */
+    ReportId = GetReportIdentifier(FDODeviceExtension, *(PUCHAR)Report);
+
+    if (!ReportId || !ReportId->OutputLength)
+    {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    HidCollectionDesc = GetCollectionDesc(FDODeviceExtension,
+                                          PDODeviceExtension->CollectionNumber);
+
+    if (!HidCollectionDesc)
+    {
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    if (IoStack->Parameters.Write.Length != HidCollectionDesc->OutputLength)
+    {
+        Status = STATUS_INVALID_BUFFER_SIZE;
+        goto Exit;
+    }
+
+    XferPacket = ExAllocatePoolWithTag(NonPagedPool,
+                                       sizeof(HID_XFER_PACKET),
+                                       HIDCLASS_TAG);
+
+    if (!XferPacket)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    XferPacket->reportBuffer = Report;
+    XferPacket->reportBufferLen = ReportId->OutputLength;
+    XferPacket->reportId = *XferPacket->reportBuffer;
+
+    if (!CommonDeviceExtension->DeviceDescription.ReportIDs->ReportID)
+    {
+        ++XferPacket->reportBuffer;
+    }
+
+    Irp->UserBuffer = XferPacket;
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+
+    IoStack->MajorFunction = IRP_MJ_INTERNAL_DEVICE_CONTROL;
+    IoStack->Parameters.DeviceIoControl.InputBufferLength = sizeof(HID_XFER_PACKET);
+    IoStack->Parameters.DeviceIoControl.IoControlCode = IOCTL_HID_WRITE_REPORT;
+
+    IoSetCompletionRoutine(Irp,
+                           HidClassInterruptWriteComplete,
+                           PDODeviceExtension,
+                           TRUE,
+                           TRUE,
+                           TRUE);
+
+    Status = HidClassFDO_DispatchRequest(FDODeviceExtension->FDODeviceObject,
+                                         Irp);
+
+    Irp = (PIRP)HIDCLASS_NULL_POINTER;
+
+Exit:
+
+    if (Irp && Irp != HIDCLASS_NULL_POINTER)
+    {
+        Irp->IoStatus.Status = Status;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    }
+
+    return Status;
 }
 
 NTSTATUS
