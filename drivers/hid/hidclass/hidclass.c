@@ -1105,6 +1105,49 @@ Exit:
 
 NTSTATUS
 NTAPI
+HidClassInterruptWriteComplete(
+    IN PDEVICE_OBJECT Device,
+    IN PIRP Irp,
+    IN PVOID Context)
+{
+    PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
+    PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PHIDP_COLLECTION_DESC HidCollectionDesc;
+    NTSTATUS Status;
+
+    DPRINT("HidClassInterruptWriteComplete: ... \n");
+
+    PDODeviceExtension = (PHIDCLASS_PDO_DEVICE_EXTENSION)Context;
+    Status = Irp->IoStatus.Status;
+
+    ExFreePoolWithTag(Irp->UserBuffer, 0);
+
+    Irp->UserBuffer = NULL;
+
+    if (NT_SUCCESS(Status))
+    {
+        FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
+
+        HidCollectionDesc = GetCollectionDesc(FDODeviceExtension,
+                                              PDODeviceExtension->CollectionNumber);
+
+        if (HidCollectionDesc)
+        {
+            HidClassSetDeviceBusy(FDODeviceExtension);
+            Irp->IoStatus.Information = HidCollectionDesc->OutputLength;
+        }
+    }
+
+    if (Irp->PendingReturned)
+    {
+        IoMarkIrpPending(Irp);
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 HidClass_Write(
     IN PDEVICE_OBJECT DeviceObject,
     IN PIRP Irp)

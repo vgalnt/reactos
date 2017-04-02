@@ -411,6 +411,17 @@ NTAPI
 HidClassAllShuttlesStart(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension);
 
+PHIDP_REPORT_IDS
+NTAPI
+GetReportIdentifier(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension,
+    IN UCHAR Id);
+
+VOID
+NTAPI
+HidClassSetDeviceBusy(
+    IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension);
+
 /* pdo.c */
 NTSTATUS
 HidClassCreatePDOs(
