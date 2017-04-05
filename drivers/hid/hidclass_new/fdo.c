@@ -832,8 +832,7 @@ NextData:
             }
         }
 
-        Shuttle->TimerPeriod.HighPart = -1;
-        Shuttle->TimerPeriod.LowPart = -1000 * 10000;
+        Shuttle->TimerPeriod.QuadPart = (LONGLONG)-1000 * 10000;
     }
 
     if (OldState != HIDCLASS_SHUTTLE_START_READ)
