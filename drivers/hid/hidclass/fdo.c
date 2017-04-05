@@ -918,9 +918,13 @@ HidClassSubmitInterruptRead(
         if (Shuttle->CancellingShuttle)
         {
             DPRINT("HidClassSubmitInterruptRead: Shuttle->CancellingShuttle\n");
-            /* Sets a Shuttle Event objects to a signaled state */
+
+            //
+            // Sets the shuttle event objects to a signaled state
+            //
             KeSetEvent(&Shuttle->ShuttleEvent, IO_NO_INCREMENT, FALSE);
             KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
+
             return STATUS_CANCELLED;
         }
 
