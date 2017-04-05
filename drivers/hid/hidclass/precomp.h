@@ -3,7 +3,6 @@
 
 #define _HIDPI_NO_FUNCTION_MACROS_
 #include <ntddk.h>
-#include <wdm.h>
 #include <hidpddi.h>
 #include <stdio.h>
 #include <hidport.h>
