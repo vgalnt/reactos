@@ -38,9 +38,7 @@ HidClassDumpDeviceDesc(IN PHIDP_DEVICE_DESC DeviceDescription)
 
     if (DeviceDescription->CollectionDescLength)
     {
-        Idx = 0;
-
-        do
+        for (Idx = 0; Idx < DeviceDescription->CollectionDescLength; ++Idx)
         {
             CollectionDescription = &DeviceDescription->CollectionDesc[Idx];
 
@@ -54,17 +52,12 @@ HidClassDumpDeviceDesc(IN PHIDP_DEVICE_DESC DeviceDescription)
             DPRINT("[HIDCLASS]: CollectionDescription->PreparsedDataLength - %x\n", CollectionDescription->PreparsedDataLength);
             DPRINT("[HIDCLASS]: CollectionDescription->PreparsedData       - %p\n", CollectionDescription->PreparsedData);
             DPRINT("------------------------------------------------------\n");
-
-            ++Idx;
         }
-        while (Idx < DeviceDescription->CollectionDescLength);
     }
 
     if (DeviceDescription->ReportIDsLength)
     {
-        Idx = 0;
-
-        do
+        for (Idx = 0; Idx < DeviceDescription->ReportIDsLength; ++Idx)
         {
             ReportIDs = &DeviceDescription->ReportIDs[Idx];
 
@@ -75,10 +68,7 @@ HidClassDumpDeviceDesc(IN PHIDP_DEVICE_DESC DeviceDescription)
             DPRINT("[HIDCLASS]: ReportIDs->OutputLength     - %x\n", ReportIDs->OutputLength);
             DPRINT("[HIDCLASS]: ReportIDs->FeatureLength    - %x\n", ReportIDs->FeatureLength);
             DPRINT("----------------------------------------\n");
-
-            ++Idx;
         }
-        while (Idx < DeviceDescription->ReportIDsLength);
     }
 }
 
