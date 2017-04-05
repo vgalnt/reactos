@@ -90,16 +90,18 @@ HidClassEnqueueInterruptReport(
                 FileContext->MaxReportQueueSize);
 
         Entry = RemoveHeadList(&FileContext->ReportList);
+
+        if (Entry)
+        {
+            ExFreePoolWithTag(Entry, 0);
+        }
+
         FileContext->PendingReports--;
     }
 
     InsertTailList(&FileContext->ReportList, &Header->ReportLink);
-    FileContext->PendingReports++;
 
-    if (Entry)
-    {
-        ExFreePoolWithTag(Entry, 0);
-    }
+    FileContext->PendingReports++;
 }
 
 PHIDCLASS_INT_REPORT_HEADER
