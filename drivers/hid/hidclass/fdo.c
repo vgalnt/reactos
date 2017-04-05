@@ -739,7 +739,7 @@ HidClassInterruptReadComplete(
 
     FDODeviceExtension = (PHIDCLASS_FDO_EXTENSION)Context;
 
-    InterlockedExchangeAdd(&FDODeviceExtension->OutstandingRequests, -1);
+    InterlockedDecrement(&FDODeviceExtension->OutstandingRequests);
 
     Shuttle = GetShuttleFromIrp(FDODeviceExtension, Irp);
 
