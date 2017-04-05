@@ -1051,13 +1051,11 @@ HidClassCancelAllShuttleIrps(
         }
 }
 
-        ix = 0;
-
-        do
+        for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
         {
             Shuttle = &FDODeviceExtension->Shuttles[ix];
 
-            InterlockedExchangeAdd(&Shuttle->CancellingShuttle, 1);
+            InterlockedIncrement(&Shuttle->CancellingShuttle);
 
             KeWaitForSingleObject(&Shuttle->ShuttleEvent,
                                   Executive,
@@ -1073,11 +1071,8 @@ HidClassCancelAllShuttleIrps(
                                   FALSE,
                                   NULL);
 
-            InterlockedExchangeAdd(&Shuttle->CancellingShuttle, -1);
-
-            ++ix;
+            InterlockedDecrement(&Shuttle->CancellingShuttle);
         }
-        while (ix < FDODeviceExtension->ShuttleCount);
     }
 
     return;
@@ -1100,21 +1095,16 @@ HidClassDestroyShuttles(
     {
         HidClassCancelAllShuttleIrps(FDODeviceExtension);
 
-        ix = 0;
-
         if (FDODeviceExtension->ShuttleCount)
         {
-            do
+            for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
             {
                 DPRINT("HidClassDestroyShuttles: Free ShuttleIrp - %p\n",
                        FDODeviceExtension->Shuttles[ix].ShuttleIrp);
 
                 IoFreeIrp(FDODeviceExtension->Shuttles[ix].ShuttleIrp);
                 ExFreePoolWithTag(FDODeviceExtension->Shuttles[ix].ShuttleBuffer, 0);
-
-                ++ix;
             }
-            while (ix < FDODeviceExtension->ShuttleCount);
         }
 
         ExFreePoolWithTag(FDODeviceExtension->Shuttles, 0);
