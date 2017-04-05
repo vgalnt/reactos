@@ -976,7 +976,7 @@ HidClassAllShuttlesStart(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
 {
     NTSTATUS Status = STATUS_SUCCESS;
-    ULONG ix = 0;
+    ULONG ix;
     BOOLEAN IsSending;
 
     DPRINT("HidClassAllShuttlesStart: ShuttleCount - %x\n",
@@ -988,7 +988,7 @@ HidClassAllShuttlesStart(
         return Status;
     }
 
-    do
+    for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
     {
         /* If ShuttleDoneEvent is currently set to a signaled state */
         if (KeReadStateEvent(&FDODeviceExtension->Shuttles[ix].ShuttleDoneEvent))
@@ -1015,10 +1015,7 @@ HidClassAllShuttlesStart(
                 Status = STATUS_SUCCESS;
             }
         }
-
-        ++ix;
     }
-    while (ix < FDODeviceExtension->ShuttleCount);
 
     if (Status == STATUS_PENDING)
     {
