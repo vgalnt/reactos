@@ -661,16 +661,9 @@ HidClassHandleInterruptReport(
 
     KeReleaseSpinLock(&HidCollection->CollectSpinLock, OldIrql);
 
-    while (TRUE)
+    while (!IsListEmpty(&IrpList))
     {
-        Entry = IrpList.Flink;
-
-        if (IsListEmpty(&IrpList))
-        {
-            break;
-        }
-
-        RemoveHeadList(&IrpList);
+        Entry = RemoveHeadList(&IrpList);
 
         Irp = CONTAINING_RECORD(Entry,
                                 IRP,
