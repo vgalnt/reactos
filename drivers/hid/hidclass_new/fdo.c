@@ -486,7 +486,7 @@ HidClassGetCollectionDescriptor(
     }
     else
     {
-        DPRINT1("[HIDCLASS] Not found collection descriptor\n");
+        DPRINT1("[HIDCLASS] Collection descriptor not found\n");
         Status = STATUS_DATA_ERROR;
     }
 
