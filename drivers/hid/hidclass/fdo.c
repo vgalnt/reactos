@@ -220,17 +220,12 @@ HidClassDequeueInterruptReadIrp(
 
     ReadIrpList = &FileContext->InterruptReadIrpList;
 
-    do
+    while (!IsListEmpty(ReadIrpList))
     {
-        if (IsListEmpty(ReadIrpList))
-        {
-            break;
-        }
-
+        /* Dequeue and get the IRP */
         Entry = RemoveHeadList(ReadIrpList);
-
         Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
-
+    
         if (IoSetCancelRoutine(Irp, NULL))
         {
             HidCollection->NumPendingReads--;
@@ -238,10 +233,9 @@ HidClassDequeueInterruptReadIrp(
         else
         {
             InitializeListHead(Entry);
-            Irp = NULL;
+            break;
         }
     }
-    while (!Irp);
 
     DPRINT("HidClassDequeueInterruptReadIrp: Irp - %p\n", Irp);
 
