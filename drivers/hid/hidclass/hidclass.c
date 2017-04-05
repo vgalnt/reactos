@@ -712,7 +712,7 @@ HidClass_Close(
 
         HidClassDestroyFileContext(HidCollection, IrpContext);
 
-        //FIXME RemoveLock support
+        DPRINT1("HidClass_Close: FIXME RemoveLock support\n");
         ASSERT(FALSE);
 
         if (0)//IoAcquireRemoveLock(&FDODeviceExtension->HidRemoveLock, 0))
