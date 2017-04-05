@@ -230,7 +230,7 @@ HidClassDequeueInterruptReadIrp(
 
     do
     {
-        if (ReadIrpList->Flink == ReadIrpList)
+        if (IsListEmpty(ReadIrpList))
         {
             break;
         }
