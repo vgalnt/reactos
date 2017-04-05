@@ -946,7 +946,7 @@ HidClassSubmitInterruptRead(
 
         Status = Irp->IoStatus.Status;
     }
-    while (Irp->IoStatus.Status >= 0);
+    while (NT_SUCCESS(Status));
 
     /* Checks if shuttle state is a cancelling */
     if (Shuttle->CancellingShuttle)
