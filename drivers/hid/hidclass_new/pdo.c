@@ -599,13 +599,8 @@ HidClassCompleteReadsForCollection(
         InsertTailList(&ListHead, Entry);
     }
 
-    while (TRUE)
+    while (!IsListEmpty(&ListHead))
     {
-        if (IsListEmpty(&ListHead))
-        {
-            break;
-        }
-
         Entry = RemoveHeadList(&ListHead);
         InsertTailList(&HidCollection->InterruptReportList, Entry);
 
