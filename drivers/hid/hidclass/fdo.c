@@ -1121,15 +1121,15 @@ HidClassShuttleTimerDpc(
     IN PVOID SystemArgument2)
 {
     PHIDCLASS_SHUTTLE Shuttle;
-    LONG TimerValue;
+    LONGLONG TimerValue;
     BOOLEAN IsSending;
 
     Shuttle = (PHIDCLASS_SHUTTLE)DeferredContext;
-    TimerValue = Shuttle->TimerPeriod.LowPart;
+    TimerValue = Shuttle->TimerPeriod.QuadPart;
 
-    if (TimerValue > (-5000 * 10000))
+    if (TimerValue > (LONGLONG)(-5000 * 10000))
     {
-        Shuttle->TimerPeriod.LowPart = TimerValue - 1000 * 10000;
+        Shuttle->TimerPeriod.QuadPart = TimerValue - (LONGLONG)(1000 * 10000);
     }
 
     HidClassSubmitInterruptRead(Shuttle->FDODeviceExtension,
