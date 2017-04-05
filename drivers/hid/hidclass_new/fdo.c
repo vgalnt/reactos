@@ -263,17 +263,14 @@ GetCollectionDesc(
 
         if (NumCollections)
         {
-            while (CollectionDescArray[Idx].CollectionNumber != CollectionNumber)
+            for (Idx = 0; Idx < NumCollections; ++Idx)
             {
-                ++Idx;
-
-                if (Idx >= NumCollections)
+                if (CollectionDescArray[Idx].CollectionNumber == CollectionNumber)
                 {
-                    return HidCollectionDesc;
+                    HidCollectionDesc = &CollectionDescArray[Idx];
+                    break;
                 }
             }
-
-            HidCollectionDesc = &CollectionDescArray[Idx];
         }
     }
 
@@ -301,17 +298,14 @@ GetHidclassCollection(
 
         if (NumCollections)
         {
-            while (HidCollections[Idx].CollectionNumber != CollectionNumber)
+            for (Idx = 0; Idx < NumCollections; ++Idx)
             {
-                ++Idx;
-
-                if (Idx >= NumCollections)
+                if (HidCollections[Idx].CollectionNumber == CollectionNumber)
                 {
-                    return HidCollection;
+                    HidCollection = &HidCollections[Idx];
+                    break;
                 }
             }
-
-            HidCollection = &HidCollections[Idx];
         }
     }
 
@@ -340,21 +334,16 @@ GetReportIdentifier(
     {
         NumCollections = DeviceDescription->ReportIDsLength;
 
-        Idx = 0;
-
         if (NumCollections)
         {
-            while (DeviceDescription->ReportIDs[Idx].ReportID != Id)
+            for (Idx = 0; Idx < NumCollections; ++Idx)
             {
-                ++Idx;
-
-                if (Idx >= NumCollections)
+                if (ReportIDs[Idx].ReportID == Id)
                 {
-                    return Result;
+                    Result = &ReportIDs[Idx];
+                    break;
                 }
             }
-
-            Result = &ReportIDs[Idx];
         }
     }
 
@@ -368,29 +357,24 @@ GetShuttleFromIrp(
     IN PIRP Irp)
 {
     ULONG ShuttleCount;
-    ULONG ix;
+    ULONG Idx;
     PHIDCLASS_SHUTTLE Shuttle;
     PHIDCLASS_SHUTTLE Result = NULL;
 
     ShuttleCount = FDODeviceExtension->ShuttleCount;
 
-    ix = 0;
-
     if (ShuttleCount)
     {
         Shuttle = &FDODeviceExtension->Shuttles[0];
 
-        while (Shuttle[ix].ShuttleIrp != Irp)
+        for (Idx = 0; Idx < ShuttleCount; ++Idx)
         {
-            ++ix;
-
-            if (ix >= ShuttleCount)
+            if (Shuttle[Idx].ShuttleIrp == Irp)
             {
-                return Result;
+                Result = &Shuttle[Idx];
+                break;
             }
         }
-
-        Result = &Shuttle[ix];
     }
 
     DPRINT("GetShuttleFromIrp: Irp - %p, Shuttle - %p\n",
