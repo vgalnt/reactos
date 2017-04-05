@@ -1380,7 +1380,7 @@ HidClassFDO_DispatchRequestSynchronous(
         return Status;
     }
 
-    Timeout.QuadPart -= 5000 * 10000; // (5 sec.)
+    Timeout.QuadPart -= (LONGLONG)(5000 * 10000); // (5 sec.)
 
     /* Status == STATUS_PENDING */
     if (KeWaitForSingleObject(&Event,
@@ -1389,8 +1389,7 @@ HidClassFDO_DispatchRequestSynchronous(
                                FALSE,
                                &Timeout) != STATUS_TIMEOUT)
     {
-        Status = Irp->IoStatus.Status;
-        return Status;
+        return Irp->IoStatus.Status;
     }
 
     /* Status == STATUS_TIMEOUT */
