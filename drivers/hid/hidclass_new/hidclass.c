@@ -56,7 +56,6 @@ RefDriverExt(
 {
     PHIDCLASS_DRIVER_EXTENSION DriverExtension = NULL;
     PLIST_ENTRY Entry;
-    PDRIVER_OBJECT driverObject;
     PHIDCLASS_DRIVER_EXTENSION driverExtension;
 
     DPRINT("RefDriverExt: DriverObject - %p\n", DriverObject);
@@ -67,32 +66,21 @@ RefDriverExt(
 
     Entry = DriverExtList.Flink;
 
-    if (!IsListEmpty(&DriverExtList))
+    while (Entry != &DriverExtList)
     {
         driverExtension = CONTAINING_RECORD(Entry,
                                             HIDCLASS_DRIVER_EXTENSION,
                                             DriverExtLink.Flink);
+        Entry = Entry->Flink;
 
-        driverObject = driverExtension->DriverObject;
-
-        while (driverObject != DriverObject)
+        if (driverExtension->DriverObject == DriverObject)
         {
-            Entry = Entry->Flink;
-
-            if (Entry == &DriverExtList)
-            {
-                goto Exit;
-            }
+            DriverExtension = driverExtension;
+            DriverExtension->RefCount++;
+            break;
         }
-
-        DriverExtension = CONTAINING_RECORD(Entry,
-                                            HIDCLASS_DRIVER_EXTENSION,
-                                            DriverExtLink.Flink);
-
-        ++DriverExtension->RefCount;
     }
 
-Exit:
     ExReleaseFastMutex(&DriverExtListMutex);
     DPRINT("RefDriverExt: return DriverExtension - %p\n", DriverExtension);
     return DriverExtension;
