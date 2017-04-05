@@ -1580,7 +1580,7 @@ HidClassFDO_GetDescriptors(
 
     if (Irp->IoStatus.Information != sizeof(HID_DESCRIPTOR))
     {
-        DPRINT1("[HIDCLASS] IOCTL_HID_GET_DEVICE_DESCRIPTOR: not valid size %x\n",
+        DPRINT1("[HIDCLASS] IOCTL_HID_GET_DEVICE_DESCRIPTOR: invalid size - %x\n",
                 Irp->IoStatus.Information);
 
         IoFreeIrp(Irp);
