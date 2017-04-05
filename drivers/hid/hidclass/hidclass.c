@@ -951,7 +951,10 @@ HidClass_Read(
         else
         {
             BufferRemaining = IoStack->Parameters.Read.Length;
-            VAddress = HidClassGetSystemAddressForMdlSafe(Irp->MdlAddress);
+
+            VAddress = MmGetSystemAddressForMdlSafe(Irp->MdlAddress,
+                                                    NormalPagePriority);
+
             StartVAddress = VAddress;
 
             if (!VAddress)
@@ -1191,7 +1194,7 @@ HidClass_Write(
 
     // FIXME CheckIdleState();
 
-    Report = HidClassGetSystemAddressForMdlSafe(Irp->MdlAddress);
+    Report = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
 
     if (!Report)
     {

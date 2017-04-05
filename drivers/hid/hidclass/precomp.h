@@ -335,11 +335,6 @@ HidClassCompleteReadsForFileContext(
     IN PHIDCLASS_FILEOP_CONTEXT FileContext);
 
 /* fdo.c */
-PVOID
-NTAPI
-HidClassGetSystemAddressForMdlSafe(
-    IN PMDL MemoryDescriptorList);
-
 PHIDP_COLLECTION_DESC
 NTAPI
 GetCollectionDesc(
