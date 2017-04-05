@@ -1145,10 +1145,15 @@ HidClassInitializeShuttleIrps(
     PHIDCLASS_SHUTTLE Shuttles;
     PIRP Irp;
     SIZE_T NumberOfBytes;
-    NTSTATUS Status = 0;
     ULONG ix;
 
     DPRINT("HidClassInitializeShuttleIrps: ... \n");
+
+    if (!FDODeviceExtension->ShuttleCount)
+    {
+        DPRINT("[HIDCLASS] FDODeviceExtension->ShuttleCount - 0\n");
+        return STATUS_SUCCESS;
+    }
 
     Shuttles = ExAllocatePoolWithTag(NonPagedPool,
                                      FDODeviceExtension->ShuttleCount * sizeof(HIDCLASS_SHUTTLE),
@@ -1158,7 +1163,7 @@ HidClassInitializeShuttleIrps(
 
     if (!Shuttles)
     {
-        DPRINT1("[HIDCLASS] Alocate shuttles failed\n");
+        DPRINT1("[HIDCLASS] Allocating shuttles failed\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -1167,19 +1172,11 @@ HidClassInitializeShuttleIrps(
     RtlZeroMemory(Shuttles,
                   FDODeviceExtension->ShuttleCount * sizeof(HIDCLASS_SHUTTLE));
 
-    ix = 0;
-
-    if (!FDODeviceExtension->ShuttleCount)
-    {
-        return Status;
-    }
-
-    while (TRUE)
+    for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
     {
         FDODeviceExtension->Shuttles[ix].FDODeviceExtension = FDODeviceExtension;
         FDODeviceExtension->Shuttles[ix].CancellingShuttle = 0;
-        FDODeviceExtension->Shuttles[ix].TimerPeriod.HighPart = -1;
-        FDODeviceExtension->Shuttles[ix].TimerPeriod.LowPart = -1000 * 10000;
+        FDODeviceExtension->Shuttles[ix].TimerPeriod.QuadPart = (LONGLONG)(-1000 * 10000);
 
         KeInitializeTimer(&FDODeviceExtension->Shuttles[ix].ShuttleTimer);
 
@@ -1193,8 +1190,8 @@ HidClassInitializeShuttleIrps(
 
         if (!FDODeviceExtension->Shuttles[ix].ShuttleBuffer)
         {
-            DPRINT1("[HIDCLASS] Alocate shuttle buffer failed\n");
-            break;
+            DPRINT1("[HIDCLASS] Allocating shuttle buffer failed\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
         }
 
         Irp = IoAllocateIrp(FDODeviceExtension->FDODeviceObject->StackSize - 1,
@@ -1202,8 +1199,8 @@ HidClassInitializeShuttleIrps(
 
         if (!Irp)
         {
-            DPRINT1("[HIDCLASS] Alocate shuttle IRP failed\n");
-            break;
+            DPRINT1("[HIDCLASS] Allocating shuttle IRP failed\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
         }
 
         DPRINT("HidClassInitializeShuttleIrps: Allocate Irp - %p\n", Irp);
@@ -1220,16 +1217,9 @@ HidClassInitializeShuttleIrps(
         KeInitializeEvent(&FDODeviceExtension->Shuttles[ix].ShuttleDoneEvent,
                           NotificationEvent,
                           TRUE);
-
-        ++ix;
-
-        if (ix >= FDODeviceExtension->ShuttleCount)
-        {
-            return Status;
-        }
     }
 
-    return STATUS_INSUFFICIENT_RESOURCES;
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
