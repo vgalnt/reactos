@@ -93,7 +93,7 @@ HidClassEnqueueInterruptReport(
 
         if (Entry)
         {
-            ExFreePoolWithTag(Entry, 0);
+            ExFreePoolWithTag(Entry, HIDCLASS_TAG);
         }
 
         FileContext->PendingReports--;
@@ -1103,11 +1103,12 @@ HidClassDestroyShuttles(
                        FDODeviceExtension->Shuttles[ix].ShuttleIrp);
 
                 IoFreeIrp(FDODeviceExtension->Shuttles[ix].ShuttleIrp);
-                ExFreePoolWithTag(FDODeviceExtension->Shuttles[ix].ShuttleBuffer, 0);
+                ExFreePoolWithTag(FDODeviceExtension->Shuttles[ix].ShuttleBuffer,
+                                  HIDCLASS_TAG);
             }
         }
 
-        ExFreePoolWithTag(FDODeviceExtension->Shuttles, 0);
+        ExFreePoolWithTag(FDODeviceExtension->Shuttles, HIDCLASS_TAG);
         FDODeviceExtension->Shuttles = HIDCLASS_NULL_POINTER;
     }
 }
@@ -1997,7 +1998,7 @@ HidClassFreeCollectionResources(
         if (HidCollection->PollReport &&
             HidCollection->PollReport != HIDCLASS_NULL_POINTER)
         {
-            ExFreePoolWithTag(HidCollection->PollReport, 0);
+            ExFreePoolWithTag(HidCollection->PollReport, HIDCLASS_TAG);
         }
 
         HidCollection->PollReport = HIDCLASS_NULL_POINTER;
@@ -2007,7 +2008,7 @@ HidClassFreeCollectionResources(
         if (HidCollection->InputReport &&
             HidCollection->InputReport != HIDCLASS_NULL_POINTER)
         {
-            ExFreePoolWithTag(HidCollection->InputReport, 0);
+            ExFreePoolWithTag(HidCollection->InputReport, HIDCLASS_TAG);
         }
     }
 
@@ -2016,7 +2017,7 @@ HidClassFreeCollectionResources(
     if (HidCollection->CollectionData &&
         HidCollection->CollectionData != HIDCLASS_NULL_POINTER)
     {
-        ExFreePoolWithTag(HidCollection->CollectionData, 0);
+        ExFreePoolWithTag(HidCollection->CollectionData, HIDCLASS_TAG);
     }
 
     HidCollection->CollectionData = HIDCLASS_NULL_POINTER;
@@ -2058,7 +2059,7 @@ HidClassFreeDeviceResources(
     if (ReportDesc &&
         ReportDesc != HIDCLASS_NULL_POINTER)
     {
-        ExFreePoolWithTag(ReportDesc, 0);
+        ExFreePoolWithTag(ReportDesc, HIDCLASS_TAG);
     }
 
     HidCollections = FDODeviceExtension->HidCollections;
@@ -2067,7 +2068,7 @@ HidClassFreeDeviceResources(
     if (HidCollections &&
         HidCollections != HIDCLASS_NULL_POINTER)
     {
-        ExFreePoolWithTag(HidCollections, 0);
+        ExFreePoolWithTag(HidCollections, HIDCLASS_TAG);
     }
 
     FDODeviceExtension->HidCollections = HIDCLASS_NULL_POINTER;
@@ -2112,7 +2113,7 @@ HidClassDeleteDeviceObjects(
             while (ix < FDODeviceExtension->DeviceRelations->Count);
         }
 
-        ExFreePoolWithTag(FDODeviceExtension->DeviceRelations, 0);
+        ExFreePoolWithTag(FDODeviceExtension->DeviceRelations, HIDCLASS_TAG);
     }
 
     FDODeviceExtension->DeviceRelations = HIDCLASS_NULL_POINTER;
@@ -2120,7 +2121,7 @@ HidClassDeleteDeviceObjects(
     if (FDODeviceExtension->ClientPdoExtensions &&
         FDODeviceExtension->ClientPdoExtensions != HIDCLASS_NULL_POINTER)
     {
-        ExFreePoolWithTag(FDODeviceExtension->ClientPdoExtensions, 0);
+        ExFreePoolWithTag(FDODeviceExtension->ClientPdoExtensions, HIDCLASS_TAG);
     }
 
     FDODeviceExtension->ClientPdoExtensions = HIDCLASS_NULL_POINTER;
@@ -2335,7 +2336,7 @@ HidClassFDO_DeviceRelations(
         {
             if (DeviceRelations != HIDCLASS_NULL_POINTER)
             {
-                ExFreePoolWithTag(DeviceRelations, 0);
+                ExFreePoolWithTag(DeviceRelations, HIDCLASS_TAG);
             }
 
             DeviceRelations = HIDCLASS_NULL_POINTER;
