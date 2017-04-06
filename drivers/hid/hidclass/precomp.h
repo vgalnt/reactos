@@ -9,7 +9,6 @@
 #include <poclass.h>
 
 #define HIDCLASS_TAG 'CdiH'
-#define HIDCLASS_NULL_POINTER (PVOID)0xFFFFFFB0
 
 #define HIDCLASS_STATE_NOT_INIT  1
 #define HIDCLASS_STATE_STARTING  2

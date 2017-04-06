@@ -294,7 +294,7 @@ GetHidclassCollection(
 
     HidCollections = FDODeviceExtension->HidCollections;
 
-    if (HidCollections && HidCollections != HIDCLASS_NULL_POINTER)
+    if (HidCollections)
     {
         NumCollections = FDODeviceExtension->Common.DeviceDescription.CollectionDescLength;
 
@@ -789,8 +789,7 @@ HidClassInterruptReadComplete(
 
                 ClientPdoExtensions = FDODeviceExtension->ClientPdoExtensions;
 
-                if (!ClientPdoExtensions ||
-                    ClientPdoExtensions == HIDCLASS_NULL_POINTER)
+                if (!ClientPdoExtensions)
                 {
                     goto NextData;
                 }
@@ -802,7 +801,7 @@ HidClassInterruptReadComplete(
                     goto NextData;
                 }
 
-                if (PDODeviceExtension == HIDCLASS_NULL_POINTER ||
+                if (PDODeviceExtension == NULL ||
                     PDODeviceExtension->HidPdoState != HIDCLASS_STATE_STARTED)
                 {
                     goto NextData;
@@ -1130,7 +1129,7 @@ HidClassDestroyShuttles(
 
     Shuttles = FDODeviceExtension->Shuttles;
 
-    if (Shuttles && Shuttles != HIDCLASS_NULL_POINTER)
+    if (Shuttles)
     {
         HidClassCancelAllShuttleIrps(FDODeviceExtension);
 
@@ -1148,7 +1147,7 @@ HidClassDestroyShuttles(
         }
 
         ExFreePoolWithTag(FDODeviceExtension->Shuttles, HIDCLASS_TAG);
-        FDODeviceExtension->Shuttles = HIDCLASS_NULL_POINTER;
+        FDODeviceExtension->Shuttles = NULL;
     }
 }
 
@@ -1733,7 +1732,7 @@ HidClassAllocCollectionResources(
     else
     {
         DPRINT1("[HIDCLASS] Failed allocate CollectionData\n");
-        HIDCollection->CollectionData = HIDCLASS_NULL_POINTER;
+        HIDCollection->CollectionData = NULL;
         Status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -1749,7 +1748,7 @@ HidClassAllocCollectionResources(
     {
         if (HIDCollection->HidCollectInfo.Polled)
         {
-            HIDCollection->InputReport = HIDCLASS_NULL_POINTER;
+            HIDCollection->InputReport = NULL;
         }
         else
         {
@@ -1772,7 +1771,7 @@ HidClassAllocCollectionResources(
     else
     {
         DPRINT1("[HIDCLASS] InputLength is 0\n");
-        HIDCollection->InputReport = HIDCLASS_NULL_POINTER;
+        HIDCollection->InputReport = NULL;
     }
 
     return Status;
@@ -1896,7 +1895,7 @@ HidClassFDO_StartDevice(
         {
             DPRINT1("[HIDCLASS] Failed to retrieve the descriptors %x\n", Status);
             FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
-            FDODeviceExtension->ReportDescriptor = HIDCLASS_NULL_POINTER;
+            FDODeviceExtension->ReportDescriptor = NULL;
             goto ExitError;
         }
 
@@ -1941,7 +1940,7 @@ HidClassFDO_StartDevice(
         else
         {
             DPRINT1("[HIDCLASS] HidCollections not allocated\n");
-            FDODeviceExtension->ReportDescriptor = HIDCLASS_NULL_POINTER;
+            FDODeviceExtension->ReportDescriptor = NULL;
             FDODeviceExtension->HidFdoState = HIDCLASS_STATE_FAILED;
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto ExitError;
@@ -1995,7 +1994,7 @@ HidClassFDO_StartDevice(
         {
             DPRINT("[HIDCLASS] DevicesArePolled \n");
             FDODeviceExtension->ShuttleCount = 0;
-            FDODeviceExtension->Shuttles = HIDCLASS_NULL_POINTER;
+            FDODeviceExtension->Shuttles = NULL;
         }
 
         //
@@ -2084,32 +2083,29 @@ HidClassFreeCollectionResources(
 
     if (HidCollection->HidCollectInfo.Polled)
     {
-        if (HidCollection->PollReport &&
-            HidCollection->PollReport != HIDCLASS_NULL_POINTER)
+        if (HidCollection->PollReport)
         {
             ExFreePoolWithTag(HidCollection->PollReport, HIDCLASS_TAG);
         }
 
-        HidCollection->PollReport = HIDCLASS_NULL_POINTER;
+        HidCollection->PollReport = NULL;
     }
     else
     {
-        if (HidCollection->InputReport &&
-            HidCollection->InputReport != HIDCLASS_NULL_POINTER)
+        if (HidCollection->InputReport)
         {
             ExFreePoolWithTag(HidCollection->InputReport, HIDCLASS_TAG);
         }
     }
 
-    HidCollection->InputReport = HIDCLASS_NULL_POINTER;
+    HidCollection->InputReport = NULL;
 
-    if (HidCollection->CollectionData &&
-        HidCollection->CollectionData != HIDCLASS_NULL_POINTER)
+    if (HidCollection->CollectionData)
     {
         ExFreePoolWithTag(HidCollection->CollectionData, HIDCLASS_TAG);
     }
 
-    HidCollection->CollectionData = HIDCLASS_NULL_POINTER;
+    HidCollection->CollectionData = NULL;
 }
 
 VOID
@@ -2145,22 +2141,20 @@ HidClassFreeDeviceResources(
     ReportDesc = FDODeviceExtension->ReportDescriptor;
     FDODeviceExtension->Common.DeviceDescription.CollectionDescLength = 0;
 
-    if (ReportDesc &&
-        ReportDesc != HIDCLASS_NULL_POINTER)
+    if (ReportDesc)
     {
         ExFreePoolWithTag(ReportDesc, HIDCLASS_TAG);
     }
 
     HidCollections = FDODeviceExtension->HidCollections;
-    FDODeviceExtension->ReportDescriptor = HIDCLASS_NULL_POINTER;
+    FDODeviceExtension->ReportDescriptor = NULL;
 
-    if (HidCollections &&
-        HidCollections != HIDCLASS_NULL_POINTER)
+    if (HidCollections)
     {
         ExFreePoolWithTag(HidCollections, HIDCLASS_TAG);
     }
 
-    FDODeviceExtension->HidCollections = HIDCLASS_NULL_POINTER;
+    FDODeviceExtension->HidCollections = NULL;
 }
 
 VOID
@@ -2177,10 +2171,9 @@ HidClassDeleteDeviceObjects(
     FDODeviceObject = FDODeviceExtension->FDODeviceObject;
 
     DeviceRelations = FDODeviceExtension->DeviceRelations;
-    FDODeviceExtension->FDODeviceObject = HIDCLASS_NULL_POINTER;
+    FDODeviceExtension->FDODeviceObject = NULL;
 
-    if (DeviceRelations &&
-        DeviceRelations != HIDCLASS_NULL_POINTER)
+    if (DeviceRelations)
     {
         ix = 0;
 
@@ -2205,15 +2198,14 @@ HidClassDeleteDeviceObjects(
         ExFreePoolWithTag(FDODeviceExtension->DeviceRelations, HIDCLASS_TAG);
     }
 
-    FDODeviceExtension->DeviceRelations = HIDCLASS_NULL_POINTER;
+    FDODeviceExtension->DeviceRelations = NULL;
 
-    if (FDODeviceExtension->ClientPdoExtensions &&
-        FDODeviceExtension->ClientPdoExtensions != HIDCLASS_NULL_POINTER)
+    if (FDODeviceExtension->ClientPdoExtensions)
     {
         ExFreePoolWithTag(FDODeviceExtension->ClientPdoExtensions, HIDCLASS_TAG);
     }
 
-    FDODeviceExtension->ClientPdoExtensions = HIDCLASS_NULL_POINTER;
+    FDODeviceExtension->ClientPdoExtensions = NULL;
 
     DPRINT("HidClassDeleteDeviceObjects: IoDeleteDevice(FDO %p)\n",
            FDODeviceObject);
@@ -2287,7 +2279,7 @@ HidClassFDO_RemoveDevice(
         FDODeviceExtension->HidFdoState = HIDCLASS_STATE_DELETED;
 
         DerefDriverExt(FDODeviceExtension->Common.DriverExtension->DriverObject);
-        FDODeviceExtension->Common.DriverExtension = HIDCLASS_NULL_POINTER;
+        FDODeviceExtension->Common.DriverExtension = NULL;
 
         HidDeviceExtension = &FDODeviceExtension->Common.HidDeviceExtension;
         IoDetachDevice(HidDeviceExtension->NextDeviceObject);
@@ -2337,8 +2329,7 @@ HidClassFDO_DeviceRelations(
                             Irp);
     }
 
-    if (FDODeviceExtension->DeviceRelations &&
-        FDODeviceExtension->DeviceRelations != HIDCLASS_NULL_POINTER)
+    if (FDODeviceExtension->DeviceRelations)
     {
         Status = STATUS_SUCCESS;
     }
@@ -2431,12 +2422,13 @@ HidClassFDO_DeviceRelations(
 
         if (DeviceRelations)
         {
-            if (DeviceRelations != HIDCLASS_NULL_POINTER)
+            if (FDODeviceExtension->DeviceRelations)
             {
-                ExFreePoolWithTag(DeviceRelations, HIDCLASS_TAG);
+                ExFreePoolWithTag(FDODeviceExtension->DeviceRelations, HIDCLASS_TAG);
             }
 
-            DeviceRelations = HIDCLASS_NULL_POINTER;
+            FDODeviceExtension->DeviceRelations = NULL;
+
             DeviceRelations->Count = 0;
             DeviceRelations->Objects[0] = NULL;
         }
