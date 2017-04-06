@@ -198,7 +198,7 @@ HidClassPDO_HandleQueryDeviceId(
     //
     // free old buffer
     //
-    ExFreePoolWithTag(Buffer, HIDCLASS_TAG);
+    ExFreePoolWithTag(Buffer, 0);
 
     //
     // store result
@@ -320,7 +320,7 @@ HidClassPDO_HandleQueryHardwareId(
     //
     // free old buffer
     //
-    ExFreePoolWithTag((PVOID)Irp->IoStatus.Information, HIDCLASS_TAG);
+    ExFreePoolWithTag((PVOID)Irp->IoStatus.Information, 0);
 
     //
     // allocate buffer
