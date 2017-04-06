@@ -596,7 +596,7 @@ HidClassFlushReportQueue(
             break;
         }
 
-        ExFreePoolWithTag(Header, 0);
+        ExFreePoolWithTag(Header, HIDCLASS_TAG);
     }
 
     KeReleaseSpinLock(&FileContext->Lock, OldIrql);
@@ -612,7 +612,7 @@ HidClassDestroyFileContext(
 
     HidClassFlushReportQueue(FileContext); 
     HidClassCompleteReadsForFileContext(HidCollection, FileContext);
-    ExFreePoolWithTag(FileContext, 0);
+    ExFreePoolWithTag(FileContext, HIDCLASS_TAG);
 }
 
 NTSTATUS
@@ -793,7 +793,7 @@ HidClassCompleteIrpAsynchronously(
     CompletionWorkItem = (PHIDCLASS_COMPLETION_WORKITEM)Context;
     IoCompleteRequest(CompletionWorkItem->Irp, 0);
     IoFreeWorkItem(CompletionWorkItem->CompleteWorkItem);
-    ExFreePoolWithTag(CompletionWorkItem, 0);
+    ExFreePoolWithTag(CompletionWorkItem, HIDCLASS_TAG);
 }
 
 NTSTATUS
@@ -982,7 +982,7 @@ HidClass_Read(
                                                            &ReportSize,
                                                            VAddress);
 
-                    ExFreePoolWithTag(Header, 0);
+                    ExFreePoolWithTag(Header, HIDCLASS_TAG);
 
                     if (!NT_SUCCESS(Status))
                     {
@@ -1111,7 +1111,7 @@ HidClassInterruptWriteComplete(
     PDODeviceExtension = (PHIDCLASS_PDO_DEVICE_EXTENSION)Context;
     Status = Irp->IoStatus.Status;
 
-    ExFreePoolWithTag(Irp->UserBuffer, 0);
+    ExFreePoolWithTag(Irp->UserBuffer, HIDCLASS_TAG);
 
     Irp->UserBuffer = NULL;
 

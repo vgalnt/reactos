@@ -68,7 +68,9 @@ HidClassSymbolicLinkOnOff(
             Status = IoSetDeviceInterfaceState(&HidCollection->SymbolicLinkName,
                                                FALSE);
 
-            ExFreePoolWithTag(HidCollection->SymbolicLinkName.Buffer, 0);
+            ExFreePoolWithTag(HidCollection->SymbolicLinkName.Buffer,
+                              HIDCLASS_TAG);
+
             HidCollection->SymbolicLinkName.Buffer = HIDCLASS_NULL_POINTER;
         }
         else
@@ -197,7 +199,7 @@ HidClassPDO_HandleQueryDeviceId(
     //
     // free old buffer
     //
-    ExFreePoolWithTag(Buffer, 0);
+    ExFreePoolWithTag(Buffer, HIDCLASS_TAG);
 
     //
     // store result
@@ -319,7 +321,7 @@ HidClassPDO_HandleQueryHardwareId(
     //
     // free old buffer
     //
-    ExFreePoolWithTag((PVOID)Irp->IoStatus.Information, 0);
+    ExFreePoolWithTag((PVOID)Irp->IoStatus.Information, HIDCLASS_TAG);
 
     //
     // allocate buffer
@@ -1164,7 +1166,7 @@ HidClassCreatePDOs(
 
         if (!NT_SUCCESS(Status))
         {
-            ExFreePoolWithTag(DeviceRelations, 0);
+            ExFreePoolWithTag(DeviceRelations, HIDCLASS_TAG);
             FDODeviceExtension->DeviceRelations = HIDCLASS_NULL_POINTER;
         }
 
@@ -1285,12 +1287,14 @@ HidClassCreatePDOs(
     if (!NT_SUCCESS(Status))
     {
 ErrorExit:
-        ExFreePoolWithTag(FDODeviceExtension->ClientPdoExtensions, 0);
+        ExFreePoolWithTag(FDODeviceExtension->ClientPdoExtensions,
+                          HIDCLASS_TAG);
+
         FDODeviceExtension->ClientPdoExtensions = HIDCLASS_NULL_POINTER;
 
         if (!NT_SUCCESS(Status))
         {
-            ExFreePoolWithTag(DeviceRelations, 0);
+            ExFreePoolWithTag(DeviceRelations, HIDCLASS_TAG);
             FDODeviceExtension->DeviceRelations = HIDCLASS_NULL_POINTER;
         }
     }
