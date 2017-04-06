@@ -349,40 +349,6 @@ typedef struct _HIDCLASS_FILEOP_CONTEXT {
 
 } HIDCLASS_FILEOP_CONTEXT, *PHIDCLASS_FILEOP_CONTEXT;
 
-typedef struct
-{
-    //
-    // original request
-    //
-    PIRP OriginalIrp;
-
-    //
-    // file op
-    //
-    PHIDCLASS_FILEOP_CONTEXT FileOp;
-
-    //
-    // buffer for reading report
-    //
-    PVOID InputReportBuffer;
-
-    //
-    // buffer length
-    //
-    ULONG InputReportBufferLength;
-
-    //
-    // work item
-    //
-    PIO_WORKITEM CompletionWorkItem;
-
-    //
-    // for HACK: use instead Irp->Tail.Overlay.ListEntry (use usbport)
-    // link with pending IRPs list 
-    //
-    LIST_ENTRY ReadIrpLink;
-} HIDCLASS_IRP_CONTEXT, *PHIDCLASS_IRP_CONTEXT;
-
 //
 // hidclass.c
 //
