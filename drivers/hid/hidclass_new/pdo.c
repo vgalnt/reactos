@@ -720,7 +720,9 @@ HidClassPDO_PnP(
     BOOLEAN IsNotPendingDelete = FALSE;
     KIRQL OldIrql;
 
-    /* Get device extensions */
+    //
+    // Get device extensions
+    //
     PDODeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(PDODeviceExtension->Common.IsFDO == FALSE);
     FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
@@ -731,7 +733,9 @@ HidClassPDO_PnP(
 
         KeAcquireSpinLock(&FDODeviceExtension->HidRemoveDeviceSpinLock, &OldIrql);
 
+        //
         // FIXME remove lock
+        //
         if (0)//IoAcquireRemoveLock(&FDODeviceExtension->HidRemoveLock, 0) == STATUS_DELETE_PENDING)
         {
             DPRINT("[HIDCLASS]: PDO STATUS_DELETE_PENDING\n");
@@ -741,7 +745,9 @@ HidClassPDO_PnP(
         KeReleaseSpinLock(&FDODeviceExtension->HidRemoveDeviceSpinLock, OldIrql);
     }
 
-    /* Get current irp stack location */
+    //
+    // get current irp stack location
+    //
     IoStack = IoGetCurrentIrpStackLocation(Irp);
 
     switch (IoStack->MinorFunction)
@@ -772,7 +778,9 @@ HidClassPDO_PnP(
                 break;
             }
 
-            /* BusQueryDeviceSerialNumber (serial number for device) or unknown */
+            //
+            // BusQueryDeviceSerialNumber (serial number for device) or unknown
+            //
             DPRINT1("[HIDCLASS]: IRP_MN_QUERY_ID IdType %x unimplemented\n",
                     IoStack->Parameters.QueryId.IdType);
 
@@ -788,18 +796,24 @@ HidClassPDO_PnP(
 
             if (DeviceCapabilities == NULL)
             {
-                /* Invalid parameter of request */
+                //
+                // Invalid parameter of request
+                //
                 Irp->IoStatus.Information = 0;
                 Status = STATUS_DEVICE_CONFIGURATION_ERROR;
                 break;
             }
 
-            /*  Copy capabilities from PDO extension */
+            //
+            // Copy capabilities from PDO extension
+            //
             RtlCopyMemory(DeviceCapabilities,
                           &PDODeviceExtension->Capabilities,
                           sizeof(DEVICE_CAPABILITIES));
 
-            /*  Correcting capabilities fields */
+            //
+            // Correcting capabilities fields
+            //
             DeviceCapabilities->LockSupported = 0;
             DeviceCapabilities->EjectSupported = 0;
             DeviceCapabilities->Removable = 0;
@@ -835,7 +849,9 @@ HidClassPDO_PnP(
                 break;
             }
 
-            /* Fill in result */
+            //
+            // fill in result
+            //
             RtlCopyMemory(&BusInformation->BusTypeGuid,
                           &GUID_BUS_TYPE_HID,
                           sizeof(GUID));
@@ -1015,7 +1031,10 @@ Removal:
                 PdoIdx = PDODeviceExtension->PdoIdx;
                 HidCollection = &FDODeviceExtension->HidCollections[PdoIdx];
                 HidClassCompleteReadsForCollection(HidCollection);
+
+                //
                 // FIXME: CompleteAllPdoPowerDelayedIrps();
+                //
             }
 
             Status = STATUS_SUCCESS;
@@ -1031,7 +1050,9 @@ Removal:
                                           FALSE,
                                           PDODeviceExtension->SelfDevice);
 
+                //
                 // FIXME: handle PowerEvent Irp;
+                //
 
                 PDODeviceExtension->HidPdoState = HIDCLASS_STATE_STOPPING;
 
@@ -1099,7 +1120,9 @@ HidClassCreatePDOs(
 
     DPRINT("[HIDCLASS] HidClassCreatePDOs: DeviceObject %p\n", DeviceObject);
 
+    //
     // get device extension
+    //
     FDODeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(FDODeviceExtension->Common.IsFDO);
 
@@ -1122,7 +1145,9 @@ HidClassCreatePDOs(
         return Status;
     }
 
-    /* first allocate device relations */
+    //
+    // first allocate device relations
+    //
     if (*OutDeviceRelations == NULL ||
         *OutDeviceRelations == HIDCLASS_NULL_POINTER)
     {
@@ -1143,7 +1168,9 @@ HidClassCreatePDOs(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    /* allocate ClientPdoExtensions array */
+    //
+    // allocate ClientPdoExtensions array
+    //
     if (!FDODeviceExtension->ClientPdoExtensions ||
         FDODeviceExtension->ClientPdoExtensions == HIDCLASS_NULL_POINTER)
     {
@@ -1182,13 +1209,16 @@ HidClassCreatePDOs(
         return Status;
     }
 
-    /* let's create a PDOs for top level collections */
-
+    //
+    // let's create a PDOs for top level collections
+    //
     do
     {
         CollectionNumber = DeviceDescription->CollectionDesc[PdoIdx].CollectionNumber;
 
-        /* let's create the device object */
+        //
+        // let's create the device object
+        //
         Status = IoCreateDevice(DriverExtension->DriverObject,
                                 sizeof(HIDCLASS_PDO_DEVICE_EXTENSION),
                                 NULL,
@@ -1212,14 +1242,20 @@ HidClassCreatePDOs(
 
         ObReferenceObject(PDODeviceObject);
 
-        /* patch stack size */
+        //
+        // patch stack size
+        //
         PDODeviceObject->StackSize = DeviceObject->StackSize + 1;
 
-        /* get device extension */
+        //
+        // get device extension
+        //
         PDODeviceExtension = PDODeviceObject->DeviceExtension;
         RtlZeroMemory(PDODeviceExtension, sizeof(HIDCLASS_PDO_DEVICE_EXTENSION));
 
+        //
         // init device extension
+        //
         PDODeviceExtension->Common.IsFDO = FALSE;
 
         PDODeviceExtension->Common.HidDeviceExtension.MiniDeviceExtension =
@@ -1252,7 +1288,9 @@ HidClassCreatePDOs(
                                              Usage == HID_USAGE_GENERIC_KEYBOARD ||
                                              Usage == HID_USAGE_GENERIC_KEYPAD);
 
+        //
         // copy device data
+        //
         RtlCopyMemory(&PDODeviceExtension->Common.Attributes,
                       &FDODeviceExtension->Common.Attributes,
                       sizeof(HID_DEVICE_ATTRIBUTES));
@@ -1265,23 +1303,33 @@ HidClassCreatePDOs(
                       &FDODeviceExtension->Capabilities,
                       sizeof(DEVICE_CAPABILITIES));
 
-        /* store device object in device relations */
+        //
+        // store device object in device relations
+        //
         DeviceRelations->Objects[PdoIdx] = PDODeviceObject;
         FDODeviceExtension->ClientPdoExtensions[PdoIdx] = PDODeviceExtension;
 
-        /* set device flags */
+        //
+        // set device flags
+        //
         PDODeviceObject->Flags |= DO_POWER_PAGABLE;
 
-        /* device is initialized */
+        //
+        // device is initialized
+        //
         PDODeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
 
-        /* move to next */
+        //
+        // move to next
+        //
         PdoIdx++;
 
     }
     while (PdoIdx < DescLength);
 
-    /* store device relations */
+    //
+    // store device relations
+    //
     *OutDeviceRelations = DeviceRelations;
 
     if (!NT_SUCCESS(Status))

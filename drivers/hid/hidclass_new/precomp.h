@@ -23,12 +23,16 @@
 #define HIDCLASS_MINIMUM_SHUTTLE_IRPS    2
 #define HIDCLASS_MAX_REPORT_QUEUE_SIZE   32
 
-/* Shuttle state */
+//
+// shuttle state
+//
 #define HIDCLASS_SHUTTLE_START_READ      1
 #define HIDCLASS_SHUTTLE_END_READ        2
 #define HIDCLASS_SHUTTLE_DISABLED        3
 
-/* FDO remove lock */
+//
+// FDO remove lock
+//
 #define HIDCLASS_REMOVE_LOCK_TAG        'cdiH'
 #define HIDCLASS_FDO_MAX_LOCKED_MINUTES  2
 #define HIDCLASS_FDO_HIGH_WATERMARK      8192
@@ -36,13 +40,17 @@
 typedef struct _HIDCLASS_FDO_EXTENSION *PHIDCLASS_FDO_EXTENSION;
 typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION *PHIDCLASS_PDO_DEVICE_EXTENSION;
 
-/* Work item for completion IRPs */
+//
+// work item for completion IRPs
+//
 typedef struct _HIDCLASS_COMPLETION_WORKITEM {
     PIO_WORKITEM CompleteWorkItem;
     PIRP Irp;
 } HIDCLASS_COMPLETION_WORKITEM, *PHIDCLASS_COMPLETION_WORKITEM;
 
-/* Header for interrupt report */
+//
+// header for interrupt report
+//
 typedef struct _HIDCLASS_INT_REPORT_HEADER {
     LIST_ENTRY ReportLink;
     ULONG InputLength;
@@ -144,35 +152,71 @@ typedef struct _HIDCLASS_FDO_EXTENSION {
     // device relations
     //
     PDEVICE_RELATIONS DeviceRelations;
-    /* An array of pointers to _HIDCLASS_PDO_DEVICE_EXTENSION */
+
+    //
+    // an array of pointers to _HIDCLASS_PDO_DEVICE_EXTENSION
+    //
     PHIDCLASS_PDO_DEVICE_EXTENSION * ClientPdoExtensions;
-    /* FDO PnP state */
+
+    //
+    // FDO PnP state
+    //
     ULONG HidFdoState;
-    /* Previous FDO PnP state */
+
+    //
+    // previous FDO PnP state
+    //
     ULONG HidFdoPrevState;
-    /* FDO flags */
+
+    //
+    // FDO flags
+    //
     BOOLEAN NotAllocCollectResources;
     BOOLEAN IsNotifyPresence;
     BOOLEAN IsRelationsOn;
     BOOLEAN IsDeviceResourcesAlloceted;
-    /* An array of HIDCLASS_COLLECTION structures */
+
+    //
+    // an array of HIDCLASS_COLLECTION structures
+    //
     PHIDCLASS_COLLECTION HidCollections;
-    /* Number of shuttles */
+
+    //
+    // number of shuttles
+    //
     ULONG ShuttleCount;
-    /* An array of PHIDCLASS_SHUTTLE structures */
+
+    //
+    // an array of PHIDCLASS_SHUTTLE structures
+    //
     PHIDCLASS_SHUTTLE Shuttles;
-    /* Maximum length of reports */
+
+    //
+    // maximum length of reports
+    //
     ULONG MaxReportSize;
-    /* Self FDO device object */
+
+    //
+    // self FDO device object
+    //
     PDEVICE_OBJECT FDODeviceObject;
     LONG OutstandingRequests;
-    /* SpinLocks */
+
+    //
+    // spinlocks
+    //
     KSPIN_LOCK HidRelationSpinLock;
     KSPIN_LOCK HidRemoveDeviceSpinLock;
-    /* Opens Counter */
+
+    //
+    // opens counter
+    //
     LONG OpenCount;
     IO_REMOVE_LOCK HidRemoveLock;
-    /* Bus number for IRP_MN_QUERY_BUS_INFORMATION */
+
+    //
+    // bus number for IRP_MN_QUERY_BUS_INFORMATION
+    //
     ULONG BusNumber;
 
 } HIDCLASS_FDO_EXTENSION, *PHIDCLASS_FDO_EXTENSION;
@@ -184,9 +228,14 @@ typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION {
     //
     HIDCLASS_COMMON_DEVICE_EXTENSION Common;
 
-    /* PDO device object */
+    //
+    // PDO device object
+    //
     PDEVICE_OBJECT SelfDevice;
-    /* PDO index */
+
+    //
+    // PDO index
+    //
     ULONG PdoIdx;
 
     //
@@ -214,15 +263,26 @@ typedef struct _HIDCLASS_PDO_DEVICE_EXTENSION {
     //
     PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
 
-    /* PDO PnP state */
+    //
+    // PDO PnP state
+    //
     ULONG HidPdoState;
-    /* Previous PDO PnP state */
+
+    //
+    // previous PDO PnP state
+    //
     ULONG HidPdoPrevState;
-    /* PDO flags */
+
+    //
+    // PDO flags
+    //
     BOOLEAN IsGenericHid;
     BOOLEAN IsSessionSecurity;
     UCHAR Reserved1[2];
-    /* Opens Counter */
+
+    //
+    // opens Counter
+    //
     LONG OpenCount;
     LONG OpensForRead;
     LONG OpensForWrite;
@@ -266,9 +326,15 @@ typedef struct _HIDCLASS_FILEOP_CONTEXT {
     // read complete event
     //
     KEVENT IrpReadComplete;
-    /* Read IRP pending list */
+
+    //
+    // read IRP pending list
+    //
     LIST_ENTRY InterruptReadIrpList;
-    /* Report list */
+
+    //
+    // report list
+    //
     LIST_ENTRY ReportList;
     LIST_ENTRY InterruptReportLink;
     ULONG MaxReportQueueSize;
@@ -310,13 +376,16 @@ typedef struct
     //
     PIO_WORKITEM CompletionWorkItem;
 
-    /* for HACK: use instead Irp->Tail.Overlay.ListEntry (use usbport)
-       link with pending IRPs list 
-    */
+    //
+    // for HACK: use instead Irp->Tail.Overlay.ListEntry (use usbport)
+    // link with pending IRPs list 
+    //
     LIST_ENTRY ReadIrpLink;
 } HIDCLASS_IRP_CONTEXT, *PHIDCLASS_IRP_CONTEXT;
 
-/* hidclass.c */
+//
+// hidclass.c
+//
 PHIDCLASS_DRIVER_EXTENSION
 NTAPI
 RefDriverExt(
@@ -333,7 +402,9 @@ HidClassCompleteReadsForFileContext(
     IN PHIDCLASS_COLLECTION HidCollection,
     IN PHIDCLASS_FILEOP_CONTEXT FileContext);
 
-/* fdo.c */
+//
+// fdo.c
+//
 PHIDP_COLLECTION_DESC
 NTAPI
 GetCollectionDesc(
@@ -416,7 +487,9 @@ NTAPI
 HidClassSetDeviceBusy(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension);
 
-/* pdo.c */
+//
+// pdo.c
+//
 NTSTATUS
 HidClassCreatePDOs(
     IN PDEVICE_OBJECT DeviceObject,
