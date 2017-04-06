@@ -60,8 +60,9 @@ RefDriverExt(
 
     DPRINT("RefDriverExt: DriverObject - %p\n", DriverObject);
 
-    /* increments the given driver object extension's reference count */
-
+    //
+    // increments the given driver object extension's reference count
+    //
     ExAcquireFastMutex(&DriverExtListMutex);
 
     Entry = DriverExtList.Flink;
@@ -98,8 +99,9 @@ DerefDriverExt(
 
     DPRINT("DerefDriverExt: DriverObject - %p\n", DriverObject);
 
-    /* decrements the given driver object extension's reference count */
-
+    //
+    // decrements the given driver object extension's reference count
+    //
     ExAcquireFastMutex(&DriverExtListMutex);
 
     Entry = DriverExtList.Flink;
@@ -128,7 +130,10 @@ DerefDriverExt(
         --DriverExtension->RefCount;
         IsRemoveEntry = DriverExtension->RefCount < 0;
 
-        /* if reference count < 0 then remove given driver object extension's link */
+        //
+        // if reference count < 0
+        // then remove given driver object extension's link
+        //
         if (IsRemoveEntry)
         {
             RemoveEntryList(Entry);
@@ -159,32 +164,46 @@ HidClassAddDevice(
     PHIDCLASS_DRIVER_EXTENSION DriverExtension;
     PHID_DEVICE_EXTENSION HidDeviceExtension;
 
-    /* Increment device number */
+    //
+    // increment device number
+    //
     InterlockedIncrement((PLONG)&HidClassDeviceNumber);
 
-    /* Construct device name */
+    //
+    // construct device name
+    //
     swprintf(CharDeviceName, L"\\Device\\_HID%08x", HidClassDeviceNumber);
 
-    /* Initialize device name */
+    //
+    // initialize device name
+    //
     RtlInitUnicodeString(&DeviceName, CharDeviceName);
 
-    /* Get driver object extension */
+    //
+    // get driver object extension
+    //
     DriverExtension = RefDriverExt(DriverObject);
 
     if (!DriverExtension)
     {
-        /* Device removed */
+        //
+        // device removed
+        //
         ASSERT(FALSE);
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
 
     ASSERT(DriverObject == DriverExtension->DriverObject);
 
-    /* Calculate device extension size */
+    //
+    // calculate device extension size
+    //
     DeviceExtensionSize = sizeof(HIDCLASS_FDO_EXTENSION) +
                                  DriverExtension->DeviceExtensionSize;
 
-    /* Now create the device */
+    //
+    // now create the device
+    //
     Status = IoCreateDevice(DriverObject,
                             DeviceExtensionSize,
                             &DeviceName,
@@ -195,7 +214,9 @@ HidClassAddDevice(
 
     if (!NT_SUCCESS(Status))
     {
-        /* Failed to create device object */
+        //
+        // failed to create device object
+        //
         DPRINT1("IoCreateDevice failed. Status - %x", Status);
         ASSERT(FALSE);
         DerefDriverExt(DriverObject);
@@ -208,15 +229,21 @@ HidClassAddDevice(
     ASSERT(DriverObject->DeviceObject == NewDeviceObject);
     ASSERT(NewDeviceObject->DriverObject == DriverObject);
 
-    /* Get device extension */
+    //
+    // get device extension
+    //
     FDODeviceExtension = NewDeviceObject->DeviceExtension;
 
-    /* Zero device extension */
+    //
+    // zero device extension
+    //
     RtlZeroMemory(FDODeviceExtension, DeviceExtensionSize);
 
     HidDeviceExtension = &FDODeviceExtension->Common.HidDeviceExtension;
 
-    /* Initialize device extension */
+    //
+    // initialize device extension
+    //
     FDODeviceExtension->Common.IsFDO = TRUE;
     FDODeviceExtension->Common.DriverExtension = DriverExtension;
     HidDeviceExtension->PhysicalDeviceObject = PhysicalDeviceObject;
@@ -224,28 +251,38 @@ HidClassAddDevice(
     FDODeviceExtension->OutstandingRequests = 0;
     FDODeviceExtension->BusNumber = HidClassDeviceNumber;
 
-    /* Initialize FDO flags */
+    //
+    // initialize FDO flags
+    //
     FDODeviceExtension->IsNotifyPresence = TRUE;
     FDODeviceExtension->IsRelationsOn = TRUE;
     FDODeviceExtension->IsDeviceResourcesAlloceted = FALSE;
 
-    /* Initialize SpinLocks */
+    //
+    // initialize SpinLocks
+    //
     KeInitializeSpinLock(&FDODeviceExtension->HidRelationSpinLock);
     KeInitializeSpinLock(&FDODeviceExtension->HidRemoveDeviceSpinLock);
 
-    /* Initialize remove lock for FDO */
+    //
+    // initialize remove lock for FDO
+    //
     IoInitializeRemoveLock(&FDODeviceExtension->HidRemoveLock,
                            HIDCLASS_REMOVE_LOCK_TAG,
                            HIDCLASS_FDO_MAX_LOCKED_MINUTES,
                            HIDCLASS_FDO_HIGH_WATERMARK);
 
-    /* Calculate and save pointer to minidriver-specific portion device extension */
+    //
+    // calculate and save pointer to minidriver-specific portion device extension
+    //
     HidDeviceExtension->MiniDeviceExtension = (PVOID)((ULONG_PTR)FDODeviceExtension +
                                                       sizeof(HIDCLASS_FDO_EXTENSION));
 
     ASSERT((PhysicalDeviceObject->Flags & DO_DEVICE_INITIALIZING) == 0);
 
-    /* Attach new FDO to stack */
+    //
+    // attach new FDO to stack
+    //
     HidDeviceExtension->NextDeviceObject = IoAttachDeviceToDeviceStack(NewDeviceObject,
                                                                        PhysicalDeviceObject);
 
@@ -258,18 +295,26 @@ HidClassAddDevice(
         return STATUS_DEVICE_REMOVED;
     }
 
-    /* Increment stack size */
+    //
+    // increment stack size
+    //
     NewDeviceObject->StackSize++;
 
-    /* FDO state is not initialized */
+    //
+    // FDO state is not initialized
+    //
     FDODeviceExtension->HidFdoState = HIDCLASS_STATE_NOT_INIT;
 
-    /* Init device object */
+    //
+    // init device object
+    //
     NewDeviceObject->Flags |= DO_DIRECT_IO;
     NewDeviceObject->Flags |= PhysicalDeviceObject->Flags & DO_POWER_PAGABLE;
     NewDeviceObject->Flags  &= ~DO_DEVICE_INITIALIZING;
 
-    /* Now call driver provided add device routine */
+    //
+    // now call driver provided add device routine
+    //
     ASSERT(DriverExtension->AddDevice != 0);
     Status = DriverExtension->AddDevice(DriverObject, NewDeviceObject);
 
@@ -344,7 +389,9 @@ HidClass_Create(
         goto Exit;
     }
 
-    /* Get common extension */
+    //
+    // get common extension
+    //
     CommonDeviceExtension = DeviceObject->DeviceExtension;
 
     if (CommonDeviceExtension->IsFDO)
@@ -354,17 +401,23 @@ HidClass_Create(
         goto Exit;
     }
 
-    /* Get device extensions */
+    //
+    // get device extensions
+    //
     PDODeviceExtension = DeviceObject->DeviceExtension;
     FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
 
-    /* Get stack location */
+    //
+    // get stack location
+    //
     IoStack = IoGetCurrentIrpStackLocation(Irp);
     ASSERT(IoStack->FileObject);
 
     Irp->IoStatus.Information = 0;
 
-    /* Get collection */
+    //
+    // get collection
+    //
     HidCollection = GetHidclassCollection(FDODeviceExtension,
                                           PDODeviceExtension->CollectionNumber);
 
@@ -375,7 +428,9 @@ HidClass_Create(
         goto Exit;
     }
 
-    /* Check privilege */
+    //
+    // check privilege
+    //
     IsPrivilege = HidClassPrivilegeCheck(Irp);
 
     DPRINT("ShareAccess %x\n", IoStack->Parameters.Create.ShareAccess);
@@ -384,8 +439,9 @@ HidClass_Create(
 
     KeAcquireSpinLock(&HidCollection->CollectSpinLock, &OldIrql);
 
-    /* Validate parameters */
-
+    //
+    // validate parameters
+    //
     if (PDODeviceExtension->RestrictionsForAnyOpen ||
         (PDODeviceExtension->OpenCount && !IoStack->Parameters.Create.ShareAccess))
     {
@@ -421,7 +477,9 @@ HidClass_Create(
         goto UnlockExit;
     }
 
-    /* Get PnP states */
+    //
+    // get PnP states
+    //
     HidFdoState = FDODeviceExtension->HidFdoState;
     HidPdoState = PDODeviceExtension->HidPdoState;
 
@@ -429,7 +487,9 @@ HidClass_Create(
            HidFdoState,
            HidPdoState);
 
-    /* Validate PnP states */
+    //
+    // validate PnP states
+    //
     if ((HidFdoState != HIDCLASS_STATE_STARTED &&
          HidFdoState != HIDCLASS_STATE_STOPPING &&
          HidFdoState != HIDCLASS_STATE_DISABLED) ||
@@ -442,7 +502,9 @@ HidClass_Create(
         goto UnlockExit;
     }
 
-    /* Allocate file context */
+    //
+    // allocate file context
+    //
     FileContext = ExAllocatePoolWithTag(NonPagedPool,
                                         sizeof(HIDCLASS_FILEOP_CONTEXT),
                                         HIDCLASS_TAG);
@@ -454,8 +516,9 @@ HidClass_Create(
         goto UnlockExit;
     }
 
-    /* Initialize file context */
-
+    //
+    // initialize file context
+    //
     RtlZeroMemory(FileContext, sizeof(HIDCLASS_FILEOP_CONTEXT));
 
     FileContext->DeviceExtension = PDODeviceExtension;
@@ -483,10 +546,14 @@ HidClass_Create(
     FileContext->IsMyPrivilegeTrue = IsPrivilege;
     //FileContext->SessionId = SessionId; FIXME
 
-    /* Store pointer to file context */
+    //
+    // store pointer to file context
+    //
     IoStack->FileObject->FsContext = FileContext;
 
-    /* Increment open counters */
+    //
+    // increment open counters
+    //
     InterlockedExchangeAdd(&FDODeviceExtension->OpenCount, 1);
     InterlockedExchangeAdd(&PDODeviceExtension->OpenCount, 1);
 
@@ -650,7 +717,9 @@ HidClass_Close(
 
     Irp->IoStatus.Information = 0;
 
-    /* get device extensions */
+    //
+    // get device extensions
+    //
     PDODeviceExtension = DeviceObject->DeviceExtension;
     FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
 
@@ -774,7 +843,10 @@ HidClass_Close(
     Status = STATUS_SUCCESS;
 
 Exit:
-    /* complete request */
+
+    //
+    // complete request
+    //
     Irp->IoStatus.Status = Status;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return Status;
@@ -828,13 +900,17 @@ HidClass_Read(
 
     DPRINT("HidClass_Read: Irp - %p\n", Irp);
 
-    /* Get device extensions */
+    //
+    // get device extensions
+    //
     CommonDeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(CommonDeviceExtension->IsFDO == FALSE);
     PDODeviceExtension = DeviceObject->DeviceExtension;
     FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
 
-    /* Get current stack location */
+    //
+    // get current stack location
+    //
     IoStack = IoGetCurrentIrpStackLocation(Irp);
 
     FileObject = IoStack->FileObject;
@@ -931,7 +1007,9 @@ HidClass_Read(
     {
         KeAcquireSpinLock(&FileContext->Lock, &OldIrql);
 
-        //FIXME: PowerState implement.
+        //
+        // FIXME: PowerState implement
+        //
         if (IsNotRunning /*|| (FDODeviceExtension->DevicePowerState != PowerDeviceD0)*/)
         {
             Status = HidClassEnqueueInterruptReadIrp(HidCollection, FileContext, Irp);
@@ -1156,7 +1234,9 @@ HidClass_Write(
 
     DPRINT("HidClass_Write: PDO - %p, Irp - %p\n", DeviceObject, Irp);
 
-    /* Get device extensions */
+    //
+    // get device extensions
+    //
     CommonDeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(CommonDeviceExtension->IsFDO == FALSE);
     PDODeviceExtension = DeviceObject->DeviceExtension;
@@ -1169,7 +1249,9 @@ HidClass_Write(
         goto Exit;
     }
 
-    /* Get current stack location */
+    //
+    // get current stack location
+    //
     IoStack = IoGetCurrentIrpStackLocation(Irp);
 
     FileObject = IoStack->FileObject;
@@ -1180,7 +1262,9 @@ HidClass_Write(
         goto Exit;
     }
 
-    // FIXME CheckIdleState();
+    //
+    // FIXME CheckIdleState()
+    //
 
     Report = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, NormalPagePriority);
 
@@ -1190,7 +1274,9 @@ HidClass_Write(
         goto Exit;
     }
 
-    /* first byte of the buffer is the report ID for the report */
+    //
+    // first byte of the buffer is the report ID for the report
+    //
     ReportId = GetReportIdentifier(FDODeviceExtension, *(PUCHAR)Report);
 
     if (!ReportId || !ReportId->OutputLength)
@@ -1505,19 +1591,27 @@ HidClass_DispatchDefault(
 
     DPRINT("DispatchDefault: DeviceObject - %p, Irp - %p\n", DeviceObject, Irp);
 
-    /* Get common device extension */
+    //
+    // get common device extension
+    //
     CommonDeviceExtension = DeviceObject->DeviceExtension;
 
     if ( CommonDeviceExtension->IsFDO )
     {
-        /* Get device extensions */
+        //
+        // get device extensions
+        //
         FDODeviceExtension = DeviceObject->DeviceExtension;
         HidDeviceExtension = &FDODeviceExtension->Common.HidDeviceExtension;
 
-        /* Copy current IRP stack location to next*/
+        //
+        // copy current IRP stack location to next
+        //
         IoCopyCurrentIrpStackLocationToNext(Irp);
 
-        /* Dispatch to lower PDO */
+        //
+        // dispatch to lower PDO
+        //
         Status = HidClassFDO_DispatchRequest(HidDeviceExtension->PhysicalDeviceObject,
                                              Irp);
     }
@@ -1597,7 +1691,9 @@ InsertDriverExtList(
 
     ExAcquireFastMutex(&DriverExtListMutex);
 
-    /* Add link for DriverExtension to end list */
+    //
+    // add link for DriverExtension to end list
+    //
     for (Entry = DriverExtList.Flink; ; Entry = Entry->Flink)
     {
         if (Entry == &DriverExtList)
@@ -1632,10 +1728,14 @@ HidRegisterMinidriver(
     PHIDCLASS_DRIVER_EXTENSION DriverExtension;
     PDRIVER_OBJECT MiniDriver;
 
-    /* Check if the version matches */
+    //
+    // check if the version matches
+    //
     if (MinidriverRegistration->Revision > HID_REVISION)
     {
-        /* Revision mismatch */
+        //
+        // revision mismatch
+        //
         DPRINT1("HIDCLASS revision is %d. Should be HID_REVISION (1)\n",
                 MinidriverRegistration->Revision);
 
@@ -1646,14 +1746,18 @@ HidRegisterMinidriver(
     MiniDriver = MinidriverRegistration->DriverObject;
     DPRINT("HidRegisterMinidriver: MiniDriver - %p\n", MiniDriver);
 
-    /* Now allocate the driver object extension */
+    //
+    // now allocate the driver object extension
+    //
     Status = IoAllocateDriverObjectExtension(MiniDriver,
                                              ClientIdentificationAddress,
                                              sizeof(HIDCLASS_DRIVER_EXTENSION),
                                              (PVOID *)&DriverExtension);
     if (!NT_SUCCESS(Status))
     {
-        /* Failed to allocate driver extension */
+        //
+        // failed to allocate driver extension
+        //
         DPRINT1("HidRegisterMinidriver: IoAllocateDriverObjectExtension failed %x\n",
                 Status);
 
@@ -1661,15 +1765,21 @@ HidRegisterMinidriver(
         return Status;
     }
 
-    /* Zero driver extension */
+    //
+    // zero driver extension
+    //
     RtlZeroMemory(DriverExtension, sizeof(HIDCLASS_DRIVER_EXTENSION));
 
-    /* Initialize driver extension */
+    //
+    // initialize driver extension
+    //
     DriverExtension->DriverObject = MiniDriver;
     DriverExtension->DeviceExtensionSize = MinidriverRegistration->DeviceExtensionSize;
     DriverExtension->DevicesArePolled = MinidriverRegistration->DevicesArePolled;
 
-    /* Copy driver dispatch routines */
+    //
+    // copy driver dispatch routines
+    //
     RtlCopyMemory(DriverExtension->MajorFunction,
                   MiniDriver->MajorFunction,
                   sizeof(PDRIVER_DISPATCH) * (IRP_MJ_MAXIMUM_FUNCTION + 1));
@@ -1691,10 +1801,14 @@ HidRegisterMinidriver(
     DriverExtension->DriverUnload = MiniDriver->DriverUnload;
     MiniDriver->DriverUnload = HidClassDriverUnload;
 
-    /* Initialize reference counter */
+    //
+    // initialize reference counter
+    //
     DriverExtension->RefCount = 0;
 
-    /* Add  driver extension to list */
+    //
+    // add driver extension to list
+    //
     if (!InsertDriverExtList(DriverExtension))
     {
         DPRINT1("HidRegisterMinidriver: InsertDriverExtList failed\n");
