@@ -1337,11 +1337,11 @@ HidClass_Write(
     Status = HidClassFDO_DispatchRequest(FDODeviceExtension->FDODeviceObject,
                                          Irp);
 
-    Irp = (PIRP)HIDCLASS_NULL_POINTER;
+    Irp = NULL;
 
 Exit:
 
-    if (Irp && Irp != HIDCLASS_NULL_POINTER)
+    if (Irp)
     {
         Irp->IoStatus.Status = Status;
         IoCompleteRequest(Irp, IO_NO_INCREMENT);

@@ -59,8 +59,7 @@ HidClassSymbolicLinkOnOff(
     }
     else
     {
-        if (HidCollection->SymbolicLinkName.Buffer &&
-            HidCollection->SymbolicLinkName.Buffer != HIDCLASS_NULL_POINTER)
+        if (HidCollection->SymbolicLinkName.Buffer)
         {
             DPRINT("HidClassSymbolicLinkOnOff: SymbolicLinkName - %wZ\n",
                    &HidCollection->SymbolicLinkName);
@@ -71,7 +70,7 @@ HidClassSymbolicLinkOnOff(
             ExFreePoolWithTag(HidCollection->SymbolicLinkName.Buffer,
                               HIDCLASS_TAG);
 
-            HidCollection->SymbolicLinkName.Buffer = HIDCLASS_NULL_POINTER;
+            HidCollection->SymbolicLinkName.Buffer = NULL;
         }
         else
         {
@@ -429,7 +428,7 @@ HidClassAnyPdoInitialized(
 
     DeviceRelations = FDODeviceExtension->DeviceRelations;
 
-    if (!DeviceRelations || DeviceRelations == HIDCLASS_NULL_POINTER)
+    if (!DeviceRelations)
     {
         return FALSE;
     }
@@ -466,8 +465,7 @@ HidClassAllPdoInitialized(
 
     DeviceRelations = FDODeviceExtension->DeviceRelations;
 
-    if (DeviceRelations &&
-        DeviceRelations != HIDCLASS_NULL_POINTER)
+    if (DeviceRelations)
     {
         ix = 0;
 
@@ -655,8 +653,7 @@ HidClassRemoveCollection(
     {
         HidCollections = FDODeviceExtension->HidCollections;
 
-        if (HidCollections &&
-            HidCollections != (PVOID)HIDCLASS_NULL_POINTER)
+        if (HidCollections)
         {
             PHIDCLASS_COLLECTION HidCollection;
 
@@ -1078,7 +1075,7 @@ Removal:
         if (IsNotPendingDelete)
         {
             PdoIdx = PDODeviceExtension->PdoIdx;
-            FDODeviceExtension->ClientPdoExtensions[PdoIdx] = HIDCLASS_NULL_POINTER;
+            FDODeviceExtension->ClientPdoExtensions[PdoIdx] = NULL;
         }
 
         DPRINT("HidClassPDO_PnP: IoDeleteDevice (%x)\n",
@@ -1148,8 +1145,7 @@ HidClassCreatePDOs(
     //
     // first allocate device relations
     //
-    if (*OutDeviceRelations == NULL ||
-        *OutDeviceRelations == HIDCLASS_NULL_POINTER)
+    if (*OutDeviceRelations == NULL)
     {
         ULONG RelationsLength;
 
@@ -1171,8 +1167,7 @@ HidClassCreatePDOs(
     //
     // allocate ClientPdoExtensions array
     //
-    if (!FDODeviceExtension->ClientPdoExtensions ||
-        FDODeviceExtension->ClientPdoExtensions == HIDCLASS_NULL_POINTER)
+    if (!FDODeviceExtension->ClientPdoExtensions)
     {
         PVOID clientPdoExtensions;
         ULONG Length;
@@ -1194,7 +1189,7 @@ HidClassCreatePDOs(
         if (!NT_SUCCESS(Status))
         {
             ExFreePoolWithTag(DeviceRelations, HIDCLASS_TAG);
-            FDODeviceExtension->DeviceRelations = HIDCLASS_NULL_POINTER;
+            FDODeviceExtension->DeviceRelations = NULL;
         }
 
         goto Exit;
@@ -1338,12 +1333,12 @@ ErrorExit:
         ExFreePoolWithTag(FDODeviceExtension->ClientPdoExtensions,
                           HIDCLASS_TAG);
 
-        FDODeviceExtension->ClientPdoExtensions = HIDCLASS_NULL_POINTER;
+        FDODeviceExtension->ClientPdoExtensions = NULL;
 
         if (!NT_SUCCESS(Status))
         {
             ExFreePoolWithTag(DeviceRelations, HIDCLASS_TAG);
-            FDODeviceExtension->DeviceRelations = HIDCLASS_NULL_POINTER;
+            FDODeviceExtension->DeviceRelations = NULL;
         }
     }
 
