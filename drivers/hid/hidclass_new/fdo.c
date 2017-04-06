@@ -1615,7 +1615,9 @@ HidClassFDO_GetDescriptors(
         }
     }
 
-    /* deallocate report descriptor if not success */ 
+    //
+    // deallocate the report descriptor if we failed
+    //
     if (!NT_SUCCESS(Status) && ReportDesc)
     {
         ExFreePoolWithTag(ReportDesc, HIDCLASS_TAG);
