@@ -1761,7 +1761,7 @@ HidClassAllocCollectionResources(
 
             if (!InputReport)
             {
-                DPRINT1("[HIDCLASS] Failed allocate InputReport\n");
+                DPRINT1("[HIDCLASS] Failed to allocate InputReport\n");
                 Status = STATUS_INSUFFICIENT_RESOURCES;
             }
         }
