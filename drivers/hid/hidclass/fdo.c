@@ -2438,7 +2438,7 @@ HidClassFDO_PnP(
     PIO_STACK_LOCATION IoStack;
     PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
     NTSTATUS Status = ERROR_SEVERITY_WARNING;
-    BOOLEAN IsCompleteIrp = FALSE;
+    BOOLEAN CompleteIrp = FALSE;
 
     //
     // get device extension
@@ -2489,7 +2489,7 @@ HidClassFDO_PnP(
                 break;
             }
 
-            IsCompleteIrp = 1;
+            CompleteIrp = TRUE;
             break;
         }
         case IRP_MN_SURPRISE_REMOVAL:
@@ -2541,7 +2541,7 @@ HidClassFDO_PnP(
 
             Status = HidClassFDO_DispatchRequestSynchronous(DeviceObject, Irp);
 
-            IsCompleteIrp = 1;
+            CompleteIrp = TRUE;
             break;
         }
         default:
@@ -2552,7 +2552,7 @@ HidClassFDO_PnP(
 
     //IoReleaseRemoveLock(&FDODeviceExtension->HidRemoveLock, 0);
 
-    if (!IsCompleteIrp)
+    if (!CompleteIrp)
     {
         IoCopyCurrentIrpStackLocationToNext(Irp);
         Status = HidClassFDO_DispatchRequest(DeviceObject, Irp);
