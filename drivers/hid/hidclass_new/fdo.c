@@ -1927,7 +1927,7 @@ HidClassFDO_StartDevice(
         FDODeviceExtension->IsDeviceResourcesAlloceted = TRUE;
 
         //
-        // now allocete array of HIDCLASS_COLLECTION
+        // now allocate the array of HIDCLASS_COLLECTIONs
         //
         Length = DeviceDescription->CollectionDescLength * sizeof(HIDCLASS_COLLECTION);
         HidCollections = ExAllocatePoolWithTag(NonPagedPool, Length, HIDCLASS_TAG);
