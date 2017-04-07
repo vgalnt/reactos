@@ -20,15 +20,15 @@ NTAPI
 HidClassSymbolicLinkOnOff(
     IN PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension,
     IN ULONG CollectionNumber,
-    IN BOOLEAN IsEnable,
+    IN BOOLEAN Enable,
     IN PDEVICE_OBJECT PDODeviceObject)
 {
     PHIDCLASS_COLLECTION HidCollection;
     NTSTATUS Status;
 
-    DPRINT("HidClassSymbolicLinkOnOff: CollectionNumber - %x, IsEnable - %x\n",
+    DPRINT("HidClassSymbolicLinkOnOff: CollectionNumber - %x, Enable - %x\n",
            CollectionNumber,
-           IsEnable);
+           Enable);
 
     HidCollection = GetHidclassCollection(PDODeviceExtension->FDODeviceExtension,
                                           CollectionNumber);
@@ -38,7 +38,7 @@ HidClassSymbolicLinkOnOff(
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
 
-    if (IsEnable)
+    if (Enable)
     {
         PDODeviceObject->Flags |= DO_DIRECT_IO;
         PDODeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
