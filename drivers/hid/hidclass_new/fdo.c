@@ -1922,7 +1922,7 @@ HidClassFDO_StartDevice(
 #endif
 
         //
-        // device resources alloceted successful
+        // device resources allocated successful
         //
         FDODeviceExtension->IsDeviceResourcesAlloceted = TRUE;
 
@@ -1953,9 +1953,9 @@ HidClassFDO_StartDevice(
         //
         if (DeviceDescription->CollectionDescLength)
         {
-            CollectionIdx = 0;
-
-            do
+            for (CollectionIdx = 0;
+                 CollectionIdx < DeviceDescription->CollectionDescLength;
+                 CollectionIdx++)
             {
                 Status = HidClassInitializeCollection(FDODeviceExtension,
                                                       CollectionIdx);
@@ -1970,7 +1970,7 @@ HidClassFDO_StartDevice(
                 CollectionNumber = DeviceDescription->CollectionDesc[CollectionIdx].CollectionNumber;
 
                 //
-                // allocete resources for current collection
+                // allocate resources for current collection
                 //
                 Status = HidClassAllocCollectionResources(FDODeviceExtension,
                                                           CollectionNumber);
@@ -1981,10 +1981,7 @@ HidClassFDO_StartDevice(
                             CollectionIdx);
                     break;
                 }
-
-                ++CollectionIdx;
             }
-            while (CollectionIdx < DeviceDescription->CollectionDescLength);
         }
 
         //
