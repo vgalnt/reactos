@@ -40,9 +40,6 @@ HidClassSymbolicLinkOnOff(
 
     if (Enable)
     {
-        PDODeviceObject->Flags |= DO_DIRECT_IO;
-        PDODeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
-
         Status = IoRegisterDeviceInterface(PDODeviceObject,
                                            &GUID_DEVINTERFACE_HID,
                                            NULL,
