@@ -51,18 +51,14 @@ DllUnload(VOID)
 
 PHIDCLASS_DRIVER_EXTENSION
 NTAPI
-RefDriverExt(
-    IN PDRIVER_OBJECT DriverObject)
+GetDriverExtension(
+    IN PDRIVER_OBJECT DriverObject,
+    OUT PLIST_ENTRY * OutEntry)
 {
     PHIDCLASS_DRIVER_EXTENSION DriverExtension = NULL;
-    PLIST_ENTRY Entry;
     PHIDCLASS_DRIVER_EXTENSION driverExtension;
+    PLIST_ENTRY Entry;
 
-    DPRINT("RefDriverExt: DriverObject - %p\n", DriverObject);
-
-    //
-    // increments the given driver object extension's reference count
-    //
     ExAcquireFastMutex(&DriverExtListMutex);
 
     Entry = DriverExtList.Flink;
@@ -72,18 +68,53 @@ RefDriverExt(
         driverExtension = CONTAINING_RECORD(Entry,
                                             HIDCLASS_DRIVER_EXTENSION,
                                             DriverExtLink.Flink);
-        Entry = Entry->Flink;
 
         if (driverExtension->DriverObject == DriverObject)
         {
             DriverExtension = driverExtension;
-            DriverExtension->RefCount++;
             break;
         }
+
+        Entry = Entry->Flink;
     }
 
     ExReleaseFastMutex(&DriverExtListMutex);
-    DPRINT("RefDriverExt: return DriverExtension - %p\n", DriverExtension);
+
+    if (OutEntry)
+    {
+        *OutEntry = Entry;
+    }
+
+    return DriverExtension;
+}
+
+PHIDCLASS_DRIVER_EXTENSION
+NTAPI
+RefDriverExt(
+    IN PDRIVER_OBJECT DriverObject)
+{
+    PHIDCLASS_DRIVER_EXTENSION DriverExtension;
+
+    if (IsListEmpty(&DriverExtList))
+    {
+        DPRINT("RefDriverExt: DriverExtList is empty\n");
+        return NULL;
+    }
+
+    DriverExtension = GetDriverExtension(DriverObject, NULL);
+
+    if (DriverExtension)
+    {
+        //
+        // increments the reference count
+        //
+        DriverExtension->RefCount++;
+    }
+
+    DPRINT("RefDriverExt: DriverObject - %p, DriverExtension - %p\n",
+           DriverObject,
+           DriverExtension);
+
     return DriverExtension;
 }
 
@@ -92,61 +123,39 @@ NTAPI
 DerefDriverExt(
     IN PDRIVER_OBJECT DriverObject)
 {
-    PHIDCLASS_DRIVER_EXTENSION Result = NULL;
+    PHIDCLASS_DRIVER_EXTENSION DriverExtension = NULL;
     PLIST_ENTRY Entry;
-    PHIDCLASS_DRIVER_EXTENSION DriverExtension;
-    BOOLEAN IsRemoveEntry;
 
-    DPRINT("DerefDriverExt: DriverObject - %p\n", DriverObject);
-
-    //
-    // decrements the given driver object extension's reference count
-    //
-    ExAcquireFastMutex(&DriverExtListMutex);
-
-    Entry = DriverExtList.Flink;
-
-    if (!IsListEmpty(&DriverExtList))
+    if (IsListEmpty(&DriverExtList))
     {
-        while (TRUE)
-        {
-            DriverExtension = CONTAINING_RECORD(Entry,
-                                                HIDCLASS_DRIVER_EXTENSION,
-                                                DriverExtLink.Flink);
-
-            if (DriverExtension->DriverObject == DriverObject)
-            {
-                break;
-            }
-
-            Entry = Entry->Flink;
-
-            if (Entry == &DriverExtList)
-            {
-                goto Exit;
-            }
-        }
-
-        --DriverExtension->RefCount;
-        IsRemoveEntry = DriverExtension->RefCount < 0;
-
-        //
-        // if reference count < 0
-        // then remove given driver object extension's link
-        //
-        if (IsRemoveEntry)
-        {
-            RemoveEntryList(Entry);
-        }
-
-        Result = DriverExtension;
+        DPRINT("DerefDriverExt: DriverExtList is empty\n");
+        return NULL;
     }
 
-Exit:
+    DriverExtension = GetDriverExtension(DriverObject, &Entry);
 
-    ExReleaseFastMutex(&DriverExtListMutex);
-    DPRINT("DerefDriverExt: Result - %p\n", Result);
-    return Result;
+    if (DriverExtension)
+    {
+        //
+        // decrements the reference count
+        //
+        DriverExtension->RefCount--;
+    }
+
+    //
+    // if reference count < 0
+    // then remove given driver object extension's link
+    //
+    if (DriverExtension->RefCount < 0)
+    {
+        RemoveEntryList(Entry);
+    }
+
+    DPRINT("DerefDriverExt: DriverObject - %p, DriverExtension - %p\n",
+           DriverObject,
+           DriverExtension);
+
+    return DriverExtension;
 }
 
 NTSTATUS
