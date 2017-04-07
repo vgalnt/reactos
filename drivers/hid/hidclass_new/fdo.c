@@ -1484,15 +1484,6 @@ HidClassFDO_DispatchRequest(
     //
     IoSetNextIrpStackLocation(Irp);
 
-    if (Irp->CurrentLocation <= 0)
-    {
-        KeBugCheckEx(NO_MORE_IRP_STACK_LOCATIONS,
-                     (ULONG_PTR)Irp,
-                     0,
-                     0,
-                     0);
-    }
-
     //
     // get next stack location
     //
