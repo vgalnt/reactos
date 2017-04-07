@@ -908,7 +908,7 @@ HidInternalDeviceControl(
         case IOCTL_HID_WRITE_REPORT:
         {
             DPRINT1("[HIDUSB] IOCTL_HID_WRITE_REPORT not implemented \n");
-            ASSERT(FALSE);
+            //DbgBreakPoint(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
             IoCompleteRequest(Irp, IO_NO_INCREMENT);
             return STATUS_NOT_IMPLEMENTED;
@@ -1033,15 +1033,8 @@ Hid_PnpCompletion(
     IN PIRP Irp,
     IN PVOID Context)
 {
-    if (Irp->PendingReturned)
-    {
-        /* mark request as pending */
-        IoMarkIrpPending(Irp);
-    }
-
     /* set event to signaled state  */
     KeSetEvent((PRKEVENT)Context, EVENT_INCREMENT, FALSE);
-
     return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
