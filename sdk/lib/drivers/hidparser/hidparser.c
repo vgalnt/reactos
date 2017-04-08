@@ -57,7 +57,7 @@ HidParser_GetCollectionDescription(
     ULONG CollectionCount;
     ULONG Index;
     PVOID ParserContext;
-    BOOLEAN IsUsesReportId = FALSE;
+    BOOLEAN UsesReportId = FALSE;
 
     //
     // first parse the report descriptor
@@ -141,10 +141,10 @@ HidParser_GetCollectionDescription(
             HidParser_UsesReportId((PVOID)DeviceDescription->CollectionDesc[Index].PreparsedData, HID_REPORT_TYPE_OUTPUT) ||
             HidParser_UsesReportId((PVOID)DeviceDescription->CollectionDesc[Index].PreparsedData, HID_REPORT_TYPE_FEATURE))
         {
-            IsUsesReportId = TRUE;
+            UsesReportId = TRUE;
         }
 
-        if (IsUsesReportId)
+        if (UsesReportId)
         {
             UCHAR ReportId = 0;
 
