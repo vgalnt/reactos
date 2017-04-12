@@ -53,7 +53,9 @@ typedef struct
     //
     PHID_DESCRIPTOR HidDescriptor;
 
-    /* current state for device */
+    //
+    // current state for device
+    //
     ULONG HidState;
 } HID_USB_DEVICE_EXTENSION, *PHID_USB_DEVICE_EXTENSION;
 
