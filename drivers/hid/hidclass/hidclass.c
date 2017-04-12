@@ -1062,7 +1062,7 @@ HidClass_Read(
                     }
 
                     InputReportBuffer = (PVOID)((ULONG_PTR)Header +
-                                                sizeof(PHIDCLASS_INT_REPORT_HEADER));
+                                                sizeof(HIDCLASS_INT_REPORT_HEADER));
 
                     Status = HidClassCopyInputReportToUser(FileContext,
                                                            InputReportBuffer,
