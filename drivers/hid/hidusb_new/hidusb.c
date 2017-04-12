@@ -10,62 +10,6 @@
 
 #include "hidusb.h"
 
-LONG
-NTAPI
-Hid_DecrementPendingRequests(
-    IN PHID_USB_DEVICE_EXTENSION HidDeviceExtension)
-{
-    LONG Result;
-
-    ASSERT(HidDeviceExtension->RequestCount >= 0);
-
-    Result = InterlockedDecrement(&HidDeviceExtension->RequestCount);
-
-    //DPRINT("Hid_DecrementPendingRequests: RequestCount - %x\n",
-    //       HidDeviceExtension->RequestCount);
-
-    if (Result < 0)
-    {
-        ASSERT(HidDeviceExtension->HidState != HIDUSB_STATE_RUNNING);
-
-       /* set event to signaled state  */
-        Result = KeSetEvent(&HidDeviceExtension->Event,
-                            IO_NO_INCREMENT,
-                            FALSE);
-
-        DPRINT("Hid_DecrementPendingRequests: set event to signaled state\n");
-    }
-
-    return Result;
-}
-
-NTSTATUS
-NTAPI
-Hid_IncrementPendingRequests(
-    IN PHID_USB_DEVICE_EXTENSION HidDeviceExtension)
-{
-    NTSTATUS Status;
-
-    Status = STATUS_SUCCESS;
-
-    InterlockedIncrement(&HidDeviceExtension->RequestCount);
-
-    //DPRINT("Hid_IncrementPendingRequests: RequestCount - %x\n",
-    //       HidDeviceExtension->RequestCount);
-
-    if (HidDeviceExtension->HidState != HIDUSB_STATE_STARTING &&
-        HidDeviceExtension->HidState != HIDUSB_STATE_RUNNING)
-    {
-        DPRINT("Hid_IncrementPendingRequests: Not active! RequestCount - %x\n",
-               HidDeviceExtension->RequestCount);
-
-        Hid_DecrementPendingRequests(HidDeviceExtension);
-        Status = STATUS_NO_SUCH_DEVICE;
-    }
-
-    return Status;
-}
-
 PUSBD_PIPE_INFORMATION
 HidUsb_GetInputInterruptInterfaceHandle(
     PUSBD_INTERFACE_INFORMATION InterfaceInformation)
@@ -412,7 +356,7 @@ HidUsb_ResetWorkerRoutine(
     DeviceExtension = ResetContext->DeviceObject->DeviceExtension;
     HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
 
-    Status = Hid_IncrementPendingRequests(HidDeviceExtension);
+    //FIXME RemoveLock support
 
     //
     // get port status
@@ -456,10 +400,9 @@ ResetPipe:
 
             goto ResetPipe;
         }
+    }
 
 Exit:
-        Hid_DecrementPendingRequests(HidDeviceExtension);
-    }
 
     //
     // cleanup
@@ -468,8 +411,6 @@ Exit:
     IoFreeWorkItem(ResetContext->WorkItem);
     IoCompleteRequest(ResetContext->Irp, IO_NO_INCREMENT);
     ExFreePoolWithTag(ResetContext, HIDUSB_TAG);
-
-    Hid_DecrementPendingRequests(HidDeviceExtension);
 }
 
 NTSTATUS
@@ -479,15 +420,9 @@ HidUsb_ReadReportCompletion(
     IN PIRP Irp,
     IN PVOID Context)
 {
-    PHID_DEVICE_EXTENSION DeviceExtension;
-    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
     PURB Urb;
     PHID_USB_RESET_CONTEXT ResetContext;
     NTSTATUS Status = STATUS_SUCCESS;
-
-    /* get device extension */
-    DeviceExtension = DeviceObject->DeviceExtension;
-    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
 
     //
     // get urb
@@ -532,13 +467,7 @@ HidUsb_ReadReportCompletion(
             Irp->IoStatus.Status);
 
     /* did the not active state */
-    if (!NT_SUCCESS(Hid_IncrementPendingRequests(HidDeviceExtension)))
-    {
-        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion Irp %p hid state is not active\n",
-                Irp);
-
-        goto Exit;
-    }
+    //FIXME RemoveLock support
 
     //
     // allocate reset context
@@ -570,13 +499,10 @@ HidUsb_ReadReportCompletion(
         /* free reset context */ 
         DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: IoAllocateWorkItem failed\n");
         ExFreePoolWithTag(ResetContext, HIDUSB_TAG);
-
-        Hid_DecrementPendingRequests(HidDeviceExtension);
     }
     else
     {
         DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: ExAllocatePoolWithTag failed\n");
-        Hid_DecrementPendingRequests(HidDeviceExtension);
     }
 
 Exit:
@@ -586,7 +512,7 @@ Exit:
     //
     ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
 
-    Hid_DecrementPendingRequests(HidDeviceExtension);
+    //FIXME RemoveLock support
 
     if (Irp->PendingReturned)
     {
@@ -697,16 +623,9 @@ HidUsb_ReadReport(
     //
     IoSetCompletionRoutine(Irp, HidUsb_ReadReportCompletion, Urb, TRUE, TRUE, TRUE);
 
-    if (!NT_SUCCESS(Hid_IncrementPendingRequests(HidDeviceExtension)))
-    {
-        ExFreePool(Urb);
-        Status = STATUS_NO_SUCH_DEVICE;
-    }
-    else
-    {
-        Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-    }
+    //FIXME RemoveLock support
 
+    Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
     return Status;
 }
 
@@ -1479,13 +1398,8 @@ Hid_StopDevice(
 
     /* abort pending requests */
     HidUsb_AbortPipe(DeviceObject);
-    Hid_DecrementPendingRequests(HidDeviceExtension);
 
-    KeWaitForSingleObject(&HidDeviceExtension->Event,
-                          Executive,
-                          KernelMode,
-                          0,
-                          NULL);
+    //FIXME RemoveLock support
 
     /* select configuration with NULL pointer for ConfigurationDescriptor */
     Status = Hid_CloseConfiguration(DeviceObject);
@@ -1649,14 +1563,12 @@ Hid_Init(PDEVICE_OBJECT DeviceObject)
     OldState = HidDeviceExtension->HidState;
     HidDeviceExtension->HidState = HIDUSB_STATE_STARTING;
 
-    KeResetEvent(&HidDeviceExtension->Event);
-
     if (OldState == HIDUSB_STATE_STOPPING ||
         OldState == HIDUSB_STATE_STOPPED ||
         OldState == HIDUSB_STATE_REMOVED)
     {
         /* start after stop */
-        Hid_IncrementPendingRequests(HidDeviceExtension);
+        //FIXME RemoveLock support
     }
 
     HidDeviceExtension->InterfaceInfo = NULL;
@@ -1889,7 +1801,7 @@ Hid_RemoveDevice(
     if (OldDeviceState != HIDUSB_STATE_STOPPING &&
         OldDeviceState != HIDUSB_STATE_STOPPED)
     {
-        Hid_DecrementPendingRequests(HidDeviceExtension);
+        DPRINT("[HIDUSB] FIXME RemoveLock support\n");
     }
 
     /* abort pending requests if state was "running" */
@@ -1897,12 +1809,6 @@ Hid_RemoveDevice(
     {
         HidUsb_AbortPipe(DeviceObject);
     }
-
-    KeWaitForSingleObject(&HidDeviceExtension->Event,
-                          Executive,
-                          KernelMode,
-                          0,
-                          NULL);
 
     DPRINT("[HIDUSB] Hid_RemoveDevice: State - %x\n", HidDeviceExtension->HidState);
 
@@ -2080,9 +1986,6 @@ HidAddDevice(
 
     /* set HidState as not initialized value */
     HidDeviceExtension->HidState = 0;
-
-    /* default pending requests */
-    HidDeviceExtension->RequestCount = 0;
 
     return STATUS_SUCCESS;
 }
