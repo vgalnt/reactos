@@ -535,12 +535,18 @@ MouHid_Close(
         /* request stopping of the report cycle */
         DeviceExtension->StopReadReport = TRUE;
 
-        /* wait until the reports have been read */
-        // HACK: due problem disconnecting from PC USB port CORE-9070)
-        //KeWaitForSingleObject(&DeviceExtension->ReadCompletionEvent, Executive, KernelMode, FALSE, NULL);
+        DPRINT("[MOUHID] MouHid_Close: Disabling Mouse\n");
 
         /* cancel irp */
-        IoCancelIrp(DeviceExtension->Irp);
+        if (IoCancelIrp(DeviceExtension->Irp))
+        {
+            /* wait until the reports have been read */
+            KeWaitForSingleObject(&DeviceExtension->ReadCompletionEvent,
+                                  Executive,
+                                  KernelMode,
+                                  FALSE,
+                                  NULL);
+        }
     }
 
     DPRINT("[MOUHID] IRP_MJ_CLOSE ReadReportActive %x\n", DeviceExtension->ReadReportActive);
