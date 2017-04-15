@@ -394,10 +394,10 @@ HidClassSetMaxReportSize(
     PHIDP_DEVICE_DESC DeviceDescription;
     PHIDP_REPORT_IDS ReportId;
     ULONG Idx;
-    ULONG ReportSize = 0;
     PHIDCLASS_COLLECTION HidCollection;
 
     DeviceDescription = &FDODeviceExtension->Common.DeviceDescription;
+    FDODeviceExtension->MaxReportSize = 0;
 
     if (DeviceDescription->ReportIDsLength)
     {
@@ -410,19 +410,17 @@ HidClassSetMaxReportSize(
 
             if (HidCollection)
             {
-                ReportSize = max(FDODeviceExtension->MaxReportSize,
-                                 ReportId->InputLength);
+                FDODeviceExtension->MaxReportSize = max(FDODeviceExtension->MaxReportSize,
+                                                        ReportId->InputLength);
             }
         }
     }
 
     DPRINT("HidClassSetMaxReportSize: ReportIDsLength - %x, MaxReportSize - %x\n",
            DeviceDescription->ReportIDsLength,
-           ReportSize);
+           FDODeviceExtension->MaxReportSize);
 
-    FDODeviceExtension->MaxReportSize = ReportSize;
-
-    return ReportSize;
+    return FDODeviceExtension->MaxReportSize;
 }
 
 NTSTATUS
