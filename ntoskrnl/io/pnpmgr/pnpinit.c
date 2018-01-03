@@ -23,6 +23,8 @@ typedef struct _IOPNP_DEVICE_EXTENSION
 PUNICODE_STRING PiInitGroupOrderTable;
 USHORT PiInitGroupOrderTableCount;
 INTERFACE_TYPE PnpDefaultInterfaceType;
+KEVENT PipEnumerationLock;
+LIST_ENTRY IopPnpEnumerationRequestList;
 
 /* FUNCTIONS ******************************************************************/
 
@@ -399,8 +401,8 @@ IopInitializePlugPlayServices(VOID)
 
     /* Initialize locks and such */
     KeInitializeSpinLock(&IopDeviceTreeLock);
-    KeInitializeSpinLock(&IopDeviceRelationsSpinLock);
-    InitializeListHead(&IopDeviceRelationsRequestList);
+    KeInitializeEvent(&PipEnumerationLock, NotificationEvent, TRUE);
+    InitializeListHead(&IopPnpEnumerationRequestList);
 
     /* Get the default interface */
     PnpDefaultInterfaceType = IopDetermineDefaultInterfaceType();

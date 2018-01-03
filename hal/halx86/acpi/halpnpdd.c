@@ -100,7 +100,7 @@ HalpReportDetectedDevices(IN PDRIVER_OBJECT DriverObject,
     }
 
     /* This will synchronously load the ACPI driver (needed because we're critical for boot) */
-    IoSynchronousInvalidateDeviceRelations(FdoExtension->PhysicalDeviceObject, BusRelations);
+    IoInvalidateDeviceRelations(FdoExtension->PhysicalDeviceObject, BusRelations);
 }
 
 NTSTATUS

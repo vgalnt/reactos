@@ -31,16 +31,37 @@ extern BOOLEAN PnpSystemInit;
 PDRIVER_OBJECT IopRootDriverObject;
 PIO_BUS_TYPE_GUID_LIST PnpBusTypeGuidList = NULL;
 LIST_ENTRY IopDeviceRelationsRequestList;
-WORK_QUEUE_ITEM IopDeviceRelationsWorkItem;
-BOOLEAN IopDeviceRelationsRequestInProgress;
-KSPIN_LOCK IopDeviceRelationsSpinLock;
+WORK_QUEUE_ITEM PipDeviceEnumerationWorkItem;
+BOOLEAN PipEnumerationInProgress;
+KSPIN_LOCK IopPnPSpinLock;
 
-typedef struct _INVALIDATE_DEVICE_RELATION_DATA
+#define PIP_ENUM_TYPE_ADD_BOOT_DEVICES              0
+#define PIP_ENUM_TYPE_RESOURCES_ASSIGN              1
+#define PIP_ENUM_TYPE_GET_SET_DEVICE_STATUS         2
+#define PIP_ENUM_TYPE_CLEAR_PROBLEM                 3
+#define PIP_ENUM_TYPE_INVALIDATE_RELATIONS_IN_LIST  4
+#define PIP_ENUM_TYPE_HALT_DEVICE                   5
+#define PIP_ENUM_TYPE_BOOT_PROCESS                  6
+#define PIP_ENUM_TYPE_INVALIDATE_RELATIONS          7
+#define PIP_ENUM_TYPE_INVALIDATE_BUS_RELATIONS      8
+#define PIP_ENUM_TYPE_INIT_PNP_SERVICES             9
+#define PIP_ENUM_TYPE_INVALIDATE_DEVICE_STATE       10
+#define PIP_ENUM_TYPE_RESET_DEVICE                  11
+#define PIP_ENUM_TYPE_RESOURCE_CHANGE               12
+#define PIP_ENUM_TYPE_SYSTEM_HIVE_LIMIT_CHANGE      13
+#define PIP_ENUM_TYPE_SET_PROBLEM                   14
+#define PIP_ENUM_TYPE_SHUTDOWN_PNP_DEVICES          15
+#define PIP_ENUM_TYPE_START_DEVICE                  16
+#define PIP_ENUM_TYPE_START_SYSTEM_DEVICES          17
+
+typedef struct _PIP_ENUM_REQUEST
 {
-    LIST_ENTRY RequestListEntry;
+    LIST_ENTRY RequestLink;
     PDEVICE_OBJECT DeviceObject;
-    DEVICE_RELATION_TYPE Type;
-} INVALIDATE_DEVICE_RELATION_DATA, *PINVALIDATE_DEVICE_RELATION_DATA;
+    ULONG Type;
+    PKEVENT Event;
+    NTSTATUS * pStatus;
+} PIP_ENUM_REQUEST, *PPIP_ENUM_REQUEST;
 
 /* FUNCTIONS *****************************************************************/
 NTSTATUS
@@ -741,7 +762,8 @@ IopStartAndEnumerateDevice(IN PDEVICE_NODE DeviceNode)
         (DeviceNode->Flags & DNF_NEED_ENUMERATION_ONLY))
     {
         /* Enumerate us */
-        IoSynchronousInvalidateDeviceRelations(DeviceObject, BusRelations);
+        IoInvalidateDeviceRelations(DeviceObject, BusRelations);
+
         Status = STATUS_SUCCESS;
     }
     else
@@ -899,34 +921,184 @@ IopQueryDeviceCapabilities(PDEVICE_NODE DeviceNode,
    return Status;
 }
 
-static
 VOID
 NTAPI
-IopDeviceRelationsWorker(
-    _In_ PVOID Context)
+PipEnumerationWorker(IN PVOID Context)
 {
-    PLIST_ENTRY ListEntry;
-    PINVALIDATE_DEVICE_RELATION_DATA Data;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_NODE DeviceNode;
+    PPIP_ENUM_REQUEST Request;
+    PLIST_ENTRY Entry;
+    BOOLEAN IsDereferenceObject;
+    KIRQL OldIrql;
+    NTSTATUS Status;
+
+    //FIXME: DeviceNodeLockTree(TRUE);
+
+    KeAcquireSpinLock(&IopPnPSpinLock, &OldIrql);
+
+    while (!IsListEmpty(&IopPnpEnumerationRequestList))
+    {
+        Status = STATUS_SUCCESS;
+        IsDereferenceObject = TRUE;
+
+        Entry = RemoveHeadList(&IopPnpEnumerationRequestList);
+        ASSERT(Entry); // ? Need ?
+
+        Request = CONTAINING_RECORD(Entry,
+                                    PIP_ENUM_REQUEST,
+                                    RequestLink);
+
+        KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+
+        InitializeListHead(Entry);
+
+        //FIXME: Check ShuttingDown\n");
+
+        DeviceObject = Request->DeviceObject;
+        ASSERT(DeviceObject);
+
+        DeviceNode = IopGetDeviceNode(DeviceObject);
+        ASSERT(DeviceNode);
+
+        if (DeviceNode->State == DeviceNodeDeleted)
+        {
+            Status = STATUS_UNSUCCESSFUL;
+        }
+        else
+        {
+            DPRINT("PipEnumerationWorker: DeviceObject - %p, Request->Type - %X\n",
+                   DeviceObject,
+                   Request->Type);
+
+            switch (Request->Type)
+            {
+                case PIP_ENUM_TYPE_INVALIDATE_RELATIONS:
+                case PIP_ENUM_TYPE_INVALIDATE_BUS_RELATIONS:
+                case PIP_ENUM_TYPE_INIT_PNP_SERVICES: // NOT_IMPLEMENTED FIXME
+                case PIP_ENUM_TYPE_SYSTEM_HIVE_LIMIT_CHANGE: // NOT_IMPLEMENTED FIXME
+                    Status = IopEnumerateDevice(Request->DeviceObject);
+                    IsDereferenceObject = FALSE;
+                    break;
+
+                // NOT_IMPLEMENTED FIXME
+                case PIP_ENUM_TYPE_ADD_BOOT_DEVICES:
+                case PIP_ENUM_TYPE_RESOURCES_ASSIGN:
+                case PIP_ENUM_TYPE_GET_SET_DEVICE_STATUS:
+                case PIP_ENUM_TYPE_INVALIDATE_RELATIONS_IN_LIST:
+                case PIP_ENUM_TYPE_CLEAR_PROBLEM:
+                case PIP_ENUM_TYPE_HALT_DEVICE:
+                case PIP_ENUM_TYPE_BOOT_PROCESS:
+                case PIP_ENUM_TYPE_INVALIDATE_DEVICE_STATE:
+                case PIP_ENUM_TYPE_RESET_DEVICE:
+                case PIP_ENUM_TYPE_START_DEVICE:
+                case PIP_ENUM_TYPE_RESOURCE_CHANGE:
+                case PIP_ENUM_TYPE_SET_PROBLEM:
+                case PIP_ENUM_TYPE_SHUTDOWN_PNP_DEVICES:
+                case PIP_ENUM_TYPE_START_SYSTEM_DEVICES:
+                default:
+                    ASSERT(FALSE);
+                    break;
+            }
+        }
+
+        if (Request->pStatus)
+            *Request->pStatus = Status;
+
+        if (Request->Event)
+            KeSetEvent(Request->Event, IO_NO_INCREMENT, FALSE);
+
+        if (IsDereferenceObject)
+            ObDereferenceObject(Request->DeviceObject);
+
+        ExFreePoolWithTag(Request, TAG_IO);
+
+        KeAcquireSpinLock(&IopPnPSpinLock, &OldIrql);
+    }
+
+    PipEnumerationInProgress = FALSE;
+    KeSetEvent(&PipEnumerationLock, IO_NO_INCREMENT, FALSE); // KeWaitForSingleObject() in IoInitSystem()
+    KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+
+    //FIXME: DeviceNodeUnlockTree(TRUE);
+}
+
+NTSTATUS
+NTAPI
+PipRequestEnumerationAction(IN PDEVICE_OBJECT DeviceObject,
+                            IN ULONG RequestType,
+                            IN PKEVENT Event,
+                            IN NTSTATUS * pStatus)
+{
+    PPIP_ENUM_REQUEST Request;
+    PDEVICE_OBJECT RequestDeviceObject;
     KIRQL OldIrql;
 
-    KeAcquireSpinLock(&IopDeviceRelationsSpinLock, &OldIrql);
-    while (!IsListEmpty(&IopDeviceRelationsRequestList))
+    DPRINT("PipRequestEnumerationAction: DeviceObject - %p, RequestType - %X\n",
+           DeviceObject,
+           RequestType);
+
+    //FIXME: check ShuttingDown
+
+    Request = ExAllocatePoolWithTag(NonPagedPool,
+                                    sizeof(PIP_ENUM_REQUEST),
+                                    TAG_IO);
+
+    if (!Request)
     {
-        ListEntry = RemoveHeadList(&IopDeviceRelationsRequestList);
-        KeReleaseSpinLock(&IopDeviceRelationsSpinLock, OldIrql);
-        Data = CONTAINING_RECORD(ListEntry,
-                                 INVALIDATE_DEVICE_RELATION_DATA,
-                                 RequestListEntry);
-
-        IoSynchronousInvalidateDeviceRelations(Data->DeviceObject,
-                                               Data->Type);
-
-        ObDereferenceObject(Data->DeviceObject);
-        ExFreePool(Data);
-        KeAcquireSpinLock(&IopDeviceRelationsSpinLock, &OldIrql);
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
-    IopDeviceRelationsRequestInProgress = FALSE;
-    KeReleaseSpinLock(&IopDeviceRelationsSpinLock, OldIrql);
+
+    if (!DeviceObject)
+        RequestDeviceObject = IopRootDeviceNode->PhysicalDeviceObject;
+    else
+        RequestDeviceObject = DeviceObject;
+
+    ObReferenceObject(RequestDeviceObject);
+
+    Request->DeviceObject = RequestDeviceObject;
+    Request->Type = RequestType;
+    Request->Event = Event;
+    Request->pStatus = pStatus;
+
+    InitializeListHead(&Request->RequestLink); // ? Need ?
+
+    KeAcquireSpinLock(&IopPnPSpinLock, &OldIrql);
+
+    InsertTailList(&IopPnpEnumerationRequestList, &Request->RequestLink);
+
+    if (RequestType == PIP_ENUM_TYPE_ADD_BOOT_DEVICES ||
+        RequestType == PIP_ENUM_TYPE_BOOT_PROCESS ||
+        RequestType == PIP_ENUM_TYPE_INIT_PNP_SERVICES)
+    {
+        ASSERT(!PipEnumerationInProgress);
+
+        PipEnumerationInProgress = TRUE;
+        KeClearEvent(&PipEnumerationLock);
+        KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+
+        PipEnumerationWorker(NULL);
+
+        return STATUS_SUCCESS;
+    }
+
+    if (PipEnumerationInProgress) // FIXME: (!PnPBootDriversLoaded || PipEnumerationInProgress)
+    {
+        KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+        return STATUS_SUCCESS;
+    }
+
+    PipEnumerationInProgress = TRUE;
+    KeClearEvent(&PipEnumerationLock);
+    KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+
+    ExInitializeWorkItem(&PipDeviceEnumerationWorkItem,
+                         PipEnumerationWorker,
+                         NULL);
+
+    ExQueueWorkItem(&PipDeviceEnumerationWorkItem, DelayedWorkQueue);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -4768,36 +4940,45 @@ cleanup:
  */
 VOID
 NTAPI
-IoInvalidateDeviceRelations(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN DEVICE_RELATION_TYPE Type)
+IoInvalidateDeviceRelations(IN PDEVICE_OBJECT DeviceObject,
+                            IN DEVICE_RELATION_TYPE Type)
 {
-    PINVALIDATE_DEVICE_RELATION_DATA Data;
-    KIRQL OldIrql;
+    PDEVICE_NODE DeviceNode = IopGetDeviceNode(DeviceObject);
 
-    Data = ExAllocatePool(NonPagedPool, sizeof(INVALIDATE_DEVICE_RELATION_DATA));
-    if (!Data)
-        return;
-
-    ObReferenceObject(DeviceObject);
-    Data->DeviceObject = DeviceObject;
-    Data->Type = Type;
-
-    KeAcquireSpinLock(&IopDeviceRelationsSpinLock, &OldIrql);
-    InsertTailList(&IopDeviceRelationsRequestList, &Data->RequestListEntry);
-    if (IopDeviceRelationsRequestInProgress)
+    if (!DeviceObject || !DeviceNode ||
+        DeviceNode->Flags & DNF_LEGACY_RESOURCE_DEVICENODE)
     {
-        KeReleaseSpinLock(&IopDeviceRelationsSpinLock, OldIrql);
-        return;
+        KeBugCheckEx(PNP_DETECTED_FATAL_ERROR,
+                     0x2,
+                     (ULONG_PTR)DeviceObject,
+                     0x0,
+                     0x0);
     }
-    IopDeviceRelationsRequestInProgress = TRUE;
-    KeReleaseSpinLock(&IopDeviceRelationsSpinLock, OldIrql);
 
-    ExInitializeWorkItem(&IopDeviceRelationsWorkItem,
-                         IopDeviceRelationsWorker,
-                         NULL);
-    ExQueueWorkItem(&IopDeviceRelationsWorkItem,
-                    DelayedWorkQueue);
+    switch (Type)
+    {
+        case BusRelations:
+            PipRequestEnumerationAction(DeviceObject,
+                                        PIP_ENUM_TYPE_INVALIDATE_BUS_RELATIONS,
+                                        NULL,
+                                        NULL);
+            break;
+
+        case PowerRelations:
+            DPRINT("IoInvalidateDeviceRelations: PowerRelations NOT_IMPLEMENTED FIXME!\n");
+            //ASSERT(FALSE);//PoInvalidateDevicePowerRelations(DeviceObject);
+            break;
+
+        case SingleBusRelations:
+            PipRequestEnumerationAction(DeviceObject,
+                                        PIP_ENUM_TYPE_INVALIDATE_RELATIONS,
+                                        NULL,
+                                        NULL);
+            break;
+
+        default:
+          break;
+    }
 }
 
 /*
@@ -4805,27 +4986,64 @@ IoInvalidateDeviceRelations(
  */
 NTSTATUS
 NTAPI
-IoSynchronousInvalidateDeviceRelations(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN DEVICE_RELATION_TYPE Type)
+IoSynchronousInvalidateDeviceRelations(IN PDEVICE_OBJECT DeviceObject,
+                                       IN DEVICE_RELATION_TYPE Type)
 {
+    PDEVICE_NODE DeviceNode = IopGetDeviceNode(DeviceObject);
+    NTSTATUS Status = STATUS_SUCCESS;
+    KEVENT Event;
+
     PAGED_CODE();
+
+    if (!DeviceObject || !DeviceNode ||
+        DeviceNode->Flags & DNF_LEGACY_RESOURCE_DEVICENODE)
+    {
+        KeBugCheckEx(PNP_DETECTED_FATAL_ERROR,
+                     0x2,
+                     (ULONG_PTR)DeviceObject,
+                     0x0,
+                     0x0);
+    }
 
     switch (Type)
     {
         case BusRelations:
-            /* Enumerate the device */
-            return IopEnumerateDevice(DeviceObject);
+        {
+            //FIXME: Check PnPInitialized and DeviceNodeStarted
+
+            KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+            Status = PipRequestEnumerationAction(DeviceObject,
+                                                 PIP_ENUM_TYPE_INVALIDATE_BUS_RELATIONS,
+                                                 &Event,
+                                                 NULL);
+
+            if (NT_SUCCESS(Status))
+            {
+                Status = KeWaitForSingleObject(&Event,
+                                               Executive,
+                                               KernelMode,
+                                               FALSE,
+                                               NULL);
+            }
+
+            break;
+        }
+
+        case EjectionRelations:
+            Status = STATUS_NOT_SUPPORTED;
+            break;
+
         case PowerRelations:
-             /* Not handled yet */
-             return STATUS_NOT_IMPLEMENTED;
-        case TargetDeviceRelation:
-            /* Nothing to do */
-            return STATUS_SUCCESS;
+            DPRINT("IoSynchronousInvalidateDeviceRelations: PowerRelations NOT_IMPLEMENTED FIXME!\n");
+            //ASSERT(FALSE);//PoInvalidateDevicePowerRelations(DeviceObject);
+            break;
+
         default:
-            /* Ejection relations are not supported */
-            return STATUS_NOT_SUPPORTED;
+            break;
     }
+
+    return Status;
 }
 
 /*
