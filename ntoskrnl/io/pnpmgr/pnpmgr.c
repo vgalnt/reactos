@@ -5009,22 +5009,28 @@ IoSynchronousInvalidateDeviceRelations(IN PDEVICE_OBJECT DeviceObject,
     {
         case BusRelations:
         {
-            //FIXME: Check PnPInitialized and DeviceNodeStarted
-
-            KeInitializeEvent(&Event, NotificationEvent, FALSE);
-
-            Status = PipRequestEnumerationAction(DeviceObject,
-                                                 PIP_ENUM_TYPE_INVALIDATE_BUS_RELATIONS,
-                                                 &Event,
-                                                 NULL);
-
-            if (NT_SUCCESS(Status))
+            
+            if (PnpSystemInit && DeviceNode->State == DeviceNodeStarted)
             {
-                Status = KeWaitForSingleObject(&Event,
-                                               Executive,
-                                               KernelMode,
-                                               FALSE,
-                                               NULL);
+                KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+                Status = PipRequestEnumerationAction(DeviceObject,
+                                                     PIP_ENUM_TYPE_INVALIDATE_BUS_RELATIONS,
+                                                     &Event,
+                                                     NULL);
+
+                if (NT_SUCCESS(Status))
+                {
+                    Status = KeWaitForSingleObject(&Event,
+                                                   Executive,
+                                                   KernelMode,
+                                                   FALSE,
+                                                   NULL);
+                }
+            }
+            else
+            {
+               Status = STATUS_UNSUCCESSFUL;
             }
 
             break;
