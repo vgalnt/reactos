@@ -14,6 +14,8 @@
 #define NDEBUG_USBHUB_ENUM
 #include "dbg_uhub.h"
 
+#define BOOT_FROM_USB  0
+
 NTSTATUS
 NTAPI
 USBH_IrpCompletion(IN PDEVICE_OBJECT DeviceObject,
@@ -1063,6 +1065,15 @@ USBH_FdoQueryBusRelations(IN PUSBHUB_FDO_EXTENSION HubExtension,
 
     if (!(HubExtension->HubFlags & USBHUB_FDO_FLAG_DO_ENUMERATION))
     {
+#if BOOT_FROM_USB
+        {
+            LARGE_INTEGER Interval;
+            Status = STATUS_SUCCESS;
+            IoInvalidateDeviceRelations(HubExtension->LowerPDO, BusRelations);
+            Interval.QuadPart = -10000LL * 1000; // 1 sec.
+            KeDelayExecutionThread(KernelMode, FALSE, &Interval);
+        }
+#endif
         DPRINT_ENUM("USBH_FdoQueryBusRelations: Skip enumeration\n");
         goto RelationsWorker;
     }
