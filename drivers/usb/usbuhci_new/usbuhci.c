@@ -4,7 +4,7 @@
 #include <debug.h>
 
 #define NDEBUG_UHCI_TRACE
-//#define NDEBUG_UHCI_IMPLEMENT
+#define NDEBUG_UHCI_IMPLEMENT
 #include "dbg_uhci.h"
 
 USBPORT_REGISTRATION_PACKET RegPacket;
@@ -762,7 +762,8 @@ UhciStopController(IN PVOID uhciExtension,
     KeQuerySystemTime(&EndTime);
     EndTime.QuadPart += 100 * 1000;
 
-    while (((UHCI_USB_COMMAND)READ_PORT_USHORT(CommandReg)).HcReset == 1)
+    while (Command.AsUSHORT = READ_PORT_USHORT(CommandReg),
+           Command.HcReset == 1)
     {
         KeQuerySystemTime(&CurrentTime);
 
