@@ -654,4 +654,11 @@ DriverEntry(
   IN PDRIVER_OBJECT DriverObject,
   IN PUNICODE_STRING RegistryPath);
 
+/* blacklst.c */
+BOOLEAN
+NTAPI
+USBH_IsVidPidFromBlackList(IN USHORT IdVendor,
+                           IN USHORT IdProduct,
+                           IN USHORT Revision);
+
 #endif /* _USBHUB_H_ */
