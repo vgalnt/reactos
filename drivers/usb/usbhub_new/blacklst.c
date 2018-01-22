@@ -18,7 +18,7 @@ USBH_IsVidPidFromBlackList(IN USHORT IdVendor,
 {
     BOOLEAN Result = FALSE;
 
-    DPRINT1("USBH_IsVidPidFromBlackList: IdVendor - %X, IdProduct - %X\n",
+    DPRINT("USBH_IsVidPidFromBlackList: IdVendor - %X, IdProduct - %X\n",
            IdVendor,
            IdProduct);
    
@@ -952,7 +952,12 @@ USBH_IsVidPidFromBlackList(IN USHORT IdVendor,
             break;
     }
 
-    DPRINT1("USBH_IsVidPidFromBlackList: Result - %X\n", Result);
+    if (Result)
+    {
+        DPRINT1("USBH_IsVidPidFromBlackList: IdVendor - %X, IdProduct - %X\n",
+                IdVendor,
+                IdProduct);
+    }
 
     return Result;
 }
