@@ -14,7 +14,7 @@
 #define NDEBUG_USBHUB_ENUM
 #include "dbg_uhub.h"
 
-#define BOOT_FROM_USB  0
+#define BOOT_FROM_USB  1
 
 NTSTATUS
 NTAPI
