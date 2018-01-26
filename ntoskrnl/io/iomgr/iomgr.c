@@ -588,6 +588,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
         }
     }
 
+#ifndef NDEBUG
     // FIXME: check if IopGroupIndex != 0 (IopInitializeBootDrivers())
     {
         LARGE_INTEGER Interval;
@@ -599,6 +600,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
             return FALSE;
         }
     }
+#endif
 
     /* No one should need loader block any longer */
     IopLoaderBlock = NULL;
