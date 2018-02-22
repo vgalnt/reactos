@@ -1,5 +1,6 @@
 add_subdirectory(hidclass)
 add_subdirectory(hidparse)
 add_subdirectory(hidusb)
+#add_subdirectory(hidusb_new)
 add_subdirectory(kbdhid)
 add_subdirectory(mouhid)
