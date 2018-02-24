@@ -491,39 +491,38 @@ HidUsb_ReadReportCompletion(
     // allocate reset context
     //
     ResetContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(HID_USB_RESET_CONTEXT), HIDUSB_TAG);
-    if (ResetContext)
+    if (!ResetContext)
     {
-        //
-        // allocate work item
-        //
-        ResetContext->WorkItem = IoAllocateWorkItem(DeviceObject);
-        if (ResetContext->WorkItem)
-        {
-            //
-            // init reset context
-            //
-            ResetContext->Irp = Irp;
-            ResetContext->DeviceObject = DeviceObject;
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: ExAllocatePoolWithTag failed\n");
+        goto Exit;
+    }
 
-            //
-            // queue the work item
-            //
-            IoQueueWorkItem(ResetContext->WorkItem, HidUsb_ResetWorkerRoutine, DelayedWorkQueue, ResetContext);
-
-            Status = STATUS_MORE_PROCESSING_REQUIRED;
-            goto Exit;
-        }
-
+    //
+    // allocate work item
+    //
+    ResetContext->WorkItem = IoAllocateWorkItem(DeviceObject);
+    if (!ResetContext->WorkItem)
+    {
         //
         // free reset context
         //
         DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: IoAllocateWorkItem failed\n");
         ExFreePoolWithTag(ResetContext, HIDUSB_TAG);
+        goto Exit;
     }
-    else
-    {
-        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: ExAllocatePoolWithTag failed\n");
-    }
+
+    //
+    // init reset context
+    //
+    ResetContext->Irp = Irp;
+    ResetContext->DeviceObject = DeviceObject;
+
+    //
+    // queue the work item
+    //
+    IoQueueWorkItem(ResetContext->WorkItem, HidUsb_ResetWorkerRoutine, DelayedWorkQueue, ResetContext);
+
+    Status = STATUS_MORE_PROCESSING_REQUIRED;
 
 Exit:
 
