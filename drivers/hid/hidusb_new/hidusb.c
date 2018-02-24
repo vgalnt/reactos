@@ -366,7 +366,35 @@ HidUsb_ResetWorkerRoutine(
 
     if (NT_SUCCESS(Status))
     {
-        if (!(PortStatus & USBD_PORT_CONNECTED))
+        if ((PortStatus & USBD_PORT_CONNECTED) == USBD_PORT_CONNECTED)
+        {
+            //
+            // port is connected - abort pending requests
+            //
+            Status = HidUsb_AbortPipe(ResetContext->DeviceObject);
+            DPRINT1("[HIDUSB] ResetWorkerRoutine AbortPipe %x\n", Status);
+
+            if (NT_SUCCESS(Status))
+            {
+                //
+                // reset parent port
+                //
+                Status = HidUsb_ResetPort(ResetContext->DeviceObject);
+                DPRINT1("[HIDUSB] ResetPort %x\n", Status);
+
+                if (Status == STATUS_DEVICE_DATA_ERROR)
+                {
+                    //
+                    // invalidate device state
+                    //
+                    HidDeviceExtension->HidState = HIDUSB_STATE_FAILED;
+                    IoInvalidateDeviceState(DeviceExtension->PhysicalDeviceObject);
+                }
+
+                goto ResetPipe;
+            }
+        }
+        else
         {
             //
             // port is not connected
@@ -381,38 +409,8 @@ ResetPipe:
                 Status = HidUsb_ResetInterruptPipe(ResetContext->DeviceObject);
                 DPRINT1("[HIDUSB] ResetWorkerRoutine ResetPipe %x\n", Status);
             }
-
-            goto Exit;
-        }
-
-        //
-        // port is connected - abort pending requests
-        //
-        Status = HidUsb_AbortPipe(ResetContext->DeviceObject);
-        DPRINT1("[HIDUSB] ResetWorkerRoutine AbortPipe %x\n", Status);
-
-        if (NT_SUCCESS(Status))
-        {
-            //
-            // reset parent port
-            //
-            Status = HidUsb_ResetPort(ResetContext->DeviceObject);
-            DPRINT1("[HIDUSB] ResetPort %x\n", Status);
-
-            if (Status == STATUS_DEVICE_DATA_ERROR)
-            {
-                //
-                // invalidate device state
-                //
-                HidDeviceExtension->HidState = HIDUSB_STATE_FAILED;
-                IoInvalidateDeviceState(DeviceExtension->PhysicalDeviceObject);
-            }
-
-            goto ResetPipe;
         }
     }
-
-Exit:
 
     //
     // cleanup
