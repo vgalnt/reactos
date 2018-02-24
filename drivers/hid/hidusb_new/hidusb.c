@@ -974,6 +974,14 @@ Hid_PnpCompletion(
     IN PIRP Irp,
     IN PVOID Context)
 {
+    if (Irp->PendingReturned)
+    {
+        //
+        // mark irp pending
+        //
+        IoMarkIrpPending(Irp);
+    }
+
     //
     // set event to signaled state
     //
