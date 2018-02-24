@@ -1918,8 +1918,8 @@ HidPnp(
     switch (IoStack->MinorFunction)
     {
         case IRP_MN_START_DEVICE:
+        {
             Status = Hid_Init(DeviceObject);
-
             if (!NT_SUCCESS(Status))
             {
                 Irp->IoStatus.Status = Status;
@@ -1927,12 +1927,12 @@ HidPnp(
                 return Status;
             }
             break;
-
+        }
         case IRP_MN_STOP_DEVICE:
+        {
             if (HidDeviceExtension->HidState == HIDUSB_STATE_STARTING)
             {
                 Status = Hid_StopDevice(DeviceObject);
-
                 if (!NT_SUCCESS(Status))
                 {
                     Irp->IoStatus.Status = Status;
@@ -1941,11 +1941,13 @@ HidPnp(
                 }
             }
             break;
-
+        }
         case IRP_MN_REMOVE_DEVICE:
+        {
             return Hid_RemoveDevice(DeviceObject, Irp);
-
+        }
         case IRP_MN_QUERY_PNP_DEVICE_STATE:
+        {
             DPRINT("[HIDUSB] IRP_MN_QUERY_PNP_DEVICE_STATE. HidState - %x\n",
                    HidDeviceExtension->HidState);
 
@@ -1961,9 +1963,11 @@ HidPnp(
                 //Irp->IoStatus.Information |= PNP_DEVICE_FAILED;
             }
             break;
-
+        }
         default:
+        {
             break;
+        }
     }
 
     //
