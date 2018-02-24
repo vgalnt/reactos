@@ -779,8 +779,8 @@ HidInternalDeviceControl(
                 //
                 Irp->IoStatus.Status = STATUS_INVALID_BUFFER_SIZE;
                 DPRINT1("[HIDUSB] IOCTL_HID_GET_DEVICE_ATTRIBUTES invalid buffer\n");
-                IoCompleteRequest(Irp, IO_NO_INCREMENT);
-                return STATUS_INVALID_BUFFER_SIZE;
+                Status = STATUS_INVALID_BUFFER_SIZE;
+                break;
             }
 
             //
@@ -799,8 +799,8 @@ HidInternalDeviceControl(
             // complete request
             //
             Irp->IoStatus.Status = STATUS_SUCCESS;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_SUCCESS;
+            Status = STATUS_SUCCESS;
+            break;
         }
         case IOCTL_HID_GET_DEVICE_DESCRIPTOR:
         {
@@ -829,16 +829,15 @@ HidInternalDeviceControl(
             //
             // complete request
             //
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_SUCCESS;
+            Status = STATUS_SUCCESS;
+            break;
         }
         case IOCTL_HID_GET_REPORT_DESCRIPTOR:
         {
             Status = HidUsb_GetReportDescriptor(DeviceObject, Irp);
             DPRINT("[HIDUSB] IOCTL_HID_GET_REPORT_DESCRIPTOR Status %x\n", Status);
             Irp->IoStatus.Status = Status;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return Status;
+            break;
         }
         case IOCTL_HID_READ_REPORT:
         {
@@ -850,82 +849,84 @@ HidInternalDeviceControl(
         {
             DPRINT1("[HIDUSB] IOCTL_HID_WRITE_REPORT not implemented \n");
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_NOT_IMPLEMENTED;
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
         }
         case IOCTL_GET_PHYSICAL_DESCRIPTOR:
         {
             DPRINT1("[HIDUSB] IOCTL_GET_PHYSICAL_DESCRIPTOR not implemented \n");
             ASSERT(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_NOT_IMPLEMENTED;
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
         }
         case IOCTL_HID_SEND_IDLE_NOTIFICATION_REQUEST:
         {
             DPRINT1("[HIDUSB] IOCTL_HID_SEND_IDLE_NOTIFICATION_REQUEST not implemented \n");
             ASSERT(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_NOT_IMPLEMENTED;
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
         }
         case IOCTL_HID_GET_FEATURE:
         {
             DPRINT1("[HIDUSB] IOCTL_HID_GET_FEATURE not implemented \n");
             ASSERT(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_NOT_IMPLEMENTED;
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
         }
         case IOCTL_HID_SET_FEATURE:
         {
             DPRINT1("[HIDUSB] IOCTL_HID_SET_FEATURE not implemented \n");
             ASSERT(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_NOT_IMPLEMENTED;
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
         }
         case IOCTL_HID_SET_OUTPUT_REPORT:
         {
             DPRINT1("[HIDUSB] IOCTL_HID_SET_OUTPUT_REPORT not implemented \n");
             ASSERT(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_NOT_IMPLEMENTED;
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
         }
         case IOCTL_HID_GET_INPUT_REPORT:
         {
             DPRINT1("[HIDUSB] IOCTL_HID_GET_INPUT_REPORT not implemented \n");
             ASSERT(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_NOT_IMPLEMENTED;
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
         }
         case IOCTL_HID_GET_INDEXED_STRING:
         {
             DPRINT1("[HIDUSB] IOCTL_HID_GET_INDEXED_STRING not implemented \n");
             ASSERT(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_NOT_IMPLEMENTED;
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
         }
         case IOCTL_HID_GET_MS_GENRE_DESCRIPTOR:
         {
             DPRINT1("[HIDUSB] IOCTL_HID_GET_MS_GENRE_DESCRIPTOR not implemented \n");
             ASSERT(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return STATUS_NOT_IMPLEMENTED;
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
         }
         default:
         {
             UNIMPLEMENTED;
             ASSERT(FALSE);
             Status = Irp->IoStatus.Status;
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return Status;
+            break;
         }
     }
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return Status;
 }
 
 NTSTATUS
