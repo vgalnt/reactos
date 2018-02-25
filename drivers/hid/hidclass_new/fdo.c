@@ -38,7 +38,7 @@ HidClassDumpDeviceDesc(IN PHIDP_DEVICE_DESC DeviceDescription)
 
     if (DeviceDescription->CollectionDescLength)
     {
-        for (Idx = 0; Idx < DeviceDescription->CollectionDescLength; ++Idx)
+        for (Idx = 0; Idx < DeviceDescription->CollectionDescLength; Idx++)
         {
             CollectionDescription = &DeviceDescription->CollectionDesc[Idx];
 
@@ -57,7 +57,7 @@ HidClassDumpDeviceDesc(IN PHIDP_DEVICE_DESC DeviceDescription)
 
     if (DeviceDescription->ReportIDsLength)
     {
-        for (Idx = 0; Idx < DeviceDescription->ReportIDsLength; ++Idx)
+        for (Idx = 0; Idx < DeviceDescription->ReportIDsLength; Idx++)
         {
             ReportIDs = &DeviceDescription->ReportIDs[Idx];
 
@@ -202,7 +202,7 @@ HidClassEnqueueInterruptReadIrp(
                        &Irp->Tail.Overlay.ListEntry);
     }
 
-    ++HidCollection->NumPendingReads;
+    HidCollection->NumPendingReads++;
     IoMarkIrpPending(Irp);
 
     return STATUS_PENDING;
@@ -259,20 +259,19 @@ GetCollectionDesc(
 
     CollectionDescArray = FDODeviceExtension->Common.DeviceDescription.CollectionDesc;
 
-    if (CollectionDescArray)
+    if (!CollectionDescArray)
     {
-        NumCollections = FDODeviceExtension->Common.DeviceDescription.CollectionDescLength;
+        return HidCollectionDesc;
+    }
 
-        if (NumCollections)
+    NumCollections = FDODeviceExtension->Common.DeviceDescription.CollectionDescLength;
+
+    for (Idx = 0; Idx < NumCollections; Idx++)
+    {
+        if (CollectionDescArray[Idx].CollectionNumber == CollectionNumber)
         {
-            for (Idx = 0; Idx < NumCollections; ++Idx)
-            {
-                if (CollectionDescArray[Idx].CollectionNumber == CollectionNumber)
-                {
-                    HidCollectionDesc = &CollectionDescArray[Idx];
-                    break;
-                }
-            }
+            HidCollectionDesc = &CollectionDescArray[Idx];
+            break;
         }
     }
 
@@ -294,20 +293,19 @@ GetHidclassCollection(
 
     HidCollections = FDODeviceExtension->HidCollections;
 
-    if (HidCollections)
+    if (!HidCollections)
     {
-        NumCollections = FDODeviceExtension->Common.DeviceDescription.CollectionDescLength;
+        return HidCollection;
+    }
 
-        if (NumCollections)
+    NumCollections = FDODeviceExtension->Common.DeviceDescription.CollectionDescLength;
+
+    for (Idx = 0; Idx < NumCollections; Idx++)
+    {
+        if (HidCollections[Idx].CollectionNumber == CollectionNumber)
         {
-            for (Idx = 0; Idx < NumCollections; ++Idx)
-            {
-                if (HidCollections[Idx].CollectionNumber == CollectionNumber)
-                {
-                    HidCollection = &HidCollections[Idx];
-                    break;
-                }
-            }
+            HidCollection = &HidCollections[Idx];
+            break;
         }
     }
 
@@ -332,20 +330,19 @@ GetReportIdentifier(
 
     ReportIDs = DeviceDescription->ReportIDs;
 
-    if (ReportIDs)
+    if (!ReportIDs)
     {
-        NumCollections = DeviceDescription->ReportIDsLength;
+        return Result;
+    }
 
-        if (NumCollections)
+    NumCollections = DeviceDescription->ReportIDsLength;
+
+    for (Idx = 0; Idx < NumCollections; Idx++)
+    {
+        if (ReportIDs[Idx].ReportID == Id)
         {
-            for (Idx = 0; Idx < NumCollections; ++Idx)
-            {
-                if (ReportIDs[Idx].ReportID == Id)
-                {
-                    Result = &ReportIDs[Idx];
-                    break;
-                }
-            }
+            Result = &ReportIDs[Idx];
+            break;
         }
     }
 
@@ -369,7 +366,7 @@ GetShuttleFromIrp(
     {
         Shuttle = &FDODeviceExtension->Shuttles[0];
 
-        for (Idx = 0; Idx < ShuttleCount; ++Idx)
+        for (Idx = 0; Idx < ShuttleCount; Idx++)
         {
             if (Shuttle[Idx].ShuttleIrp == Irp)
             {
@@ -399,20 +396,17 @@ HidClassSetMaxReportSize(
     DeviceDescription = &FDODeviceExtension->Common.DeviceDescription;
     FDODeviceExtension->MaxReportSize = 0;
 
-    if (DeviceDescription->ReportIDsLength)
+    for (Idx = 0; Idx < DeviceDescription->ReportIDsLength; Idx++)
     {
-        for (Idx = 0; Idx < DeviceDescription->ReportIDsLength; ++Idx)
+        ReportId = &DeviceDescription->ReportIDs[Idx];
+
+        HidCollection = GetHidclassCollection(FDODeviceExtension,
+                                              ReportId->CollectionNumber);
+
+        if (HidCollection)
         {
-            ReportId = &DeviceDescription->ReportIDs[Idx];
-
-            HidCollection = GetHidclassCollection(FDODeviceExtension,
-                                                  ReportId->CollectionNumber);
-
-            if (HidCollection)
-            {
-                FDODeviceExtension->MaxReportSize = max(FDODeviceExtension->MaxReportSize,
-                                                        ReportId->InputLength);
-            }
+            FDODeviceExtension->MaxReportSize = max(FDODeviceExtension->MaxReportSize,
+                                                    ReportId->InputLength);
         }
     }
 
@@ -746,7 +740,7 @@ HidClassInterruptReadComplete(
                     //
                     Id = *(PUCHAR)InputReport;
                     InputReport = (PUCHAR)InputReport + 1;
-                    --Length;
+                    Length--;
                 }
                 else
                 {
@@ -1009,13 +1003,13 @@ HidClassAllShuttlesStart(
     DPRINT("HidClassAllShuttlesStart: ShuttleCount - %x\n",
            FDODeviceExtension->ShuttleCount);
 
-    if (!(FDODeviceExtension->ShuttleCount))
+    if (!FDODeviceExtension->ShuttleCount)
     {
         DPRINT1("ShuttleCount is 0\n");
         return Status;
     }
 
-    for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
+    for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ix++)
     {
         //
         // if ShuttleDoneEvent is currently set to a signaled state
@@ -1069,49 +1063,48 @@ HidClassCancelAllShuttleIrps(
     DPRINT("HidClassCancelAllShuttleIrps: ShuttleCount - %x\n",
            FDODeviceExtension->ShuttleCount);
 
-
-    if (FDODeviceExtension->ShuttleCount)
+    if (!FDODeviceExtension->ShuttleCount)
     {
-{       /* HACK: force cancelling shuttles
-           (problem disconnecting from PC USB port CORE-9070)
-        */
-
-        for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
-        {
-            Shuttle = &FDODeviceExtension->Shuttles[ix];
-
-            //
-            // sets cancelling state for shuttle
-            //
-            Shuttle->CancellingShuttle = 1;
-        }
-}
-
-        for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
-        {
-            Shuttle = &FDODeviceExtension->Shuttles[ix];
-
-            InterlockedIncrement(&Shuttle->CancellingShuttle);
-
-            KeWaitForSingleObject(&Shuttle->ShuttleEvent,
-                                  Executive,
-                                  KernelMode,
-                                  FALSE,
-                                  NULL);
-
-            IoCancelIrp(Shuttle->ShuttleIrp);
-
-            KeWaitForSingleObject(&Shuttle->ShuttleDoneEvent,
-                                  Executive,
-                                  KernelMode,
-                                  FALSE,
-                                  NULL);
-
-            InterlockedDecrement(&Shuttle->CancellingShuttle);
-        }
+        return;
     }
 
-    return;
+{   /* HACK: force cancelling shuttles
+       (problem disconnecting from PC USB port CORE-9070)
+    */
+
+    for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ix++)
+    {
+        Shuttle = &FDODeviceExtension->Shuttles[ix];
+
+        //
+        // sets cancelling state for shuttle
+        //
+        Shuttle->CancellingShuttle = 1;
+    }
+}
+
+    for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ix++)
+    {
+        Shuttle = &FDODeviceExtension->Shuttles[ix];
+
+        InterlockedIncrement(&Shuttle->CancellingShuttle);
+
+        KeWaitForSingleObject(&Shuttle->ShuttleEvent,
+                              Executive,
+                              KernelMode,
+                              FALSE,
+                              NULL);
+
+        IoCancelIrp(Shuttle->ShuttleIrp);
+
+        KeWaitForSingleObject(&Shuttle->ShuttleDoneEvent,
+                              Executive,
+                              KernelMode,
+                              FALSE,
+                              NULL);
+
+        InterlockedDecrement(&Shuttle->CancellingShuttle);
+    }
 }
 
 VOID
@@ -1127,26 +1120,25 @@ HidClassDestroyShuttles(
 
     Shuttles = FDODeviceExtension->Shuttles;
 
-    if (Shuttles)
+    if (!Shuttles)
     {
-        HidClassCancelAllShuttleIrps(FDODeviceExtension);
-
-        if (FDODeviceExtension->ShuttleCount)
-        {
-            for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
-            {
-                DPRINT("HidClassDestroyShuttles: Free ShuttleIrp - %p\n",
-                       FDODeviceExtension->Shuttles[ix].ShuttleIrp);
-
-                IoFreeIrp(FDODeviceExtension->Shuttles[ix].ShuttleIrp);
-                ExFreePoolWithTag(FDODeviceExtension->Shuttles[ix].ShuttleBuffer,
-                                  HIDCLASS_TAG);
-            }
-        }
-
-        ExFreePoolWithTag(FDODeviceExtension->Shuttles, HIDCLASS_TAG);
-        FDODeviceExtension->Shuttles = NULL;
+        return;
     }
+
+    HidClassCancelAllShuttleIrps(FDODeviceExtension);
+
+    for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ix++)
+    {
+        DPRINT("HidClassDestroyShuttles: Free ShuttleIrp - %p\n",
+               FDODeviceExtension->Shuttles[ix].ShuttleIrp);
+
+        IoFreeIrp(FDODeviceExtension->Shuttles[ix].ShuttleIrp);
+        ExFreePoolWithTag(FDODeviceExtension->Shuttles[ix].ShuttleBuffer,
+                          HIDCLASS_TAG);
+    }
+
+    ExFreePoolWithTag(FDODeviceExtension->Shuttles, HIDCLASS_TAG);
+    FDODeviceExtension->Shuttles = NULL;
 }
 
 VOID
@@ -1209,7 +1201,7 @@ HidClassInitializeShuttleIrps(
     RtlZeroMemory(Shuttles,
                   FDODeviceExtension->ShuttleCount * sizeof(HIDCLASS_SHUTTLE));
 
-    for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ++ix)
+    for (ix = 0; ix < FDODeviceExtension->ShuttleCount; ix++)
     {
         FDODeviceExtension->Shuttles[ix].FDODeviceExtension = FDODeviceExtension;
         FDODeviceExtension->Shuttles[ix].CancellingShuttle = 0;
@@ -1635,7 +1627,7 @@ HidClassFDO_GetDescriptors(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    for (nx = 0; nx < 3; ++nx)
+    for (nx = 0; nx < 3; nx++)
     {
         IoStack->Parameters.DeviceIoControl.IoControlCode = IOCTL_HID_GET_REPORT_DESCRIPTOR;
         IoStack->Parameters.DeviceIoControl.OutputBufferLength = ReportLength;
@@ -1940,36 +1932,33 @@ HidClassFDO_StartDevice(
         //
         // initialize collections array
         //
-        if (DeviceDescription->CollectionDescLength)
+        for (CollectionIdx = 0;
+             CollectionIdx < DeviceDescription->CollectionDescLength;
+             CollectionIdx++)
         {
-            for (CollectionIdx = 0;
-                 CollectionIdx < DeviceDescription->CollectionDescLength;
-                 CollectionIdx++)
+            Status = HidClassInitializeCollection(FDODeviceExtension,
+                                                  CollectionIdx);
+
+            if (!NT_SUCCESS(Status))
             {
-                Status = HidClassInitializeCollection(FDODeviceExtension,
-                                                      CollectionIdx);
+                DPRINT1("[HIDCLASS] Failed initialize Collection (Idx %x)\n",
+                        CollectionIdx);
+                break;
+            }
 
-                if (!NT_SUCCESS(Status))
-                {
-                    DPRINT1("[HIDCLASS] Failed initialize Collection (Idx %x)\n",
-                            CollectionIdx);
-                    break;
-                }
+            CollectionNumber = DeviceDescription->CollectionDesc[CollectionIdx].CollectionNumber;
 
-                CollectionNumber = DeviceDescription->CollectionDesc[CollectionIdx].CollectionNumber;
+            //
+            // allocate resources for current collection
+            //
+            Status = HidClassAllocCollectionResources(FDODeviceExtension,
+                                                      CollectionNumber);
 
-                //
-                // allocate resources for current collection
-                //
-                Status = HidClassAllocCollectionResources(FDODeviceExtension,
-                                                          CollectionNumber);
-
-                if (!NT_SUCCESS(Status))
-                {
-                    DPRINT1("[HIDCLASS] Failed alloc Collection (Idx %x) resources\n",
-                            CollectionIdx);
-                    break;
-                }
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("[HIDCLASS] Failed alloc Collection (Idx %x) resources\n",
+                        CollectionIdx);
+                break;
             }
         }
 
@@ -2106,17 +2095,12 @@ HidClassFreeDeviceResources(
     DPRINT("HidClassFreeDeviceResources: CollectionDescLength - %x\n",
            FDODeviceExtension->Common.DeviceDescription.CollectionDescLength);
 
-    ix = 0;
-
-    if (FDODeviceExtension->Common.DeviceDescription.CollectionDescLength)
+    for (ix = 0;
+         ix < FDODeviceExtension->Common.DeviceDescription.CollectionDescLength;
+         ix++)
     {
-        do
-        {
-            HidClassFreeCollectionResources(FDODeviceExtension,
-                                            FDODeviceExtension->HidCollections[ix].CollectionNumber);
-            ++ix;
-        }
-        while (ix < FDODeviceExtension->Common.DeviceDescription.CollectionDescLength);
+        HidClassFreeCollectionResources(FDODeviceExtension,
+                                        FDODeviceExtension->HidCollections[ix].CollectionNumber);
     }
 
     if (FDODeviceExtension->IsDeviceResourcesAlloceted)
@@ -2161,24 +2145,16 @@ HidClassDeleteDeviceObjects(
 
     if (DeviceRelations)
     {
-        ix = 0;
-
         DPRINT("HidClassDeleteDeviceObjects: DeviceRelations->Count - %x\n",
                DeviceRelations->Count);
 
-        if (DeviceRelations->Count)
+        for (ix = 0; ix < FDODeviceExtension->DeviceRelations->Count; ix++)
         {
-            do
-            {
-                DPRINT("HidClassDeleteDeviceObjects: IoDeleteDevice(PDO %p)\n",
-                       FDODeviceExtension->DeviceRelations->Objects[ix]);
+            DPRINT("HidClassDeleteDeviceObjects: IoDeleteDevice(PDO %p)\n",
+                   FDODeviceExtension->DeviceRelations->Objects[ix]);
 
-                ObDereferenceObject(FDODeviceExtension->DeviceRelations->Objects[ix]);
-                IoDeleteDevice(FDODeviceExtension->DeviceRelations->Objects[ix]);
-
-                ++ix;
-            }
-            while (ix < FDODeviceExtension->DeviceRelations->Count);
+            ObDereferenceObject(FDODeviceExtension->DeviceRelations->Objects[ix]);
+            IoDeleteDevice(FDODeviceExtension->DeviceRelations->Objects[ix]);
         }
 
         ExFreePoolWithTag(FDODeviceExtension->DeviceRelations, HIDCLASS_TAG);
@@ -2377,21 +2353,14 @@ HidClassFDO_DeviceRelations(
 
         if (NewDeviceRelations)
         {
-            PdoIdx = 0;
-
             DPRINT("[HIDCLASS] DeviceRelations->Count - %x\n",
                    DeviceRelations->Count);
 
-            if ( FDODeviceExtension->DeviceRelations->Count )
+            for (PdoIdx = 0; PdoIdx < FDODeviceExtension->DeviceRelations->Count; PdoIdx++)
             {
-                do
-                {
-                    ObReferenceObject(FDODeviceExtension->DeviceRelations->Objects[PdoIdx]);
-                    DeviceObject = FDODeviceExtension->DeviceRelations->Objects[PdoIdx];
-                    DeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
-                    ++PdoIdx;
-                }
-                while ( PdoIdx < FDODeviceExtension->DeviceRelations->Count );
+                ObReferenceObject(FDODeviceExtension->DeviceRelations->Objects[PdoIdx]);
+                DeviceObject = FDODeviceExtension->DeviceRelations->Objects[PdoIdx];
+                DeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
             }
         }
     }

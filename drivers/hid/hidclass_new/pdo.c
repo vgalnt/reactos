@@ -419,7 +419,7 @@ HidClassAnyPdoInitialized(
 {
     PDEVICE_RELATIONS DeviceRelations;
     PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
-    ULONG ix = 0;
+    ULONG ix;
 
     DPRINT("HidClassAnyPdoInitialized: ... \n");
 
@@ -430,7 +430,7 @@ HidClassAnyPdoInitialized(
         return FALSE;
     }
 
-    do
+    for (ix = 0; ix < DeviceRelations->Count; ix++)
     {
         PDODeviceExtension = DeviceRelations->Objects[ix]->DeviceExtension;
 
@@ -438,10 +438,7 @@ HidClassAnyPdoInitialized(
         {
             return TRUE;
         }
-
-        ++ix;
     }
-    while (ix < DeviceRelations->Count);
 
     return FALSE;
 }
@@ -471,7 +468,7 @@ HidClassAllPdoInitialized(
             while ((Type == FALSE) != 
                    (((PHIDCLASS_PDO_DEVICE_EXTENSION)(DeviceRelations->Objects[ix]->DeviceExtension))->HidPdoState != 1))
             {
-                ++ix;
+                ix++;
 
                 if ( ix >= DeviceRelations->Count )
                 {
@@ -1101,7 +1098,7 @@ HidClassCreatePDOs(
     NTSTATUS Status = STATUS_SUCCESS;
     PDEVICE_OBJECT PDODeviceObject;
     PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
-    ULONG PdoIdx = 0;
+    ULONG PdoIdx;
     PDEVICE_RELATIONS DeviceRelations;
     PHIDCLASS_DRIVER_EXTENSION DriverExtension;
     PHIDP_DEVICE_DESC DeviceDescription;
@@ -1204,7 +1201,7 @@ HidClassCreatePDOs(
     //
     // let's create a PDOs for top level collections
     //
-    do
+    for (PdoIdx = 0; PdoIdx < DescLength; PdoIdx++)
     {
         CollectionNumber = DeviceDescription->CollectionDesc[PdoIdx].CollectionNumber;
 
@@ -1310,33 +1307,28 @@ HidClassCreatePDOs(
         // device is initialized
         //
         PDODeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
-
-        //
-        // move to next
-        //
-        PdoIdx++;
-
     }
-    while (PdoIdx < DescLength);
 
     //
     // store device relations
     //
     *OutDeviceRelations = DeviceRelations;
 
+    if (NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+ErrorExit:
+    ExFreePoolWithTag(FDODeviceExtension->ClientPdoExtensions,
+                      HIDCLASS_TAG);
+
+    FDODeviceExtension->ClientPdoExtensions = NULL;
+
     if (!NT_SUCCESS(Status))
     {
-ErrorExit:
-        ExFreePoolWithTag(FDODeviceExtension->ClientPdoExtensions,
-                          HIDCLASS_TAG);
-
-        FDODeviceExtension->ClientPdoExtensions = NULL;
-
-        if (!NT_SUCCESS(Status))
-        {
-            ExFreePoolWithTag(DeviceRelations, HIDCLASS_TAG);
-            FDODeviceExtension->DeviceRelations = NULL;
-        }
+        ExFreePoolWithTag(DeviceRelations, HIDCLASS_TAG);
+        FDODeviceExtension->DeviceRelations = NULL;
     }
 
 Exit:

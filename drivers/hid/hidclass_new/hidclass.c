@@ -1046,12 +1046,11 @@ HidClass_Read(
                 goto Exit;
             }
 
-            ix = 0;
             Status = STATUS_SUCCESS;
 
             if (BufferRemaining > 0)
             {
-                do
+                for (ix = 0; BufferRemaining; ix++)
                 {
                     ReportSize = BufferRemaining;
                     Header = HidClassDequeueInterruptReport(FileContext, ReportSize);
@@ -1085,10 +1084,7 @@ HidClass_Read(
 
                     VAddress = (PVOID)((ULONG_PTR)VAddress + ReportSize);
                     BufferRemaining -= ReportSize;
-
-                    ++ix;
                 }
-                while (BufferRemaining);
 
                 if (!NT_SUCCESS(Status))
                 {
@@ -1325,7 +1321,7 @@ HidClass_Write(
 
     if (!CommonDeviceExtension->DeviceDescription.ReportIDs->ReportID)
     {
-        ++XferPacket->reportBuffer;
+        XferPacket->reportBuffer++;
     }
 
     Irp->UserBuffer = XferPacket;
