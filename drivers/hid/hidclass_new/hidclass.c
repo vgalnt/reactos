@@ -492,7 +492,7 @@ HidClass_Create(
     HidFdoState = FDODeviceExtension->HidFdoState;
     HidPdoState = PDODeviceExtension->HidPdoState;
 
-    DPRINT("HidClass_Create: HidFdoState - %p, HidPdoState - %p\n",
+    DPRINT("HidClass_Create: HidFdoState - %X, HidPdoState - %X\n",
            HidFdoState,
            HidPdoState);
 

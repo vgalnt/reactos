@@ -480,7 +480,7 @@ HidClassCopyInputReportToUser(
     UCHAR Id;
     NTSTATUS Status = STATUS_DEVICE_DATA_ERROR;
 
-    DPRINT("HidClassCopyInputReportToUser: FileContext - %x\n", FileContext);
+    DPRINT("HidClassCopyInputReportToUser: FileContext - %p\n", FileContext);
 
     PDODeviceExtension = FileContext->DeviceExtension;
     FDODeviceExtension = PDODeviceExtension->FDODeviceExtension;
@@ -852,7 +852,7 @@ NextData:
         }
         else if (Irp->IoStatus.Status < 0)
         {
-            DPRINT1("[HIDCLASS] Status - %x, TimerPeriod - %p, Shuttle - %p\n",
+            DPRINT1("[HIDCLASS] Status - %x, TimerPeriod - %X, Shuttle - %p\n",
                      Irp->IoStatus.Status,
                      Shuttle->TimerPeriod.LowPart,
                      Shuttle);

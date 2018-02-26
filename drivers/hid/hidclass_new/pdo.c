@@ -1072,7 +1072,7 @@ Removal:
             FDODeviceExtension->ClientPdoExtensions[PdoIdx] = NULL;
         }
 
-        DPRINT("HidClassPDO_PnP: IoDeleteDevice (%x)\n",
+        DPRINT("HidClassPDO_PnP: IoDeleteDevice (%p)\n",
                PDODeviceExtension->SelfDevice);
 
         ObDereferenceObject(PDODeviceExtension->SelfDevice);
