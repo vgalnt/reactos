@@ -704,6 +704,7 @@ HidClassPDO_PnP(
 {
     PHIDCLASS_PDO_DEVICE_EXTENSION PDODeviceExtension;
     PHIDCLASS_FDO_EXTENSION FDODeviceExtension;
+    PHIDCLASS_COLLECTION HidCollection;
     PIO_STACK_LOCATION IoStack;
     NTSTATUS Status;
     PPNP_BUS_INFORMATION BusInformation;
@@ -1011,25 +1012,26 @@ Removal:
             PDODeviceExtension->HidPdoPrevState = OldState;
             PDODeviceExtension->HidPdoState = HIDCLASS_STATE_DISABLED;
 
-            if (((OldState == HIDCLASS_STATE_STARTED) &&
-                 (HidClassSymbolicLinkOnOff(PDODeviceExtension,
-                                            PDODeviceExtension->CollectionNumber,
-                                            FALSE,
-                                            PDODeviceExtension->SelfDevice),
-                     OldState = PDODeviceExtension->HidPdoPrevState,
-                     PDODeviceExtension->HidPdoPrevState == HIDCLASS_STATE_STARTED))
-                 || OldState == HIDCLASS_STATE_STOPPING)
+            if (OldState != HIDCLASS_STATE_STARTED &&
+                OldState != HIDCLASS_STATE_STOPPING)
             {
-                PHIDCLASS_COLLECTION HidCollection;
-
-                PdoIdx = PDODeviceExtension->PdoIdx;
-                HidCollection = &FDODeviceExtension->HidCollections[PdoIdx];
-                HidClassCompleteReadsForCollection(HidCollection);
-
-                //
-                // FIXME: CompleteAllPdoPowerDelayedIrps();
-                //
+                Status = STATUS_SUCCESS;
+                break;
             }
+
+            if (OldState == HIDCLASS_STATE_STARTED)
+            {
+                HidClassSymbolicLinkOnOff(PDODeviceExtension,
+                                          PDODeviceExtension->CollectionNumber,
+                                          FALSE,
+                                          PDODeviceExtension->SelfDevice);
+            }
+
+            PdoIdx = PDODeviceExtension->PdoIdx;
+            HidCollection = &FDODeviceExtension->HidCollections[PdoIdx];
+            HidClassCompleteReadsForCollection(HidCollection);
+
+            // FIXME: CompleteAllPdoPowerDelayedIrps();
 
             Status = STATUS_SUCCESS;
             break;
