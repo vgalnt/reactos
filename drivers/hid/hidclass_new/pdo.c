@@ -620,6 +620,7 @@ HidClassRemoveCollection(
     IN PIRP Irp)
 {
     PHIDCLASS_COLLECTION HidCollections;
+    PHIDCLASS_COLLECTION Collection;
 
     DPRINT("HidClassRemoveCollection: Irp - %p\n", Irp);
 
@@ -643,26 +644,28 @@ HidClassRemoveCollection(
 
     PDODeviceExtension->HidPdoState = HIDCLASS_STATE_NOT_INIT;
 
-    if (FDODeviceExtension)
+    if (!FDODeviceExtension)
     {
-        HidCollections = FDODeviceExtension->HidCollections;
-
-        if (HidCollections)
-        {
-            PHIDCLASS_COLLECTION HidCollection;
-
-            HidCollection = &HidCollections[PDODeviceExtension->PdoIdx];
-
-            HidClassCompleteReadsForCollection(HidCollection);
-
-            if (HidCollection->HidCollectInfo.Polled)
-            {
-                DPRINT("HidClassRemoveCollection: FIXME stop polling\n");
-            }
-
-            DPRINT("HidClassRemoveCollection: FIXME handle PowerEvent Irp\n");
-        }
+        return;
     }
+
+    HidCollections = FDODeviceExtension->HidCollections;
+
+    if (!HidCollections)
+    {
+        return;
+    }
+
+    Collection = &HidCollections[PDODeviceExtension->PdoIdx];
+
+    HidClassCompleteReadsForCollection(Collection);
+
+    if (Collection->HidCollectInfo.Polled)
+    {
+        DPRINT("HidClassRemoveCollection: FIXME stop polling\n");
+    }
+
+    DPRINT("HidClassRemoveCollection: FIXME handle PowerEvent Irp\n");
 }
 
 NTSTATUS
