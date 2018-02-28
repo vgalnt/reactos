@@ -287,7 +287,7 @@ HidClassAddDevice(
     HidDeviceExtension->MiniDeviceExtension = (PVOID)((ULONG_PTR)FDODeviceExtension +
                                                       sizeof(HIDCLASS_FDO_EXTENSION));
 
-    ASSERT((PhysicalDeviceObject->Flags & DO_DEVICE_INITIALIZING) == 0);
+    ASSERT(!(PhysicalDeviceObject->Flags & DO_DEVICE_INITIALIZING));
 
     //
     // attach new FDO to stack
@@ -324,7 +324,7 @@ HidClassAddDevice(
     //
     // now call driver provided add device routine
     //
-    ASSERT(DriverExtension->AddDevice != 0);
+    ASSERT(!DriverExtension->AddDevice);
     Status = DriverExtension->AddDevice(DriverObject, NewDeviceObject);
 
     if (NT_SUCCESS(Status))
@@ -479,7 +479,7 @@ HidClass_Create(
         goto UnlockExit;
     }
 
-    if (IoStack->Parameters.Create.Options & 1) // FIXME const.
+    if (IoStack->Parameters.Create.Options & FILE_DIRECTORY_FILE)
     {
         DPRINT1("HidClass_Create: STATUS_NOT_A_DIRECTORY \n");
         Status = STATUS_NOT_A_DIRECTORY;
@@ -536,10 +536,6 @@ HidClass_Create(
     KeInitializeSpinLock(&FileContext->Lock);
     InitializeListHead(&FileContext->InterruptReadIrpList);
     InitializeListHead(&FileContext->ReportList);
-
-//InitializeListHead(&FileContext->ReadPendingIrpListHead);
-//InitializeListHead(&FileContext->IrpCompletedListHead);
-//KeInitializeEvent(&FileContext->IrpReadComplete, NotificationEvent, FALSE);
 
     FileContext->MaxReportQueueSize = HIDCLASS_MAX_REPORT_QUEUE_SIZE;
     FileContext->PendingReports = 0;
@@ -686,7 +682,7 @@ HidClassDestroyFileContext(
 {
     DPRINT("HidClassDestroyFileContext: FileContext - %p\n", FileContext);
 
-    HidClassFlushReportQueue(FileContext); 
+    HidClassFlushReportQueue(FileContext);
     HidClassCompleteReadsForFileContext(HidCollection, FileContext);
     ExFreePoolWithTag(FileContext, HIDCLASS_TAG);
 }
@@ -793,10 +789,7 @@ HidClass_Close(
         DPRINT1("HidClass_Close: FIXME RemoveLock support\n");
         ASSERT(FALSE);
 
-        if (0)//IoAcquireRemoveLock(&FDODeviceExtension->HidRemoveLock, 0))
-        {
-            HidClassCleanUpFDO(FDODeviceExtension);
-        }
+        // FIXME RemoveLock
     }
     else
     {
@@ -1521,7 +1514,7 @@ HidClass_Power(
 {
     PHIDCLASS_COMMON_DEVICE_EXTENSION CommonDeviceExtension;
     CommonDeviceExtension = DeviceObject->DeviceExtension;
- 
+
     if (CommonDeviceExtension->IsFDO)
     {
         IoCopyCurrentIrpStackLocationToNext(Irp);
@@ -1601,7 +1594,7 @@ HidClass_DispatchDefault(
     //
     CommonDeviceExtension = DeviceObject->DeviceExtension;
 
-    if ( CommonDeviceExtension->IsFDO )
+    if (CommonDeviceExtension->IsFDO)
     {
         //
         // get device extensions

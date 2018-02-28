@@ -227,7 +227,7 @@ HidClassDequeueInterruptReadIrp(
         //
         Entry = RemoveHeadList(ReadIrpList);
         Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
-    
+
         if (IoSetCancelRoutine(Irp, NULL))
         {
             HidCollection->NumPendingReads--;
@@ -253,7 +253,7 @@ GetCollectionDesc(
     PHIDP_COLLECTION_DESC CollectionDescArray;
     PHIDP_COLLECTION_DESC HidCollectionDesc = NULL;
     ULONG NumCollections;
-    ULONG Idx = 0;
+    ULONG Idx;
 
     DPRINT("GetCollectionDesc: CollectionNumber - %x\n", CollectionNumber);
 
@@ -286,7 +286,7 @@ GetHidclassCollection(
 {
     PHIDCLASS_COLLECTION HidCollections;
     ULONG NumCollections;
-    ULONG Idx = 0;
+    ULONG Idx;
     PHIDCLASS_COLLECTION HidCollection = NULL;
 
     DPRINT("GetHidclassCollection: CollectionNumber - %x\n", CollectionNumber);
@@ -440,7 +440,7 @@ HidClassGetCollectionDescriptor(
 
         if (*OutLength >= Length)
         {
-            Status = 0;
+            Status = STATUS_SUCCESS;
         }
         else
         {
@@ -718,7 +718,7 @@ HidClassInterruptReadComplete(
                                           HIDCLASS_SHUTTLE_DISABLED,
                                           HIDCLASS_SHUTTLE_START_READ);
 
-    if (Irp->IoStatus.Status >= 0)
+    if (NT_SUCCESS(Irp->IoStatus.Status))
     {
         //PCHAR Report;
 
@@ -850,7 +850,7 @@ NextData:
             //
             KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
         }
-        else if (Irp->IoStatus.Status < 0)
+        else if (!NT_SUCCESS(Irp->IoStatus.Status))
         {
             DPRINT1("[HIDCLASS] Status - %x, TimerPeriod - %X, Shuttle - %p\n",
                      Irp->IoStatus.Status,
@@ -2413,12 +2413,7 @@ HidClassFDO_PnP(
     FDODeviceExtension = DeviceObject->DeviceExtension;
     ASSERT(FDODeviceExtension->Common.IsFDO);
 
-    if (0)//IoAcquireRemoveLock(&FDODeviceExtension->HidRemoveLock, 0))
-    {
-        Irp->IoStatus.Status = Status;
-        IoCompleteRequest(Irp, IO_NO_INCREMENT);
-        return Status;
-    }
+    //FIXME RemoveLock
 
     //
     // get current irp stack location

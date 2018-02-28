@@ -402,8 +402,8 @@ HidClassPDO_HandleQueryCompatibleId(
     //
     // zero buffer
     //
-    Buffer[0] = 0;
-    Buffer[1] = 0;
+    Buffer[0] = UNICODE_NULL;
+    Buffer[1] = UNICODE_NULL;
 
     //
     // store result
@@ -470,7 +470,7 @@ HidClassAllPdoInitialized(
             {
                 ix++;
 
-                if ( ix >= DeviceRelations->Count )
+                if (ix >= DeviceRelations->Count)
                 {
                     DPRINT("HidClassAllPdoInitialized: Result - %x\n", Result);
                     return Result;
