@@ -361,24 +361,18 @@ GetShuttleFromIrp(
     PHIDCLASS_SHUTTLE Result = NULL;
 
     ShuttleCount = FDODeviceExtension->ShuttleCount;
+    Shuttle = &FDODeviceExtension->Shuttles[0];
 
-    if (ShuttleCount)
+    for (Idx = 0; Idx < ShuttleCount; Idx++)
     {
-        Shuttle = &FDODeviceExtension->Shuttles[0];
-
-        for (Idx = 0; Idx < ShuttleCount; Idx++)
+        if (Shuttle[Idx].ShuttleIrp == Irp)
         {
-            if (Shuttle[Idx].ShuttleIrp == Irp)
-            {
-                Result = &Shuttle[Idx];
-                break;
-            }
+            Result = &Shuttle[Idx];
+            break;
         }
     }
 
-    DPRINT("GetShuttleFromIrp: Irp - %p, Shuttle - %p\n",
-           Irp,
-           Result);
+    DPRINT("GetShuttleFromIrp: Irp - %p, Shuttle - %p\n", Irp, Result);
 
     return Result;
 }
@@ -429,36 +423,35 @@ HidClassGetCollectionDescriptor(
     ULONG Length;
     NTSTATUS Status;
 
-    DPRINT("HidClassGetCollectionDescriptor: CollectionNumber - %x\n", CollectionNumber);
+    DPRINT("HidClassGetCollectionDescriptor: CollectionNumber - %x\n",
+           CollectionNumber);
 
     HidCollectionDesc = GetCollectionDesc(FDODeviceExtension,
                                           CollectionNumber);
 
-    if (HidCollectionDesc)
+    if (!HidCollectionDesc)
     {
-        Length = HidCollectionDesc->PreparsedDataLength;
+        DPRINT1("[HIDCLASS] Collection descriptor not found\n");
+        return STATUS_DATA_ERROR;
+    }
 
-        if (*OutLength >= Length)
-        {
-            Status = STATUS_SUCCESS;
-        }
-        else
-        {
-            Length = *OutLength;
-            Status = STATUS_INVALID_BUFFER_SIZE;
-        }
+    Length = HidCollectionDesc->PreparsedDataLength;
 
-        RtlCopyMemory(OutCollectionData,
-                      HidCollectionDesc->PreparsedData,
-                      Length);
-
-        *OutLength = HidCollectionDesc->PreparsedDataLength;
+    if (*OutLength >= Length)
+    {
+        Status = STATUS_SUCCESS;
     }
     else
     {
-        DPRINT1("[HIDCLASS] Collection descriptor not found\n");
-        Status = STATUS_DATA_ERROR;
+        Length = *OutLength;
+        Status = STATUS_INVALID_BUFFER_SIZE;
     }
+
+    RtlCopyMemory(OutCollectionData,
+                  HidCollectionDesc->PreparsedData,
+                  Length);
+
+    *OutLength = HidCollectionDesc->PreparsedDataLength;
 
     return Status;
 }
@@ -718,157 +711,157 @@ HidClassInterruptReadComplete(
                                           HIDCLASS_SHUTTLE_DISABLED,
                                           HIDCLASS_SHUTTLE_START_READ);
 
-    if (NT_SUCCESS(Irp->IoStatus.Status))
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
     {
-        //PCHAR Report;
-
-        InputReport = Irp->UserBuffer;
-        Length = Irp->IoStatus.Information;
-
-        //Report = InputReport;
-        //DPRINT("[HIDCLASS] ReportData[%x] %02x %02x %02x %02x %02x %02x %02x %02x\n", Length,
-        //    Report[0], Report[1], Report[2], Report[3], Report[4], Report[5], Report[6], Report[7]);
-
-        if (Irp->IoStatus.Information > 0)
-        {
-            while (TRUE)
-            {
-                if (FDODeviceExtension->Common.DeviceDescription.ReportIDs[0].ReportID)
-                {
-                    //
-                    // first byte of the buffer is the report ID for the report
-                    //
-                    Id = *(PUCHAR)InputReport;
-                    InputReport = (PUCHAR)InputReport + 1;
-                    Length--;
-                }
-                else
-                {
-                    Id = 0;
-                }
-
-                ReportId = GetReportIdentifier(FDODeviceExtension, Id);
-
-                if (!ReportId)
-                {
-                    break;
-                }
-
-                if (Id)
-                {
-                    HidDataLen = ReportId->InputLength - 1;
-                }
-                else
-                {
-                    HidDataLen = ReportId->InputLength;
-                }
-
-                if (HidDataLen <= 0 || HidDataLen > Length)
-                {
-                    break;
-                }
-
-                HidCollection = GetHidclassCollection(FDODeviceExtension,
-                                                      ReportId->CollectionNumber);
-
-                HidCollectionDesc = GetCollectionDesc(FDODeviceExtension,
-                                                      ReportId->CollectionNumber);
-
-                if (!HidCollection || !HidCollectionDesc)
-                {
-                    break;
-                }
-
-                ClientPdoExtensions = FDODeviceExtension->ClientPdoExtensions;
-
-                if (!ClientPdoExtensions)
-                {
-                    goto NextData;
-                }
-
-                PDODeviceExtension = ClientPdoExtensions[HidCollection->CollectionIdx];
-
-                if (!PDODeviceExtension)
-                {
-                    goto NextData;
-                }
-
-                if (PDODeviceExtension == NULL ||
-                    PDODeviceExtension->HidPdoState != HIDCLASS_STATE_STARTED)
-                {
-                    goto NextData;
-                }
-
-                //
-                // first byte of the buffer is the report ID for the report
-                //
-                *(PUCHAR)HidCollection->InputReport = Id;
-
-                RtlCopyMemory((PUCHAR)HidCollection->InputReport + 1,
-                              InputReport,
-                              HidDataLen);
-
-                DPRINT("HidClassInterruptReadComplete: FIXME CheckReportPowerEvent()\n");
-                //CheckReportPowerEvent(FDODeviceExtension,
-                //                      HidCollection,
-                //                      HidCollection->InputReport,
-                //                      HidCollectionDesc->InputLength);
-
-                HidClassHandleInterruptReport(HidCollection,
-                                              HidCollection->InputReport,
-                                              HidCollectionDesc->InputLength,
-                                              PDODeviceExtension->IsSessionSecurity);
-
-NextData:
-                //
-                // next hid data (HID_DATA)
-                //
-                InputReport = (PUCHAR)InputReport + HidDataLen;
-                Length -= HidDataLen;
-
-                if (Length <= 0)
-                {
-                    break;
-                }
-            }
-        }
-
-        Shuttle->TimerPeriod.QuadPart = (LONGLONG)-1000 * 10000;
+        goto Exit;
     }
 
-    if (OldState != HIDCLASS_SHUTTLE_START_READ)
+    InputReport = Irp->UserBuffer;
+
+{
+    //PCHAR Report;
+    //Length = Irp->IoStatus.Information;
+    //Report = InputReport;
+    //DPRINT("[HIDCLASS] ReportData[%x] %02x %02x %02x %02x %02x %02x %02x %02x\n", Length,
+    //    Report[0], Report[1], Report[2], Report[3], Report[4], Report[5], Report[6], Report[7]);
+}
+
+    for (Length = Irp->IoStatus.Information;
+         Length > 0;
+         Length -= HidDataLen)
     {
-        //
-        // checks if shuttle state is a cancelling
-        //
-        if (Shuttle->CancellingShuttle)
+        if (FDODeviceExtension->Common.DeviceDescription.ReportIDs[0].ReportID)
         {
-            DPRINT1("[HIDCLASS] Cancelling Shuttle %p\n", Shuttle);
-
             //
-            // sets a ShuttleDoneEvent to a signaled state
+            // first byte of the buffer is the report ID for the report
             //
-            KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
-        }
-        else if (!NT_SUCCESS(Irp->IoStatus.Status))
-        {
-            DPRINT1("[HIDCLASS] Status - %x, TimerPeriod - %X, Shuttle - %p\n",
-                     Irp->IoStatus.Status,
-                     Shuttle->TimerPeriod.LowPart,
-                     Shuttle);
-
-            KeSetTimer(&Shuttle->ShuttleTimer,
-                       Shuttle->TimerPeriod,
-                       &Shuttle->ShuttleTimerDpc);
+            Id = *(PUCHAR)InputReport;
+            InputReport = (PUCHAR)InputReport + 1;
+            Length--;
         }
         else
         {
-            BOOLEAN IsSending;
-
-            HidClassSubmitInterruptRead(FDODeviceExtension,
-                                        Shuttle,
-                                        &IsSending);
+            Id = 0;
         }
+
+        ReportId = GetReportIdentifier(FDODeviceExtension, Id);
+
+        if (!ReportId)
+        {
+            break;
+        }
+
+        if (Id)
+        {
+            HidDataLen = ReportId->InputLength - 1;
+        }
+        else
+        {
+            HidDataLen = ReportId->InputLength;
+        }
+
+        if (HidDataLen <= 0 || HidDataLen > Length)
+        {
+            break;
+        }
+
+        HidCollection = GetHidclassCollection(FDODeviceExtension,
+                                              ReportId->CollectionNumber);
+
+        HidCollectionDesc = GetCollectionDesc(FDODeviceExtension,
+                                              ReportId->CollectionNumber);
+
+        if (!HidCollection || !HidCollectionDesc)
+        {
+            break;
+        }
+
+        ClientPdoExtensions = FDODeviceExtension->ClientPdoExtensions;
+
+        if (!ClientPdoExtensions)
+        {
+            goto NextData;
+        }
+
+        PDODeviceExtension = ClientPdoExtensions[HidCollection->CollectionIdx];
+
+        if (!PDODeviceExtension)
+        {
+            goto NextData;
+        }
+
+        if (PDODeviceExtension == NULL ||
+            PDODeviceExtension->HidPdoState != HIDCLASS_STATE_STARTED)
+        {
+            goto NextData;
+        }
+
+        //
+        // first byte of the buffer is the report ID for the report
+        //
+        *(PUCHAR)HidCollection->InputReport = Id;
+
+        RtlCopyMemory((PUCHAR)HidCollection->InputReport + 1,
+                      InputReport,
+                      HidDataLen);
+
+        DPRINT("HidClassInterruptReadComplete: FIXME CheckReportPowerEvent()\n");
+        //CheckReportPowerEvent(FDODeviceExtension,
+        //                      HidCollection,
+        //                      HidCollection->InputReport,
+        //                      HidCollectionDesc->InputLength);
+
+        HidClassHandleInterruptReport(HidCollection,
+                                      HidCollection->InputReport,
+                                      HidCollectionDesc->InputLength,
+                                      PDODeviceExtension->IsSessionSecurity);
+
+NextData:
+        //
+        // next hid data (HID_DATA)
+        //
+        InputReport = (PUCHAR)InputReport + HidDataLen;
+    }
+
+    Shuttle->TimerPeriod.QuadPart = (LONGLONG)-1000 * 10000;
+
+Exit:
+
+    if (OldState == HIDCLASS_SHUTTLE_START_READ)
+    {
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    //
+    // checks if shuttle state is a cancelling
+    //
+    if (Shuttle->CancellingShuttle)
+    {
+        DPRINT1("[HIDCLASS] Cancelling Shuttle %p\n", Shuttle);
+
+        //
+        // sets a ShuttleDoneEvent to a signaled state
+        //
+        KeSetEvent(&Shuttle->ShuttleDoneEvent, IO_NO_INCREMENT, FALSE);
+    }
+    else if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        DPRINT1("[HIDCLASS] Status - %x, TimerPeriod - %X, Shuttle - %p\n",
+                 Irp->IoStatus.Status,
+                 Shuttle->TimerPeriod.LowPart,
+                 Shuttle);
+
+        KeSetTimer(&Shuttle->ShuttleTimer,
+                   Shuttle->TimerPeriod,
+                   &Shuttle->ShuttleTimerDpc);
+    }
+    else
+    {
+        BOOLEAN IsSending;
+
+        HidClassSubmitInterruptRead(FDODeviceExtension,
+                                    Shuttle,
+                                    &IsSending);
     }
 
     return STATUS_MORE_PROCESSING_REQUIRED;
@@ -889,7 +882,7 @@ HidClassSubmitInterruptRead(
 
     Irp = Shuttle->ShuttleIrp;
 
-    *OutIsSending = 0;
+    *OutIsSending = FALSE;
 
     DPRINT("HidClassSubmitInterruptRead: ShuttleIrp - %p\n", Irp);
 
@@ -1265,7 +1258,7 @@ HidClassFDO_QueryCapabilitiesCompletionRoutine(
     //
     // set event
     //
-    KeSetEvent(Context, 0, FALSE);
+    KeSetEvent(Context, IO_NO_INCREMENT, FALSE);
 
     //
     // completion is done in the HidClassFDO_QueryCapabilities routine
@@ -1376,7 +1369,7 @@ HidClassFDO_DispatchRequestSynchronousCompletion(
     //
     // signal event
     //
-    KeSetEvent(Context, 0, FALSE);
+    KeSetEvent(Context, IO_NO_INCREMENT, FALSE);
 
     //
     // done
@@ -1725,35 +1718,34 @@ HidClassAllocCollectionResources(
     CollectionDescArray = DeviceDescription->CollectionDesc;
     InputLength = CollectionDescArray[HIDCollection->CollectionIdx].InputLength;
 
-    if (InputLength)
-    {
-        if (HIDCollection->HidCollectInfo.Polled)
-        {
-            HIDCollection->InputReport = NULL;
-        }
-        else
-        {
-            InputReport = ExAllocatePoolWithTag(NonPagedPool,
-                                                InputLength,
-                                                HIDCLASS_TAG);
-
-
-            HIDCollection->InputReport = InputReport;
-
-            if (!InputReport)
-            {
-                DPRINT1("[HIDCLASS] Failed to allocate InputReport\n");
-                Status = STATUS_INSUFFICIENT_RESOURCES;
-            }
-        }
-
-        FDODeviceExtension->NotAllocCollectResources = FALSE;
-    }
-    else
+    if (!InputLength)
     {
         DPRINT1("[HIDCLASS] InputLength is 0\n");
         HIDCollection->InputReport = NULL;
+        return Status;
     }
+
+    if (HIDCollection->HidCollectInfo.Polled)
+    {
+        HIDCollection->InputReport = NULL;
+    }
+    else
+    {
+        InputReport = ExAllocatePoolWithTag(NonPagedPool,
+                                            InputLength,
+                                            HIDCLASS_TAG);
+
+
+        HIDCollection->InputReport = InputReport;
+
+        if (!InputReport)
+        {
+            DPRINT1("[HIDCLASS] Failed to allocate InputReport\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    FDODeviceExtension->NotAllocCollectResources = FALSE;
 
     return Status;
 }
@@ -2134,7 +2126,7 @@ HidClassDeleteDeviceObjects(
 {
     PDEVICE_RELATIONS DeviceRelations;
     PDEVICE_OBJECT FDODeviceObject;
-    ULONG  ix;
+    ULONG ix;
 
     DPRINT("HidClassDeleteDeviceObjects: ... \n");
 
@@ -2148,16 +2140,16 @@ HidClassDeleteDeviceObjects(
         DPRINT("HidClassDeleteDeviceObjects: DeviceRelations->Count - %x\n",
                DeviceRelations->Count);
 
-        for (ix = 0; ix < FDODeviceExtension->DeviceRelations->Count; ix++)
+        for (ix = 0; ix < DeviceRelations->Count; ix++)
         {
             DPRINT("HidClassDeleteDeviceObjects: IoDeleteDevice(PDO %p)\n",
-                   FDODeviceExtension->DeviceRelations->Objects[ix]);
+                   DeviceRelations->Objects[ix]);
 
-            ObDereferenceObject(FDODeviceExtension->DeviceRelations->Objects[ix]);
-            IoDeleteDevice(FDODeviceExtension->DeviceRelations->Objects[ix]);
+            ObDereferenceObject(DeviceRelations->Objects[ix]);
+            IoDeleteDevice(DeviceRelations->Objects[ix]);
         }
 
-        ExFreePoolWithTag(FDODeviceExtension->DeviceRelations, HIDCLASS_TAG);
+        ExFreePoolWithTag(DeviceRelations, HIDCLASS_TAG);
     }
 
     FDODeviceExtension->DeviceRelations = NULL;
@@ -2181,27 +2173,22 @@ NTAPI
 HidClassCleanUpFDO(
     IN PHIDCLASS_FDO_EXTENSION FDODeviceExtension)
 {
-    NTSTATUS Status;
-
     DPRINT("HidClassCleanUpFDO: OpenCount - %x\n", FDODeviceExtension->OpenCount);
 
     if (FDODeviceExtension->OpenCount)
     {
-        Status = STATUS_UNSUCCESSFUL;
-    }
-    else
-    {
-        HidClassFreeDeviceResources(FDODeviceExtension);
-
-        // FIXME:
-        //IoWMIRegistrationControl(FDODeviceExtension->FDODeviceObject,
-        //                         WMIREG_ACTION_DEREGISTER);
-
-        HidClassDeleteDeviceObjects(FDODeviceExtension);
-        Status = STATUS_SUCCESS;
+        return STATUS_UNSUCCESSFUL;
     }
 
-    return Status;
+    HidClassFreeDeviceResources(FDODeviceExtension);
+
+    // FIXME:
+    //IoWMIRegistrationControl(FDODeviceExtension->FDODeviceObject,
+    //                         WMIREG_ACTION_DEREGISTER);
+
+    HidClassDeleteDeviceObjects(FDODeviceExtension);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -2225,33 +2212,30 @@ HidClassFDO_RemoveDevice(
 
     FdoPrevState = FDODeviceExtension->HidFdoPrevState;
 
-    if (FdoPrevState == HIDCLASS_STATE_FAILED ||
-        FdoPrevState == HIDCLASS_STATE_DISABLED ||
-        HidClassAllPdoInitialized(FDODeviceExtension, 0))
+    if (FdoPrevState != HIDCLASS_STATE_FAILED &&
+        FdoPrevState != HIDCLASS_STATE_DISABLED &&
+        !HidClassAllPdoInitialized(FDODeviceExtension, FALSE))
     {
-        HidClassDestroyShuttles(FDODeviceExtension);
-
-        Irp->IoStatus.Status = STATUS_SUCCESS;
-
-        IoSkipCurrentIrpStackLocation(Irp);
-
-        Status = HidClassFDO_DispatchRequest(FDODeviceExtension->FDODeviceObject,
-                                             Irp);
-
-        FDODeviceExtension->HidFdoState = HIDCLASS_STATE_DELETED;
-
-        DerefDriverExt(FDODeviceExtension->Common.DriverExtension->DriverObject);
-        FDODeviceExtension->Common.DriverExtension = NULL;
-
-        HidDeviceExtension = &FDODeviceExtension->Common.HidDeviceExtension;
-        IoDetachDevice(HidDeviceExtension->NextDeviceObject);
-
-        HidClassCleanUpFDO(FDODeviceExtension);
+        return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
-    else
-    {
-        Status = STATUS_DEVICE_CONFIGURATION_ERROR;
-    }
+
+    HidClassDestroyShuttles(FDODeviceExtension);
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    IoSkipCurrentIrpStackLocation(Irp);
+
+    Status = HidClassFDO_DispatchRequest(FDODeviceExtension->FDODeviceObject,
+                                         Irp);
+
+    FDODeviceExtension->HidFdoState = HIDCLASS_STATE_DELETED;
+
+    DerefDriverExt(FDODeviceExtension->Common.DriverExtension->DriverObject);
+    FDODeviceExtension->Common.DriverExtension = NULL;
+
+    HidDeviceExtension = &FDODeviceExtension->Common.HidDeviceExtension;
+    IoDetachDevice(HidDeviceExtension->NextDeviceObject);
+
+    HidClassCleanUpFDO(FDODeviceExtension);
 
     return Status;
 }
