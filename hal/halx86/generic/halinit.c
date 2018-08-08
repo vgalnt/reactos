@@ -29,6 +29,28 @@ BOOLEAN HalpPciLockSettings;
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
+BOOLEAN
+NTAPI
+HalpFindBusAddressTranslation(IN PHYSICAL_ADDRESS BusAddress,
+                              IN OUT PULONG AddressSpace,
+                              OUT PPHYSICAL_ADDRESS TranslatedAddress,
+                              IN OUT PULONG_PTR Context,
+                              IN BOOLEAN NextBus)
+{
+    /* Make sure we have a context */
+    if (!Context) return FALSE;
+
+    /* If we have data in the context, then this shouldn't be a new lookup */
+    if ((*Context != 0) && (NextBus != FALSE)) return FALSE;
+
+    /* Return bus data */
+    TranslatedAddress->QuadPart = BusAddress.QuadPart;
+
+    /* Set context value and return success */
+    *Context = 1;
+    return TRUE;
+}
+
 INIT_SECTION
 VOID
 NTAPI
@@ -47,6 +69,12 @@ HalpGetParameters(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 
         /* Check for initial breakpoint */
         if (strstr(CommandLine, "BREAK")) DbgBreakPoint();
+
+        /* FIXME ?
+           halapic.dll, halmps.dll - "ONECPU" "PCILOCK" "CLKLVL" "USE8254" "INTAFFINITY" "USEPHYSICALAPIC" "TIMERES" "BREAK" "MAXPROCSPERCLUSTER" "MAXAPICCLUSTER"
+           halaacpi.dll - "ONECPU" "PCILOCK" "INTAFFINITY" "USEPHYSICALAPIC" "BREAK" "MAXPROCSPERCLUSTER" "MAXAPICCLUSTER"
+           halmacpi.dll - "ONECPU" "PCILOCK" "USEPMTIMER" "INTAFFINITY" "USEPHYSICALAPIC" "BREAK" "MAXPROCSPERCLUSTER" "MAXAPICCLUSTER"
+        */
     }
 }
 
@@ -107,9 +135,6 @@ HalInitSystem(IN ULONG BootPhase,
             KeBugCheckEx(MISMATCHED_HAL, 2, Prcb->BuildType, HalpBuildType, 0);
         }
 
-        /* Initialize ACPI */
-        HalpSetupAcpiPhase0(LoaderBlock);
-
         /* Initialize the PICs */
         HalpInitializePICs(TRUE);
 
@@ -119,19 +144,35 @@ HalInitSystem(IN ULONG BootPhase,
         /* Initialize CMOS */
         HalpInitializeCmos();
 
-        /* Fill out the dispatch tables */
+        /* Fill out HalDispatchTable */
         HalQuerySystemInformation = HaliQuerySystemInformation;
-        HalSetSystemInformation = HaliSetSystemInformation;
         HalInitPnpDriver = HaliInitPnpDriver;
         HalGetDmaAdapter = HalpGetDmaAdapter;
 
-        HalGetInterruptTranslator = NULL;  // FIXME: TODO
+        HalpAssignGetInterruptTranslator();
+        HalpAssignHaltSystem();
+
+        /* Fill out HalPrivateDispatchTable */
         HalResetDisplay = HalpBiosDisplayReset;
-        HalHaltSystem = HaliHaltSystem;
+        //HalAllocateMapRegisters = HalpAllocateMapRegisters  // FIXME: TODO
+        //HalLocateHiberRanges = HaliLocateHiberRanges        // FIXME: TODO
+
+        /* Initialize ACPI */
+        HalpSetupAcpiPhase0(LoaderBlock);
+
+        /* Do some HAL-specific initialization */
+        HalpInitPhase0(LoaderBlock);
 
         /* Setup I/O space */
         HalpDefaultIoSpace.Next = HalpAddressUsageList;
         HalpAddressUsageList = &HalpDefaultIoSpace;
+
+        // FIXME HalpEisaIoSpace
+        if (HalpBusType == MACHINE_TYPE_EISA)
+        {
+            DPRINT1("HalInitSystem: HalpBusType == MACHINE_TYPE_EISA\n");
+            ASSERT(FALSE);
+        } 
 
         /* Setup busy waiting */
         HalpCalibrateStallExecution();
@@ -145,8 +186,7 @@ HalInitSystem(IN ULONG BootPhase,
          */
         HalStopProfileInterrupt(ProfileTime);
 
-        /* Do some HAL-specific initialization */
-        HalpInitPhase0(LoaderBlock);
+        // FIXME LessThan16Mb and HalpPhysicalMemoryMayAppearAbove4GB
     }
     else if (BootPhase == 1)
     {
@@ -154,7 +194,7 @@ HalInitSystem(IN ULONG BootPhase,
         HalpInitBusHandlers();
 
         /* Do some HAL-specific initialization */
-        HalpInitPhase1();
+        HalpInitPhase1(LoaderBlock);
     }
 
     /* All done, return */

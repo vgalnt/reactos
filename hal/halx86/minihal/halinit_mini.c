@@ -22,46 +22,22 @@ HalpInitProcessor(
     IN ULONG ProcessorNumber,
     IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
+    DPRINT1("HalpInitProcessor: LoaderBlock - %p\n", LoaderBlock);
+    ASSERT(FALSE);
 }
 
 VOID
 HalpInitPhase0(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
+    DPRINT1("HalpInitPhase0: LoaderBlock - %p\n", LoaderBlock);
+    ASSERT(FALSE);
 }
 
 VOID
-HalpInitPhase1(VOID)
+HalpInitPhase1(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
-}
-
-NTSTATUS
-NTAPI
-HalpSetupAcpiPhase0(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
-{
-    return STATUS_SUCCESS;
-}
-
-VOID
-NTAPI
-HalpInitializePICs(IN BOOLEAN EnableInterrupts)
-{
-}
-
-PDMA_ADAPTER
-NTAPI
-HalpGetDmaAdapter(
-    IN PVOID Context,
-    IN PDEVICE_DESCRIPTION DeviceDescription,
-    OUT PULONG NumberOfMapRegisters)
-{
-    return NULL;
-}
-
-BOOLEAN
-NTAPI
-HalpBiosDisplayReset(VOID)
-{
-    return FALSE;
+    DPRINT1("HalpInitPhase1: LoaderBlock - %p\n", LoaderBlock);
+    ASSERT(FALSE);
 }
 
 /* EOF */

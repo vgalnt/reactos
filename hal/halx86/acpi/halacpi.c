@@ -45,6 +45,28 @@ PWCHAR HalHardwareIdString = L"acpipic_up";
 PWCHAR HalName = L"ACPI Compatible Eisa/Isa HAL";
 
 /* PRIVATE FUNCTIONS **********************************************************/
+NTSTATUS
+NTAPI
+HalacpiInitPowerManagement(
+    _In_ PPM_DISPATCH_TABLE PmDriverDispatchTable,
+    _Out_ PPM_DISPATCH_TABLE *PmHalDispatchTable)
+{
+    DPRINT1("HalacpiInitPowerManagement()\n");
+    UNIMPLEMENTED;
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+VOID
+NTAPI
+HalpAssignHaltSystem(VOID)
+{
+    /* Fill out HalDispatchTable */
+    HalInitPowerManagement = HalacpiInitPowerManagement;
+
+    /* Fill out HalPrivateDispatchTable */
+    HalHaltSystem = HaliHaltSystem;
+}
 
 PDESCRIPTION_HEADER
 NTAPI

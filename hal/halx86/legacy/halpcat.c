@@ -30,6 +30,13 @@ PWCHAR HalName = L"PC Compatible Eisa/Isa HAL";
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
+VOID
+NTAPI
+HalpAssignHaltSystem(VOID)
+{
+    HaliAssignHaltSystem();
+}
+
 INIT_SECTION
 NTSTATUS
 NTAPI
