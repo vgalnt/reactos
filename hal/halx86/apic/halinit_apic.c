@@ -25,6 +25,13 @@ const USHORT HalpBuildType = HAL_BUILD_TYPE;
 
 VOID
 NTAPI
+HaliAssignHaltSystem(VOID)
+{
+    return;
+}
+
+VOID
+NTAPI
 HalpInitProcessor(
     IN ULONG ProcessorNumber,
     IN PLOADER_PARAMETER_BLOCK LoaderBlock)
@@ -40,9 +47,29 @@ HalpInitProcessor(
 
 }
 
+NTSTATUS
+NTAPI
+HalpSetSystemInformation(IN HAL_SET_INFORMATION_CLASS InformationClass,
+                         IN ULONG BufferSize,
+                         IN OUT PVOID Buffer)
+{
+    DPRINT1("HalpSetSystemInformation()\n");
+    UNIMPLEMENTED;
+    ASSERT(FALSE);
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 HalpInitPhase0(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
+    DPRINT1("HalpInitialize: LoaderBlock - %p\n", LoaderBlock);
+    ASSERT(FALSE);
+
+    /* Fill out HalDispatchTable */
+    HalSetSystemInformation = HalpSetSystemInformation;
+
+    /* Fill out HalPrivateDispatchTable */
+    HalFindBusAddressTranslation = HalpFindBusAddressTranslation;
 
     /* Enable clock interrupt handler */
     HalpEnableInterruptHandler(IDT_INTERNAL,
@@ -54,7 +81,7 @@ HalpInitPhase0(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 }
 
 VOID
-HalpInitPhase1(VOID)
+HalpInitPhase1(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
     /* Initialize DMA. NT does this in Phase 0 */
     HalpInitDma();

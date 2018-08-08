@@ -93,26 +93,27 @@ HalpGetSystemInterruptVector_Acpi(IN ULONG BusNumber,
     return Vector;
 }
 
-BOOLEAN
+NTSTATUS
 NTAPI
-HalpFindBusAddressTranslation(IN PHYSICAL_ADDRESS BusAddress,
-                              IN OUT PULONG AddressSpace,
-                              OUT PPHYSICAL_ADDRESS TranslatedAddress,
-                              IN OUT PULONG_PTR Context,
-                              IN BOOLEAN NextBus)
+HaliGetInterruptTranslator(
+    _In_ INTERFACE_TYPE ParentInterfaceType,
+    _In_ ULONG ParentBusNumber,
+    _In_ INTERFACE_TYPE BridgeInterfaceType,
+    _In_ USHORT Size,
+    _In_ USHORT Version,
+    _Out_ PTRANSLATOR_INTERFACE Translator,
+    _Out_ PULONG BridgeBusNumber)
 {
-    /* Make sure we have a context */
-    if (!Context) return FALSE;
+    UNIMPLEMENTED;
+    ASSERT(FALSE);
+    return STATUS_NOT_IMPLEMENTED;
+}
 
-    /* If we have data in the context, then this shouldn't be a new lookup */
-    if ((*Context != 0) && (NextBus != FALSE)) return FALSE;
-
-    /* Return bus data */
-    TranslatedAddress->QuadPart = BusAddress.QuadPart;
-
-    /* Set context value and return success */
-    *Context = 1;
-    return TRUE;
+VOID
+NTAPI
+HalpAssignGetInterruptTranslator(VOID)
+{
+    HalGetInterruptTranslator = HaliGetInterruptTranslator;
 }
 
 /* PUBLIC FUNCTIONS **********************************************************/

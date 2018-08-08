@@ -599,8 +599,8 @@ VOID HalpInitPciBus (VOID);
 VOID HalpInitDma (VOID);
 
 /* Non-generic initialization */
-VOID HalpInitPhase0 (PLOADER_PARAMETER_BLOCK LoaderBlock);
-VOID HalpInitPhase1(VOID);
+VOID HalpInitPhase0 (IN PLOADER_PARAMETER_BLOCK LoaderBlock);
+VOID HalpInitPhase1 (IN PLOADER_PARAMETER_BLOCK LoaderBlock);
 
 VOID
 NTAPI
@@ -844,6 +844,34 @@ NTAPI
 HalpInitProcessor(
     IN ULONG ProcessorNumber,
     IN PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+BOOLEAN
+NTAPI
+HalpFindBusAddressTranslation(
+    IN PHYSICAL_ADDRESS BusAddress,
+    IN OUT PULONG AddressSpace,
+    OUT PPHYSICAL_ADDRESS TranslatedAddress,
+    IN OUT PULONG_PTR Context,
+    IN BOOLEAN NextBus
+);
+
+VOID
+NTAPI
+HalpAssignGetInterruptTranslator(
+    VOID
+);
+
+VOID
+NTAPI
+HalpAssignHaltSystem(
+    VOID
+);
+
+VOID
+NTAPI
+HaliAssignHaltSystem(
+    VOID
 );
 
 #ifdef _M_AMD64

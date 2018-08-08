@@ -460,16 +460,6 @@ HalpAssignSlotResources(
     IN OUT PCM_RESOURCE_LIST *AllocatedResources
 );
 
-BOOLEAN
-NTAPI
-HalpFindBusAddressTranslation(
-    IN PHYSICAL_ADDRESS BusAddress,
-    IN OUT PULONG AddressSpace,
-    OUT PPHYSICAL_ADDRESS TranslatedAddress,
-    IN OUT PULONG_PTR Context,
-    IN BOOLEAN NextBus
-);
-
 VOID
 NTAPI
 HalpRegisterPciDebuggingDeviceInfo(
