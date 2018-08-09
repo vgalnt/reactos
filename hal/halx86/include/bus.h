@@ -607,6 +607,46 @@ HalpGetSystemInterruptVector(
     OUT PKAFFINITY Affinity
 );
 
+ULONG
+NTAPI
+HalpGetEisaData(
+    IN PBUS_HANDLER BusHandler,
+    IN PBUS_HANDLER RootHandler,
+    IN ULONG SlotNumber,
+    IN PVOID Buffer,
+    IN ULONG Offset,
+    IN ULONG Length
+);
+
+BOOLEAN
+NTAPI
+HalpTranslateEisaBusAddress(
+    IN PBUS_HANDLER BusHandler,
+    IN PBUS_HANDLER RootHandler,
+    IN PHYSICAL_ADDRESS BusAddress,
+    IN OUT PULONG AddressSpace,
+    OUT PPHYSICAL_ADDRESS TranslatedAddress
+);
+
+ULONG
+NTAPI
+HalpGetEisaInterruptVector(
+    IN PBUS_HANDLER BusHandler,
+    IN PBUS_HANDLER RootHandler,
+    IN ULONG BusInterruptLevel,
+    IN ULONG BusInterruptVector,
+    OUT PKIRQL Irql,
+    OUT PKAFFINITY Affinity
+);
+
+NTSTATUS
+NTAPI
+HalpAdjustEisaResourceList(
+    IN PBUS_HANDLER BusHandler,
+    IN PBUS_HANDLER RootHandler,
+    IN OUT PIO_RESOURCE_REQUIREMENTS_LIST *Resources
+);
+
 extern ULONG HalpBusType;
 extern BOOLEAN HalpPCIConfigInitialized;
 extern BUS_HANDLER HalpFakePciBusHandler;
