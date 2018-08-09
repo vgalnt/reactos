@@ -9,6 +9,8 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
+#include "ranges.h"
+
 //#define NDEBUG
 #include <debug.h>
 
@@ -729,6 +731,7 @@ HalpFixupPciSupportedRanges(IN ULONG BusCount)
 {
     ULONG i;
     PBUS_HANDLER Bus, ParentBus;
+    PSUPPORTED_RANGES OldBusAddresses;
 
     /* Loop all buses */
     for (i = 0; i < BusCount; i++)
@@ -737,14 +740,16 @@ HalpFixupPciSupportedRanges(IN ULONG BusCount)
         Bus = HalHandlerForBus(PCIBus, i);
 
         /* Loop all parent buses */
-        ParentBus = Bus->ParentHandler;
-        while (ParentBus)
+        for (ParentBus = Bus->ParentHandler;
+             ParentBus;
+             ParentBus = ParentBus->ParentHandler)
         {
             /* Should merge addresses */
             if (!WarningsGiven[0]++) DPRINT1("Found parent bus (indicating PCI Bridge). PCI devices may fail!\n");
 
-            /* Check the next parent */
-            ParentBus = ParentBus->ParentHandler;
+            OldBusAddresses = Bus->BusAddresses;
+            Bus->BusAddresses = HalpMergeRanges(ParentBus->BusAddresses, Bus->BusAddresses);
+            HalpFreeRangeList(OldBusAddresses);
         }
     }
 
@@ -758,18 +763,18 @@ HalpFixupPciSupportedRanges(IN ULONG BusCount)
         if (!((PPCIPBUSDATA)Bus->BusData)->Subtractive)
         {
             /* Loop all parent buses */
-            ParentBus = Bus->ParentHandler;
-            while (ParentBus)
+            for (ParentBus = Bus->ParentHandler;
+                 ParentBus;
+                 ParentBus = ParentBus->ParentHandler)
             {
                 /* But check only PCI parent buses specifically */
                 if (ParentBus->InterfaceType == PCIBus)
                 {
                     /* Should trim addresses */
                     if (!WarningsGiven[1]++) DPRINT1("Found parent PCI Bus (indicating PCI-to-PCI Bridge). PCI devices may fail!\n");
+                    ASSERT(FALSE);
+                    //HalpRemoveRanges(ParentBus->BusAddresses, Bus->BusAddresses);
                 }
-
-                /* Check the next parent */
-                ParentBus = ParentBus->ParentHandler;
             }
         }
     }
@@ -782,6 +787,7 @@ HalpFixupPciSupportedRanges(IN ULONG BusCount)
 
         /* Sort and combine (trim) bus address range information */
         DPRINT("Warning: Bus addresses not being optimized!\n");
+        HalpConsolidateRanges(Bus->BusAddresses);
     }
 }
 
