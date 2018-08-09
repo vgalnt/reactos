@@ -180,8 +180,36 @@ NTAPI
 HalpFreeRangeList(
     _In_ PSUPPORTED_RANGES List)
 {
-    DPRINT("HalpFreeRangeList: List - %p\n", List);
-    ASSERT(FALSE);
+    PSUPPORTED_RANGE Range;
+    PSUPPORTED_RANGE NextRange;
+
+    DPRINT("HalpFreeRangeList: List - %p\n");
+
+    for (Range = List->IO.Next; Range; Range = NextRange)
+    {
+        NextRange = Range->Next;
+        ExFreePoolWithTag(Range, TAG_HAL);
+    }
+
+    for (Range = List->Memory.Next; Range; Range = NextRange)
+    {
+        NextRange = Range->Next;
+        ExFreePoolWithTag(Range, TAG_HAL);
+    }
+
+    for (Range = List->PrefetchMemory.Next; Range; Range = NextRange)
+    {
+        NextRange = Range->Next;
+        ExFreePoolWithTag(Range, TAG_HAL);
+    }
+
+    for (Range = List->Dma.Next; Range; Range = NextRange)
+    {
+        NextRange = Range->Next;
+        ExFreePoolWithTag(Range, TAG_HAL);
+    }
+
+    ExFreePoolWithTag(List, TAG_HAL);
 }
 
 PSUPPORTED_RANGES
