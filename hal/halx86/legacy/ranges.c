@@ -132,9 +132,27 @@ HalpAddRange(
     _In_ ULONGLONG Base,
     _In_ ULONGLONG Limit)
 {
-    DPRINT("HalpAddRange: Range - %p, SystemAddressSpace - %X, SystemBase - %I64X, Base - %I64X, Limit - %I64X\n",
-           Range, SystemAddressSpace, SystemBase, Base, Limit);
-    ASSERT(FALSE);
+    PSUPPORTED_RANGE NewRange;
+
+    DPRINT("HalpAddRange: Range - %p, SystemAddressSpace - %X, SystemBase - %I64X, Base - %I64X, Limit - %I64X\n", Range, SystemAddressSpace, SystemBase, Base, Limit);
+
+    NewRange = ExAllocatePoolWithTag(NonPagedPool, sizeof(SUPPORTED_RANGE), TAG_HAL);
+
+    if (!NewRange)
+    {
+        ASSERT(FALSE);
+        return;
+    }
+
+    RtlZeroMemory(NewRange, sizeof(SUPPORTED_RANGE));
+
+    NewRange->Next = Range->Next;
+    Range->Next = NewRange;
+
+    NewRange->SystemAddressSpace = SystemAddressSpace;
+    NewRange->SystemBase = SystemBase;
+    NewRange->Base = Base;
+    NewRange->Limit = Limit;
 }
 
 VOID
