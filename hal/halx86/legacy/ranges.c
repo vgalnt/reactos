@@ -80,9 +80,40 @@ HalpMergeRanges(
     _In_ PSUPPORTED_RANGES List1,
     _In_ PSUPPORTED_RANGES List2)
 {
+    PSUPPORTED_RANGES NewList;
+    PSUPPORTED_RANGES TempList;
+
     DPRINT("HalpMergeRanges: List1 - %p, List2 - %p\n", List1, List2);
-    ASSERT(FALSE);
-    return NULL;
+
+    NewList = HalpAllocateNewRangeList();
+
+    if (!NewList)
+    {
+        ASSERT(FALSE);
+        return NULL;
+    }
+
+    HalpMergeRangeList(&NewList->IO, &List1->IO, &List2->IO);
+    HalpMergeRangeList(&NewList->Dma, &List1->Dma, &List2->Dma);
+    HalpMergeRangeList(&NewList->Memory, &List1->Memory, &List2->Memory);
+
+    TempList = HalpAllocateNewRangeList();
+
+    if (!TempList)
+    {
+        ASSERT(FALSE);
+        HalpFreeRangeList(NewList);
+        return NULL;
+    }
+
+    HalpAddRangeList(&TempList->Memory, &List1->Memory);
+    HalpAddRangeList(&TempList->Memory, &List1->PrefetchMemory);
+
+    HalpMergeRangeList(&NewList->PrefetchMemory, &TempList->Memory, &List2->PrefetchMemory);
+
+    HalpFreeRangeList(TempList);
+
+    return NewList;
 }
 
 VOID
