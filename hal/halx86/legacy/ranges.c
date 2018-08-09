@@ -143,8 +143,18 @@ HalpAddRangeList(
     _In_ PSUPPORTED_RANGE Range1,
     _In_ PSUPPORTED_RANGE Range2)
 {
+    PSUPPORTED_RANGE Range;
+
     DPRINT("HalpAddRangeList: Range1 - %p, Range2 - %p\n", Range1, Range2);
-    ASSERT(FALSE);
+
+    for (Range = Range2; Range; Range = Range->Next)
+    {
+        HalpAddRange(Range1,
+                     Range->SystemAddressSpace,
+                     Range->SystemBase,
+                     Range->Base,
+                     Range->Limit);
+    }
 }
 
 VOID
