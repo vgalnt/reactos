@@ -194,10 +194,19 @@ typedef struct _SUPPORTED_RANGE
 {
     struct _SUPPORTED_RANGE *Next;
     ULONG SystemAddressSpace;
-    LONGLONG SystemBase;
-    LONGLONG Base;
-    LONGLONG Limit;
+#if defined(_M_X64)
+    ULONG Padding0;
+#endif
+    ULONGLONG SystemBase;
+    ULONGLONG Base;
+    ULONGLONG Limit;
 } SUPPORTED_RANGE, *PSUPPORTED_RANGE;
+
+#if defined(_M_X64)
+  C_ASSERT(sizeof(SUPPORTED_RANGE) == 0x28);
+#else
+  C_ASSERT(sizeof(SUPPORTED_RANGE) == 0x20);
+#endif
 
 typedef struct _SUPPORTED_RANGES
 {
@@ -207,12 +216,21 @@ typedef struct _SUPPORTED_RANGES
     ULONG NoIO;
     SUPPORTED_RANGE IO;
     ULONG NoMemory;
+    ULONG Padding0;
     SUPPORTED_RANGE Memory;
     ULONG NoPrefetchMemory;
+    ULONG Padding1;
     SUPPORTED_RANGE PrefetchMemory;
     ULONG NoDma;
+    ULONG Padding2;
     SUPPORTED_RANGE Dma;
 } SUPPORTED_RANGES, *PSUPPORTED_RANGES;
+
+#if defined(_M_X64)
+  C_ASSERT(sizeof(SUPPORTED_RANGES) == 0xC0);
+#else
+  C_ASSERT(sizeof(SUPPORTED_RANGES) == 0xA0);
+#endif
 
 //
 // HAL Bus Handler
