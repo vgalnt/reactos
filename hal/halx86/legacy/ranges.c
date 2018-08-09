@@ -8,6 +8,16 @@
 
 /* GLOBALS ********************************************************************/
 
+static
+ULONG
+HalpRangeListOffset[5] = {
+    FIELD_OFFSET(SUPPORTED_RANGES, IO),
+    FIELD_OFFSET(SUPPORTED_RANGES, Memory),
+    FIELD_OFFSET(SUPPORTED_RANGES, PrefetchMemory),
+    FIELD_OFFSET(SUPPORTED_RANGES, Dma),
+    0 
+};
+
 /* FUNCTIONS **********************************************************/
 
 VOID
@@ -15,8 +25,103 @@ NTAPI
 HalpConsolidateRanges(
     _In_ PSUPPORTED_RANGES Ranges)
 {
+    PSUPPORTED_RANGE FirstRange;
+    PSUPPORTED_RANGE Range;
+    PSUPPORTED_RANGE NextRange;
+    LONGLONG SystemBase;
+    LONGLONG Base;
+    LONGLONG Limit;
+    LONGLONG RangeLimit;
+    ULONG SystemAddressSpace;
+    ULONG ix;
+
     DPRINT("HalpConsolidateRanges: Ranges - %p\n", Ranges);
-    ASSERT(FALSE);
+
+    ASSERT(Ranges != NULL);
+
+    for (ix = 0; HalpRangeListOffset[ix]; ix++)
+    {
+        FirstRange = (PSUPPORTED_RANGE)((ULONG_PTR)Ranges + HalpRangeListOffset[ix]);
+
+        DPRINT("HalpConsolidateRanges: HalpRangeListOffset[%X] - %X, FirstRange - %p\n",
+               ix, HalpRangeListOffset[ix], FirstRange);
+
+        for (Range = FirstRange; Range; Range = Range->Next)
+        {
+            for (NextRange = Range->Next;
+                 NextRange;
+                 NextRange = NextRange->Next)
+            {
+                if (NextRange->Base < Range->Base)
+                {
+                    SystemAddressSpace = Range->SystemAddressSpace;
+                    SystemBase = Range->SystemBase;
+                    Base = Range->Base;
+                    Limit = Range->Limit;
+
+                    Range->SystemAddressSpace = NextRange->SystemAddressSpace;
+                    Range->SystemBase = NextRange->SystemBase;
+                    Range->Base = NextRange->Base;
+                    Range->Limit = NextRange->Limit;
+
+                    NextRange->SystemAddressSpace = SystemAddressSpace;
+                    NextRange->SystemBase = SystemBase;
+                    NextRange->Base = Base;
+                    NextRange->Limit = Limit;
+                }
+            }
+        }
+
+        for (Range = FirstRange;
+             Range && Range->Next;
+             Range = Range->Next)
+        {
+            DPRINT("HalpConsolidateRanges: Range - %p, SysAddr - %X, SysBase - %I64X, Base - %I64X, Limit - %I64X\n",
+                   Range, Range->SystemAddressSpace, Range->SystemBase, Range->Base, Range->Limit);
+
+            NextRange = Range->Next;
+
+            if (Range->Limit < Range->Base)
+            {
+                *Range = *NextRange;
+                DPRINT("HalpConsolidateRanges: ExFreePoolWithTag(NextRange - %p)\n", NextRange);
+                ExFreePoolWithTag(NextRange, TAG_HAL);
+                continue;
+            }
+
+            RangeLimit = Range->Limit + 1;
+
+            if (RangeLimit > Range->Limit && RangeLimit > NextRange->Base)
+            {
+                Range->Next = NextRange->Next;
+
+                if (NextRange->Limit > Range->Limit)
+                {
+                    Range->Limit = NextRange->Limit;
+                    ASSERT(Range->SystemBase == NextRange->SystemBase);
+                    ASSERT(Range->SystemAddressSpace == NextRange->SystemAddressSpace);
+                }
+
+                DPRINT("HalpConsolidateRanges: ExFreePoolWithTag(NextRange - %p)\n", NextRange);
+                ExFreePoolWithTag(NextRange, TAG_HAL);
+                continue;
+            }
+        }
+
+        if (Range != FirstRange && Range->Limit < Range->Base)
+        {
+            for (NextRange = FirstRange;
+                 NextRange != Range;
+                 NextRange = NextRange->Next)
+            {
+                ;
+            }
+
+            NextRange->Next = NULL;
+            DPRINT("HalpConsolidateRanges: ExFreePoolWithTag(Range - %p)\n", Range);
+            ExFreePoolWithTag(Range, TAG_HAL);
+        }
+    }
 }
 
 PSUPPORTED_RANGES
