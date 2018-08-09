@@ -3,6 +3,7 @@ list(APPEND MINI_HAL_SOURCE
     ../generic/portio.c
     ../legacy/bus/bushndlr.c
     ../legacy/bus/cmosbus.c
+    ../legacy/bus/eisabus.c
     ../legacy/bus/isabus.c
     ../legacy/bus/pcibus.c
     ../legacy/bus/sysbus.c

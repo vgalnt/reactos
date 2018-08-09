@@ -2,6 +2,7 @@
 list(APPEND HAL_LEGACY_SOURCE
     legacy/bus/bushndlr.c
     legacy/bus/cmosbus.c
+    legacy/bus/eisabus.c
     legacy/bus/isabus.c
     legacy/bus/pcibus.c
     ${CMAKE_CURRENT_BINARY_DIR}/pci_classes.c

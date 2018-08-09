@@ -9,7 +9,7 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 PBUS_HANDLER
@@ -166,9 +166,14 @@ NTAPI
 HalpRegisterInternalBusHandlers(VOID)
 {
     PBUS_HANDLER Bus;
-
+  
     /* Only do processor 1 */
-    if (KeGetCurrentPrcb()->Number) return;
+    if (KeGetCurrentPrcb()->Number != 0)
+    {
+        DPRINT1("HalpRegisterInternalBusHandlers: KeGetCurrentPrcb()->Number - %X, exit\n", KeGetCurrentPrcb()->Number);
+        ASSERT(FALSE);
+        return;
+    }
 
     /* Register root support */
     HalpInitBusHandler();
@@ -176,16 +181,21 @@ HalpRegisterInternalBusHandlers(VOID)
     /* Allocate the system bus */
     Bus = HalpAllocateBusHandler(Internal,
                                  ConfigurationSpaceUndefined,
-                                 0,
+                                 Internal,
                                  InterfaceTypeUndefined,
                                  0,
                                  0);
-    if (Bus)
+
+    if (!Bus)
     {
-        /* Set it up */
-        Bus->GetInterruptVector = HalpGetSystemInterruptVector;
-        Bus->TranslateBusAddress = HalpTranslateSystemBusAddress;
+        DPRINT1("HalpRegisterInternalBusHandlers: Bus == NULL, exit\n");
+        ASSERT(FALSE);
+        return;
     }
+
+    /* Set it up */
+    Bus->GetInterruptVector = HalpGetSystemInterruptVector;
+    Bus->TranslateBusAddress = HalpTranslateSystemBusAddress;
 
     /* Allocate the CMOS bus */
     Bus = HalpAllocateBusHandler(InterfaceTypeUndefined,
@@ -194,6 +204,7 @@ HalpRegisterInternalBusHandlers(VOID)
                                  InterfaceTypeUndefined,
                                  0,
                                  0);
+
     if (Bus)
     {
         /* Set it up */
@@ -208,30 +219,46 @@ HalpRegisterInternalBusHandlers(VOID)
                                  InterfaceTypeUndefined,
                                  0,
                                  0);
+
     if (Bus)
     {
         /* Set it up */
+
         Bus->GetBusData = HalpcGetCmosData;
         Bus->SetBusData = HalpcSetCmosData;
     }
 
-    /* Allocate ISA bus */
-    Bus = HalpAllocateBusHandler(Isa,
-                                 ConfigurationSpaceUndefined,
+    /* Allocate EISA bus */
+    Bus = HalpAllocateBusHandler(Eisa,
+                                 EisaConfiguration,
                                  0,
                                  Internal,
                                  0,
                                  0);
-    if (Bus)
+
+    if ( Bus )
+    {
+        /* Set it up */
+        Bus->GetBusData = HalpGetEisaData;
+        Bus->GetInterruptVector = HalpGetEisaInterruptVector;
+        Bus->AdjustResourceList = HalpAdjustEisaResourceList;
+        Bus->TranslateBusAddress = HalpTranslateEisaBusAddress;
+    }
+
+    Bus = HalpAllocateBusHandler(Isa,
+                                 ConfigurationSpaceUndefined,
+                                 0,
+                                 Eisa,
+                                 0,
+                                 0);
+
+    if ( Bus )
     {
         /* Set it up */
         Bus->GetBusData = HalpNoBusData;
         Bus->BusAddresses->Memory.Limit = 0xFFFFFF;
         Bus->TranslateBusAddress = HalpTranslateIsaBusAddress;
     }
-
-    /* No support for EISA or MCA */
-    ASSERT(HalpBusType == MACHINE_TYPE_ISA);
 }
 
 #ifndef _MINIHAL_
