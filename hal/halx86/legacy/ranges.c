@@ -23,10 +23,29 @@ PSUPPORTED_RANGES
 NTAPI 
 HalpAllocateNewRangeList()
 {
+    PSUPPORTED_RANGES NewRangeList;
     PAGED_CODE();
-    DPRINT("HalpAllocateNewRangeList()\n");
-    ASSERT(FALSE);
-    return NULL;
+
+    NewRangeList = ExAllocatePoolWithTag(NonPagedPool, sizeof(SUPPORTED_RANGES), TAG_HAL);
+
+    if (!NewRangeList)
+    {
+        ASSERT(0);
+        return NULL;
+    }
+
+    RtlZeroMemory(NewRangeList, sizeof(SUPPORTED_RANGES));
+
+    DPRINT("HalpAllocateNewRangeList: NewRangeList- %p\n", NewRangeList);
+
+    NewRangeList->Version = HAL_SUPPORTED_RANGE_VERSION;
+
+    NewRangeList->IO.Base = 1;
+    NewRangeList->Memory.Base = 1;
+    NewRangeList->PrefetchMemory.Base = 1;
+    NewRangeList->Dma.Base = 1;
+
+    return NewRangeList;
 }
 
 VOID
