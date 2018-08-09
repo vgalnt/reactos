@@ -890,6 +890,21 @@ HaliAssignHaltSystem(
     VOID
 );
 
+/* debug.c */
+
+VOID
+NTAPI
+HalpDumpCmResourceList(
+    _In_ PCM_RESOURCE_LIST CmResource
+);
+
+VOID
+NTAPI
+HalpDumpCmResourceDescriptor(
+    _In_ PSTR Tab,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor
+);
+
 #ifdef _M_AMD64
 #define KfLowerIrql KeLowerIrql
 #define KiEnterInterruptTrap(TrapFrame) /* We do all neccessary in asm code */
