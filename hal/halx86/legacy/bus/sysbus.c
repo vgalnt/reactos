@@ -25,13 +25,19 @@ HalpTranslateSystemBusAddress(IN PBUS_HANDLER BusHandler,
                               OUT PPHYSICAL_ADDRESS TranslatedAddress)
 {
     PSUPPORTED_RANGE Range = NULL;
-    
+
     /* Check what kind of address space this is */
     switch (*AddressSpace)
     {
         /* Memory address */
         case 0:
-            
+
+            if (BusHandler->InterfaceType == PCIBus)
+            {
+                Range = &BusHandler->BusAddresses->Memory;
+                break;
+            }
+
             /* Loop all prefetch memory */
             for (Range = &BusHandler->BusAddresses->PrefetchMemory;
                  Range;
@@ -45,7 +51,7 @@ HalpTranslateSystemBusAddress(IN PBUS_HANDLER BusHandler,
                     break;
                 }
             }
-            
+
             /* Check if we haven't found anything yet */
             if (!Range)
             {
@@ -63,10 +69,10 @@ HalpTranslateSystemBusAddress(IN PBUS_HANDLER BusHandler,
                     }
                 }
             }
-            
+
             /* Done */
             break;
-            
+
         /* I/O Space */
         case 1:
 
@@ -83,11 +89,15 @@ HalpTranslateSystemBusAddress(IN PBUS_HANDLER BusHandler,
                     break;
                 }
             }
-            
+
             /* Done */
             break;
+
+        default:
+            ASSERT(FALSE);
+            break;
     }
-    
+
     /* Check if we found a range */
     if (Range)
     {
@@ -104,7 +114,7 @@ HalpTranslateSystemBusAddress(IN PBUS_HANDLER BusHandler,
         *AddressSpace = Range->SystemAddressSpace;
         return TRUE;
     }
-    
+
     /* Nothing found */
     DPRINT1("Translation of %I64x failed!\n", BusAddress.QuadPart);
     return FALSE;
