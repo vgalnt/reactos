@@ -24,16 +24,15 @@ NTAPI
 HalpAllocateNewRangeList()
 {
     PSUPPORTED_RANGES NewRangeList;
+
     PAGED_CODE();
 
     NewRangeList = ExAllocatePoolWithTag(NonPagedPool, sizeof(SUPPORTED_RANGES), TAG_HAL);
-
     if (!NewRangeList)
     {
-        ASSERT(0);
+        ASSERT(FALSE);
         return NULL;
     }
-
     RtlZeroMemory(NewRangeList, sizeof(SUPPORTED_RANGES));
 
     DPRINT("HalpAllocateNewRangeList: NewRangeList- %p\n", NewRangeList);
@@ -55,9 +54,73 @@ HalpMergeRangeList(
     _In_ PSUPPORTED_RANGE Range1,
     _In_ PSUPPORTED_RANGE Range2)
 {
+    PSUPPORTED_RANGE Entry1;
+    PSUPPORTED_RANGE Entry2;
+    LONGLONG Base;
+    LONGLONG Limit;
+    BOOLEAN IsFirstEntry = TRUE;
+
     DPRINT("HalpMergeRangeList: NewRange - %p, Range1 - %p, Range2 - %p\n",
            NewRange, Range1, Range2);
-    ASSERT(FALSE);
+
+    for (Entry1 = Range1;
+         Entry1;
+         Entry1 = Entry1->Next)
+    {
+        for (Entry2 = Range2;
+             Entry2;
+             Entry2 = Entry2->Next)
+        {
+            if (Entry1->Base < Entry2->Base)
+            {
+                Base = Entry2->Base;
+            }
+            else
+            {
+                Base = Entry1->Base;
+            }
+
+            if (Entry1->Limit > Entry2->Limit)
+            {
+                Limit = Entry2->Limit;
+            }
+            else
+            {
+                Limit = Entry1->Limit;
+            }
+
+            if (Base > Limit)
+            {
+                continue;
+            }
+
+            if (IsFirstEntry)
+            {
+                NewRange->SystemAddressSpace = Entry2->SystemAddressSpace;
+                NewRange->SystemBase = Entry2->SystemBase;
+                NewRange->Base = Base;
+                NewRange->Limit = Limit;
+
+                IsFirstEntry = FALSE;
+            }
+            else
+            {
+                NewRange->Next = ExAllocatePoolWithTag(NonPagedPool,
+                                                       sizeof(SUPPORTED_RANGE),
+                                                       TAG_HAL);
+                if (!NewRange->Next)
+                {
+                    ASSERT(FALSE);
+                    return;
+                }
+
+                RtlZeroMemory(NewRange->Next, sizeof(SUPPORTED_RANGE));
+
+                NewRange = NewRange->Next;
+                NewRange->Next = NULL;
+            }
+        }
+    }
 }
 
 VOID
