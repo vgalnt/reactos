@@ -8,6 +8,7 @@ list(APPEND MINI_HAL_SOURCE
     ../legacy/bus/pcibus.c
     ../legacy/bus/sysbus.c
     ../legacy/bussupp.c
+    ../legacy/ranges.c
     ../generic/beep.c
     ../generic/bios.c
     ../generic/cmos.c

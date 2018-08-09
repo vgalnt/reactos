@@ -10,7 +10,8 @@ list(APPEND HAL_LEGACY_SOURCE
     legacy/bus/sysbus.c
     legacy/bussupp.c
     legacy/halpnpdd.c
-    legacy/halpcat.c)
+    legacy/halpcat.c
+    legacy/ranges.c)
 
 add_object_library(lib_hal_legacy ${HAL_LEGACY_SOURCE})
 add_dependencies(lib_hal_legacy bugcodes xdk)
