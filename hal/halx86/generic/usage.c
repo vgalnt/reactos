@@ -270,6 +270,8 @@ HalpReportResourceUsage(IN PUNICODE_STRING HalName,
 
         /* Use the debug port table if we have one */
         HalpGetInfoFromACPI = HalpGetDebugPortTable();
+        DPRINT1("HalpReportResourceUsage: HalpGetInfoFromACPI - %X\n", HalpGetInfoFromACPI);
+        ASSERT(FALSE);
 
         /* Check if we're using ACPI */
         if (!HalpGetInfoFromACPI)

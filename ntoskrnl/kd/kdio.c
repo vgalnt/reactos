@@ -379,7 +379,7 @@ KdpSerialInit(PKD_DISPATCH_TABLE DispatchTable,
             KdpDebugMode.Serial = FALSE;
             return;
         }
-        KdComPortInUse = SerialPortInfo.Address;
+        //KdComPortInUse = SerialPortInfo.Address;
 
         /* Initialize spinlock */
         KeInitializeSpinLock(&KdpSerialSpinLock);
