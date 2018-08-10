@@ -16,6 +16,8 @@
 
 /* GLOBALS *******************************************************************/
 
+extern PCM_RESOURCE_LIST IopInitHalResources;
+
 static CONFIGURATION_INFORMATION
 _SystemConfigurationInformation = { 0, 0, 0, 0, 0, 0, 0, FALSE, FALSE, 0, 0 };
 
@@ -1095,6 +1097,8 @@ IoReportHalResourceUsage(PUNICODE_STRING HalDescription,
   HANDLE HalKey;
   HANDLE DescriptionKey;
 
+  PAGED_CODE();
+
   /* Open/Create 'RESOURCEMAP' key. */
   RtlInitUnicodeString(&Name,
 		       L"\\Registry\\Machine\\HARDWARE\\RESOURCEMAP");
@@ -1104,7 +1108,7 @@ IoReportHalResourceUsage(PUNICODE_STRING HalDescription,
 			     0,
 			     NULL);
   Status = ZwCreateKey(&ResourcemapKey,
-		       KEY_ALL_ACCESS,
+		       KEY_READ | KEY_WRITE,
 		       &ObjectAttributes,
 		       0,
 		       NULL,
@@ -1122,7 +1126,7 @@ IoReportHalResourceUsage(PUNICODE_STRING HalDescription,
 			     ResourcemapKey,
 			     NULL);
   Status = ZwCreateKey(&HalKey,
-		       KEY_ALL_ACCESS,
+		       KEY_READ | KEY_WRITE,
 		       &ObjectAttributes,
 		       0,
 		       NULL,
@@ -1139,7 +1143,7 @@ IoReportHalResourceUsage(PUNICODE_STRING HalDescription,
 			     HalKey,
 			     NULL);
   Status = ZwCreateKey(&DescriptionKey,
-		       KEY_ALL_ACCESS,
+		       KEY_READ | KEY_WRITE,
 		       &ObjectAttributes,
 		       0,
 		       NULL,
@@ -1174,6 +1178,12 @@ IoReportHalResourceUsage(PUNICODE_STRING HalDescription,
 			 TranslatedList,
 			 ListSize);
   ZwClose(DescriptionKey);
+
+  IopInitHalResources = ExAllocatePoolWithTag(PagedPool, ListSize, '  pP');
+  if (!IopInitHalResources)
+    return STATUS_INSUFFICIENT_RESOURCES;
+
+  RtlCopyMemory(IopInitHalResources, RawList, ListSize);
 
   return(Status);
 }
