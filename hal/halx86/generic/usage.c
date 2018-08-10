@@ -243,6 +243,23 @@ HalpBuildPartialFromAddress(IN INTERFACE_TYPE Interface,
     }
 }
 
+static
+VOID
+NTAPI
+HalpAddDescriptors(IN PCM_PARTIAL_RESOURCE_LIST List,
+                   IN OUT PCM_PARTIAL_RESOURCE_DESCRIPTOR *Descriptor,
+                   IN PCM_PARTIAL_RESOURCE_DESCRIPTOR NewDescriptor)
+{
+    /* We have written a new partial descriptor */
+    List->Count++;
+
+    /* Copy new descriptor into the actual list */
+    RtlCopyMemory(*Descriptor, NewDescriptor, sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR));
+
+    /* Move pointer to the next partial descriptor */
+    (*Descriptor)++;
+}
+
 INIT_SECTION
 VOID
 NTAPI
@@ -255,10 +272,10 @@ HalpReportResourceUsage(IN PUNICODE_STRING HalName,
     CM_PARTIAL_RESOURCE_DESCRIPTOR RawPartial, TranslatedPartial;
     PCM_PARTIAL_RESOURCE_LIST RawPartialList = NULL, TranslatedPartialList = NULL;
     INTERFACE_TYPE Interface;
-    ULONG i, j, k, ListSize, Count, Port, Element, CurrentScale, SortScale, ReportType, FlagMatch;
+    ULONG i, j, k, ListSize, Count, Port, CurrentScale, SortScale, ReportType, FlagMatch;
     ADDRESS_USAGE *CurrentAddress;
     LARGE_INTEGER CurrentSortValue, SortValue;
-    DbgPrint("%wZ Detected\n", HalName);
+    DPRINT("HalpReportResourceUsage: %wZ Detected\n", HalName);
 
     /* Check if KD is using a COM port */
     if (KdComPortInUse)
@@ -297,7 +314,7 @@ HalpReportResourceUsage(IN PUNICODE_STRING HalName,
 
     /* On non-ACPI systems, we need to build an address map */
     HalpBuildAddressMap();
-
+ 
     /* Allocate the master raw and translated lists */
     RawList = ExAllocatePoolWithTag(NonPagedPool, PAGE_SIZE * 2, TAG_HAL);
     TranslatedList = ExAllocatePoolWithTag(NonPagedPool, PAGE_SIZE * 2, TAG_HAL);
@@ -330,16 +347,21 @@ HalpReportResourceUsage(IN PUNICODE_STRING HalName,
         }
     }
 
-    /* Our full raw descriptors start here */
-    RawFull = RawList->List;
-
-    /* Keep track of the current partial raw and translated descriptors */
-    CurrentRaw = (PCM_PARTIAL_RESOURCE_DESCRIPTOR)RawList->List;
-    CurrentTranslated = (PCM_PARTIAL_RESOURCE_DESCRIPTOR)TranslatedList->List;
+    /* Our full descriptors start here */
+    RawFull = &RawList->List[0];
+    TranslatedFull = &TranslatedList->List[0];
 
     /* Do two passes */
     for (ReportType = 0; ReportType < 2; ReportType++)
     {
+        RawList->Count++;
+        RawPartialList = &RawFull->PartialResourceList;
+        CurrentRaw = RawPartialList->PartialDescriptors;
+
+        TranslatedList->Count++;
+        TranslatedPartialList = &TranslatedFull->PartialResourceList;
+        CurrentTranslated = TranslatedPartialList->PartialDescriptors;
+
         /* Pass 0 is for device usage */
         if (ReportType == 0)
         {
@@ -348,95 +370,67 @@ HalpReportResourceUsage(IN PUNICODE_STRING HalName,
         }
         else
         {
-            /* Past 1 is for internal HAL usage */
+            /* Pass 1 is for internal HAL usage */
             FlagMatch = IDT_INTERNAL & ~IDT_REGISTERED;
             Interface = Internal;
         }
 
-        /* Reset loop variables */
-        i = Element = 0;
+        /* And it is of this new interface type */
+        RawFull->InterfaceType = Interface;
+        TranslatedFull->InterfaceType = Interface;
 
-        /* Start looping our address uage list and interrupts */
-        CurrentAddress = HalpAddressUsageList;
-        while (TRUE)
+        /* Start looping our interrupts */
+        for (i = 0; i <= MAXIMUM_IDTVECTOR; i++)
         {
-            /* Check for valid vector number */
-            if (i <= MAXIMUM_IDTVECTOR)
+            /* Check if this entry should be parsed */
+            if (!(HalpIDTUsageFlags[i].Flags & FlagMatch))
             {
-                /* Check if this entry should be parsed */
-                if ((HalpIDTUsageFlags[i].Flags & FlagMatch))
-                {
-                    /* Parse it */
-                    HalpBuildPartialFromIdt(i, &RawPartial, &TranslatedPartial);
-                    i++;
-                }
-                else
-                {
-                    /* Skip this entry */
-                    i++;
-                    continue;
-                }
+                /* Skip this entry */
+                continue;
             }
-            else
-            {
-                /* This is an address instead */
-                if (!CurrentAddress) break;
 
+            /* Parse it */
+            HalpBuildPartialFromIdt(i, &RawPartial, &TranslatedPartial);
+
+            HalpAddDescriptors(RawPartialList, &CurrentRaw, &RawPartial);
+            HalpAddDescriptors(TranslatedPartialList, &CurrentTranslated, &TranslatedPartial);
+        }
+
+        /* Start looping our address uage list */
+        for (CurrentAddress = HalpAddressUsageList;
+             CurrentAddress;
+             CurrentAddress = CurrentAddress->Next)
+        {
+            for (i = 0;
+                 CurrentAddress->Element[i].Length != 0;
+                 i++)
+            {
                 /* Check if the address should be reported */
                 if (!(CurrentAddress->Flags & FlagMatch) ||
-                    !(CurrentAddress->Element[Element].Length))
+                    !(CurrentAddress->Element[i].Length))
                 {
                     /* Nope, skip it */
-                    Element = 0;
-                    CurrentAddress = CurrentAddress->Next;
                     continue;
                 }
 
                 /* Otherwise, parse the entry */
                 HalpBuildPartialFromAddress(Interface,
                                             CurrentAddress,
-                                            Element,
+                                            i,
                                             &RawPartial,
                                             &TranslatedPartial);
-                Element++;
+
+                HalpAddDescriptors(RawPartialList, &CurrentRaw, &RawPartial);
+                HalpAddDescriptors(TranslatedPartialList, &CurrentTranslated, &TranslatedPartial);
             }
-
-            /* Check for interface change */
-            if (RawFull->InterfaceType != Interface)
-            {
-                /* We need to add another full descriptor */
-                RawList->Count++;
-                TranslatedList->Count++;
-
-                /* The full descriptor follows wherever we were */
-                RawFull = (PCM_FULL_RESOURCE_DESCRIPTOR)CurrentRaw;
-                TranslatedFull = (PCM_FULL_RESOURCE_DESCRIPTOR)CurrentTranslated;
-
-                /* And it is of this new interface type */
-                RawFull->InterfaceType = Interface;
-                TranslatedFull->InterfaceType = Interface;
-
-                /* And its partial descriptors begin here */
-                RawPartialList = &RawFull->PartialResourceList;
-                TranslatedPartialList = &TranslatedFull->PartialResourceList;
-
-                /* And our next full descriptor should follow here */
-                CurrentRaw = RawFull->PartialResourceList.PartialDescriptors;
-                CurrentTranslated = TranslatedFull->PartialResourceList.PartialDescriptors;
-            }
-
-            /* We have written a new partial descriptor */
-            RawPartialList->Count++;
-            TranslatedPartialList->Count++;
-
-            /* Copy our local descriptors into the actual list */
-            RtlCopyMemory(CurrentRaw, &RawPartial, sizeof(RawPartial));
-            RtlCopyMemory(CurrentTranslated, &TranslatedPartial, sizeof(TranslatedPartial));
-
-            /* Move to the next partial descriptor */
-            CurrentRaw++;
-            CurrentTranslated++;
         }
+
+        CurrentRaw++;
+        CurrentTranslated++;
+
+        /* Our full descriptors start here */
+        RawFull = (PCM_FULL_RESOURCE_DESCRIPTOR)CurrentRaw;
+        TranslatedFull = (PCM_FULL_RESOURCE_DESCRIPTOR)CurrentTranslated;
     }
 
     /* Get the final list of the size for the kernel call later */
@@ -445,6 +439,16 @@ HalpReportResourceUsage(IN PUNICODE_STRING HalName,
     /* Now reset back to the first full descriptor */
     RawFull = RawList->List;
     TranslatedFull = TranslatedList->List;
+
+#if DBG
+{
+    DPRINT1("HalpReportResourceUsage: Dump RawList:\n");
+    HalpDumpCmResourceList(RawList);
+    DPRINT1("HalpReportResourceUsage: Dump TranslatedList:\n");
+    HalpDumpCmResourceList(TranslatedList);
+    ASSERT(FALSE);
+}
+#endif
 
     /* And loop all the full descriptors */
     for (i = 0; i < RawList->Count; i++)
@@ -516,8 +520,8 @@ HalpReportResourceUsage(IN PUNICODE_STRING HalName,
                              ListSize);
 
     /* Free our lists */
-    ExFreePool(RawList);
-    ExFreePool(TranslatedList);
+    ExFreePoolWithTag(RawList, TAG_HAL);
+    ExFreePoolWithTag(TranslatedList, TAG_HAL);
 
     /* Get the machine's serial number */
     HalpReportSerialNumber();
