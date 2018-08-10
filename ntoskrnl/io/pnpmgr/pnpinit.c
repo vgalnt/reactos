@@ -24,6 +24,8 @@ PUNICODE_STRING PiInitGroupOrderTable;
 USHORT PiInitGroupOrderTableCount;
 INTERFACE_TYPE PnpDefaultInterfaceType;
 
+PCM_RESOURCE_LIST IopInitHalResources;
+
 /* FUNCTIONS ******************************************************************/
 
 INTERFACE_TYPE
