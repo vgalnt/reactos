@@ -31,6 +31,12 @@ INTERFACE_TYPE PnpDefaultInterfaceType;
 PCM_RESOURCE_LIST IopInitHalResources;
 extern PPHYSICAL_MEMORY_DESCRIPTOR MmPhysicalMemoryBlock;
 
+ARBITER_INSTANCE IopRootBusNumberArbiter;
+ARBITER_INSTANCE IopRootIrqArbiter;
+ARBITER_INSTANCE IopRootDmaArbiter;
+ARBITER_INSTANCE IopRootMemArbiter;
+ARBITER_INSTANCE IopRootPortArbiter;
+
 /* FUNCTIONS ******************************************************************/
 
 VOID
@@ -189,8 +195,37 @@ NTSTATUS
 NTAPI
 IopInitializeArbiters(VOID)
 {
-     /* FIXME: TODO */
-    return STATUS_SUCCESS;
+    NTSTATUS Status;
+
+    Status = IopPortInitialize();
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    Status = IopMemInitialize();
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    Status = IopDmaInitialize();
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    Status = IopIrqInitialize();
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    return IopBusNumberInitialize();
 }
 
 NTSTATUS
@@ -562,7 +597,6 @@ IopInitializePlugPlayServices(
         return STATUS_INVALID_PARAMETER_2;
     }
 
-
     /* Initialize locks and such */
     KeInitializeSpinLock(&IopDeviceTreeLock);
     KeInitializeSpinLock(&IopDeviceActionLock);
@@ -571,12 +605,15 @@ IopInitializePlugPlayServices(
     /* Get the default interface */
     PnpDefaultInterfaceType = IopDetermineDefaultInterfaceType();
 
-    /* Initialize arbiters */
-    Status = IopInitializeArbiters();
-    if (!NT_SUCCESS(Status)) return Status;
-
     /* Setup the group cache */
     Status = PiInitCacheGroupInformation();
+    if (!NT_SUCCESS(Status)) return Status;
+
+    /* Initialize memory resources */
+    IopInitializeResourceMap(LoaderBlock);
+
+    /* Initialize arbiters */
+    Status = IopInitializeArbiters();
     if (!NT_SUCCESS(Status)) return Status;
 
     /* Open the current control set */
