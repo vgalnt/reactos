@@ -1,6 +1,7 @@
 
 include_directories(
     ${REACTOS_SOURCE_DIR}
+    ${REACTOS_SOURCE_DIR}/sdk/lib/arbiter
     ${REACTOS_SOURCE_DIR}/sdk/lib/cmlib
     include
     ${CMAKE_CURRENT_BINARY_DIR}/include
@@ -126,6 +127,7 @@ list(APPEND SOURCE
     ${REACTOS_SOURCE_DIR}/ntoskrnl/fstub/translate.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/inbv/inbv.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/inbv/inbvport.c
+    ${REACTOS_SOURCE_DIR}/ntoskrnl/io/debug.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/iomgr/adapter.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/iomgr/arcname.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/iomgr/bootlog.c
@@ -160,7 +162,6 @@ list(APPEND SOURCE
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnpres.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnproot.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnputil.c
-    ${REACTOS_SOURCE_DIR}/ntoskrnl/io/debug.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/ke/apc.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/ke/balmgr.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/ke/bug.c
