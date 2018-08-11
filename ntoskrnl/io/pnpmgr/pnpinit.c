@@ -93,8 +93,17 @@ PiInitCacheGroupInformation(VOID)
                                                        &Count);
 
                 /* Cache it for later */
-                PiInitGroupOrderTable = GroupTable;
-                PiInitGroupOrderTableCount = (USHORT)Count;
+                if (NT_SUCCESS(Status))
+                {
+                    PiInitGroupOrderTable = GroupTable;
+                    PiInitGroupOrderTableCount = (USHORT)Count;
+                }
+                else
+                {
+                    DPRINT1("PiInitCacheGroupInformation: Status - %p\n", Status);
+                    PiInitGroupOrderTable = NULL;
+                    PiInitGroupOrderTableCount = 0;
+                }
             }
             else
             {
