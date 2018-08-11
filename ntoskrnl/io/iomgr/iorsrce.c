@@ -12,6 +12,9 @@
 /* INCLUDES *****************************************************************/
 
 #include <ntoskrnl.h>
+#include "../pnpio.h"
+
+//#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS *******************************************************************/
@@ -1149,10 +1152,11 @@ HeadlessTerminalAddResources(
  * @implemented
  */
 NTSTATUS NTAPI
-IoReportHalResourceUsage(PUNICODE_STRING HalDescription,
-			 PCM_RESOURCE_LIST RawList,
-			 PCM_RESOURCE_LIST TranslatedList,
-			 ULONG ListSize)
+IoReportHalResourceUsage(
+    _In_ PUNICODE_STRING HalDescription,
+    _In_ PCM_RESOURCE_LIST RawList,
+    _In_ PCM_RESOURCE_LIST TranslatedList,
+    _In_ ULONG ListSize)
 /*
  * FUNCTION:
  *      Reports hardware resources of the HAL in the
@@ -1169,103 +1173,134 @@ IoReportHalResourceUsage(PUNICODE_STRING HalDescription,
  *      Status.
  */
 {
-  OBJECT_ATTRIBUTES ObjectAttributes;
-  UNICODE_STRING Name;
-  ULONG Disposition;
-  NTSTATUS Status;
-  HANDLE ResourcemapKey;
-  HANDLE HalKey;
-  HANDLE DescriptionKey;
+    PCM_RESOURCE_LIST HeadlessRawList;
+    PCM_RESOURCE_LIST HeadlessTranslatedList;
+    PCM_RESOURCE_LIST CmInitHalResource;
+    UNICODE_STRING HalKeyName;
+    UNICODE_STRING ValueName;
+    HANDLE ResourceMapHandle;
+    ULONG HeadlessListSize;
+    NTSTATUS Status;
+    UNICODE_STRING ResourceMapName = RTL_CONSTANT_STRING(L"\\Registry\\Machine\\HARDWARE\\RESOURCEMAP");
 
-  PAGED_CODE();
+    PAGED_CODE();
+    DPRINT("IoReportHalResourceUsage: HalDescription - %wZ, ListSize - %X\n",
+           HalDescription, ListSize);
 
-  /* Open/Create 'RESOURCEMAP' key. */
-  RtlInitUnicodeString(&Name,
-		       L"\\Registry\\Machine\\HARDWARE\\RESOURCEMAP");
-  InitializeObjectAttributes(&ObjectAttributes,
-			     &Name,
-			     OBJ_CASE_INSENSITIVE | OBJ_OPENIF,
-			     0,
-			     NULL);
-  Status = ZwCreateKey(&ResourcemapKey,
-		       KEY_READ | KEY_WRITE,
-		       &ObjectAttributes,
-		       0,
-		       NULL,
-		       REG_OPTION_VOLATILE,
-		       &Disposition);
-  if (!NT_SUCCESS(Status))
-    return(Status);
+    RtlInitUnicodeString(&HalKeyName, L"Hardware Abstraction Layer");
+    Status = IopCreateRegistryKeyEx(&ResourceMapHandle,
+                                    0,
+                                    &ResourceMapName,
+                                    KEY_READ | KEY_WRITE,
+                                    REG_OPTION_VOLATILE,
+                                    NULL);
 
-  /* Open/Create 'Hardware Abstraction Layer' key */
-  RtlInitUnicodeString(&Name,
-		       L"Hardware Abstraction Layer");
-  InitializeObjectAttributes(&ObjectAttributes,
-			     &Name,
-			     OBJ_CASE_INSENSITIVE | OBJ_OPENIF,
-			     ResourcemapKey,
-			     NULL);
-  Status = ZwCreateKey(&HalKey,
-		       KEY_READ | KEY_WRITE,
-		       &ObjectAttributes,
-		       0,
-		       NULL,
-		       REG_OPTION_VOLATILE,
-		       &Disposition);
-  ZwClose(ResourcemapKey);
-  if (!NT_SUCCESS(Status))
-      return(Status);
-
-  /* Create 'HalDescription' key */
-  InitializeObjectAttributes(&ObjectAttributes,
-			     HalDescription,
-			     OBJ_CASE_INSENSITIVE,
-			     HalKey,
-			     NULL);
-  Status = ZwCreateKey(&DescriptionKey,
-		       KEY_READ | KEY_WRITE,
-		       &ObjectAttributes,
-		       0,
-		       NULL,
-		       REG_OPTION_VOLATILE,
-		       &Disposition);
-  ZwClose(HalKey);
-  if (!NT_SUCCESS(Status))
-    return(Status);
-
-  /* Add '.Raw' value. */
-  RtlInitUnicodeString(&Name,
-		       L".Raw");
-  Status = ZwSetValueKey(DescriptionKey,
-			 &Name,
-			 0,
-			 REG_RESOURCE_LIST,
-			 RawList,
-			 ListSize);
-  if (!NT_SUCCESS(Status))
+    if (!NT_SUCCESS(Status))
     {
-      ZwClose(DescriptionKey);
-      return(Status);
+        ASSERT(FALSE);
+        return Status;
     }
 
-  /* Add '.Translated' value. */
-  RtlInitUnicodeString(&Name,
-		       L".Translated");
-  Status = ZwSetValueKey(DescriptionKey,
-			 &Name,
-			 0,
-			 REG_RESOURCE_LIST,
-			 TranslatedList,
-			 ListSize);
-  ZwClose(DescriptionKey);
+    Status = HeadlessTerminalAddResources(RawList,
+                                          ListSize,
+                                          FALSE,
+                                          &HeadlessRawList,
+                                          &HeadlessListSize);
 
-  IopInitHalResources = ExAllocatePoolWithTag(PagedPool, ListSize, '  pP');
-  if (!IopInitHalResources)
-    return STATUS_INSUFFICIENT_RESOURCES;
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+        goto Exit;
+    }
 
-  RtlCopyMemory(IopInitHalResources, RawList, ListSize);
+    if (HeadlessRawList)
+    {
+        IopDumpCmResourceList(HeadlessRawList);
+        RawList = HeadlessRawList;
+        ListSize = HeadlessListSize;
+    }
 
-  return(Status);
+    RtlInitUnicodeString(&ValueName, L".Raw");
+    Status = IopWriteResourceList(ResourceMapHandle,
+                                  &HalKeyName,
+                                  HalDescription,
+                                  &ValueName,
+                                  RawList,
+                                  ListSize);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    RtlInitUnicodeString(&ValueName, L".Translated");
+    Status = HeadlessTerminalAddResources(TranslatedList,
+                                          ListSize,
+                                          TRUE,
+                                          &HeadlessTranslatedList,
+                                          &HeadlessListSize);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    if (HeadlessTranslatedList)
+    {
+        IopDumpCmResourceList(HeadlessRawList);
+        TranslatedList = HeadlessTranslatedList;
+        ListSize = HeadlessListSize;
+    }
+
+    Status = IopWriteResourceList(ResourceMapHandle,
+                                  &HalKeyName,
+                                  HalDescription,
+                                  &ValueName,
+                                  TranslatedList,
+                                  ListSize);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+    }
+
+    if (HeadlessTranslatedList)
+    {
+        ExFreePoolWithTag(HeadlessTranslatedList, 'sldH');
+    }
+
+Exit:
+    ZwClose(ResourceMapHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        if (HeadlessRawList)
+        {
+            ExFreePoolWithTag(HeadlessRawList, 'sldH');
+        }
+
+        return Status;
+    }
+
+    if (HeadlessRawList)
+    {
+        IopInitHalResources = HeadlessRawList;
+        return Status;
+    }
+
+    CmInitHalResource = ExAllocatePoolWithTag(PagedPool, ListSize, '  pP');
+    IopInitHalResources = CmInitHalResource;
+
+    if (!CmInitHalResource)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlCopyMemory(CmInitHalResource, RawList, ListSize);
+
+    return Status;
 }
 
 /* EOF */
