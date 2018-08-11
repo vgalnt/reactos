@@ -1065,6 +1065,86 @@ IoQueryDeviceDescription(PINTERFACE_TYPE BusType OPTIONAL,
    return Status;
 }
 
+NTSTATUS
+NTAPI
+HeadlessTerminalAddResources(
+    _In_ PCM_RESOURCE_LIST List,
+    _In_ ULONG ListSize,
+    _In_ BOOLEAN IsTranslated,
+    _Out_ PCM_RESOURCE_LIST *OutList,
+    _Out_ PULONG OutSize)
+{
+    PCM_RESOURCE_LIST CmResource;
+    PHYSICAL_ADDRESS TerminalPortAddress;
+    PCM_FULL_RESOURCE_DESCRIPTOR CmFullDesc;
+    PHYSICAL_ADDRESS TranslatedAddress;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+
+    DPRINT("HeadlessTerminalAddResources: List - %p, ListSize - %X, IsTranslated - %X\n",
+           List, ListSize, IsTranslated);
+
+    if (!HeadlessGlobals || HeadlessGlobals->IsNonLegacyDevice)
+    {
+        *OutList = NULL;
+        *OutSize = 0;
+        return STATUS_SUCCESS;
+    }
+
+    *OutSize = ListSize + sizeof(CM_FULL_RESOURCE_DESCRIPTOR);
+
+    CmResource = ExAllocatePoolWithTag(PagedPool,
+                                       ListSize + sizeof(CM_FULL_RESOURCE_DESCRIPTOR),
+                                       'sldH');
+    *OutList = CmResource;
+
+    if (!CmResource)
+    {
+        ASSERT(FALSE);
+        *OutSize = 0;
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlCopyMemory(CmResource, List, ListSize);
+
+    TerminalPortAddress.QuadPart = (ULONG_PTR)HeadlessGlobals->TerminalPortAddress;
+
+    if (IsTranslated)
+    {
+        ULONG AddressSpace = 1;
+
+        HalTranslateBusAddress(Internal,
+                               0,
+                               TerminalPortAddress,
+                               &AddressSpace,
+                               &TranslatedAddress);
+    }
+    else
+    {
+        TranslatedAddress = TerminalPortAddress;
+    }
+
+    (*OutList)->Count++;
+
+    CmFullDesc = (PCM_FULL_RESOURCE_DESCRIPTOR)((ULONG_PTR)(*OutList) + ListSize);
+
+    CmFullDesc->BusNumber = 0;
+    CmFullDesc->InterfaceType = Isa;
+
+    CmFullDesc->PartialResourceList.Count = 1;
+    CmFullDesc->PartialResourceList.Revision = 0;
+    CmFullDesc->PartialResourceList.Version = 0;
+
+    CmDescriptor = &CmFullDesc->PartialResourceList.PartialDescriptors[0];
+
+    CmDescriptor->Type = CmResourceTypePort;
+    CmDescriptor->ShareDisposition = CmResourceShareDriverExclusive;
+    CmDescriptor->Flags = CM_RESOURCE_PORT_IO;
+    CmDescriptor->u.Port.Start.QuadPart = TranslatedAddress.QuadPart;
+    CmDescriptor->u.Port.Length = 8;
+
+    return STATUS_SUCCESS;
+}
+
 /*
  * @implemented
  */
