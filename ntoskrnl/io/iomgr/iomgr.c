@@ -536,7 +536,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     }
 
     /* Initialize PnP manager */
-    IopInitializePlugPlayServices();
+    IopInitializePlugPlayServices(LoaderBlock, 0);
 
     /* Initialize SHIM engine */
     ApphelpCacheInitialize();
