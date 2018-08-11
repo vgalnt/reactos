@@ -8,6 +8,7 @@
  */
 
 #include <ntoskrnl.h>
+#include "../pnpio.h"
 
 #define NDEBUG
 #include <debug.h>
@@ -1439,3 +1440,70 @@ cleanup:
    return Status;
 }
 
+NTSTATUS
+NTAPI
+IopWriteResourceList(
+    _In_ HANDLE Handle,
+    _In_ PUNICODE_STRING ResourceName,
+    _In_ PUNICODE_STRING Description,
+    _In_ PUNICODE_STRING ValueName,
+    _In_ PCM_RESOURCE_LIST CmResource,
+    _In_ ULONG ListSize)
+{
+    NTSTATUS Status;
+    HANDLE ResourceHandle;
+    HANDLE DescriptionHandle;
+
+    PAGED_CODE();
+
+    if (ResourceName)
+        DPRINT("IopWriteResourceList: ResourceName - %wZ\n", ResourceName);
+    if (Description)
+        DPRINT("IopWriteResourceList: Description - %wZ\n", Description);
+    if (ResourceName)
+        DPRINT("IopWriteResourceList: ValueName - %wZ\n", ValueName);
+
+    Status = IopCreateRegistryKeyEx(&ResourceHandle,
+                                    Handle,
+                                    ResourceName,
+                                    KEY_READ | KEY_WRITE,
+                                    REG_OPTION_VOLATILE,
+                                    NULL);
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    Status = IopCreateRegistryKeyEx(&DescriptionHandle,
+                                    ResourceHandle,
+                                    Description,
+                                    KEY_READ | KEY_WRITE,
+                                    REG_OPTION_VOLATILE,
+                                    NULL);
+
+    ZwClose(ResourceHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    if (CmResource->Count)
+    {
+        Status = ZwSetValueKey(DescriptionHandle,
+                               ValueName,
+                               0,
+                               REG_RESOURCE_LIST,
+                               CmResource,
+                               ListSize);
+    }
+    else
+    {
+        Status = ZwDeleteValueKey(DescriptionHandle, ValueName);
+    }
+
+    ZwClose(DescriptionHandle);
+
+    return Status;
+}
