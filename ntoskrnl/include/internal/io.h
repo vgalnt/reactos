@@ -567,7 +567,8 @@ PipCallDriverAddDevice(
 NTSTATUS
 NTAPI
 IopInitializePlugPlayServices(
-    VOID
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock,
+    _In_ ULONG Phase
 );
 
 BOOLEAN
