@@ -18,6 +18,15 @@ IopDumpCmResourceDescriptor(
 );
 
 //
+// pnpinit.c
+//
+NTSTATUS NTAPI IopPortInitialize();
+NTSTATUS NTAPI IopMemInitialize();
+NTSTATUS NTAPI IopDmaInitialize();
+NTSTATUS NTAPI IopIrqInitialize();
+NTSTATUS NTAPI IopBusNumberInitialize();
+
+//
 // pnpres.c
 //
 NTSTATUS
