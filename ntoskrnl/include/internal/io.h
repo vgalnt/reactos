@@ -1324,6 +1324,22 @@ IopStoreSystemPartitionInformation(IN PUNICODE_STRING NtSystemPartitionDeviceNam
 );
 
 //
+// debug.c
+//
+VOID
+NTAPI
+IopDumpCmResourceList(
+    _In_ PCM_RESOURCE_LIST CmResource
+);
+
+VOID
+NTAPI
+IopDumpCmResourceDescriptor(
+    _In_ PSTR Tab,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor
+);
+
+//
 // Global I/O Data
 //
 extern POBJECT_TYPE IoCompletionType;
