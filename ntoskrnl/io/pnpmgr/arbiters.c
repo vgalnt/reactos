@@ -389,6 +389,18 @@ IopPortBacktrackAllocation()
 
 NTSTATUS
 NTAPI
+IopGenericTranslateOrdering(
+    _Out_ PIO_RESOURCE_DESCRIPTOR OutIoDescriptor,
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
+{
+    PAGED_CODE();
+    DPRINT("IopGenericTranslateOrdering: ... \n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 IopPortInitialize(VOID)
 {
     PAGED_CODE();
@@ -403,8 +415,12 @@ IopPortInitialize(VOID)
     IopRootPortArbiter.AddAllocation = IopPortAddAllocation;
     IopRootPortArbiter.BacktrackAllocation = IopPortBacktrackAllocation;
 
-    ASSERT(FALSE);
-    return STATUS_SUCCESS;
+    return ArbInitializeArbiterInstance(&IopRootPortArbiter,
+                                        NULL,
+                                        CmResourceTypePort,
+                                        L"RootPort",
+                                        L"Root",
+                                        IopGenericTranslateOrdering);
 }
 
 /* EOF */
