@@ -17,6 +17,157 @@
 
 NTSTATUS
 NTAPI
+ArbTestAllocation()
+{
+    DPRINT("ArbTestAllocation: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbRetestAllocation()
+{
+    DPRINT("ArbRetestAllocation: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbCommitAllocation()
+{
+    DPRINT("ArbCommitAllocation: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbRollbackAllocation()
+{
+    DPRINT("ArbRollbackAllocation: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbAddReserved()
+{
+    DPRINT("ArbAddReserved: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbPreprocessEntry()
+{
+    DPRINT("ArbPreprocessEntry: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbAllocateEntry()
+{
+    DPRINT("ArbAllocateEntry: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbGetNextAllocationRange()
+{
+    DPRINT("ArbGetNextAllocationRange: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbFindSuitableRange()
+{
+    DPRINT("ArbFindSuitableRange: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbAddAllocation()
+{
+    DPRINT("ArbAddAllocation: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbBacktrackAllocation()
+{
+    DPRINT("ArbBacktrackAllocation: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbOverrideConflict()
+{
+    DPRINT("ArbOverrideConflict: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbBootAllocation()
+{
+    DPRINT("ArbBootAllocation: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbQueryConflict()
+{
+    DPRINT("ArbQueryConflict: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbStartArbiter()
+{
+    DPRINT("ArbStartArbiter: ...\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ArbBuildAssignmentOrdering(
+    _Inout_ PARBITER_INSTANCE ArbInstance,
+    _In_ PCWSTR OrderName,
+    _In_ PCWSTR ReservedOrderName,
+    _In_ PARB_TRANSLATE_ORDERING TranslateOrderingFunction)
+{
+    //PAGED_CODE();
+    DPRINT("ArbBuildAssignmentOrdering: ArbInstance - %p, OrderName - %S, ReservedOrderName - %S, TranslateOrderingFunction - %p\n",
+           ArbInstance, OrderName, ReservedOrderName, TranslateOrderingFunction);
+
+    ASSERT(FALSE);
+    return 0;
+}
+
+NTSTATUS
+NTAPI
 ArbInitializeArbiterInstance(
     _Inout_ PARBITER_INSTANCE Arbiter,
     _In_ PDEVICE_OBJECT BusDeviceObject,
