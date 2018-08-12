@@ -203,15 +203,21 @@ typedef struct _ARBITER_INSTANCE {
     C_ASSERT(sizeof(ARBITER_INSTANCE) == 0x9C);
 #endif
 
+typedef NTSTATUS
+(NTAPI * PARB_TRANSLATE_ORDERING)(
+    _Out_ PIO_RESOURCE_DESCRIPTOR OutIoDescriptor,
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor
+);
+
 NTSTATUS
 NTAPI
 ArbInitializeArbiterInstance(
     _Inout_ PARBITER_INSTANCE Arbiter,
     _In_ PDEVICE_OBJECT BusDeviceObject,
-    _In_ ULONG ResourceType,
+    _In_ CM_RESOURCE_TYPE ResourceType,
     _In_ PWSTR ArbiterName,
     _In_ PCWSTR OrderName,
-    _In_ PVOID TranslateOrderingFunction
+    _In_ PARB_TRANSLATE_ORDERING TranslateOrderingFunction
 );
 
 #ifdef __cplusplus
