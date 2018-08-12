@@ -107,6 +107,38 @@ typedef struct _ARBITER_ALLOCATION_STATE {
     C_ASSERT(sizeof(ARBITER_ALLOCATION_STATE) == 0x38);
 #endif
 
+typedef NTSTATUS
+(NTAPI * PARB_UNPACK_REQUIREMENT)(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
+    _Out_ PULONGLONG OutMinimumAddress,
+    _Out_ PULONGLONG OutMaximumAddress,
+    _Out_ PULONG OutLength,
+    _Out_ PULONG OutAlignment
+);
+
+typedef NTSTATUS
+(NTAPI * PARB_PACK_RESOURCE)(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
+    _In_ PHYSICAL_ADDRESS Start,
+    _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor
+);
+
+typedef NTSTATUS
+(NTAPI * PARB_UNPACK_RESOURCE)(
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor,
+    _Out_ PULONGLONG OutMinimumAddress,
+    _Out_ PULONGLONG OutMaximumAddress,
+    _Out_ PULONG OutLength,
+    _Out_ PULONG OutAlignment
+);
+
+typedef LONG
+(NTAPI * PARB_SCORE_REQUIREMENT)(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor
+);
+
+//typedef struct _RTL_RANGE_LIST RTL_RANGE_LIST, *PRTL_RANGE_LIST;
+
 typedef struct _ARBITER_INSTANCE {
     ULONG Signature;
 #if defined(_M_X64)
@@ -132,26 +164,27 @@ typedef struct _ARBITER_INSTANCE {
     ULONG Padding3;
 #endif
     PARBITER_ALLOCATION_STATE AllocationStack;
-    PVOID UnpackRequirement;
-    PVOID PackResource;
-    PVOID UnpackResource;
-    PVOID ScoreRequirement;
-    PVOID TestAllocation;
-    PVOID RetestAllocation;
-    PVOID CommitAllocation;
-    PVOID RollbackAllocation;
-    PVOID BootAllocation;
-    PVOID QueryArbitrate;
-    PVOID QueryConflict;
-    PVOID AddReserved;
-    PVOID StartArbiter;
-    PVOID PreprocessEntry;
-    PVOID AllocateEntry;
-    PVOID GetNextAllocationRange;
-    PVOID FindSuitableRange;
-    PVOID AddAllocation;
-    PVOID BacktrackAllocation;
-    PVOID OverrideConflict;
+    PARB_UNPACK_REQUIREMENT UnpackRequirement;
+    PARB_PACK_RESOURCE PackResource;
+    PARB_UNPACK_RESOURCE UnpackResource;
+    PARB_SCORE_REQUIREMENT ScoreRequirement;
+    // FIXME next funcs
+    PVOID TestAllocation; // PARB_TEST_ALLOCATION
+    PVOID RetestAllocation; // PARB_RETEST_ALLOCATION
+    PVOID CommitAllocation; // PARB_COMMIT_ALLOCATION
+    PVOID RollbackAllocation; // PARB_ROLLBACK_ALLOCATION
+    PVOID BootAllocation; // PARB_BOOT_ALLOCATION
+    PVOID QueryArbitrate; // PARB_QUERY_ARBITRATE
+    PVOID QueryConflict; // PARB_QUERY_CONFLICT
+    PVOID AddReserved; // PARB_ADD_RESERVED
+    PVOID StartArbiter; // PARB_START_ARBITER
+    PVOID PreprocessEntry; // PARB_PREPROCESS_ENTRY
+    PVOID AllocateEntry; // PARB_ALLOCATE_ENTRY
+    PVOID GetNextAllocationRange; // PARB_GET_NEXT_ALLOCATION_RANGE
+    PVOID FindSuitableRange; // PARB_FIND_SUITABLE_RANGE
+    PVOID AddAllocation; // PARB_ADD_ALLOCATION
+    PVOID BacktrackAllocation; // PARB_BACKTRACK_ALLOCATION
+    PVOID OverrideConflict; // PARB_OVERRIDE_CONFLICT
     BOOLEAN TransactionInProgress;
 #if defined(_M_X64)
     UCHAR Padding4[0x7];
@@ -169,6 +202,17 @@ typedef struct _ARBITER_INSTANCE {
 #else
     C_ASSERT(sizeof(ARBITER_INSTANCE) == 0x9C);
 #endif
+
+NTSTATUS
+NTAPI
+ArbInitializeArbiterInstance(
+    _Inout_ PARBITER_INSTANCE Arbiter,
+    _In_ PDEVICE_OBJECT BusDeviceObject,
+    _In_ ULONG ResourceType,
+    _In_ PWSTR ArbiterName,
+    _In_ PCWSTR OrderName,
+    _In_ PVOID TranslateOrderingFunction
+);
 
 #ifdef __cplusplus
 }
