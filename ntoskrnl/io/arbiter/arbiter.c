@@ -180,6 +180,24 @@ ArbInitializeOrderingList(
     return Status;
 }
 
+VOID
+NTAPI
+ArbFreeOrderingList(
+    _Out_ PARBITER_ORDERING_LIST OrderList)
+{
+    //PAGED_CODE();
+
+    if (OrderList->Orderings)
+    {
+        ASSERT(OrderList->Maximum);
+        ExFreePoolWithTag(OrderList->Orderings, 'LbrA');
+    }
+
+    OrderList->Count = 0;
+    OrderList->Maximum = 0;
+    OrderList->Orderings = NULL;
+}
+
 NTSTATUS
 NTAPI
 ArbBuildAssignmentOrdering(
