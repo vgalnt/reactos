@@ -311,6 +311,58 @@ IopGenericScoreRequirement(
 
 NTSTATUS
 NTAPI
+IopTranslateBusAddress(
+    _In_ PHYSICAL_ADDRESS BusAddress,
+    _In_ CM_RESOURCE_TYPE Type,
+    _In_ PPHYSICAL_ADDRESS TranslatedAddress,
+    _Out_ CM_RESOURCE_TYPE * OutType)
+{
+    ULONG AddressSpace;
+
+    PAGED_CODE();
+
+    if (Type == CmResourceTypeMemory)
+    {
+        AddressSpace = 0;
+    }
+    else if (Type == CmResourceTypePort)
+    {
+        AddressSpace = 1;
+    }
+    else
+    {
+        DPRINT("IopTranslateBusAddress: STATUS_INVALID_PARAMETER. Type - %X\n", Type);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!HalTranslateBusAddress(Isa,
+                                0,
+                                BusAddress,
+                                &AddressSpace,
+                                TranslatedAddress))
+    {
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (AddressSpace == 0)
+    {
+        *OutType = CmResourceTypeMemory;
+    }
+    else if (AddressSpace == 1)
+    {
+        *OutType = CmResourceTypePort;
+    }
+    else
+    {
+        DPRINT("IopTranslateBusAddress: STATUS_INVALID_PARAMETER. AddressSpace - %X\n", AddressSpace);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 IopGenericTranslateOrdering(
     _Out_ PIO_RESOURCE_DESCRIPTOR OutIoDescriptor,
     _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
