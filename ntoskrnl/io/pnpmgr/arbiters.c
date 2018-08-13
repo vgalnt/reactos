@@ -173,6 +173,18 @@ IopIrqScoreRequirement(
 
 NTSTATUS
 NTAPI
+IopIrqTranslateOrdering(
+    _Out_ PIO_RESOURCE_DESCRIPTOR OutIoDescriptor,
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
+{
+    DPRINT("IopIrqTranslateOrdering()\n");
+    PAGED_CODE();
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 IopIrqInitialize(VOID)
 {
     DPRINT("IopIrqInitialize: &IopRootIrqArbiter - %p\n", &IopRootIrqArbiter);
