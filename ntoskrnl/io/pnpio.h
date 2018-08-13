@@ -17,6 +17,19 @@ IopDumpCmResourceDescriptor(
     _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor
 );
 
+VOID
+NTAPI
+IopDumpResourceRequirementsList(
+    _In_ PIO_RESOURCE_REQUIREMENTS_LIST IoResource
+);
+
+VOID
+NTAPI
+IopDumpIoResourceDescriptor(
+    _In_ PSTR Tab,
+    _In_ PIO_RESOURCE_DESCRIPTOR Descriptor
+);
+
 //
 // pnpinit.c
 //
