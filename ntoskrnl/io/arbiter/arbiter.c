@@ -152,6 +152,67 @@ ArbStartArbiter()
 
 NTSTATUS
 NTAPI
+ArbAddOrdering(
+    _Out_ PARBITER_ORDERING_LIST OrderList,
+    _In_ ULONGLONG MinimumAddress,
+    _In_ ULONGLONG MaximumAddress)
+{
+    PARBITER_ORDERING NewOrderings;
+    ULONG NewCount;
+
+    //PAGED_CODE();
+    //DPRINT("ArbAddOrdering: OrderList - %p, MinimumAddress - %I64X, MaximumAddress - %I64X\n",
+    //       OrderList, MinimumAddress, MaximumAddress);
+
+    if (MaximumAddress < MinimumAddress)
+    {
+        ASSERT(FALSE);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (OrderList->Count < OrderList->Maximum)
+    {
+        //DPRINT("ArbAddOrdering: OrderList->Count - %X, OrderList->Maximum - %X\n",
+        //       OrderList->Count, OrderList->Maximum);
+        goto Exit;
+    }
+
+    NewCount = (OrderList->Count + ARB_ORDERING_LIST_ADD_COUNT) *
+               sizeof(ARBITER_ORDERING);
+
+    NewOrderings = ExAllocatePoolWithTag(PagedPool, NewCount, 'LbrA');
+
+    if (!NewOrderings)
+    {
+        ASSERT(FALSE);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    if (OrderList->Orderings)
+    {
+        RtlCopyMemory(NewOrderings,
+                      OrderList->Orderings,
+                      sizeof(ARBITER_ORDERING) * OrderList->Count);
+
+        ExFreePoolWithTag(OrderList->Orderings, 'LbrA');
+    }
+
+    OrderList->Orderings = NewOrderings;
+    OrderList->Maximum += ARB_ORDERING_LIST_ADD_COUNT;
+
+Exit:
+
+    OrderList->Orderings[OrderList->Count].Start = MinimumAddress;
+    OrderList->Orderings[OrderList->Count].End = MaximumAddress;
+
+    OrderList->Count++;
+    ASSERT(OrderList->Count <= OrderList->Maximum);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 ArbInitializeOrderingList(
     _Out_ PARBITER_ORDERING_LIST OrderList)
 {
