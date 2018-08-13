@@ -1456,6 +1456,37 @@ C_ASSERT(sizeof(RTL_RANGE_LIST) == 0x20);
 C_ASSERT(sizeof(RTL_RANGE_LIST) == 0x14);
 #endif
 
+typedef struct _RTLP_RANGE_LIST_ENTRY {
+    ULONGLONG Start;
+    ULONGLONG End;
+    union {
+        struct {
+            PVOID UserData;
+            PVOID Owner;
+        } Allocated;
+        struct {
+            LIST_ENTRY ListHead;
+        } Merged;
+    };
+    UCHAR Attributes;
+    UCHAR PublicFlags;
+    USHORT PrivateFlags;
+#if defined(_M_X64)
+    ULONG Padding0;
+#endif
+    LIST_ENTRY ListEntry;
+#if !defined(_M_X64)
+    ULONG Padding1;
+#endif
+} RTLP_RANGE_LIST_ENTRY, *PRTLP_RANGE_LIST_ENTRY;
+
+#if defined(_M_X64)
+C_ASSERT(sizeof(RTLP_RANGE_LIST_ENTRY) == 0x38);
+#else
+C_ASSERT(sizeof(RTLP_RANGE_LIST_ENTRY) == 0x28);
+#endif
+
+// struct _RTL_RANGE <-- (struct _RTLP_RANGE_LIST_ENTRY - struct _LIST_ENTRY)
 typedef struct _RTL_RANGE
 {
     ULONGLONG Start;
