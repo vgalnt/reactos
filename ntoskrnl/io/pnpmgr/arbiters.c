@@ -171,15 +171,55 @@ IopIrqScoreRequirement(
     return 0;
 }
 
-NTSTATUS
 NTAPI
 IopIrqTranslateOrdering(
     _Out_ PIO_RESOURCE_DESCRIPTOR OutIoDescriptor,
     _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
 {
-    DPRINT("IopIrqTranslateOrdering()\n");
+    ULONG InterruptVector;
+    KAFFINITY Affinity;
+    KIRQL Irql;
+
+    DPRINT("IopIrqTranslateOrdering: IoDescriptor - %p\n", IoDescriptor);
     PAGED_CODE();
-    ASSERT(FALSE);
+
+    RtlCopyMemory(OutIoDescriptor, IoDescriptor, sizeof(IO_RESOURCE_DESCRIPTOR));
+
+    if (IoDescriptor->Type != CmResourceTypeInterrupt)
+    {
+        return STATUS_SUCCESS;
+    }
+
+    InterruptVector = HalGetInterruptVector(Isa,
+                                            0,
+                                            IoDescriptor->u.Interrupt.MinimumVector,
+                                            IoDescriptor->u.Interrupt.MinimumVector,
+                                            &Irql,
+                                            &Affinity);
+
+    OutIoDescriptor->u.Interrupt.MinimumVector = InterruptVector;
+
+    if (Affinity == 0)
+    {
+        RtlCopyMemory(OutIoDescriptor, IoDescriptor, sizeof(IO_RESOURCE_DESCRIPTOR));
+    }
+    else
+    {
+        InterruptVector = HalGetInterruptVector(Isa,
+                                                0,
+                                                IoDescriptor->u.Interrupt.MaximumVector,
+                                                IoDescriptor->u.Interrupt.MaximumVector,
+                                                &Irql,
+                                                &Affinity);
+
+        OutIoDescriptor->u.Interrupt.MaximumVector = InterruptVector;
+
+        if (Affinity == 0)
+        {
+            RtlCopyMemory(OutIoDescriptor, IoDescriptor, sizeof(IO_RESOURCE_DESCRIPTOR));
+        }
+    }
+
     return STATUS_SUCCESS;
 }
 
