@@ -182,8 +182,12 @@ IopIrqInitialize(VOID)
     IopRootIrqArbiter.UnpackResource = IopIrqUnpackResource;
     IopRootIrqArbiter.ScoreRequirement = IopIrqScoreRequirement;
 
-    ASSERT(FALSE);
-    return STATUS_SUCCESS;
+    return ArbInitializeArbiterInstance(&IopRootIrqArbiter,
+                                        NULL,
+                                        CmResourceTypeInterrupt,
+                                        L"RootIRQ",
+                                        L"Root",
+                                        IopIrqTranslateOrdering);
 }
 
 //--- Dma arbiter -------------------------------------
