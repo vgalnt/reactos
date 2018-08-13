@@ -40,10 +40,31 @@ HalpGetEisaInterruptVector(IN PBUS_HANDLER BusHandler,
                            OUT PKIRQL Irql,
                            OUT PKAFFINITY Affinity)
 {
-    /* Not implemented */
-    DPRINT1("STUB HalpGetEisaInterruptVector\n");
-    ASSERT(FALSE);
-    return 0;
+    ULONG Result;
+
+    if (BusInterruptLevel == 2)
+    {
+        BusInterruptLevel = 9;
+    }
+
+    if (BusInterruptLevel > 0xF)
+    {
+        ASSERT(BusInterruptLevel <= 0xF);
+        return 0;
+    }
+
+    Result = BusHandler->ParentHandler->
+             GetInterruptVector(BusHandler->ParentHandler,
+                                RootHandler,
+                                BusInterruptLevel,
+                                BusInterruptVector,
+                                Irql,
+                                Affinity);
+
+    DPRINT("HalpGetEisaInterruptVector: BusInterruptLevel - %X, Result - %X\n",
+           BusInterruptLevel, Result);
+
+    return Result;
 }
 
 NTSTATUS
