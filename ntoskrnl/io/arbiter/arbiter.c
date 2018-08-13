@@ -152,6 +152,36 @@ ArbStartArbiter()
 
 NTSTATUS
 NTAPI
+ArbInitializeOrderingList(
+    _Out_ PARBITER_ORDERING_LIST OrderList)
+{
+    NTSTATUS Status;
+
+    //PAGED_CODE();
+
+    ASSERT(OrderList);
+
+    OrderList->Orderings = ExAllocatePoolWithTag(PagedPool,
+                                                 ARB_ORDERING_LIST_DEFAULT_COUNT * sizeof(ARBITER_ORDERING),
+                                                 'LbrA');
+    OrderList->Count = 0;
+
+    if (OrderList->Orderings)
+    {
+        OrderList->Maximum = ARB_ORDERING_LIST_DEFAULT_COUNT;
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        OrderList->Maximum = 0;
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 ArbBuildAssignmentOrdering(
     _Inout_ PARBITER_INSTANCE ArbInstance,
     _In_ PCWSTR OrderName,
