@@ -130,8 +130,20 @@ IopIrqUnpackRequirement(
     _Out_ PULONG OutParam1,
     _Out_ PULONG OutParam2)
 {
-    DPRINT("IopIrqUnpackRequirement: IoDescriptor - %p\n", IoDescriptor);
-    ASSERT(FALSE);
+    ASSERT(IoDescriptor);
+    ASSERT(IoDescriptor->Type == CmResourceTypeInterrupt);
+
+    DPRINT("IopIrqUnpackRequirement: IoDescriptor - %p, MinimumVector - %X, MaximumVector - %X\n",
+            IoDescriptor,
+            IoDescriptor->u.Interrupt.MinimumVector,
+            IoDescriptor->u.Interrupt.MaximumVector);
+
+    *OutMinimumVector = IoDescriptor->u.Interrupt.MinimumVector;
+    *OutMaximumVector = IoDescriptor->u.Interrupt.MaximumVector;
+
+    *OutParam1 = 1;
+    *OutParam2 = 1;
+
     return STATUS_SUCCESS;
 }
 
