@@ -183,6 +183,7 @@ IopIrqScoreRequirement(
     return 0;
 }
 
+NTSTATUS
 NTAPI
 IopIrqTranslateOrdering(
     _Out_ PIO_RESOURCE_DESCRIPTOR OutIoDescriptor,
@@ -264,8 +265,20 @@ IopDmaUnpackRequirement(
     _Out_ PULONG OutParam1,
     _Out_ PULONG OutParam2)
 {
-    DPRINT("IopDmaUnpackRequirement: ...\n");
-    ASSERT(FALSE);
+    ASSERT(IoDescriptor);
+    ASSERT(IoDescriptor->Type == CmResourceTypeDma);
+
+    DPRINT("IopDmaUnpackRequirement: IoDescriptor - %p, MinimumChannel - %X, MaximumChannel - %X\n",
+            IoDescriptor,
+            IoDescriptor->u.Dma.MinimumChannel,
+            IoDescriptor->u.Dma.MaximumChannel);
+
+    *OutMinimumChannel = IoDescriptor->u.Dma.MinimumChannel;
+    *OutMaximumChannel = IoDescriptor->u.Dma.MaximumChannel;
+
+    *OutParam1 = 1;
+    *OutParam2 = 1;
+
     return STATUS_SUCCESS;
 }
 
