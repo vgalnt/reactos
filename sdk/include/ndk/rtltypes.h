@@ -1445,7 +1445,16 @@ typedef struct _RTL_RANGE_LIST
     ULONG Flags;
     ULONG Count;
     ULONG Stamp;
+#if defined(_M_X64)
+    ULONG Padding;
+#endif
 } RTL_RANGE_LIST, *PRTL_RANGE_LIST;
+
+#if defined(_M_X64)
+C_ASSERT(sizeof(RTL_RANGE_LIST) == 0x20);
+#else
+C_ASSERT(sizeof(RTL_RANGE_LIST) == 0x14);
+#endif
 
 typedef struct _RTL_RANGE
 {
@@ -1455,7 +1464,14 @@ typedef struct _RTL_RANGE
     PVOID Owner;
     UCHAR Attributes;
     UCHAR Flags;
+    UCHAR Padding[6];
 } RTL_RANGE, *PRTL_RANGE;
+
+#if defined(_M_X64)
+C_ASSERT(sizeof(RTL_RANGE) == 0x28);
+#else
+C_ASSERT(sizeof(RTL_RANGE) == 0x20);
+#endif
 
 typedef struct _RANGE_LIST_ITERATOR
 {
@@ -1463,7 +1479,16 @@ typedef struct _RANGE_LIST_ITERATOR
     PLIST_ENTRY MergedHead;
     PVOID Current;
     ULONG Stamp;
+#if defined(_M_X64)
+    ULONG Padding;
+#endif
 } RTL_RANGE_LIST_ITERATOR, *PRTL_RANGE_LIST_ITERATOR;
+
+#if defined(_M_X64)
+C_ASSERT(sizeof(RTL_RANGE_LIST_ITERATOR) == 0x20);
+#else
+C_ASSERT(sizeof(RTL_RANGE_LIST_ITERATOR) == 0x10);
+#endif
 
 //
 // RTL Resource
