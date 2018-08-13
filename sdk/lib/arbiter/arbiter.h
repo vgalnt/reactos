@@ -38,6 +38,8 @@ extern "C" {
 #include <pseh/pseh2.h>
 #endif
 
+#define ARB_ORDERING_LIST_DEFAULT_COUNT  16
+
 /* FIXME structures changes for NT >= 6.0 */
 
 typedef struct _ARBITER_ORDERING {
