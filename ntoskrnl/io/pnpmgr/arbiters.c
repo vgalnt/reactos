@@ -96,9 +96,28 @@ IopBusNumberInitialize(VOID)
     IopRootBusNumberArbiter.UnpackResource = IopBusNumberUnpackResource;
     IopRootBusNumberArbiter.ScoreRequirement = IopBusNumberScoreRequirement;
 
-    ASSERT(FALSE);
+    Status = ArbInitializeArbiterInstance(&IopRootBusNumberArbiter,
+                                          NULL,
+                                          CmResourceTypeBusNumber,
+                                          L"RootBusNumber",
+                                          L"Root",
+                                          NULL);
 
-    return Status=STATUS_SUCCESS;
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+        return Status;
+    }
+
+    Status = RtlAddRange(IopRootBusNumberArbiter.Allocation,
+                         0x100ull,
+                         0xFFFFFFFFFFFFFFFFull,
+                         0,
+                         0,
+                         NULL,
+                         NULL);
+
+    return Status;
 }
 
 //--- Irq arbiter -------------------------------------
