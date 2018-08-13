@@ -428,6 +428,7 @@ IopMemFindSuitableRange(
 {
     BOOLEAN Result;
     DPRINT("IopMemFindSuitableRange: Arbiter - %p, State - %p\n", Arbiter, State);
+    ASSERT(FALSE);
     return Result=0;
 }
 
@@ -446,8 +447,28 @@ IopMemInitialize(VOID)
 
     IopRootMemArbiter.FindSuitableRange = IopMemFindSuitableRange;
 
-    ASSERT(FALSE);
-    return Status=0;
+    Status = ArbInitializeArbiterInstance(&IopRootMemArbiter,
+                                          NULL,
+                                          CmResourceTypeMemory,
+                                          L"RootMemory",
+                                          L"Root",
+                                          IopGenericTranslateOrdering);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+        return Status;
+    }
+
+    Status = RtlAddRange(IopRootMemArbiter.Allocation,
+                         0ull,
+                         0xFFFull,
+                         0,
+                         0,
+                         NULL,
+                         NULL);
+
+    return Status;
 }
 
 //--- Port arbiter ------------------------------------
