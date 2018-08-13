@@ -294,13 +294,36 @@ IopGenericUnpackRequirement(
     _Out_ PULONG OutAlignment)
 {
     PAGED_CODE();
+
     DPRINT("IopGenericUnpackRequirement: IoDescriptor - %p, MinimumAddress - %I64X, MaximumAddress - %I64X, Length - %X\n",
             IoDescriptor,
-            IoDescriptor->u.Port.MinimumAddress.QuadPart,
-            IoDescriptor->u.Port.MaximumAddress.QuadPart,
-            IoDescriptor->u.Port.Length);
+            IoDescriptor->u.Generic.MinimumAddress.QuadPart,
+            IoDescriptor->u.Generic.MaximumAddress.QuadPart,
+            IoDescriptor->u.Generic.Length);
 
-    ASSERT(FALSE);
+    ASSERT(IoDescriptor);
+    ASSERT(IoDescriptor->Type == CmResourceTypePort ||
+           IoDescriptor->Type == CmResourceTypeMemory);
+
+    *OutLength = IoDescriptor->u.Generic.Length;
+    *OutAlignment = IoDescriptor->u.Generic.Alignment;
+
+    *OutMinimumAddress = IoDescriptor->u.Generic.MinimumAddress.QuadPart;
+    *OutMaximumAddress = IoDescriptor->u.Generic.MaximumAddress.QuadPart;
+
+    if (IoDescriptor->u.Generic.Alignment == 0)
+    {
+        *OutAlignment = 1;
+    }
+
+    if (IoDescriptor->Type == CmResourceTypeMemory &&
+        IoDescriptor->Flags & CM_RESOURCE_MEMORY_24 &&
+        IoDescriptor->u.Generic.MaximumAddress.QuadPart > 0xFFFFFF)
+    {
+        ASSERT(FALSE);
+        *OutMaximumAddress = 0xFFFFFF;
+    }
+
     return STATUS_SUCCESS;
 }
 
