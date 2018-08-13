@@ -66,10 +66,31 @@ HalpTranslateEisaBusAddress(IN PBUS_HANDLER BusHandler,
                             IN OUT PULONG AddressSpace,
                             OUT PPHYSICAL_ADDRESS TranslatedAddress)
 {
-    /* Not implemented */
-    DPRINT1("STUB HalpTranslateEisaBusAddress\n");
-    ASSERT(FALSE);
-    return 0;
+    BOOLEAN Result;
+    DPRINT("HalpTranslateEisaBusAddress: InterfaceType - %X, BusNumber - %X, BusAddress - %I64X\n",
+           BusHandler->InterfaceType, BusHandler->BusNumber, BusAddress.QuadPart);
+
+    Result = HalpTranslateSystemBusAddress(BusHandler,
+                                           RootHandler,
+                                           BusAddress,
+                                           AddressSpace,
+                                           TranslatedAddress);
+
+    if (Result == TRUE &&
+        (*AddressSpace) != 0 && /* 0 - Memory, 1 - Port*/ 
+        BusAddress.QuadPart >= 0xA0000 &&
+        BusAddress.QuadPart < 0xFFFFF)
+    {
+        return Result;
+    }
+
+    Result = HalTranslateBusAddress(Internal,
+                                    0,
+                                    BusAddress,
+                                    AddressSpace,
+                                    TranslatedAddress);
+
+    return Result;
 }
 
 /* EOF */
