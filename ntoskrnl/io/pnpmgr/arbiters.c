@@ -309,6 +309,64 @@ IopGenericScoreRequirement(
     return 0;
 }
 
+NTSTATUS
+NTAPI
+IopGenericTranslateOrdering(
+    _Out_ PIO_RESOURCE_DESCRIPTOR OutIoDescriptor,
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
+{
+    CM_RESOURCE_TYPE ResourceTypeMinAddr;
+    CM_RESOURCE_TYPE ResourceTypeMaxAddr;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    RtlCopyMemory(OutIoDescriptor, IoDescriptor, sizeof(IO_RESOURCE_DESCRIPTOR));
+
+    if (IoDescriptor->Type != CmResourceTypeMemory &&
+        IoDescriptor->Type != CmResourceTypePort)
+    {
+        DPRINT("IopGenericTranslateOrdering: Exit. Type - %X\n", IoDescriptor->Type);
+        return STATUS_SUCCESS;
+    }
+    else
+    {
+        DPRINT("IopGenericTranslateOrdering: [%p] Type - %X\n", IoDescriptor, IoDescriptor->Type);
+    }
+
+    DPRINT("IopGenericTranslateOrdering: MinimumAddress - %I64X, MaximumAddress - %I64X\n",
+           IoDescriptor->u.Generic.MinimumAddress, IoDescriptor->u.Generic.MaximumAddress);
+
+    Status = IopTranslateBusAddress(IoDescriptor->u.Generic.MinimumAddress,
+                                    IoDescriptor->Type,
+                                    &OutIoDescriptor->u.Generic.MinimumAddress,
+                                    &ResourceTypeMinAddr);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGenericTranslateOrdering: Status - %X\n", Status);
+        OutIoDescriptor->Type = CmResourceTypeNull;
+        return STATUS_SUCCESS;
+    }
+
+    Status = IopTranslateBusAddress(IoDescriptor->u.Generic.MaximumAddress,
+                                    IoDescriptor->Type,
+                                    &OutIoDescriptor->u.Generic.MaximumAddress,
+                                    &ResourceTypeMaxAddr);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGenericTranslateOrdering: Status - %X\n", Status);
+        OutIoDescriptor->Type = CmResourceTypeNull;
+        return STATUS_SUCCESS;
+    }
+
+    ASSERT(ResourceTypeMinAddr == ResourceTypeMaxAddr);
+    OutIoDescriptor->Type = ResourceTypeMinAddr;
+
+    return STATUS_SUCCESS;
+}
+
 //--- Memory arbiter ----------------------------------
 BOOLEAN
 NTAPI
@@ -385,18 +443,6 @@ IopPortBacktrackAllocation()
     DPRINT("IopPortBacktrackAllocation: ...\n");
     ASSERT(FALSE);
     return 0;
-}
-
-NTSTATUS
-NTAPI
-IopGenericTranslateOrdering(
-    _Out_ PIO_RESOURCE_DESCRIPTOR OutIoDescriptor,
-    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
-{
-    PAGED_CODE();
-    DPRINT("IopGenericTranslateOrdering: ... \n");
-    ASSERT(FALSE);
-    return STATUS_SUCCESS;
 }
 
 NTSTATUS
