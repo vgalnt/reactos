@@ -259,8 +259,12 @@ IopDmaInitialize(VOID)
 
     IopRootDmaArbiter.OverrideConflict = IopDmaOverrideConflict;
 
-    ASSERT(FALSE);
-    return STATUS_SUCCESS;
+    return ArbInitializeArbiterInstance(&IopRootDmaArbiter,
+                                        NULL,
+                                        CmResourceTypeDma,
+                                        L"RootDMA",
+                                        L"Root",
+                                        NULL);
 }
 
 //--- Common for Memory and Port arbiters -------------
