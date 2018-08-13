@@ -124,4 +124,113 @@ IopDumpCmResourceList(
     }
 }
 
+VOID
+NTAPI
+IopDumpIoResourceDescriptor(
+    _In_ PSTR Tab,
+    _In_ PIO_RESOURCE_DESCRIPTOR Descriptor)
+{
+    PAGED_CODE();
+
+    if (!Descriptor)
+    {
+        DPRINT("IopDumpResourceDescriptor: Descriptor == 0\n");
+        return;
+    }
+
+    switch (Descriptor->Type)
+    {
+        case CmResourceTypePort:
+        {
+            DPRINT("%s[%p] Opt - %X, Share - %X, IO:  Min - %X:%08X, Max - %X:%08X, Align - %X, Len - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Port.MinimumAddress.HighPart, Descriptor->u.Port.MinimumAddress.LowPart, Descriptor->u.Port.MaximumAddress.HighPart, Descriptor->u.Port.MaximumAddress.LowPart, Descriptor->u.Port.Alignment, Descriptor->u.Port.Length);
+            break;
+        }
+        case CmResourceTypeInterrupt:
+        {
+            DPRINT("%s[%p] Opt - %X, Share - %X, INT: Min - %X, Max - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Interrupt.MinimumVector, Descriptor->u.Interrupt.MaximumVector);
+            break;
+        }
+        case CmResourceTypeMemory:
+        {
+            DPRINT("%s[%p] Opt - %X, Share - %X, MEM: Min - %X:%08X, Max - %X:%08X, Align - %X, Len - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Memory.MinimumAddress.HighPart, Descriptor->u.Memory.MinimumAddress.LowPart, Descriptor->u.Memory.MaximumAddress.HighPart, Descriptor->u.Memory.MaximumAddress.LowPart, Descriptor->u.Memory.Alignment, Descriptor->u.Memory.Length);
+            break;
+        }
+        case CmResourceTypeDma:
+        {
+            DPRINT("%s[%p] Opt - %X, Share - %X, DMA: Min - %X, Max - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Dma.MinimumChannel, Descriptor->u.Dma.MaximumChannel);
+            break;
+        }
+        case CmResourceTypeBusNumber:
+        {
+            DPRINT("%s[%p] Opt - %X, Share - %X, BUS: Min - %X, Max - %X, Length - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.BusNumber.MinBusNumber, Descriptor->u.BusNumber.MaxBusNumber, Descriptor->u.BusNumber.Length);
+            break;
+        }
+        case CmResourceTypeConfigData: //0x80
+        {
+            DPRINT("%s[%p] Opt - %X, Share - %X, CFG: Priority - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.ConfigData.Priority);
+            break;
+        }
+        case CmResourceTypeDevicePrivate: //0x81
+        {
+            DPRINT("%s[%p] Opt - %X, Share - %X, DAT: %X, %X, %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.DevicePrivate.Data[0], Descriptor->u.DevicePrivate.Data[1], Descriptor->u.DevicePrivate.Data[2]);
+            break;
+        }
+        default:
+        {
+            DPRINT("%s[%p] Opt - %X, Share - %X. Unknown Descriptor type %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->Type);
+            break;
+        }
+    }
+}
+
+VOID
+NTAPI
+IopDumpResourceRequirementsList(
+    _In_ PIO_RESOURCE_REQUIREMENTS_LIST IoResource)
+{
+    PIO_RESOURCE_LIST AltList;
+    PIO_RESOURCE_DESCRIPTOR Descriptor;
+    ULONG ix;
+    ULONG jx;
+
+    PAGED_CODE();
+    DPRINT("IopDumpResourceRequirementsList: IoResource - %p\n", IoResource);
+
+    if (!IoResource)
+    {
+        DPRINT("IopDumpResourceRequirementsList: IoResource == 0\n");
+        return;
+    }
+
+    DPRINT("Interface - %X, Bus - %X, Slot - %X, AlternativeLists - %X\n",
+           IoResource->InterfaceType,
+           IoResource->BusNumber,
+           IoResource->SlotNumber,
+           IoResource->AlternativeLists);
+
+    AltList = &IoResource->List[0];
+
+    //ASSERT(IoResource->AlternativeLists < 2);
+
+    if (IoResource->AlternativeLists < 1)
+    {
+        DPRINT("IopDumpResourceRequirementsList: IoResource->AlternativeLists < 1\n");
+        return;
+    }
+
+    for (ix = 0; ix < IoResource->AlternativeLists; ix++)
+    {
+        DPRINT("  AltList - %p, AltList->Count - %X\n", AltList, AltList->Count);
+
+        for (jx = 0; jx < AltList->Count; jx++)
+        {
+            Descriptor = &AltList->Descriptors[jx];
+            IopDumpIoResourceDescriptor("    ", Descriptor);
+        }
+
+        AltList = (PIO_RESOURCE_LIST)(AltList->Descriptors + AltList->Count);
+        DPRINT("End Descriptors - %p\n", AltList);
+    }
+}
+
 /* EOF */
