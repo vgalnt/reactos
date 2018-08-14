@@ -73,6 +73,21 @@ IopDumpIoResourceDescriptor(
     _In_ PIO_RESOURCE_DESCRIPTOR Descriptor
 );
 
+
+//
+// pnpenum.c
+//
+NTSTATUS
+NTAPI
+PipRequestDeviceAction(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIP_ENUM_TYPE RequestType,
+    _In_ UCHAR Param1,
+    _In_ PVOID Param2,
+    _In_ PKEVENT Event,
+    _Inout_ NTSTATUS * OutStatus
+);
+
 //
 // pnpinit.c
 //

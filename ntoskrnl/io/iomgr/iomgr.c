@@ -15,6 +15,7 @@
 
 ULONG IopTraceLevel = 0;
 BOOLEAN PnpSystemInit = FALSE;
+KEVENT PiEnumerationLock;
 
 VOID
 NTAPI
@@ -549,6 +550,9 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 
     /* Make loader block available for the whole kernel */
     IopLoaderBlock = LoaderBlock;
+
+    /* Initialize PnP manager */
+    IopInitializePlugPlayServices(LoaderBlock, 1);
 
     /* Load boot start drivers */
     IopInitializeBootDrivers();

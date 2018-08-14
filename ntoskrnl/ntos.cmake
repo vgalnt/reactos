@@ -157,6 +157,7 @@ list(APPEND SOURCE
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/arbiters.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/plugplay.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnpdma.c
+    ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnpenum.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnpinit.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnpmgr.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnpnode.c
