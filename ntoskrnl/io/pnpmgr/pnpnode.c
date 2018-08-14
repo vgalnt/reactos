@@ -16,6 +16,8 @@
 
 /* GLOBALS *******************************************************************/
 
+extern KSPIN_LOCK IopPnPSpinLock;
+
 /* DATA **********************************************************************/
 
 /* FUNCTIONS *****************************************************************/
@@ -54,6 +56,7 @@ PipAllocateDeviceNode(IN PDEVICE_OBJECT PhysicalDeviceObject)
     InitializeListHead(&DeviceNode->TargetDeviceNotify);
     InitializeListHead(&DeviceNode->DockInfo.ListEntry);
     InitializeListHead(&DeviceNode->PendedSetInterfaceState);
+    InitializeListHead(&DeviceNode->LegacyBusListEntry);
 
     /* Check if there is a PDO */
     if (PhysicalDeviceObject)
@@ -68,5 +71,52 @@ PipAllocateDeviceNode(IN PDEVICE_OBJECT PhysicalDeviceObject)
     return DeviceNode;
 }
 
+VOID
+NTAPI
+PipSetDevNodeState(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ PNP_DEVNODE_STATE NewState,
+    _Out_ PNP_DEVNODE_STATE *OutPreviousState)
+{
+    PNP_DEVNODE_STATE PreviousState;
+    KIRQL OldIrql;
+
+    DPRINT("PipSetDevNodeState: DeviceNode - %p, NewState - %X\n",
+           DeviceNode, NewState);
+
+    ASSERT(NewState != DeviceNodeQueryStopped ||
+           DeviceNode->State == DeviceNodeStarted);
+
+    if (NewState == DeviceNodeDeleted ||
+        NewState == DeviceNodeDeletePendingCloses)
+    {
+        ASSERT(!(DeviceNode->Flags & DNF_ENUMERATED));
+    }
+
+    KeAcquireSpinLock(&IopPnPSpinLock, &OldIrql);
+    PreviousState = DeviceNode->State;
+
+    if (PreviousState != NewState)
+    {
+        DeviceNode->State = NewState;
+        DeviceNode->PreviousState = PreviousState;
+        DeviceNode->StateHistory[DeviceNode->StateHistoryEntry] = PreviousState;
+        DeviceNode->StateHistoryEntry = (DeviceNode->StateHistoryEntry + 1) % 20;
+    }
+
+    KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+
+    if (OutPreviousState)
+    {
+        DPRINT("PipSetDevNodeState: PreviousState - %X\n", PreviousState);
+        *OutPreviousState = PreviousState;
+    }
+
+    if (NewState == DeviceNodeDeleted)
+    {
+        ASSERT(FALSE);
+        //PpRemoveDeviceActionRequests(DeviceNode->PhysicalDeviceObject);
+    }
+}
 
 /* EOF */
