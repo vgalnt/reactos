@@ -9,7 +9,9 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+#include "../pnpio.h"
+
+//#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -243,6 +245,102 @@ IopDeviceObjectFromDeviceInstance(
 
     KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
     return DeviceObject;
+}
+
+NTSTATUS
+NTAPI
+IopMapDeviceObjectToDeviceInstance(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PUNICODE_STRING InstancePath)
+{
+    PDEVICE_OBJECT OldDeviceObject;
+    NTSTATUS Status = STATUS_SUCCESS;
+    PNP_DEVICE_INSTANCE_CONTEXT MapContext;
+    UNICODE_STRING ValueName;
+    HANDLE KeyHandle;
+    HANDLE EnumHandle;
+    HANDLE ControlHandle;
+    UNICODE_STRING EnumKeyName = RTL_CONSTANT_STRING(ENUM_ROOT);
+    PVOID Data;
+
+    PAGED_CODE();
+
+    DPRINT("IopMapDeviceObjectToDeviceInstance: DeviceObject - %p, InstancePath - %wZ\n",
+           DeviceObject, InstancePath);
+
+    OldDeviceObject = IopDeviceObjectFromDeviceInstance(InstancePath);
+    ASSERT(!OldDeviceObject);
+    if (OldDeviceObject)
+    {
+        ObDereferenceObject(OldDeviceObject);
+    }
+
+    MapContext.DeviceObject = DeviceObject;
+    MapContext.InstancePath = InstancePath;
+
+    KeAcquireGuardedMutex(&PpDeviceReferenceTableLock);
+
+    Data = RtlInsertElementGenericTableAvl(&PpDeviceReferenceTable,
+                                           &MapContext,
+                                           sizeof(PNP_DEVICE_INSTANCE_CONTEXT),
+                                           NULL);
+    if (Data == NULL)
+    {
+        Status = STATUS_UNSUCCESSFUL;
+    }
+
+    KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopMapDeviceObjectToDeviceInstance: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                  NULL,
+                                  &EnumKeyName,
+                                  KEY_READ);
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(NT_SUCCESS(Status));
+        return STATUS_SUCCESS;
+    }
+
+    Status = IopOpenRegistryKeyEx(&EnumHandle,
+                                  KeyHandle,
+                                  InstancePath,
+                                  KEY_ALL_ACCESS);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopMapDeviceObjectToDeviceInstance: Status - %X\n", Status);
+        ASSERT(NT_SUCCESS(Status));
+        ZwClose(KeyHandle);
+        return STATUS_SUCCESS;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"Control");
+    Status = IopCreateRegistryKeyEx(&ControlHandle,
+                                    EnumHandle,
+                                    &ValueName,
+                                    KEY_ALL_ACCESS,
+                                    REG_OPTION_VOLATILE,
+                                    NULL);
+    if (NT_SUCCESS(Status))
+    {
+        ZwClose(InstancePath);
+    }
+
+    ZwClose(EnumHandle);
+    ZwClose(KeyHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopMapDeviceObjectToDeviceInstance: Status - %X\n", Status);
+        ASSERT(NT_SUCCESS(Status));
+    }
+
+    return STATUS_SUCCESS;
 }
 
 /* EOF */

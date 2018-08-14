@@ -10,7 +10,9 @@
 /* INCLUDES ******************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+#include "../pnpio.h"
+
+//#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS *******************************************************************/
