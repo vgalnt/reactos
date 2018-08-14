@@ -17,6 +17,8 @@
 /* GLOBALS *******************************************************************/
 
 extern KSPIN_LOCK IopPnPSpinLock;
+extern ERESOURCE PiEngineLock;
+extern ERESOURCE PiDeviceTreeLock;
 
 /* DATA **********************************************************************/
 
@@ -126,6 +128,40 @@ PpDevNodeLockTree(
     }
 
     DPRINT("PpDevNodeLockTree: Locked\n");
+}
+
+VOID
+NTAPI
+PpDevNodeUnlockTree(
+    _In_ ULONG LockLevel)
+{
+    PAGED_CODE();
+    DPRINT("PpDevNodeUnlockTree: LockLevel - %X\n", LockLevel);
+
+    //PpDevNodeAssertLockLevel(LockLevel);
+
+    if (LockLevel == 0)
+    {
+        ExReleaseResourceLite(&PiDeviceTreeLock);
+    }
+    else if (LockLevel == 1 || LockLevel == 2)
+    {
+        ExReleaseResourceLite(&PiDeviceTreeLock);
+        ExReleaseResourceLite(&PiEngineLock);
+    }
+    else if (LockLevel == 3)
+    {
+        ASSERT(ExIsResourceAcquiredExclusiveLite(&PiDeviceTreeLock));
+        ASSERT(ExIsResourceAcquiredExclusiveLite(&PiEngineLock));
+        ExConvertExclusiveToSharedLite(&PiDeviceTreeLock);
+    }
+    else
+    {
+        ASSERT(FALSE);
+    }
+
+    KeLeaveCriticalRegion();
+    DPRINT("PpDevNodeUnlockTree: UnLocked\n");
 }
 
 VOID
