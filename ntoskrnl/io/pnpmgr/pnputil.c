@@ -210,7 +210,7 @@ IopDeviceObjectFromDeviceInstance(
     if (!Entry)
     {
         KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
-        return DeviceObject;
+        return NULL;
     }
 
     DeviceObject = Entry->DeviceObject;
@@ -218,15 +218,14 @@ IopDeviceObjectFromDeviceInstance(
     if (!DeviceObject)
     {
         KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
-        return DeviceObject;
+        return NULL;
     }
 
     if (DeviceObject->Type != IO_TYPE_DEVICE)
     {
         ASSERT(DeviceObject->Type == IO_TYPE_DEVICE);
-        DeviceObject = NULL;
         KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
-        return DeviceObject;
+        return NULL;
     }
 
     DeviceNode = IopGetDeviceNode(DeviceObject);
