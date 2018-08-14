@@ -41,6 +41,10 @@ PDEVICE_NODE IopRootDeviceNode = NULL;
 LONG IopNumberDeviceNodes = 0;
 
 KSPIN_LOCK IopPnPSpinLock;
+LIST_ENTRY IopPnpEnumerationRequestList;
+extern KEVENT PiEnumerationLock;
+
+BOOLEAN PnPBootDriversLoaded = FALSE;
 
 /* FUNCTIONS ******************************************************************/
 
@@ -618,6 +622,8 @@ IopInitializePlugPlayServices(
     KeInitializeSpinLock(&IopDeviceTreeLock);
     KeInitializeSpinLock(&IopDeviceActionLock);
     InitializeListHead(&IopDeviceActionRequestList);
+    InitializeListHead(&IopPnpEnumerationRequestList);
+    KeInitializeEvent(&PiEnumerationLock, NotificationEvent, TRUE);
 
     /* Get the default interface */
     PnpDefaultInterfaceType = IopDetermineDefaultInterfaceType();
