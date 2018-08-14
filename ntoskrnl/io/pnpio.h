@@ -8,6 +8,43 @@ typedef struct _PNP_DEVICE_INSTANCE_CONTEXT
 } PNP_DEVICE_INSTANCE_CONTEXT, *PPNP_DEVICE_INSTANCE_CONTEXT;
 
 //
+// Request types for PIP_ENUM_REQUEST
+//
+typedef enum _PIP_ENUM_TYPE
+{
+    PipEnumAddBootDevices,
+    PipEnumResourcesAssign,
+    PipEnumGetSetDeviceStatus,
+    PipEnumClearProblem,
+    PipEnumInvalidateRelationsInList,
+    PipEnumHaltDevice,
+    PipEnumBootProcess,
+    PipEnumInvalidateRelations,
+    PipEnumInvalidateBusRelations,
+    PipEnumInitPnpServices,
+    PipEnumInvalidateDeviceState,
+    PipEnumResetDevice,
+    PipEnumResourceChange,
+    PipEnumSystemHiveLimitChange,
+    PipEnumSetProblem,
+    PipEnumShutdownPnpDevices,
+    PipEnumStartDevice,
+    PipEnumStartSystemDevices
+} PIP_ENUM_TYPE;
+
+typedef struct _PIP_ENUM_REQUEST
+{
+    LIST_ENTRY RequestLink;
+    PDEVICE_OBJECT DeviceObject;
+    PIP_ENUM_TYPE RequestType;
+    UCHAR Param1;
+    UCHAR Padded[3];
+    PVOID Param2;
+    PKEVENT Event;
+    NTSTATUS * OutStatus;
+} PIP_ENUM_REQUEST, *PPIP_ENUM_REQUEST;
+
+//
 // debug.c
 //
 VOID
@@ -44,6 +81,17 @@ NTSTATUS NTAPI IopMemInitialize();
 NTSTATUS NTAPI IopDmaInitialize();
 NTSTATUS NTAPI IopIrqInitialize();
 NTSTATUS NTAPI IopBusNumberInitialize();
+
+//
+// pnpnode.c
+//
+VOID
+NTAPI
+PipSetDevNodeState(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ PNP_DEVNODE_STATE NewState,
+    _Out_ PNP_DEVNODE_STATE *OutPreviousState
+);
 
 //
 // pnpres.c
