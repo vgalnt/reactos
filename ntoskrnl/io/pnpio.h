@@ -62,6 +62,13 @@ IopWriteResourceList(
 //
 // pnputil.c
 //
+NTSTATUS
+NTAPI
+IopMapDeviceObjectToDeviceInstance(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PUNICODE_STRING InstancePath
+);
+
 PDEVICE_OBJECT
 NTAPI
 IopDeviceObjectFromDeviceInstance(
