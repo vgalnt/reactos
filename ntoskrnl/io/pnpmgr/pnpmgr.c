@@ -3720,9 +3720,8 @@ NTAPI
 PiAllocateGenericTableEntry(IN PRTL_AVL_TABLE Table,
                             IN CLONG ByteSize)
 {
-    /* FIXME: TODO */
-    ASSERT(FALSE);
-    return NULL;
+    PAGED_CODE();
+    return ExAllocatePoolWithTag(PagedPool, ByteSize, 'uspP');
 }
 
 VOID
