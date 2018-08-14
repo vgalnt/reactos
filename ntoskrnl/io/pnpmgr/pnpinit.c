@@ -40,6 +40,8 @@ ARBITER_INSTANCE IopRootPortArbiter;
 PDEVICE_NODE IopRootDeviceNode = NULL;
 LONG IopNumberDeviceNodes = 0;
 
+KSPIN_LOCK IopPnPSpinLock;
+
 /* FUNCTIONS ******************************************************************/
 
 VOID
@@ -612,6 +614,7 @@ IopInitializePlugPlayServices(
     }
 
     /* Initialize locks and such */
+    KeInitializeSpinLock(&IopPnPSpinLock);
     KeInitializeSpinLock(&IopDeviceTreeLock);
     KeInitializeSpinLock(&IopDeviceActionLock);
     InitializeListHead(&IopDeviceActionRequestList);
