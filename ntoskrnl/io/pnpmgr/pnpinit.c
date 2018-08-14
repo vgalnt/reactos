@@ -37,6 +37,9 @@ ARBITER_INSTANCE IopRootDmaArbiter;
 ARBITER_INSTANCE IopRootMemArbiter;
 ARBITER_INSTANCE IopRootPortArbiter;
 
+PDEVICE_NODE IopRootDeviceNode = NULL;
+LONG IopNumberDeviceNodes = 0;
+
 /* FUNCTIONS ******************************************************************/
 
 VOID
