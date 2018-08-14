@@ -14,6 +14,9 @@
 
 /* GLOBALS ********************************************************************/
 
+extern RTL_AVL_TABLE PpDeviceReferenceTable;
+extern KGUARDED_MUTEX PpDeviceReferenceTableLock;
+
 /* FUNCTIONS ******************************************************************/
 
 VOID
@@ -181,6 +184,65 @@ PnpRegSzToString(IN PWCHAR RegSzData,
     /* Return it */
     if (StringLength) *StringLength = (USHORT)(p - RegSzData) * sizeof(WCHAR);
     return TRUE;
+}
+
+PDEVICE_OBJECT
+NTAPI
+IopDeviceObjectFromDeviceInstance(
+    _In_ PUNICODE_STRING DeviceInstance)
+{
+    PPNP_DEVICE_INSTANCE_CONTEXT Entry;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_NODE DeviceNode;
+    PNP_DEVICE_INSTANCE_CONTEXT MapContext;
+
+    PAGED_CODE();
+    DPRINT("IopDeviceObjectFromDeviceInstance: DeviceInstance %wZ\n", DeviceInstance);
+
+    MapContext.DeviceObject = NULL;
+    MapContext.InstancePath = DeviceInstance;
+
+    KeAcquireGuardedMutex(&PpDeviceReferenceTableLock);
+
+    Entry = RtlLookupElementGenericTableAvl(&PpDeviceReferenceTable, &MapContext);
+    if (!Entry)
+    {
+        KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
+        return DeviceObject;
+    }
+
+    DeviceObject = Entry->DeviceObject;
+    ASSERT(DeviceObject);
+    if (!DeviceObject)
+    {
+        KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
+        return DeviceObject;
+    }
+
+    if (DeviceObject->Type != IO_TYPE_DEVICE)
+    {
+        ASSERT(DeviceObject->Type == IO_TYPE_DEVICE);
+        DeviceObject = NULL;
+        KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
+        return DeviceObject;
+    }
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    ASSERT(DeviceNode && (DeviceNode->PhysicalDeviceObject == DeviceObject));
+
+    if (!DeviceNode || DeviceNode->PhysicalDeviceObject != DeviceObject)
+    {
+        DeviceObject = NULL;
+    }
+
+    if (DeviceObject)
+    {
+        ObReferenceObject(DeviceObject);
+    }
+
+    KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
+    return DeviceObject;
 }
 
 /* EOF */
