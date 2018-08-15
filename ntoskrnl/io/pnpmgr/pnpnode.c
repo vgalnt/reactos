@@ -212,4 +212,23 @@ PipSetDevNodeState(
     }
 }
 
+VOID
+NTAPI
+PipSetDevNodeProblem(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ ULONG Problem)
+{
+    PAGED_CODE();
+
+    ASSERT(Problem != 0);
+    ASSERT(DeviceNode->State != DeviceNodeStarted);
+
+    ASSERT(DeviceNode->State != DeviceNodeUninitialized ||
+           (DeviceNode->Flags & DNF_ENUMERATED) == 0 ||
+           Problem == CM_PROB_INVALID_DATA);
+
+    DeviceNode->Flags |= DNF_HAS_PROBLEM;
+    DeviceNode->Problem = Problem;
+}
+
 /* EOF */

@@ -126,6 +126,13 @@ PipSetDevNodeState(
     _Out_ PNP_DEVNODE_STATE *OutPreviousState
 );
 
+VOID
+NTAPI
+PipSetDevNodeProblem(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ ULONG Problem
+);
+
 //
 // pnpres.c
 //
