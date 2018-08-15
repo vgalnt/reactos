@@ -42,10 +42,10 @@ NTAPI
 PipRequestDeviceAction(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIP_ENUM_TYPE RequestType,
-    _In_ UCHAR Param1,
-    _In_ PVOID Param2,
-    _In_ PKEVENT Event,
-    _Inout_ NTSTATUS * OutStatus)
+    _In_ UCHAR ReorderingBarrier,
+    _In_ ULONG_PTR RequestArgument,
+    _In_ PKEVENT CompletionEvent,
+    _Inout_ NTSTATUS * CompletionStatus)
 {
     PPIP_ENUM_REQUEST Request;
     PDEVICE_OBJECT RequestDeviceObject;
@@ -79,10 +79,10 @@ PipRequestDeviceAction(
 
     Request->DeviceObject = RequestDeviceObject;
     Request->RequestType = RequestType;
-    Request->Param1 = Param1;
-    Request->Param2 = Param2;
-    Request->Event = Event;
-    Request->OutStatus = OutStatus;
+    Request->ReorderingBarrier = ReorderingBarrier;
+    Request->RequestArgument = RequestArgument;
+    Request->CompletionEvent = CompletionEvent;
+    Request->CompletionStatus = CompletionStatus;
 
     InitializeListHead(&Request->RequestLink);
 
@@ -92,8 +92,8 @@ PipRequestDeviceAction(
     DPRINT("PipRequestDeviceAction: Inserted Request - %p\n", Request);
 
     if (RequestType == PipEnumAddBootDevices ||
-        RequestType == PipEnumBootProcess ||
-        RequestType == PipEnumInitPnpServices)
+        RequestType == PipEnumBootDevices ||
+        RequestType == PipEnumRootDevices)
     {
         ASSERT(!PipEnumerationInProgress);
 
