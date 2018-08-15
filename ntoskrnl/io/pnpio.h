@@ -13,18 +13,18 @@ typedef struct _PNP_DEVICE_INSTANCE_CONTEXT
 typedef enum _PIP_ENUM_TYPE
 {
     PipEnumAddBootDevices,
-    PipEnumResourcesAssign,
+    PipEnumAssignResources,
     PipEnumGetSetDeviceStatus,
     PipEnumClearProblem,
     PipEnumInvalidateRelationsInList,
     PipEnumHaltDevice,
-    PipEnumBootProcess,
-    PipEnumInvalidateRelations,
-    PipEnumInvalidateBusRelations,
-    PipEnumInitPnpServices,
+    PipEnumBootDevices,
+    PipEnumDeviceOnly,
+    PipEnumDeviceTree,
+    PipEnumRootDevices,
     PipEnumInvalidateDeviceState,
     PipEnumResetDevice,
-    PipEnumResourceChange,
+    PipEnumIoResourceChanged,
     PipEnumSystemHiveLimitChange,
     PipEnumSetProblem,
     PipEnumShutdownPnpDevices,
@@ -37,12 +37,18 @@ typedef struct _PIP_ENUM_REQUEST
     LIST_ENTRY RequestLink;
     PDEVICE_OBJECT DeviceObject;
     PIP_ENUM_TYPE RequestType;
-    UCHAR Param1;
+    UCHAR ReorderingBarrier;
     UCHAR Padded[3];
-    PVOID Param2;
-    PKEVENT Event;
-    NTSTATUS * OutStatus;
+    ULONG_PTR RequestArgument;
+    PKEVENT CompletionEvent;
+    NTSTATUS * CompletionStatus;
 } PIP_ENUM_REQUEST, *PPIP_ENUM_REQUEST;
+
+#if defined(_M_X64)
+C_ASSERT(sizeof(PIP_ENUM_REQUEST) == 0x38);
+#else
+C_ASSERT(sizeof(PIP_ENUM_REQUEST) == 0x20);
+#endif
 
 //
 // debug.c
@@ -82,10 +88,10 @@ NTAPI
 PipRequestDeviceAction(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIP_ENUM_TYPE RequestType,
-    _In_ UCHAR Param1,
-    _In_ PVOID Param2,
-    _In_ PKEVENT Event,
-    _Inout_ NTSTATUS * OutStatus
+    _In_ UCHAR ReorderingBarrier,
+    _In_ ULONG_PTR RequestArgument,
+    _In_ PKEVENT CompletionEvent,
+    _Inout_ NTSTATUS * CompletionStatus
 );
 
 //
