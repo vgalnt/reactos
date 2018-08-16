@@ -47,6 +47,60 @@ typedef struct _PNPROOT_PDO_DEVICE_EXTENSION
 
 /* FUNCTIONS *****************************************************************/
 
+NTSTATUS
+NTAPI
+IopGetRootDevices(
+    _Out_ ULONG_PTR * OutInformation)
+{
+    DPRINT("IopGetRootDevices: *OutInformation - %p\n", *OutInformation);
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+static NTSTATUS
+PdoQueryDeviceRelations(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp,
+    IN PIO_STACK_LOCATION IrpSp)
+{
+    PDEVICE_RELATIONS Relations;
+    DEVICE_RELATION_TYPE Type;
+    ULONG_PTR Information = 0;
+    NTSTATUS Status;
+
+    Type = IrpSp->Parameters.QueryDeviceRelations.Type;
+
+    if (DeviceObject == IopRootDeviceNode->PhysicalDeviceObject &&
+        Type == BusRelations)
+    {
+        Status = IopGetRootDevices(&Information);
+        Irp->IoStatus.Information = Information;
+    }
+    else if (Type == TargetDeviceRelation)
+    {
+        DPRINT("IRP_MJ_PNP / IRP_MN_QUERY_DEVICE_RELATIONS / TargetDeviceRelation\n");
+        Relations = (PDEVICE_RELATIONS)ExAllocatePool(PagedPool, sizeof(DEVICE_RELATIONS));
+        if (!Relations)
+        {
+            DPRINT("ExAllocatePoolWithTag() failed\n");
+            Status = STATUS_NO_MEMORY;
+        }
+        else
+        {
+            ObReferenceObject(DeviceObject);
+            Relations->Count = 1;
+            Relations->Objects[0] = DeviceObject;
+            Status = STATUS_SUCCESS;
+            Irp->IoStatus.Information = (ULONG_PTR)Relations;
+        }
+    }
+    else
+    {
+        Status = Irp->IoStatus.Status;
+    }
+
+    return Status;
+}
 
 static NTSTATUS
 PdoQueryCapabilities(
