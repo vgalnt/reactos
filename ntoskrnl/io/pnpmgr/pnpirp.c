@@ -91,4 +91,42 @@ IopSynchronousCall(IN PDEVICE_OBJECT DeviceObject,
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopQueryDeviceRelations(
+    _In_ DEVICE_RELATION_TYPE RelationsType,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Inout_ PDEVICE_RELATIONS * OutPendingDeviceRelations)
+{
+    PDEVICE_NODE DeviceNode;
+    IO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    RtlZeroMemory(&IoStack, sizeof(IO_STACK_LOCATION));
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_DEVICE_RELATIONS;
+
+    IoStack.Parameters.QueryDeviceRelations.Type = RelationsType;
+
+    Status = IopSynchronousCall(DeviceObject,
+                                &IoStack,
+                                (PVOID *)OutPendingDeviceRelations);
+
+    if (RelationsType == BusRelations)
+    {
+        DeviceNode = IopGetDeviceNode(DeviceObject);
+        DeviceNode->CompletionStatus = Status;
+
+        PipSetDevNodeState(DeviceNode, DeviceNodeEnumerateCompletion, NULL);
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        DPRINT("IopQueryDeviceRelations: RelationsType - %X, Status %X\n",
+               RelationsType, Status);
+    }
+
+    return Status;
+}
+
 /* EOF */
