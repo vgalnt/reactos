@@ -104,6 +104,17 @@ NTSTATUS NTAPI IopIrqInitialize();
 NTSTATUS NTAPI IopBusNumberInitialize();
 
 //
+// pnpirp.c
+//
+NTSTATUS
+NTAPI
+IopQueryDeviceRelations(
+    _In_ DEVICE_RELATION_TYPE RelationsType,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Inout_ PDEVICE_RELATIONS * OutPendingDeviceRelations
+);
+
+//
 // pnpnode.c
 //
 VOID
