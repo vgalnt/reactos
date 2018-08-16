@@ -83,7 +83,11 @@ IopSynchronousCall(IN PDEVICE_OBJECT DeviceObject,
     ObDereferenceObject(TopDeviceObject);
 
     /* Return the information */
-    *Information = (PVOID)IoStatusBlock.Information;
+    if (Information)
+    {
+        *Information = (PVOID)IoStatusBlock.Information;
+    }
+
     return Status;
 }
 
