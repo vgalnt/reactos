@@ -1285,6 +1285,17 @@ PnpRootPowerControl(
     return Status;
 }
 
+static NTSTATUS NTAPI
+PnpRootSystemControl(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp)
+{
+    NTSTATUS Status;
+    DPRINT1("PnpRootSystemControl(DeviceObject %p, Irp %p)\n", DeviceObject, Irp);
+    ASSERT(FALSE);
+    return Status = STATUS_SUCCESS;
+}
+
 NTSTATUS
 NTAPI
 PnpRootAddDevice(
@@ -1395,6 +1406,7 @@ PnpRootDriverEntry(
 #endif
     DriverObject->MajorFunction[IRP_MJ_PNP] = PnpRootPnpControl;
     DriverObject->MajorFunction[IRP_MJ_POWER] = PnpRootPowerControl;
+    DriverObject->MajorFunction[IRP_MJ_SYSTEM_CONTROL] = PnpRootSystemControl;
 
 #if MI_TRACE_PFNS
     Status = IoCreateDevice(DriverObject,
