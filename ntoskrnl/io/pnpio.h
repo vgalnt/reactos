@@ -133,6 +133,12 @@ PipSetDevNodeProblem(
     _In_ ULONG Problem
 );
 
+VOID
+NTAPI
+PipClearDevNodeProblem(
+    _In_ PDEVICE_NODE DeviceNode
+);
+
 //
 // pnpres.c
 //

@@ -231,4 +231,14 @@ PipSetDevNodeProblem(
     DeviceNode->Problem = Problem;
 }
 
+VOID
+NTAPI
+PipClearDevNodeProblem(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PAGED_CODE();
+    DeviceNode->Flags &= ~DNF_HAS_PROBLEM;
+    DeviceNode->Problem = 0;
+}
+
 /* EOF */
