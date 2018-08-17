@@ -39,6 +39,7 @@ ARBITER_INSTANCE IopRootPortArbiter;
 
 PDEVICE_NODE IopRootDeviceNode = NULL;
 LONG IopNumberDeviceNodes = 0;
+ULONG IopMaxDeviceNodeLevel = 0; 
 
 KSPIN_LOCK IopPnPSpinLock;
 LIST_ENTRY IopPnpEnumerationRequestList;
