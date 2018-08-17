@@ -1,6 +1,9 @@
 #ifndef _PNPIO_H
 #define _PNPIO_H
 
+#define PIP_SUBKEY_FLAG_SKIP_ERROR  1
+#define PIP_SUBKEY_FLAG_DELETE_KEY  2
+
 typedef struct _PNP_DEVICE_INSTANCE_CONTEXT
 {
     PDEVICE_OBJECT DeviceObject;
