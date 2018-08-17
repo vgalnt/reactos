@@ -9,7 +9,9 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
-#define NDEBUG
+#include "legacy.h"
+
+//#define NDEBUG
 #include <debug.h>
 
 typedef enum _EXTENSION_TYPE
@@ -47,6 +49,9 @@ typedef struct _PDO_EXTENSION
 /* GLOBALS ********************************************************************/
 
 PDRIVER_OBJECT HalpDriverObject;
+
+ULONG HalpIrqMiniportInitialized = 0;
+PCI_INT_ROUTE_INTERFACE PciIrqRoutingInterface;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
@@ -105,6 +110,7 @@ HalpAddDevice(IN PDRIVER_OBJECT DriverObject,
 //    PDESCRIPTION_HEADER Wdrt;
 
     DPRINT("HAL: PnP Driver ADD!\n");
+    ASSERT(FALSE);
 
     /* Create the FDO */
     Status = IoCreateDevice(DriverObject,
@@ -888,27 +894,6 @@ HalpDriverEntry(IN PDRIVER_OBJECT DriverObject,
     DriverObject->MajorFunction[IRP_MJ_POWER] = HalpDispatchPower;
     DriverObject->MajorFunction[IRP_MJ_SYSTEM_CONTROL] = HalpDispatchWmi;
 
-    /* Create the PDO */
-    Status = IoCreateDevice(DriverObject,
-                            0,
-                            NULL,
-                            FILE_DEVICE_CONTROLLER,
-                            0,
-                            FALSE,
-                            &TargetDevice);
-    if (!NT_SUCCESS(Status))
-        return Status;
-
-    TargetDevice->Flags &= ~DO_DEVICE_INITIALIZING;
-
-    /* Set up the device stack */
-    Status = HalpAddDevice(DriverObject, TargetDevice);
-    if (!NT_SUCCESS(Status))
-    {
-        IoDeleteDevice(TargetDevice);
-        return Status;
-    }
-
     /* Tell the PnP manager about us */
     Status = IoReportDetectedDevice(DriverObject,
                                     InterfaceTypeUndefined,
@@ -918,6 +903,23 @@ HalpDriverEntry(IN PDRIVER_OBJECT DriverObject,
                                     NULL,
                                     FALSE,
                                     &TargetDevice);
+    ASSERT(TargetDevice);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("HalpDriverEntry: IoReportDetectedDevice() failed!\n");
+        return Status;
+    }
+
+    /* Set up the device stack */
+    Status = HalpAddDevice(DriverObject, TargetDevice);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("HalpDriverEntry: Add device failed!\n");
+        IoDeleteDevice(TargetDevice);
+    }
+
+    RtlZeroMemory(&PciIrqRoutingInterface, sizeof(PCI_INT_ROUTE_INTERFACE));
+    RtlZeroMemory(&HalpPciIrqRoutingInfo, sizeof(HAL_PCI_IRQ_ROUTING_INFO));
 
     /* Return to kernel */
     return Status;
