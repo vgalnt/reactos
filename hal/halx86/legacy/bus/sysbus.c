@@ -9,10 +9,14 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
+#include "legacy.h"
+
 #define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
+
+HAL_PCI_IRQ_ROUTING_INFO HalpPciIrqRoutingInfo;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
