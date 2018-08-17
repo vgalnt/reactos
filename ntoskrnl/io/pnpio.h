@@ -215,6 +215,21 @@ IopProcessAssignResources(
 //
 NTSTATUS
 NTAPI
+PnpAllocateUnicodeString(
+    _Out_ PUNICODE_STRING String,
+    _In_ USHORT Size
+);
+
+NTSTATUS
+NTAPI
+PnpConcatenateUnicodeStrings(
+    _Out_ PUNICODE_STRING DestinationString,
+    _In_ PUNICODE_STRING SourceString,
+    _In_ PUNICODE_STRING AppendString
+);
+
+NTSTATUS
+NTAPI
 IopMapDeviceObjectToDeviceInstance(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PUNICODE_STRING InstancePath
