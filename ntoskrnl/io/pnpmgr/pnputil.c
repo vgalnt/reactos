@@ -404,4 +404,164 @@ IopMapDeviceObjectToDeviceInstance(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+PipApplyFunctionToSubKeys(
+    _In_opt_ HANDLE RootHandle,
+    _In_opt_ PUNICODE_STRING KeyName,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ UCHAR Flags,
+    _In_ PIP_FUNCTION_TO_SUBKEYS Function,
+    _In_ PVOID Context)
+{
+    PKEY_BASIC_INFORMATION KeyInfo = NULL;
+    UNICODE_STRING SubKeyName;
+    HANDLE KeyHandle;
+    HANDLE SubKeyHandle;
+    SIZE_T KeyInfoLen;
+    ULONG ResultLength = 0;
+    ULONG Index;
+    NTSTATUS Status;
+    NTSTATUS status;
+    BOOLEAN IsOpenedKey = FALSE;
+    BOOLEAN Result;
+
+    DPRINT("PipApplyFunctionToSubKeys: RootHandle - %X, KeyName - %wZ, Flags - %X\n",
+           RootHandle, KeyName, Flags);
+
+    KeyHandle = RootHandle;
+
+    if (KeyName)
+    {
+        Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                      RootHandle,
+                                      KeyName,
+                                      KEY_READ);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PipApplyFunctionToSubKeys: error\n");
+            return Status;
+        }
+
+        IsOpenedKey = TRUE;
+    }
+
+    Index = 0;
+    KeyInfoLen = sizeof(KEY_BASIC_INFORMATION) + 20 * sizeof(WCHAR);
+
+    while (TRUE)
+    {
+        while (TRUE)
+        {
+            if (!KeyInfo)
+            {
+                KeyInfo = ExAllocatePoolWithTag(PagedPool, KeyInfoLen, 'uspP');
+                if (!KeyInfo)
+                {
+                    DPRINT("PipApplyFunctionToSubKeys: error\n");
+                    Status = STATUS_INSUFFICIENT_RESOURCES;
+                    goto Exit;
+                }
+            }
+
+            status = ZwEnumerateKey(KeyHandle,
+                                    Index,
+                                    KeyBasicInformation,
+                                    KeyInfo,
+                                    KeyInfoLen,
+                                    &ResultLength);
+
+            DPRINT("PipApplyFunctionToSubKeys: Index - %X, KeyInfoLen - %X, ResultLength - %X\n",
+                   Index, KeyInfoLen, ResultLength);
+
+            if (!NT_SUCCESS(status))
+            {
+                DPRINT("PipApplyFunctionToSubKeys: status %X\n", status);
+                break;
+            }
+
+            SubKeyName.Length = KeyInfo->NameLength;
+            SubKeyName.MaximumLength = KeyInfo->NameLength;
+            SubKeyName.Buffer = KeyInfo->Name;
+
+            DPRINT("PipApplyFunctionToSubKeys: SubKeyName - %wZ\n", &SubKeyName);
+
+            if (DesiredAccess)
+            {
+                Status = IopOpenRegistryKeyEx(&SubKeyHandle,
+                                              KeyHandle,
+                                              &SubKeyName,
+                                              DesiredAccess);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT("PipApplyFunctionToSubKeys: Status - %X\n", Status);
+
+                    if (Flags & PIP_SUBKEY_FLAG_SKIP_ERROR)
+                    {
+                        goto Next;
+                    }
+                    else
+                    {
+                        DPRINT("PipApplyFunctionToSubKeys: error\n");
+                        goto Exit;
+                    }
+                }
+            }
+
+            Result = Function(SubKeyHandle, &SubKeyName, Context);
+
+            if (DesiredAccess)
+            {
+                if (Result && (Flags & PIP_SUBKEY_FLAG_DELETE_KEY))
+                {
+                    ZwDeleteKey(SubKeyHandle);
+                }
+
+                ZwClose(SubKeyHandle);
+            }
+
+            if (!Result)
+            {
+                Status = STATUS_SUCCESS;
+                goto Exit;
+            }
+
+Next:
+            if (!(Flags & PIP_SUBKEY_FLAG_DELETE_KEY))
+            {
+                Index++;
+            }
+        }
+
+        if (status != STATUS_BUFFER_OVERFLOW &&
+            status != STATUS_BUFFER_TOO_SMALL)
+        {
+            break;
+        }
+
+        ExFreePoolWithTag(KeyInfo, 'uspP');
+
+        KeyInfo = NULL;
+        KeyInfoLen = ResultLength;
+    }
+
+    if (status == STATUS_NO_MORE_ENTRIES)
+    {
+        Status = STATUS_SUCCESS;
+    }
+
+Exit:
+
+    if (KeyInfo)
+    {
+        ExFreePoolWithTag(KeyInfo, 'uspP');
+    }
+    if (IsOpenedKey)
+    {
+        ZwClose(KeyHandle);
+    }
+
+    return Status;
+}
+
 /* EOF */
