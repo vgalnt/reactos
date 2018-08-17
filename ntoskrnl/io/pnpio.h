@@ -50,6 +50,37 @@ C_ASSERT(sizeof(PIP_ENUM_REQUEST) == 0x38);
 C_ASSERT(sizeof(PIP_ENUM_REQUEST) == 0x20);
 #endif
 
+typedef struct _PIP_RESOURCE_REQUEST
+{
+    PDEVICE_OBJECT PhysicalDevice;
+    ULONG Flags;
+    ARBITER_REQUEST_SOURCE AllocationType;
+    ULONG Priority;
+    ULONG Position;
+    PIO_RESOURCE_REQUIREMENTS_LIST ResourceRequirements;
+    PVOID ReqList;
+    PCM_RESOURCE_LIST ResourceAssignment;
+    PCM_RESOURCE_LIST TranslatedResourceAssignment;
+    NTSTATUS Status;
+#if defined(_M_X64)
+    ULONG Padding;
+#endif
+} PIP_RESOURCE_REQUEST, *PPIP_RESOURCE_REQUEST;
+
+#if defined(_M_X64)
+C_ASSERT(sizeof(PIP_RESOURCE_REQUEST) == 0x40);
+#else
+C_ASSERT(sizeof(PIP_RESOURCE_REQUEST) == 0x28);
+#endif
+
+typedef struct _PIP_ASSIGN_RESOURCES_CONTEXT
+{
+    ULONG DeviceCount;
+    BOOLEAN IncludeFailedDevices;
+    UCHAR Padded[3];
+    PDEVICE_OBJECT DeviceList[1];
+} PIP_ASSIGN_RESOURCES_CONTEXT, *PPIP_ASSIGN_RESOURCES_CONTEXT;
+
 //
 // debug.c
 //
@@ -147,6 +178,13 @@ PipSetDevNodeProblem(
 VOID
 NTAPI
 PipClearDevNodeProblem(
+    _In_ PDEVICE_NODE DeviceNode
+);
+
+VOID
+NTAPI
+PpDevNodeInsertIntoTree(
+    _In_ PDEVICE_NODE ParentNode,
     _In_ PDEVICE_NODE DeviceNode
 );
 
