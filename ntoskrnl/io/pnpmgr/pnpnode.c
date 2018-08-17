@@ -19,6 +19,7 @@
 extern KSPIN_LOCK IopPnPSpinLock;
 extern ERESOURCE PiEngineLock;
 extern ERESOURCE PiDeviceTreeLock;
+extern ULONG IopMaxDeviceNodeLevel; 
 
 /* DATA **********************************************************************/
 
@@ -239,6 +240,44 @@ PipClearDevNodeProblem(
     PAGED_CODE();
     DeviceNode->Flags &= ~DNF_HAS_PROBLEM;
     DeviceNode->Problem = 0;
+}
+
+VOID
+NTAPI
+PpDevNodeInsertIntoTree(
+    _In_ PDEVICE_NODE ParentNode,
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    KIRQL OldIrql;
+    ULONG NodeLevel;
+
+    DPRINT("PpDevNodeInsertIntoTree: ParentNode - %p, DeviceNode - %p\n",
+           ParentNode, DeviceNode);
+
+    KeAcquireSpinLock(&IopPnPSpinLock, &OldIrql);
+
+    NodeLevel = ParentNode->Level + 1;
+    DeviceNode->Level = NodeLevel;
+
+    IopMaxDeviceNodeLevel = max(IopMaxDeviceNodeLevel, NodeLevel);
+
+    DeviceNode->Parent = ParentNode;
+
+    if (ParentNode->LastChild)
+    {
+        ASSERT(ParentNode->LastChild->Sibling == NULL);
+        ParentNode->LastChild->Sibling = DeviceNode;
+    }
+    else
+    {
+        ASSERT(ParentNode->Child == NULL);
+        ParentNode->Child = DeviceNode;
+    }
+
+    ParentNode->LastChild = DeviceNode;
+
+    KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+    //IoDeviceNodeTreeSequence++;
 }
 
 /* EOF */
