@@ -57,6 +57,54 @@ typedef struct _PNP_ROOT_RELATIONS_CONTEXT {
 
 /* FUNCTIONS *****************************************************************/
 
+BOOLEAN
+NTAPI 
+IopInitializeDeviceKey(
+    _In_ HANDLE KeyHandle,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ PVOID Context)
+{
+    PPNP_ROOT_RELATIONS_CONTEXT RelationContext;
+    PUNICODE_STRING EnumString;
+    USHORT Length;
+    NTSTATUS Status;
+
+    RelationContext = Context;
+
+    DPRINT("IopInitializeDeviceKey: KeyName - %wZ, RelationContext->Objects - %p\n",
+           KeyName, RelationContext->Objects);
+
+    EnumString = RelationContext->RootEnumString;
+    Length = EnumString->Length;
+
+    if (Length / sizeof(WCHAR))
+    {
+        EnumString->Buffer[Length / sizeof(WCHAR)] = '\\';
+        EnumString->Length += sizeof(WCHAR);
+    }
+
+    RtlAppendUnicodeStringToString(EnumString, KeyName);
+
+    Status = PipApplyFunctionToSubKeys(KeyHandle,
+                                       NULL,
+                                       KEY_ALL_ACCESS,
+                                       PIP_SUBKEY_FLAG_SKIP_ERROR,
+                                       IopInitializeDeviceInstanceKey,
+                                       RelationContext);
+
+    DPRINT("IopInitializeDeviceKey: RelationContext->Objects - %p, RelationContext->Status - %X\n",
+           RelationContext->Objects, RelationContext->Status);
+
+    EnumString->Length = Length;
+
+    if (!NT_SUCCESS(Status))
+    {
+        RelationContext->Status = Status;
+    }
+
+    return NT_SUCCESS(RelationContext->Status);
+}
+
 NTSTATUS
 NTAPI
 IopGetRootDevices(
