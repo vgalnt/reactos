@@ -48,6 +48,8 @@ ERESOURCE PiEngineLock;
 ERESOURCE PiDeviceTreeLock;
 
 BOOLEAN PnPBootDriversLoaded = FALSE;
+BOOLEAN PnPBootDriversInitialized = FALSE;
+BOOLEAN IopBootConfigsReserved = FALSE;
 
 /* FUNCTIONS ******************************************************************/
 

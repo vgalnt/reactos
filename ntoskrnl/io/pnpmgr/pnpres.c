@@ -10,8 +10,16 @@
 #include <ntoskrnl.h>
 #include "../pnpio.h"
 
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
+
+/* GLOBALS *******************************************************************/
+
+extern BOOLEAN IopBootConfigsReserved;
+
+/* DATA **********************************************************************/
+
+/* FUNCTIONS *****************************************************************/
 
 static
 BOOLEAN
@@ -1506,6 +1514,48 @@ IopWriteResourceList(
     ZwClose(DescriptionHandle);
 
     return Status;
+}
+
+NTSTATUS
+IopProcessAssignResourcesWorker(
+    _In_ PDEVICE_NODE DeviceNode,
+    _Inout_ PVOID Context)
+{
+    PPIP_ASSIGN_RESOURCES_CONTEXT AssignContext;
+
+    PAGED_CODE();
+    AssignContext = Context;
+
+    if (AssignContext->IncludeFailedDevices)
+    {
+        if ((DeviceNode->Flags & DNF_HAS_PROBLEM) && 
+            ((DeviceNode->Problem == CM_PROB_NORMAL_CONFLICT) ||
+             (DeviceNode->Problem == CM_PROB_TRANSLATION_FAILED) ||
+             (DeviceNode->Problem == CM_PROB_IRQ_TRANSLATION_FAILED)))
+        {
+            PipClearDevNodeProblem(DeviceNode);
+        }
+    }
+
+    if ((DeviceNode->Flags & DNF_HAS_PROBLEM)||
+        (DeviceNode->Flags & DNF_HAS_PRIVATE_PROBLEM))
+    {
+        DPRINT("IopProcessAssignResourcesWorker: PDO - %p, DeviceNode - %p, DeviceNode->Flags - %X\n",
+               DeviceNode->PhysicalDeviceObject, DeviceNode, DeviceNode->Flags);
+        return STATUS_SUCCESS;
+    }
+
+    if (DeviceNode->State == DeviceNodeDriversAdded)
+    {
+        AssignContext->DeviceList[AssignContext->DeviceCount] = DeviceNode->PhysicalDeviceObject;
+        DPRINT("IopProcessAssignResourcesWorker: PhysicalDeviceObject - %p\n",
+               DeviceNode->PhysicalDeviceObject);
+
+        AssignContext->DeviceCount++;
+        DPRINT("IopProcessAssignResourcesWorker: DeviceCount - %X\n", AssignContext->DeviceCount);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 BOOLEAN
