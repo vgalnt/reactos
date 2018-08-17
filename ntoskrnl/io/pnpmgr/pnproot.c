@@ -59,6 +59,18 @@ typedef struct _PNP_ROOT_RELATIONS_CONTEXT {
 
 BOOLEAN
 NTAPI 
+IopInitializeDeviceInstanceKey(
+    _In_ HANDLE KeyHandle,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ PVOID Context)
+{
+    DPRINT("IopInitializeDeviceInstanceKey: KeyName - %wZ\n", KeyName);
+    ASSERT(0);
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI 
 IopInitializeDeviceKey(
     _In_ HANDLE KeyHandle,
     _In_ PUNICODE_STRING KeyName,
