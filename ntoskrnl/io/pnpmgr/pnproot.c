@@ -45,6 +45,16 @@ typedef struct _PNPROOT_PDO_DEVICE_EXTENSION
     PPNPROOT_DEVICE DeviceInfo;
 } PNPROOT_PDO_DEVICE_EXTENSION, *PPNPROOT_PDO_DEVICE_EXTENSION;
 
+typedef struct _PNP_ROOT_RELATIONS_CONTEXT {
+    NTSTATUS Status;
+    PUNICODE_STRING RootEnumString;
+    ULONG MaxDevices;
+    ULONG Count;
+    PVOID Objects;
+} PNP_ROOT_RELATIONS_CONTEXT, *PPNP_ROOT_RELATIONS_CONTEXT;
+
+#define PNP_MAX_ROOT_DEVICES 256
+
 /* FUNCTIONS *****************************************************************/
 
 NTSTATUS
@@ -52,9 +62,135 @@ NTAPI
 IopGetRootDevices(
     _Out_ ULONG_PTR * OutInformation)
 {
+    PDEVICE_RELATIONS Relations;
+    PWCHAR Buffer;
+    UNICODE_STRING RootName;
+    UNICODE_STRING EnumString;
+    HANDLE Handle;
+    ULONG RelationsSize;
+    ULONG ix;
+    NTSTATUS Status;
+    UNICODE_STRING KeyName = RTL_CONSTANT_STRING(L"\\REGISTRY\\MACHINE\\SYSTEM\\CurrentControlSet\\Enum\\Root");
+    PNP_ROOT_RELATIONS_CONTEXT RelationContext;
+  
+    PAGED_CODE();
     DPRINT("IopGetRootDevices: *OutInformation - %p\n", *OutInformation);
-    ASSERT(FALSE);
-    return STATUS_SUCCESS;
+
+    *OutInformation = 0;
+
+    Buffer = ExAllocatePoolWithTag(PagedPool, PAGE_SIZE, 'ddpP');
+    if (!Buffer)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RelationContext.Objects = ExAllocatePoolWithTag(PagedPool,
+                                                    PNP_MAX_ROOT_DEVICES * sizeof(PDEVICE_OBJECT),
+                                                    'ddpP');
+    if (!RelationContext.Objects)
+    {
+        ExFreePoolWithTag(Buffer, 'ddpP');
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RelationContext.Count = 0;
+    RelationContext.MaxDevices = PNP_MAX_ROOT_DEVICES;
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceExclusiveLite(&PpRegistryDeviceResource, TRUE);
+
+    Status = IopCreateRegistryKeyEx(&Handle,
+                                    NULL,
+                                    &KeyName,
+                                    KEY_READ,
+                                    REG_OPTION_NON_VOLATILE,
+                                    NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    EnumString.Length = 0;
+    EnumString.MaximumLength = PAGE_SIZE;
+    EnumString.Buffer = Buffer;
+    RtlZeroMemory(EnumString.Buffer, PAGE_SIZE);
+
+    RtlInitUnicodeString(&RootName, ENUM_NAME_ROOT);
+    RtlAppendUnicodeStringToString(&EnumString, &RootName);
+
+    RelationContext.RootEnumString = &EnumString;
+    RelationContext.Status = STATUS_SUCCESS;
+
+    PipApplyFunctionToSubKeys(Handle,
+                              NULL,
+                              KEY_ALL_ACCESS,
+                              PIP_SUBKEY_FLAG_SKIP_ERROR,
+                              IopInitializeDeviceKey,
+                              &RelationContext);
+    ZwClose(Handle);
+
+    Status = RelationContext.Status;
+    if (!NT_SUCCESS(Status))
+    {
+        if (!RelationContext.Count)
+        {
+            Status = STATUS_UNSUCCESSFUL;
+        }
+        goto ErrorExit;
+    }
+
+    DPRINT("IopGetRootDevices: RelationContext.Count - %p, Status - %X\n",
+           RelationContext.Count, Status);
+
+    if (!RelationContext.Count)
+    {
+        Status = STATUS_UNSUCCESSFUL;
+        goto ErrorExit;
+    }
+
+    RelationsSize = sizeof(DEVICE_RELATIONS) +
+                    RelationContext.Count * sizeof(PDEVICE_OBJECT);
+
+    Relations = ExAllocatePoolWithTag(PagedPool, RelationsSize, 'ddpP');
+    if (!Relations)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+
+    Relations->Count = RelationContext.Count;
+
+    RtlCopyMemory(Relations->Objects,
+                  RelationContext.Objects,
+                  RelationContext.Count * sizeof(PDEVICE_OBJECT));
+
+    *OutInformation = (ULONG_PTR)Relations;
+
+ErrorExit:
+
+    if (NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    for (ix = 0; ix < RelationContext.Count; ix++)
+    {
+        DPRINT("IopGetRootDevices: Relations->Objects[%X] - %p\n",
+               ix, Relations->Objects[ix]);
+        ObDereferenceObject(Relations->Objects[ix]);
+    }
+
+Exit:
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    ExFreePoolWithTag(Buffer, 'ddpP');
+    ExFreePoolWithTag(RelationContext.Objects, 'ddpP');
+
+    DPRINT("IopGetRootDevices: return Status - %X\n", Status);
+    return Status;
 }
 
 static NTSTATUS
