@@ -84,6 +84,13 @@ typedef struct _PIP_ASSIGN_RESOURCES_CONTEXT
     PDEVICE_OBJECT DeviceList[1];
 } PIP_ASSIGN_RESOURCES_CONTEXT, *PPIP_ASSIGN_RESOURCES_CONTEXT;
 
+typedef BOOLEAN
+(NTAPI *PIP_FUNCTION_TO_SUBKEYS)(
+    _In_ HANDLE Handle,
+    _In_ PUNICODE_STRING Name,
+    _In_ PVOID Context
+);
+
 //
 // debug.c
 //
@@ -242,6 +249,17 @@ PDEVICE_OBJECT
 NTAPI
 IopDeviceObjectFromDeviceInstance(
     _In_ PUNICODE_STRING DeviceInstance
+);
+
+NTSTATUS
+NTAPI
+PipApplyFunctionToSubKeys(
+    _In_opt_ HANDLE RootHandle,
+    _In_opt_ PUNICODE_STRING KeyName,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ UCHAR Flags,
+    _In_ PIP_FUNCTION_TO_SUBKEYS Function,
+    _In_ PVOID Context
 );
 
 #endif  /* _PNPIO_H */
