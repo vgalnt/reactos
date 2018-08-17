@@ -21,6 +21,68 @@ extern KGUARDED_MUTEX PpDeviceReferenceTableLock;
 
 /* FUNCTIONS ******************************************************************/
 
+NTSTATUS
+NTAPI
+PnpAllocateUnicodeString(
+    _Out_ PUNICODE_STRING String,
+    _In_ USHORT Size)
+{
+    PWCHAR Buffer;
+
+    PAGED_CODE();
+
+    String->Length = 0;
+    String->MaximumLength = Size + sizeof(WCHAR);
+
+    Buffer = ExAllocatePoolWithTag(PagedPool, String->MaximumLength, '  pP');
+    String->Buffer = Buffer;
+
+    if (Buffer)
+    {
+        return STATUS_SUCCESS;
+    }
+
+    ASSERT(FALSE);
+    String->MaximumLength = 0;
+    return STATUS_INSUFFICIENT_RESOURCES;
+}
+
+NTSTATUS
+NTAPI
+PnpConcatenateUnicodeStrings(
+    _Out_ PUNICODE_STRING DestinationString,
+    _In_ PUNICODE_STRING SourceString,
+    _In_ PUNICODE_STRING AppendString)
+{
+    USHORT Length;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    Length = SourceString->Length;
+
+    if (AppendString)
+    {
+        Length += AppendString->Length;
+    }
+
+    Status = PnpAllocateUnicodeString(DestinationString, Length);
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+        return Status;
+    }
+
+    RtlCopyUnicodeString(DestinationString, SourceString);
+
+    if (AppendString)
+    {
+        RtlAppendUnicodeStringToString(DestinationString, AppendString);
+    }
+
+    return Status;
+}
+
 VOID
 NTAPI
 PnpFreeUnicodeStringList(IN PUNICODE_STRING UnicodeStringList,
