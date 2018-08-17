@@ -1507,3 +1507,199 @@ IopWriteResourceList(
 
     return Status;
 }
+
+BOOLEAN
+NTAPI
+IopProcessAssignResources(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ BOOLEAN IncludeFailedDevices,
+    _Inout_ BOOLEAN *OutIsAssigned)
+{
+    PPIP_ASSIGN_RESOURCES_CONTEXT AssignContext;
+    DEVICETREE_TRAVERSE_CONTEXT Context;
+    PPIP_RESOURCE_REQUEST ResRequest;
+    PDEVICE_NODE node;
+    ULONG AssignContextSize;
+    ULONG DeviceCount;
+    ULONG MaxConfigs;
+    ULONG ConfigNum;
+    ULONG ix;
+    NTSTATUS Status;
+    BOOLEAN IsRetry = TRUE;
+    BOOLEAN IsAssignBootConfig;
+    BOOLEAN Result = FALSE;
+
+    PAGED_CODE();
+
+    if (IopBootConfigsReserved)
+    {
+         MaxConfigs = 1;
+    }
+    else
+    {
+         MaxConfigs = 2;
+    }
+
+    DPRINT("IopProcessAssignResources: DeviceNode - %p, IncludeFailedDevices - %X, MaxConfigs - %X\n",
+           DeviceNode, IncludeFailedDevices, MaxConfigs);
+
+    for (ConfigNum = 0; ; ConfigNum++)
+    {
+        DPRINT("IopProcessAssignResources: ConfigNum %X\n", ConfigNum);
+
+        if (IsRetry == FALSE || ConfigNum >= MaxConfigs)
+        {
+            DPRINT("IopProcessAssignResources: return Result - %X\n", Result);
+            Result = FALSE;
+            break;
+        }
+
+        IsRetry = FALSE;
+
+        AssignContextSize = sizeof(PIP_RESOURCE_REQUEST) +
+                            IopNumberDeviceNodes * sizeof(PDEVICE_OBJECT);
+
+        AssignContext = ExAllocatePoolWithTag(PagedPool, AssignContextSize, 'ddpP');
+        if (!AssignContext)
+        {
+            ASSERT(FALSE);
+            Result = FALSE;
+            break;
+        }
+
+        AssignContext->DeviceCount = 0;
+        AssignContext->IncludeFailedDevices = IncludeFailedDevices;
+
+        IopInitDeviceTreeTraverseContext(&Context,
+                                         DeviceNode,
+                                         IopProcessAssignResourcesWorker,
+                                         AssignContext);
+
+        Status = IopTraverseDeviceTree(&Context);
+
+        DeviceCount = AssignContext->DeviceCount;
+        if (DeviceCount == 0)
+        {
+            DPRINT("IopProcessAssignResources: DeviceCount == 0\n");
+            ExFreePoolWithTag(AssignContext, 'ddpP');
+            Result = FALSE;
+            break;
+        }
+
+        DPRINT("IopProcessAssignResources: DeviceCount - %x\n", DeviceCount);
+        ResRequest = ExAllocatePoolWithTag(PagedPool,
+                                           DeviceCount * sizeof(PIP_RESOURCE_REQUEST),
+                                           'ddpP');
+        if (!ResRequest)
+        {
+            ASSERT(FALSE);
+            goto Next;
+        }
+
+        for (ix = 0; ix < DeviceCount; ix++)
+        {
+            ResRequest[ix].PhysicalDevice = AssignContext->DeviceList[ix];
+            ResRequest[ix].ReqList = NULL;
+            ResRequest[ix].Priority = 0;
+        }
+
+        if (ConfigNum == 0)
+        {
+            IsAssignBootConfig = IopBootConfigsReserved;
+        }
+        else
+        {
+            IsAssignBootConfig = TRUE;
+        }
+
+        DPRINT("IopProcessAssignResources: IsAssignBootConfig - %X\n", IsAssignBootConfig);
+        ASSERT(FALSE);
+        //IopAssignResourcesToDevices(DeviceCount, ResRequest, IsAssignBootConfig, OutIsAssigned);
+
+        for (ix = 0; ix < DeviceCount; ix++)
+        {
+            ;//PipDumpResRequest(&ResRequest[ix]);
+        }
+
+        for (ix = 0; ix < DeviceCount; ix++)
+        {
+            node = IopGetDeviceNode(ResRequest[ix].PhysicalDevice);
+            Status = ResRequest[ix].Status;
+
+            DPRINT("IopProcessAssignResources: ConfigNum - %X, Status[%X] - %X\n",
+                    ConfigNum, ix, Status);
+
+            if (!NT_SUCCESS(Status))
+            {
+                switch (Status)
+                {
+                    case STATUS_RESOURCE_TYPE_NOT_FOUND:
+                        ASSERT(FALSE);
+                        PipSetDevNodeProblem(node, CM_PROB_UNKNOWN_RESOURCE);
+                        break;
+
+                    case STATUS_DEVICE_CONFIGURATION_ERROR:
+                        ASSERT(FALSE);
+                        PipSetDevNodeProblem(node, CM_PROB_NO_SOFTCONFIG);
+                        break;
+
+                    case STATUS_RETRY:
+                        DPRINT("IopProcessAssignResources: STATUS_RETRY\n");
+                        IsRetry = TRUE;
+                        break;
+
+                    case STATUS_PNP_BAD_MPS_TABLE:
+                        ASSERT(FALSE);
+                        PipSetDevNodeProblem(node, CM_PROB_BIOS_TABLE);
+                        break;
+
+                    case STATUS_PNP_TRANSLATION_FAILED:
+                        ASSERT(FALSE);
+                        PipSetDevNodeProblem(node, CM_PROB_TRANSLATION_FAILED);
+                        break;
+
+                    case STATUS_PNP_IRQ_TRANSLATION_FAILED:
+                        ASSERT(FALSE);
+                        PipSetDevNodeProblem(node, CM_PROB_IRQ_TRANSLATION_FAILED);
+                        break;
+
+                    default:
+                        ASSERT(FALSE);
+                        PipSetDevNodeProblem(node, CM_PROB_NORMAL_CONFLICT);
+                        break;
+                }
+            }
+            else
+            {
+                if (ResRequest[ix].ResourceAssignment)
+                {
+                    node->ResourceList = ResRequest[ix].ResourceAssignment;
+                    node->ResourceListTranslated = ResRequest[ix].TranslatedResourceAssignment;
+                }
+                else
+                {
+                    node->Flags |= DNF_NO_RESOURCE_REQUIRED;
+                }
+
+                PipSetDevNodeState(node, DeviceNodeResourcesAssigned, FALSE);
+                node->UserFlags &= ~4;
+
+                Result = TRUE;
+            }
+        }
+
+        ExFreePoolWithTag(ResRequest, 'ddpP');
+
+Next:
+        ExFreePoolWithTag(AssignContext, 'ddpP');
+
+        if (Result)
+        {
+           break;
+        }
+    }
+
+    return Result;
+}
+
+/* EOF */

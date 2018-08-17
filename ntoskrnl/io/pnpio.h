@@ -202,6 +202,14 @@ IopWriteResourceList(
     _In_ ULONG ListSize
 );
 
+BOOLEAN
+NTAPI
+IopProcessAssignResources(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ BOOLEAN IncludeFailedDevices,
+    _Inout_ BOOLEAN *OutIsAssigned
+);
+
 //
 // pnputil.c
 //
