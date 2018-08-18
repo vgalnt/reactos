@@ -120,6 +120,11 @@ IopDumpIoResourceDescriptor(
     _In_ PIO_RESOURCE_DESCRIPTOR Descriptor
 );
 
+PWCHAR
+NTAPI
+IopGetBusName(
+    _In_ INTERFACE_TYPE IfType
+);
 
 //
 // pnpenum.c
