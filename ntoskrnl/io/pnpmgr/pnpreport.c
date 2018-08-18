@@ -152,6 +152,86 @@ PpSetCustomTargetEvent(IN PDEVICE_OBJECT DeviceObject,
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+PpCreateLegacyDeviceIds(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PUNICODE_STRING ServiceName,
+    _In_ PCM_RESOURCE_LIST ResourceList)
+{
+    PPNP_LEGACY_DEVICE_EXTENSION DeviceExtension;
+    INTERFACE_TYPE InterfaceType;
+    PWCHAR BusName;
+    WCHAR Buffer[200];
+    size_t Remaining = sizeof(Buffer);
+    PWCHAR EndBuffer;
+    PWCHAR Id = NULL;
+    ULONG Length;
+
+    DPRINT("PpCreateLegacyDeviceIds: DeviceObject - %p, ServiceName - %wZ\n",
+           DeviceObject, ServiceName);
+
+    if (ResourceList)
+    {
+        InterfaceType = ResourceList->List[0].InterfaceType;
+
+        if (InterfaceType > MaximumInterfaceType ||
+            InterfaceType < InterfaceTypeUndefined)
+        {
+            InterfaceType = MaximumInterfaceType;
+        }
+    }
+    else
+    {
+        InterfaceType = Internal;
+    }
+
+    BusName = IopGetBusName(InterfaceType);
+    DPRINT("PpCreateLegacyDeviceIds: InterfaceType - %S\n", BusName);
+
+    RtlZeroMemory(Buffer, sizeof(Buffer));
+    RtlStringCbPrintfExW(Buffer,
+                         Remaining,
+                         &EndBuffer,
+                         &Remaining,
+                         0,
+                         L"%ws%ws\\%wZ",
+                         L"DETECTED",
+                         BusName,
+                         ServiceName);
+    DPRINT("PpCreateLegacyDeviceIds: Buffer - %S\n", Buffer);
+
+    EndBuffer++;
+    Remaining -= sizeof(UNICODE_NULL);
+
+    RtlStringCbPrintfExW(EndBuffer,
+                         Remaining,
+                         NULL,
+                         &Remaining,
+                         0,
+                         L"%ws\\%wZ",
+                         L"DETECTED",
+                         ServiceName);
+    DPRINT("PpCreateLegacyDeviceIds: EndBuffer - %S\n", EndBuffer);
+
+    Length = sizeof(Buffer) - (Remaining - 2 * sizeof(UNICODE_NULL));
+
+    Id = ExAllocatePoolWithTag(PagedPool, Length, 'oipP');
+    if (!Id)
+    {
+        DPRINT("PpCreateLegacyDeviceIds: error\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlCopyMemory(Id, Buffer, Length);
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    DeviceExtension->CompatibleIDs = Id;
+    DeviceExtension->CompatibleIdsLenght = Length;
+
+    return STATUS_SUCCESS;
+}
+
 /* PUBLIC FUNCTIONS **********************************************************/
 
 /*
