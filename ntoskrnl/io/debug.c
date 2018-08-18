@@ -233,4 +233,68 @@ IopDumpResourceRequirementsList(
     }
 }
 
+PWCHAR
+NTAPI
+IopGetBusName(
+    _In_ INTERFACE_TYPE IfType)
+{
+    switch (IfType)
+    {
+       case Internal:
+         return L"Internal";
+
+       case Isa:
+         return L"Isa";
+
+       case Eisa:
+         return L"Eisa";
+
+       case MicroChannel:
+         return L"MicroChannel";
+
+       case TurboChannel:
+         return L"TurboChannel";
+
+       case PCIBus:
+         return L"PCIBus";
+
+       case VMEBus:
+         return L"VMEBus";
+
+       case NuBus:
+         return L"NuBus";
+
+       case PCMCIABus:
+         return L"PCMCIABus";
+
+       case CBus:
+         return L"CBus";
+
+       case MPIBus:
+         return L"MPIBus";
+
+       case MPSABus:
+         return L"MPSABus";
+
+       case ProcessorInternal:
+         return L"ProcessorInternal";
+
+       case PNPISABus:
+         return L"PNPISABus";
+
+       case PNPBus:
+         return L"PNPBus";
+
+       case Vmcs:
+         return L"Other";
+
+       case MaximumInterfaceType:
+         return L"Root";
+
+       default:
+         DPRINT1("Invalid bus type: %d\n", IfType);
+         return NULL;
+    }
+}
+
 /* EOF */
