@@ -120,7 +120,7 @@ IopDumpCmResourceList(
             Descriptor = IopGetNextCmPartialDescriptor(Descriptor);
         }
 
-        FullList = (PCM_FULL_RESOURCE_DESCRIPTOR)IopGetNextCmPartialDescriptor(Descriptor);
+        FullList = (PCM_FULL_RESOURCE_DESCRIPTOR)Descriptor;
     }
 }
 
