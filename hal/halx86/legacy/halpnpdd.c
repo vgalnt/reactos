@@ -22,8 +22,10 @@ typedef enum _EXTENSION_TYPE
 
 typedef enum _PDO_TYPE
 {
-    AcpiPdo = 0x80,
-    WdPdo
+    HalPdo = 0x80,
+    PciPdo,
+    IsaPdo,
+    McaPdo
 } PDO_TYPE;
 
 typedef struct _FDO_EXTENSION
@@ -86,7 +88,7 @@ HalpReportDetectedDevices(IN PDRIVER_OBJECT DriverObject,
     PdoExtension->ExtensionType = PdoExtensionType;
     PdoExtension->PhysicalDeviceObject = PdoDeviceObject;
     PdoExtension->ParentFdoExtension = FdoExtension;
-    PdoExtension->PdoType = AcpiPdo;
+    PdoExtension->PdoType = HalPdo;
 
     /* Add the PDO to the head of the list */
     PdoExtension->Next = FdoExtension->ChildPdoList;
@@ -363,7 +365,7 @@ HalpQueryResources(IN PDEVICE_OBJECT DeviceObject,
     PAGED_CODE();
 
     /* Only the ACPI PDO has requirements */
-    if (DeviceExtension->PdoType == AcpiPdo)
+    if (DeviceExtension->PdoType == HalPdo)
     {
 #if 0
         /* Query ACPI requirements */
@@ -431,7 +433,7 @@ HalpQueryResources(IN PDEVICE_OBJECT DeviceObject,
 
         return STATUS_SUCCESS;
     }
-    else if (DeviceExtension->PdoType == WdPdo)
+    else if (DeviceExtension->PdoType == PciPdo)
     {
         /* Watchdog doesn't */
         return STATUS_NOT_SUPPORTED;
@@ -452,13 +454,13 @@ HalpQueryResourceRequirements(IN PDEVICE_OBJECT DeviceObject,
     PAGED_CODE();
 
     /* Only the ACPI PDO has requirements */
-    if (DeviceExtension->PdoType == AcpiPdo)
+    if (DeviceExtension->PdoType == HalPdo)
     {
         /* Query ACPI requirements */
 //        return HalpQueryAcpiResourceRequirements(Requirements);
         return STATUS_SUCCESS;
     }
-    else if (DeviceExtension->PdoType == WdPdo)
+    else if (DeviceExtension->PdoType == PciPdo)
     {
         /* Watchdog doesn't */
         return STATUS_NOT_SUPPORTED;
@@ -496,7 +498,7 @@ HalpQueryIdPdo(IN PDEVICE_OBJECT DeviceObject,
         case BusQueryHardwareIDs:
 
             /* What kind of PDO is this? */
-            if (PdoType == AcpiPdo)
+            if (PdoType == HalPdo)
             {
                 /* ACPI ID */
                 CurrentId = L"PCI_HAL\\PNP0A03";
@@ -508,7 +510,7 @@ HalpQueryIdPdo(IN PDEVICE_OBJECT DeviceObject,
                 Length += (wcslen(CurrentId) * sizeof(WCHAR)) + sizeof(UNICODE_NULL);
             }
 #if 0
-            else if (PdoType == WdPdo)
+            else if (PdoType == PciPdo)
             {
                 /* WatchDog ID */
                 CurrentId = L"ACPI_HAL\\PNP0C18";
