@@ -64,11 +64,18 @@ HalpAddDevice(IN PDRIVER_OBJECT DriverObject,
 {
     NTSTATUS Status;
     PFDO_EXTENSION FdoExtension;
-    PDEVICE_OBJECT DeviceObject, AttachedDevice;
-//    PDESCRIPTION_HEADER Wdrt;
+    PPDO_EXTENSION PdoExtension;
+    PDEVICE_OBJECT Fdo;
+    PDEVICE_OBJECT AttachedDevice;
+    PDEVICE_OBJECT Pdo;
+    PBUS_HANDLER BusHandler;
+    PBUS_HANDLER ParentHandler;
+    UNICODE_STRING HalPdoName;
+    PDO_TYPE PdoType;
+    ULONG ix;
+    WCHAR Buffer[40];
 
-    DPRINT("HAL: PnP Driver ADD!\n");
-    ASSERT(FALSE);
+    DPRINT("HalpAddDevice: PnP Driver ADD!\n");
 
     /* Create the FDO */
     Status = IoCreateDevice(DriverObject,
@@ -77,7 +84,7 @@ HalpAddDevice(IN PDRIVER_OBJECT DriverObject,
                             FILE_DEVICE_BUS_EXTENDER,
                             0,
                             FALSE,
-                            &DeviceObject);
+                            &Fdo);
     if (!NT_SUCCESS(Status))
     {
         /* Should not happen */
@@ -86,29 +93,149 @@ HalpAddDevice(IN PDRIVER_OBJECT DriverObject,
     }
 
     /* Setup the FDO extension */
-    FdoExtension = DeviceObject->DeviceExtension;
+    FdoExtension = Fdo->DeviceExtension;
     FdoExtension->ExtensionType = FdoExtensionType;
     FdoExtension->PhysicalDeviceObject = TargetDevice;
-    FdoExtension->FunctionalDeviceObject = DeviceObject;
+    FdoExtension->FunctionalDeviceObject = Fdo;
     FdoExtension->ChildPdoList = NULL;
 
-    /* FDO is done initializing */
-    DeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
-
     /* Attach to the physical device object (the bus) */
-    AttachedDevice = IoAttachDeviceToDeviceStack(DeviceObject, TargetDevice);
+    AttachedDevice = IoAttachDeviceToDeviceStack(Fdo, TargetDevice);
     if (!AttachedDevice)
     {
         /* Failed, undo everything */
-        IoDeleteDevice(DeviceObject);
+        DPRINT("HalpAddDevice: Couldn't attach to the PDO");
+        IoDeleteDevice(Fdo);
         return STATUS_NO_SUCH_DEVICE;
     }
+
+    /* FDO is done initializing */
+    Fdo->Flags &= ~DO_DEVICE_INITIALIZING;
 
     /* Save the attachment */
     FdoExtension->AttachedDeviceObject = AttachedDevice;
 
+    /* For legacy hals (hal, halapic, halmps) looking for bus:
+      first pci, then (if pci was not found) continue the search
+      for isa | eisa or for mca bus. */
+
+    for (ix = 0; ; ix++)
+    {
+        BusHandler = HaliReferenceHandlerForBus(PCIBus, ix);
+        if (!BusHandler)
+        {
+            break;
+        }
+
+        DPRINT("HalpAddDevice: found PCI bus - %X\n", BusHandler);
+
+        ParentHandler = BusHandler->ParentHandler;
+        if (ParentHandler && ParentHandler->InterfaceType == PCIBus)
+        {
+            DPRINT("HalpAddDevice: close PCI bus - %X\n", BusHandler);
+            HaliDereferenceBusHandler(BusHandler);
+            continue;
+        }
+
+        Status = HalpRemoveAssignedResources(BusHandler);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("HalpAddDevice: HalpRemoveAssignedResources return - %X\n", Status);
+            HaliDereferenceBusHandler(BusHandler);
+            return Status;
+        }
+
+        swprintf(Buffer, L"\\Device\\Hal Pci %d", ix);
+        RtlInitUnicodeString(&HalPdoName, Buffer);
+
+        Status = IoCreateDevice(DriverObject,
+                                sizeof(PDO_EXTENSION),
+                                &HalPdoName,
+                                FILE_DEVICE_BUS_EXTENDER,
+                                0,
+                                FALSE,
+                                &Pdo);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("HalpAddDevice: IoCreateDevice return - %X\n", Status);
+            DbgBreakPoint();
+            HaliDereferenceBusHandler(BusHandler);
+            return Status;
+        }
+
+        PdoExtension = Pdo->DeviceExtension;
+
+        /* Setup the PDO device extension */
+        PdoExtension = Pdo->DeviceExtension;
+        PdoExtension->ExtensionType = PdoExtensionType;
+        PdoExtension->PhysicalDeviceObject = Pdo;
+        PdoExtension->ParentFdoExtension = FdoExtension;
+        PdoExtension->PdoType = PciPdo;
+
+        /* Add the PDO to the head of the list */
+        PdoExtension->Next = FdoExtension->ChildPdoList;
+        FdoExtension->ChildPdoList = PdoExtension;
+
+        /* Initialization is finished */
+        Pdo->Flags &= ~DO_DEVICE_INITIALIZING;
+    }
+
+    /* If pci bus was not found */
+    if (ix == 0)
+    {
+        BusHandler = HaliReferenceHandlerForBus(Isa, 0);
+        if (BusHandler ||
+            (BusHandler = HaliReferenceHandlerForBus(Eisa, 0)))
+        {
+            RtlInitUnicodeString(&HalPdoName, L"\\Device\\Hal Isa 0");
+            PdoType = IsaPdo;
+        }
+        else
+        {
+            BusHandler = HaliReferenceHandlerForBus(MicroChannel, 0);
+            RtlInitUnicodeString(&HalPdoName, L"\\Device\\Hal Mca 0");
+            PdoType = McaPdo;
+        }
+
+        if (!BusHandler)
+        {
+            DPRINT("HalpAddDevice: No bus found !!!");
+            ASSERT(BusHandler);
+            return STATUS_NO_SUCH_DEVICE;
+        }
+
+        Status = IoCreateDevice(DriverObject,
+                                sizeof(PDO_EXTENSION),
+                                &HalPdoName,
+                                FILE_DEVICE_BUS_EXTENDER,
+                                0,
+                                FALSE,
+                                &Pdo);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DbgBreakPoint();
+            HaliDereferenceBusHandler(BusHandler);
+            return Status;
+        }
+
+        /* Setup the PDO device extension */
+        PdoExtension = Pdo->DeviceExtension;
+        PdoExtension->ExtensionType = PdoExtensionType;
+        PdoExtension->PhysicalDeviceObject = Pdo;
+        PdoExtension->ParentFdoExtension = FdoExtension;
+        PdoExtension->PdoType = PdoType;
+
+        /* Add the PDO to the head of the list */
+        FdoExtension->ChildPdoList = PdoExtension;
+
+        /* Initialization is finished */
+        Pdo->Flags &= DO_DEVICE_INITIALIZING;
+    }
+
     /* Return status */
-    DPRINT("Device added %lx\n", Status);
+    DPRINT("HalpAddDevice: return - %X\n", Status);
     return Status;
 }
 
