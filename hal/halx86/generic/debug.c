@@ -118,7 +118,7 @@ HalpDumpCmResourceList(
             Descriptor = HalpGetNextCmPartialDescriptor(Descriptor);
         }
 
-        FullList = (PCM_FULL_RESOURCE_DESCRIPTOR)HalpGetNextCmPartialDescriptor(Descriptor);
+        FullList = (PCM_FULL_RESOURCE_DESCRIPTOR)Descriptor;
     }
 }
 

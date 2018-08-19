@@ -425,9 +425,6 @@ HalpReportResourceUsage(IN PUNICODE_STRING HalName,
             }
         }
 
-        CurrentRaw++;
-        CurrentTranslated++;
-
         /* Our full descriptors start here */
         RawFull = (PCM_FULL_RESOURCE_DESCRIPTOR)CurrentRaw;
         TranslatedFull = (PCM_FULL_RESOURCE_DESCRIPTOR)CurrentTranslated;
