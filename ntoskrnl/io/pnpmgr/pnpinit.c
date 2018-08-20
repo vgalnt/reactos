@@ -51,6 +51,8 @@ BOOLEAN PnPBootDriversLoaded = FALSE;
 BOOLEAN PnPBootDriversInitialized = FALSE;
 BOOLEAN IopBootConfigsReserved = FALSE;
 
+BOOLEAN PpDisableFirmwareMapper = FALSE;
+
 /* FUNCTIONS ******************************************************************/
 
 VOID
