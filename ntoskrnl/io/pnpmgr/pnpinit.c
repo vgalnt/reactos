@@ -619,7 +619,7 @@ IopInitializePlugPlayServices(
     {
         DPRINT1("IopInitializePlugPlayServices: Phase - %X\n", Phase);
         ASSERT(FALSE);
-        return STATUS_INVALID_PARAMETER_2;
+        return Status;
     }
 
     /* Initialize locks and such */
@@ -653,35 +653,17 @@ IopInitializePlugPlayServices(
                                   KEY_ALL_ACCESS);
     if (!NT_SUCCESS(Status)) return Status;
 
-    /* Create the control key */
+    /* !!! Test the control key */
     RtlInitUnicodeString(&KeyName, L"Control");
-    Status = IopCreateRegistryKeyEx(&ControlHandle,
-                                    KeyHandle,
-                                    &KeyName,
-                                    KEY_ALL_ACCESS,
-                                    REG_OPTION_NON_VOLATILE,
-                                    &Disposition);
-    if (!NT_SUCCESS(Status)) return Status;
-
-    /* Check if it's a new key */
-    if (Disposition == REG_CREATED_NEW_KEY)
+    Status = IopOpenRegistryKeyEx(&ControlHandle,
+                                  KeyHandle,
+                                  &KeyName,
+                                  KEY_ALL_ACCESS);
+    if (!NT_SUCCESS(Status))
     {
-        HANDLE DeviceClassesHandle;
-
-        /* Create the device classes key */
-        RtlInitUnicodeString(&KeyName, L"DeviceClasses");
-        Status = IopCreateRegistryKeyEx(&DeviceClassesHandle,
-                                        ControlHandle,
-                                        &KeyName,
-                                        KEY_ALL_ACCESS,
-                                        REG_OPTION_NON_VOLATILE,
-                                        &Disposition);
-        if (!NT_SUCCESS(Status)) return Status;
-
-        ZwClose(DeviceClassesHandle);
+        ASSERT(FALSE);
+        return Status;
     }
-
-    ZwClose(ControlHandle);
 
     /* Create the enum key */
     RtlInitUnicodeString(&KeyName, REGSTR_KEY_ENUM);
@@ -759,19 +741,27 @@ IopInitializePlugPlayServices(
 
     /* Create the root device node */
     IopRootDeviceNode = PipAllocateDeviceNode(Pdo);
+    if (!IopRootDeviceNode)
+    {
+        DPRINT1("PipAllocateDeviceNode() failed\n");
+        KeBugCheckEx(PHASE1_INITIALIZATION_FAILED, Status, 0, 0, 0);
+    }
 
     /* Set flags */
-    IopRootDeviceNode->Flags |= DNF_STARTED + DNF_PROCESSED + DNF_ENUMERATED +
-                                DNF_MADEUP + DNF_NO_RESOURCE_REQUIRED +
-                                DNF_ADDED;
+    IopRootDeviceNode->Flags |= DNF_MADEUP +
+                                DNF_ENUMERATED +
+                                DNF_IDS_QUERIED +
+                                DNF_NO_RESOURCE_REQUIRED;
 
     /* Create instance path */
     RtlCreateUnicodeString(&IopRootDeviceNode->InstancePath,
                            REGSTR_VAL_ROOT_DEVNODE);
 
-    /* Call the add device routine */
-    IopRootDriverObject->DriverExtension->AddDevice(IopRootDriverObject,
-                                                    IopRootDeviceNode->PhysicalDeviceObject);
+    Status = IopMapDeviceObjectToDeviceInstance(IopRootDeviceNode->PhysicalDeviceObject,
+                                                &IopRootDeviceNode->InstancePath);
+    if (!NT_SUCCESS(Status)) return Status;
+
+    PipSetDevNodeState(IopRootDeviceNode, DeviceNodeStarted, NULL);
 
     /* Initialize PnP-Event notification support */
     Status = IopInitPlugPlayEvents();
@@ -786,9 +776,12 @@ IopInitializePlugPlayServices(
     RtlZeroMemory(PnpBusTypeGuidList, sizeof(IO_BUS_TYPE_GUID_LIST));
     ExInitializeFastMutex(&PnpBusTypeGuidList->Lock);
 
-    /* Launch the firmware mapper */
-    Status = IopUpdateRootKey();
-    if (!NT_SUCCESS(Status)) return Status;
+    PipRequestDeviceAction(IopRootDeviceNode->PhysicalDeviceObject,
+                           PipEnumRootDevices,
+                           0,
+                           0,
+                           NULL,
+                           NULL);
 
     /* Close the handle to the control set */
     NtClose(KeyHandle);
