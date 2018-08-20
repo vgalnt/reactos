@@ -59,6 +59,282 @@ PCI_INT_ROUTE_INTERFACE PciIrqRoutingInterface;
 
 NTSTATUS
 NTAPI
+HalpRemoveAssignedResources(
+    IN PBUS_HANDLER BusHandler)
+{
+    UNICODE_STRING ResourceMapName = RTL_CONSTANT_STRING(L"\\Registry\\Machine\\HARDWARE\\RESOURCEMAP");
+    UNICODE_STRING NameString;
+    PKEY_BASIC_INFORMATION KeyInfo;
+    PKEY_FULL_INFORMATION FullKeyInfo;
+    PKEY_VALUE_BASIC_INFORMATION ValueInfo;
+    PKEY_VALUE_FULL_INFORMATION FullValueInfo;
+    PCM_RESOURCE_LIST CmResource;
+    PCM_FULL_RESOURCE_DESCRIPTOR CmFullList;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    HANDLE ResourceMapKeyHandle;
+    HANDLE KeyHandle = NULL;
+    HANDLE SubKeyHandle = NULL;
+    ULONG Length = PAGE_SIZE;
+    ULONG TranslatedNameSize;
+    ULONG BusTranslatedNameSize;
+    ULONG ResultLength;
+    ULONG FullKeyInfoSize;
+    ULONG ix, jx, kx, mx, nx;
+    ULONG NameLength;
+    ULONG EqualLength;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    HalpRemoveRange(&BusHandler->BusAddresses->Memory, 0ll, 0xFFFll);
+
+    FullValueInfo = ExAllocatePoolWithTag(PagedPool, Length, ' laH');
+
+    if (!FullValueInfo)
+    {
+        ASSERT(FALSE);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    KeyInfo = (PKEY_BASIC_INFORMATION)FullValueInfo;
+    FullKeyInfo = (PKEY_FULL_INFORMATION)FullValueInfo;
+    ValueInfo = (PKEY_VALUE_BASIC_INFORMATION)FullValueInfo;
+
+    TranslatedNameSize = wcslen(L".Translated") * sizeof(WCHAR);
+    BusTranslatedNameSize = wcslen(L".Bus.Translated") * sizeof(WCHAR);
+
+    Status = HalpOpenRegistryKey(&ResourceMapKeyHandle,
+                                 NULL,
+                                 &ResourceMapName,
+                                 KEY_READ,
+                                 FALSE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("HalpRemoveAssignedResources: ..\RESOURCEMAP not opened. Status - %X\n", Status);
+        ASSERT(FALSE);
+        ExFreePoolWithTag(FullValueInfo, ' laH');
+        return Status;
+    }
+
+    for (ix = 0; NT_SUCCESS(Status); ix++)
+    {
+        Status = ZwEnumerateKey(ResourceMapKeyHandle,
+                                ix,
+                                KeyBasicInformation,
+                                KeyInfo,
+                                Length,
+                                &ResultLength);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("HalpRemoveAssignedResources: Status - %X\n", Status);
+            break;
+        }
+
+        NameString.Buffer = KeyInfo->Name;
+        NameString.Length = KeyInfo->NameLength;
+        NameString.MaximumLength = KeyInfo->NameLength;
+        DPRINT("HalpRemoveAssignedResources: NameString - %wZ\n", &NameString);
+
+        Status = HalpOpenRegistryKey(&KeyHandle,
+                                     ResourceMapKeyHandle,
+                                     &NameString,
+                                     KEY_READ,
+                                     FALSE);
+
+        for (jx = 0; NT_SUCCESS(Status); jx++)
+        {
+            Status = ZwEnumerateKey(KeyHandle,
+                                    jx,
+                                    KeyBasicInformation,
+                                    KeyInfo,
+                                    Length,
+                                    &ResultLength);
+
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT("HalpRemoveAssignedResources: Status - %X\n", Status);
+                break;
+            }
+
+            NameString.Buffer = KeyInfo->Name;
+            NameString.Length = KeyInfo->NameLength;
+            NameString.MaximumLength = KeyInfo->NameLength;
+            DPRINT("HalpRemoveAssignedResources: NameString - %wZ\n", &NameString);
+
+            Status = HalpOpenRegistryKey(&SubKeyHandle,
+                                         KeyHandle,
+                                         &NameString,
+                                         KEY_READ,
+                                         FALSE);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT("HalpRemoveAssignedResources: Status - %X\n", Status);
+                break;
+            }
+
+            Status = ZwQueryKey(SubKeyHandle,
+                                KeyFullInformation,
+                                FullKeyInfo,
+                                Length,
+                                &ResultLength);
+
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT("HalpRemoveAssignedResources: Status - %X\n", Status);
+                break;
+            }
+
+            FullKeyInfoSize = sizeof(KEY_VALUE_FULL_INFORMATION) +
+                              FullKeyInfo->MaxValueNameLen + sizeof(WCHAR) +
+                              FullKeyInfo->MaxValueDataLen;
+
+            if (Length < FullKeyInfoSize)
+            {
+                /* Allocate FullValueInfo with new length */
+                DPRINT1("HalpRemoveAssignedResources: FIXME. Length < FullKeyInfoSize\n");
+                ASSERT(FALSE);
+            }
+
+            Status = ZwEnumerateValueKey(SubKeyHandle,
+                                         0,
+                                         KeyValueFullInformation,
+                                         FullValueInfo,
+                                         Length,
+                                         &ResultLength);
+            DPRINT("HalpRemoveAssignedResources: Status - %X\n", Status);
+
+            for (kx = 1; NT_SUCCESS(Status); kx++)
+            {
+                NameLength = FullValueInfo->NameLength;
+
+                if (NameLength < TranslatedNameSize)
+                {
+                    DPRINT("HalpRemoveAssignedResources: NameLength < TranslatedNameSize\n");
+                    goto NextValueKey;
+                }
+
+                EqualLength = RtlCompareMemory((PUCHAR)FullValueInfo->Name + (NameLength - TranslatedNameSize),
+                                               L".Translated",
+                                               TranslatedNameSize);
+
+                if (EqualLength != TranslatedNameSize)
+                {
+                    DPRINT("HalpRemoveAssignedResources: EqualLength != TranslatedNameSize\n");
+                    goto NextValueKey;
+                }
+
+                EqualLength = RtlCompareMemory((PUCHAR)FullValueInfo->Name + (NameLength - BusTranslatedNameSize),
+                                               L".Bus.Translated",
+                                               BusTranslatedNameSize); 
+
+                if (EqualLength == BusTranslatedNameSize)
+                {
+                    DPRINT("HalpRemoveAssignedResources: EqualLength == TranslatedNameSize\n");
+                    goto NextValueKey;
+                }
+
+                CmResource = (PCM_RESOURCE_LIST)((ULONG_PTR)FullValueInfo + FullValueInfo->DataOffset);
+
+                //HalpDumpCmResourceList(CmResource);
+
+                CmFullList = &CmResource->List[0];
+
+                for (mx = 0; mx < CmResource->Count; mx++)
+                {
+                    DPRINT("HalpRemoveAssignedResources: mx - %X, CmResource->Count - %X, Count - %X\n",
+                           mx, CmResource->Count, CmFullList->PartialResourceList.Count);
+
+                    CmDescriptor = &CmFullList->PartialResourceList.PartialDescriptors[0];
+
+                    for (nx = 0;
+                         nx < CmFullList->PartialResourceList.Count;
+                         nx++)
+                    {
+                        CmDescriptor = &CmFullList->PartialResourceList.PartialDescriptors[nx];
+
+                        //HalpDumpCmResourceDescriptor("    ", CmDescriptor);
+
+                        switch (CmDescriptor->Type)
+                        {
+                            case CmResourceTypePort:
+                                DPRINT("HalpRemoveAssignedResources: CmResourceTypePort\n");
+                                HalpRemoveRange(&BusHandler->BusAddresses->IO,
+                                                CmDescriptor->u.Port.Start.QuadPart,
+                                                CmDescriptor->u.Port.Start.QuadPart + CmDescriptor->u.Port.Length - 1);
+                                break;
+
+                            case CmResourceTypeMemory:
+                                DPRINT("HalpRemoveAssignedResources: CmResourceTypeMemory\n");
+                                HalpRemoveRange(&BusHandler->BusAddresses->IO,
+                                                CmDescriptor->u.Memory.Start.QuadPart,
+                                                CmDescriptor->u.Memory.Start.QuadPart + CmDescriptor->u.Memory.Length - 1);
+                                break;
+
+                            default:
+                                DPRINT1("HalpRemoveAssignedResources: CmDescriptor->Type == CmResourceTypeDeviceSpecific !!!\n");
+                                ASSERT(CmDescriptor->Type != CmResourceTypeDeviceSpecific);
+                                break;
+                        }
+                    }
+
+                    CmFullList = (PCM_FULL_RESOURCE_DESCRIPTOR)
+                                 (CmFullList->PartialResourceList.PartialDescriptors + 
+                                  CmFullList->PartialResourceList.Count);
+                }
+
+NextValueKey:
+                Status = ZwEnumerateValueKey(SubKeyHandle,
+                                             kx,
+                                             KeyValueFullInformation,
+                                             FullValueInfo,
+                                             Length,
+                                             &ResultLength);
+            }
+
+            if (SubKeyHandle)
+            {
+                ZwClose(SubKeyHandle);
+                SubKeyHandle = NULL;
+            }
+
+            if (Status == STATUS_NO_MORE_ENTRIES)
+            {
+                Status = STATUS_SUCCESS;
+            }
+        }
+
+        if (KeyHandle)
+        {
+            ZwClose(KeyHandle);
+            KeyHandle = NULL;
+        }
+
+        if (Status == STATUS_NO_MORE_ENTRIES)
+        {
+            Status = STATUS_SUCCESS;
+        }
+    }
+
+    if (Status == STATUS_NO_MORE_ENTRIES)
+    {
+        Status = STATUS_SUCCESS;
+    }
+
+    if (ResourceMapKeyHandle)
+    {
+        ZwClose(ResourceMapKeyHandle);
+    }
+
+    ExFreePoolWithTag(FullValueInfo, ' laH');
+
+    HalpConsolidateRanges(BusHandler->BusAddresses);
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 HalpAddDevice(IN PDRIVER_OBJECT DriverObject,
               IN PDEVICE_OBJECT TargetDevice)
 {
