@@ -161,6 +161,15 @@ IopQueryDeviceRelations(
 );
 
 //
+// pnpmap.c
+//
+NTSTATUS
+NTAPI
+MapperProcessFirmwareTree(
+    _In_ BOOLEAN IsDisableMapper
+);
+
+//
 // pnpnode.c
 //
 VOID
