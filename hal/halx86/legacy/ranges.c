@@ -231,7 +231,7 @@ HalpMergeRangeList(
 VOID
 NTAPI
 HalpAddRange(
-    PSUPPORTED_RANGE Range,
+    _Out_ PSUPPORTED_RANGE Range,
     _In_ ULONG SystemAddressSpace,
     _In_ ULONGLONG SystemBase,
     _In_ ULONGLONG Base,
@@ -365,9 +365,66 @@ HalpRemoveRange(
     _In_ PSUPPORTED_RANGE Range,
     _In_ LONGLONG Base,
     _In_ LONGLONG Limit)
+VOID
+NTAPI 
+HalpRemoveRange(
+    _In_ PSUPPORTED_RANGE Range,
+    _In_ LONGLONG Base,
+    _In_ LONGLONG Limit)
 {
+    PSUPPORTED_RANGE Current;
+
     DPRINT("HalpRemoveRange: Range - %p, Base - %I64X, Limit - %I64X\n", Range, Base, Limit);
-    ASSERT(FALSE);
+
+    if (Base > Limit)
+    {
+        return;
+    }
+
+    for (Current = Range; Current; Current = Current->Next)
+    {
+        if (Current->Base > Current->Limit)
+        {
+            continue;
+        }
+
+        if (Current->Base >= Base)
+        {
+            if (Current->Base <= Limit)
+            {
+                if (Current->Limit > Limit)
+                {
+                    Current->Base = Limit + 1;
+                }
+                else
+                {
+                    Current->Base = 1;
+                    Current->Limit = 0;
+                }
+            }
+        }
+        else
+        {
+            /* Base > Current->Base */
+
+            if (Current->Limit >= Base &&
+                Current->Limit <= Limit)
+            {
+                Current->Limit = Base - 1;
+            }
+
+            if (Current->Limit > Limit)
+            {
+                HalpAddRange(Range,
+                             Current->SystemAddressSpace,
+                             Current->SystemBase,
+                             Limit + 1,
+                             Current->Limit);
+
+                Current->Limit = Base - 1;
+            }
+        }
+    }
 }
 
 /* EOF */
