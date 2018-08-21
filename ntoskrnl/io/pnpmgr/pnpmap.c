@@ -102,6 +102,30 @@ PNP_MAPPER_DEVICE_ID KeyboardMap[] =
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
+PPNP_MAPPER_DEVICE_ID
+NTAPI
+MapperFindIdentMatch(
+    _In_ PPNP_MAPPER_DEVICE_ID MapperId,
+    _In_ PWSTR TypeString)
+{
+    PPNP_MAPPER_DEVICE_ID Id;
+
+    for (Id = MapperId; ; ++Id)
+    {
+        if (!Id->TypeName)
+        {
+            return NULL;
+        }
+
+        if (!wcscmp(TypeString, Id->TypeName))
+        {
+            break;
+        }
+    }
+
+    return Id;
+}
+
 PWSTR
 NTAPI
 MapperTranslatePnPId(
