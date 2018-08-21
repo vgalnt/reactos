@@ -18,6 +18,12 @@
 
 /* TYPES *******************************************************************/
 
+typedef struct _PNP_MAPPER_DEVICE_ID
+{ 
+    PWCHAR TypeName;
+    PWCHAR PnPId;
+} PNP_MAPPER_DEVICE_ID, *PPNP_MAPPER_DEVICE_ID; 
+
 typedef struct _PNP_MAPPER_INFORMATION
 { 
     struct _PNP_MAPPER_INFORMATION * NextInfo;
@@ -46,7 +52,157 @@ typedef struct _PNP_MAPPER_DEVICE_EXTENSION
 
 PNP_MAPPER_DEVICE_EXTENSION MapperDeviceExtension;
 
+static
+CONFIGURATION_TYPE TypeArray[] =
+{
+    PointerController,
+    KeyboardController,
+    ParallelController,
+    DiskController,
+    FloppyDiskPeripheral,
+    SerialController // shoul be last !
+};
+
+static
+PNP_MAPPER_DEVICE_ID PointerMap[] =
+{
+    { L"PS2 MOUSE", L"*PNP0F0E" },
+    { L"SERIAL MOUSE", L"*PNP0F0C" },
+    { L"MICROSOFT PS2 MOUSE", L"*PNP0F03" },
+    { L"LOGITECH PS2 MOUSE", L"*PNP0F12" },
+    { L"MICROSOFT INPORT MOUSE", L"*PNP0F02" },
+    { L"MICROSOFT SERIAL MOUSE", L"*PNP0F01" },
+    { L"MICROSOFT BALLPOINT SERIAL MOUSE", L"*PNP0F09" },
+    { L"LOGITECH SERIAL MOUSE", L"*PNP0F08" },
+    { L"MICROSOFT BUS MOUSE", L"*PNP0F00" },
+    { L"NEC PC-9800 BUS MOUSE", L"*nEC1F00" },
+    { NULL, NULL }
+};
+
+static
+PNP_MAPPER_DEVICE_ID KeyboardMap[] =
+{
+    { L"XT_83KEY", L"*PNP0300" },
+    { L"PCAT_86KEY", L"*PNP0301" },
+    { L"PCXT_84KEY", L"*PNP0302" },
+    { L"XT_84KEY", L"*PNP0302" },
+    { L"101-KEY", L"*PNP0303" },
+    { L"OLI_83KEY", L"*PNP0304" },
+    { L"ATT_301", L"*PNP0304" },
+    { L"OLI_102KEY", L"*PNP0305" },
+    { L"OLI_86KEY", L"*PNP0306" },
+    { L"OLI_A101_102KEY", L"*PNP0309" },
+    { L"ATT_302", L"*PNP030a" },
+    { L"PCAT_ENHANCED", L"*PNP030b" },
+    { L"PC98_106KEY", L"*nEC1300" },
+    { L"PC98_LaptopKEY", L"*nEC1300" },
+    { L"PC98_N106KEY", L"*PNP0303" },
+    { NULL, NULL }
+};
+
 /* PRIVATE FUNCTIONS *********************************************************/
+
+PWSTR
+NTAPI
+MapperTranslatePnPId(
+    _In_ CONFIGURATION_TYPE ControllerType,
+    _In_ PKEY_VALUE_FULL_INFORMATION PeripheralValueInfo)
+{
+    PPNP_MAPPER_DEVICE_ID KeyboardId;
+    PPNP_MAPPER_DEVICE_ID PointerId;
+    PWCHAR Identifier = NULL;
+
+    if (PeripheralValueInfo)
+    {
+        Identifier = (PWCHAR)((ULONG_PTR)PeripheralValueInfo +
+                              PeripheralValueInfo->DataOffset);
+
+        DPRINT("MapperTranslatePnPId: Identifier - %S\n", Identifier);
+    }
+
+    switch (ControllerType)
+    {
+        case DiskController:
+            DPRINT("MapperTranslatePnPId: %s (%d) - %s\n",
+                   "DiskController", DiskController, "*PNP0700");
+            return L"*PNP0700";
+
+        case SerialController:
+            DPRINT("MapperTranslatePnPId: %s (%d) - %s\n",
+                   "SerialController", SerialController, "*PNP0501");
+            return L"*PNP0501";
+
+        case ParallelController:
+            DPRINT("MapperTranslatePnPId: %s (%d) - %s\n",
+                   "ParallelController", ParallelController, "*PNP0400");
+            return L"*PNP0400";
+
+        case PointerController:
+            DPRINT("MapperTranslatePnPId: %s (%d) - %s\n",
+                   "PointerController", PointerController, "*PNP0F0E");
+            return L"*PNP0F0E";
+
+        case KeyboardController:
+            DPRINT("MapperTranslatePnPId: %s (%d) - %s\n",
+                   "KeyboardController", KeyboardController, "*PNP0300");
+            return L"*PNP0300";
+
+        case DiskPeripheral:
+            DPRINT("MapperTranslatePnPId: %s (%d) - %s\n",
+                   "DiskPeripheral", DiskPeripheral, "NULL");
+            return NULL;
+
+        case FloppyDiskPeripheral:
+            DPRINT("MapperTranslatePnPId: %s (%d) - %s\n",
+                   "FloppyDiskPeripheral", FloppyDiskPeripheral, "*PNP0700");
+            return L"*PNP0700";
+
+        case PointerPeripheral:
+            if (!Identifier)
+            {
+                DPRINT("MapperTranslatePnPId: Identifier == NULL\n");
+                return NULL;
+            }
+
+            PointerId = MapperFindIdentMatch(PointerMap, Identifier);
+
+            if (!PointerId)
+            {
+                DPRINT("MapperTranslatePnPId: No PointerId for %S\n",
+                       Identifier);
+                return NULL;
+            }
+
+            DPRINT("MapperTranslatePnPId: PointerId->PnPId - %S\n",
+                   PointerId->PnPId);
+            return PointerId->PnPId;
+
+        case KeyboardPeripheral:
+            if (!Identifier)
+            {
+                DPRINT("MapperTranslatePnPId: Identifier == NULL\n");
+                return NULL;
+            }
+
+            KeyboardId = MapperFindIdentMatch(KeyboardMap, Identifier);
+
+            if (!KeyboardId)
+            {
+                DPRINT("MapperTranslatePnPId: No KeyboardId for %S\n",
+                       Identifier);
+                return NULL;
+            }
+
+            DPRINT("MapperTranslatePnPId: KeyboardId->PnPId - %S\n",
+                   KeyboardId->PnPId);
+            return KeyboardId->PnPId;
+
+        default:
+            DPRINT("MapperTranslatePnPId: Unknown ControllerType - %X\n",
+                   ControllerType);
+            return NULL;
+    }
+}
 
 NTSTATUS
 NTAPI
