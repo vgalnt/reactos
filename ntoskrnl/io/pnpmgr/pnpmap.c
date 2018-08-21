@@ -102,6 +102,30 @@ PNP_MAPPER_DEVICE_ID KeyboardMap[] =
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
+VOID NTAPI MapperFreeList(VOID)
+{
+    PPNP_MAPPER_INFORMATION MapperInfo;
+    PPNP_MAPPER_INFORMATION NextInfo;
+
+    for (MapperInfo = MapperDeviceExtension.MapperInfo;
+         MapperInfo;
+         MapperInfo = NextInfo)
+    {
+        if (MapperInfo->CmFullDescriptor)
+        {
+            ExFreePoolWithTag(MapperInfo->CmFullDescriptor, 'rpaM');
+        }
+
+        if (MapperInfo->Identifier)
+        {
+            ExFreePoolWithTag(MapperInfo->Identifier, 'rpaM');
+        }
+
+        NextInfo = MapperInfo->NextInfo;
+        ExFreePoolWithTag(MapperInfo, 'rpaM');
+    }
+}
+
 PPNP_MAPPER_DEVICE_ID
 NTAPI
 MapperFindIdentMatch(
