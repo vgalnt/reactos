@@ -593,6 +593,210 @@ MapperProcessFirmwareTree(
     return Status;
 }
 
+#define PNP_MAPPER_SEED_BUFFER_SIZE 0x400
+
+VOID
+NTAPI
+MapperSeedKey(
+    _In_ HANDLE Handle,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ PPNP_MAPPER_INFORMATION MapperInfo,
+    _In_ BOOLEAN IsDisableMapper)
+{
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    CONFIGURATION_TYPE ControllerType;
+    UNICODE_STRING ValueName;
+    PWCHAR Buffer;
+    PWCHAR BufferEnd;
+    HANDLE KeyHandle;
+    ULONG Disposition;
+    ULONG IdentifierSize;
+    ULONG Data;
+    NTSTATUS Status;
+    USHORT KeyNameLength;
+
+    DPRINT("MapperSeedKey: KeyName - %wZ\n", KeyName);
+
+    Buffer = ExAllocatePoolWithTag(NonPagedPool,
+                                   PNP_MAPPER_SEED_BUFFER_SIZE,
+                                   'rpaM');
+    if (!Buffer)
+    {
+        DPRINT1("MapperSeedKey: STATUS_INSUFFICIENT_RESOURCES\n");
+        return;
+    }
+
+    RtlZeroMemory(Buffer, PNP_MAPPER_SEED_BUFFER_SIZE);
+
+    KeyNameLength = KeyName->Length;
+    
+    BufferEnd = (PWCHAR)((ULONG_PTR)KeyName->Buffer + KeyName->Length);
+    *BufferEnd = UNICODE_NULL;
+
+    RtlAppendUnicodeToString(KeyName, L"\\Control");
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               KeyName,
+                               OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+                               NULL,
+                               NULL);
+
+    Status = ZwCreateKey(&KeyHandle,
+                         KEY_READ | KEY_WRITE,
+                         &ObjectAttributes,
+                         0,
+                         NULL,
+                         REG_SZ,
+                         &Disposition);
+
+    if (NT_SUCCESS(Status))
+    {
+        ZwClose(KeyHandle);
+    }
+    else
+    {
+        DPRINT("MapperSeedKey: Status - %X\n", Status);
+    }
+
+    KeyName->Length = KeyNameLength;
+
+    RtlAppendUnicodeToString(KeyName, L"\\LogConf");
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               KeyName,
+                               OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+                               NULL,
+                               NULL);
+
+    Status = ZwCreateKey(&KeyHandle,
+                         KEY_READ | KEY_WRITE,
+                         &ObjectAttributes,
+                         0,
+                         NULL,
+                         REG_NONE,
+                         &Disposition);
+
+    if (NT_SUCCESS(Status))
+    {
+        ZwClose(KeyHandle);
+    }
+    else
+    {
+        DPRINT("MapperSeedKey: Status - %X\n", Status);
+    }
+
+    KeyName->Length = KeyNameLength;
+
+    ControllerType = MapperInfo->ControllerType;
+
+    if ((ControllerType == SerialController &&
+         ControllerType == ParallelController) ||
+        MapperInfo->Identifier != NULL)
+    {
+        Status = IopOpenDeviceParametersSubkey(&KeyHandle,
+                                               NULL,
+                                               KeyName,
+                                               KEY_READ | KEY_WRITE);
+        if (NT_SUCCESS(Status))
+        {
+            Status = STATUS_SUCCESS;
+        }
+        else
+        {
+            DPRINT("MapperSeedKey: Status - %X\n", Status);
+            Status = STATUS_UNSUCCESSFUL;
+        }
+    }
+
+    IdentifierSize = (wcslen(MapperInfo->PnPId) + 2) * sizeof(WCHAR);
+
+    if (MapperInfo->BusType == Eisa)
+    {
+        ASSERT(FALSE);
+    }
+    else
+    {
+        RtlCopyMemory(Buffer, MapperInfo->PnPId, IdentifierSize - sizeof(WCHAR));
+        Buffer[IdentifierSize / sizeof(WCHAR) - 1] = UNICODE_NULL;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"HardwareID");
+    ZwSetValueKey(Handle,
+                  &ValueName,
+                  0,
+                  REG_MULTI_SZ,
+                  Buffer,
+                  IdentifierSize);
+
+    if (MapperInfo->PeripheralType == KeyboardPeripheral)
+    {
+        ULONG Len = sizeof(L"PS2_KEYBOARD");
+        RtlMoveMemory(Buffer, L"PS2_KEYBOARD", Len);
+        IdentifierSize = Len + sizeof(WCHAR);
+    }
+    else if (MapperInfo->PeripheralType == PointerPeripheral &&
+             (!wcscmp(MapperInfo->PnPId, L"*PNP0F0E") ||
+              !wcscmp(MapperInfo->PnPId, L"*PNP0F03") ||
+              !wcscmp(MapperInfo->PnPId, L"*PNP0F12")))
+    {
+        ULONG Len = sizeof(L"PS2_MOUSE");
+        RtlMoveMemory(Buffer, L"PS2_MOUSE", Len);
+        IdentifierSize = Len + sizeof(WCHAR);
+    }
+    else
+    {
+        goto Next;
+    }
+
+    Buffer[IdentifierSize / sizeof(WCHAR)] = UNICODE_NULL;
+    IdentifierSize += sizeof(WCHAR);
+
+    RtlInitUnicodeString(&ValueName, L"CompatibleIDs");
+
+    ZwSetValueKey(Handle,
+                  &ValueName,
+                  0,
+                  REG_MULTI_SZ,
+                  Buffer,
+                  IdentifierSize);
+Next:
+
+    Data = 1;
+    RtlInitUnicodeString(&ValueName, L"FirmwareIdentified");
+
+    ZwSetValueKey(Handle,
+                  &ValueName,
+                  0,
+                  REG_DWORD,
+                  &Data,
+                  sizeof(ULONG));
+
+    RtlMoveMemory(Buffer, MapperInfo->Identifier, MapperInfo->IdentifierSize);
+    RtlInitUnicodeString(&ValueName, L"DeviceDesc");
+
+    ZwSetValueKey(Handle,
+                  &ValueName,
+                  0,
+                  REG_SZ,
+                  Buffer,
+                  MapperInfo->IdentifierSize);
+
+    if (IsDisableMapper)
+    {
+        Data = 1;
+        RtlInitUnicodeString(&ValueName, L"Phantom");
+
+        ZwSetValueKey(Handle,
+                      &ValueName,
+                      0,
+                      REG_DWORD,
+                      &Data,
+                      sizeof(ULONG));
+    }
+
+    ExFreePoolWithTag(Buffer, 'rpaM');
+}
+
 #define PNP_MAPPER_REGISTRY_BUFFER_SIZE 0x800
 #define PNP_MAPPER_INSTANCE_BUFFER_SIZE 0x200
 
