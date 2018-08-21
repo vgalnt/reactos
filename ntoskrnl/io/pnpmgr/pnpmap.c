@@ -593,4 +593,152 @@ MapperProcessFirmwareTree(
     return Status;
 }
 
+#define PNP_MAPPER_REGISTRY_BUFFER_SIZE 0x800
+#define PNP_MAPPER_INSTANCE_BUFFER_SIZE 0x200
+
+VOID
+NTAPI
+MapperConstructRootEnumTree(
+    _In_ BOOLEAN IsDisableMapper)
+{
+    PPNP_MAPPER_INFORMATION MapperInfo;
+    PKEY_VALUE_FULL_INFORMATION KeyInfo;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING ValueName;
+    UNICODE_STRING KeyName;
+    HANDLE KeyHandle;
+    PWCHAR RegistryBuffer;
+    PWSTR InstanceBuffer;
+    ULONG Disposition;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("MapperConstructRootEnumTree: IsDisableMapper - %X\n", IsDisableMapper);
+
+    RegistryBuffer = ExAllocatePoolWithTag(NonPagedPool,
+                                           PNP_MAPPER_REGISTRY_BUFFER_SIZE,
+                                           'rpaM');
+    if (!RegistryBuffer)
+    {
+        DPRINT1("MapperConstructRootEnumTree: STATUS_INSUFFICIENT_RESOURCES\n");
+        MapperFreeList();
+        return;
+    }
+
+    InstanceBuffer = ExAllocatePoolWithTag(NonPagedPool,
+                                           PNP_MAPPER_INSTANCE_BUFFER_SIZE,
+                                           'rpaM');
+
+    if (!InstanceBuffer)
+    {
+        DPRINT1("MapperConstructRootEnumTree: STATUS_INSUFFICIENT_RESOURCES\n");
+        MapperFreeList();
+        ExFreePoolWithTag(RegistryBuffer, 'rpaM');
+        return;
+    }
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               &KeyName,
+                               OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+                               NULL,
+                               NULL);
+
+    for (MapperInfo = MapperDeviceExtension.MapperInfo;
+         MapperInfo;
+         MapperInfo = MapperInfo->NextInfo)
+    {
+        KeyName.Length = 0;
+        KeyName.MaximumLength = PNP_MAPPER_REGISTRY_BUFFER_SIZE;
+        KeyName.Buffer = RegistryBuffer;
+
+        RtlZeroMemory(RegistryBuffer, PNP_MAPPER_REGISTRY_BUFFER_SIZE);
+
+        RtlAppendUnicodeToString(&KeyName, L"\\Registry\\Machine\\System\\CurrentControlSet\\Enum\\Root\\");
+        RtlAppendUnicodeToString(&KeyName, MapperInfo->PnPId);
+
+        Status = ZwCreateKey(&KeyHandle,
+                             KEY_READ | KEY_WRITE,
+                             &ObjectAttributes,
+                             0,
+                             NULL,
+                             REG_OPTION_NON_VOLATILE,
+                             &Disposition);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("MapperConstructRootEnumTree: Status - %X\n", Status);
+            continue;
+        }
+
+        ZwClose(KeyHandle);
+
+        RtlZeroMemory(InstanceBuffer, PNP_MAPPER_INSTANCE_BUFFER_SIZE);
+
+        RtlStringCbPrintfW(InstanceBuffer,
+                           PNP_MAPPER_INSTANCE_BUFFER_SIZE,
+                           L"\\%d_%d_%d_%d_%d_%d",
+                           MapperInfo->BusType,
+                           MapperInfo->BusNumber,
+                           MapperInfo->ControllerType,
+                           MapperInfo->ControllerNumber,
+                           MapperInfo->PeripheralType,
+                           MapperInfo->PeripheralNumber);
+
+        RtlAppendUnicodeToString(&KeyName, InstanceBuffer);
+
+        Status = ZwCreateKey(&KeyHandle,
+                             KEY_READ | KEY_WRITE,
+                             &ObjectAttributes,
+                             0,
+                             NULL,
+                             REG_OPTION_NON_VOLATILE,
+                             &Disposition);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("MapperConstructRootEnumTree: Status - %X\n", Status);
+            continue;
+        }
+
+        if (Disposition == REG_CREATED_NEW_KEY)
+        {
+            MapperInfo->IsCreatedNewKey = TRUE;
+            MapperSeedKey(KeyHandle, &KeyName, MapperInfo, IsDisableMapper);
+        }
+
+        Status = IopGetRegistryValue(KeyHandle, L"Migrated", &KeyInfo);
+
+        if (NT_SUCCESS(Status))
+        {
+            if (KeyInfo->Type == REG_DWORD && KeyInfo->DataLength == sizeof(ULONG))
+            {
+                if (*(PULONG)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset) != 0)
+                {
+                    Disposition = REG_CREATED_NEW_KEY;
+                }
+            }
+
+            ExFreePoolWithTag(KeyInfo, 'uspP');
+
+            RtlInitUnicodeString(&ValueName, L"Migrated");
+            ZwDeleteValueKey(KeyHandle, &ValueName);
+        }
+        else
+        {
+            DPRINT("MapperConstructRootEnumTree: Status - %X\n", Status);
+        }
+
+        if (Disposition == REG_CREATED_NEW_KEY)
+        {
+            MapperInfo->IsCreatedNewKey = TRUE;
+            MapperSeedKey(KeyHandle, &KeyName, MapperInfo, IsDisableMapper);
+        }
+
+        MapperMarkKey(KeyHandle, &KeyName, MapperInfo);
+        ZwClose(KeyHandle);
+    }
+
+    ExFreePoolWithTag(InstanceBuffer, 'rpaM');
+}
+
 /* EOF */

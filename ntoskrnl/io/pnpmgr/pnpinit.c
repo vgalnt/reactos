@@ -609,6 +609,10 @@ IopInitializePlugPlayServices(
     if (Phase == 1)
     {
         DPRINT1("IopInitializePlugPlayServices: Phase - %X\n", Phase);
+
+        MapperProcessFirmwareTree(PpDisableFirmwareMapper);
+        MapperConstructRootEnumTree(PpDisableFirmwareMapper);
+
         ASSERT(FALSE);
         return Status;
     }
