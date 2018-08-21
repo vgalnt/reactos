@@ -50,6 +50,99 @@ PNP_MAPPER_DEVICE_EXTENSION MapperDeviceExtension;
 
 NTSTATUS
 NTAPI
+MapperPeripheralCallback(
+    _In_ PVOID Context,
+    _In_ PUNICODE_STRING PathName,
+    _In_ INTERFACE_TYPE BusType,
+    _In_ ULONG BusNumber,
+    _In_ PKEY_VALUE_FULL_INFORMATION * BusInformation,
+    _In_ CONFIGURATION_TYPE ControllerType,
+    _In_ ULONG ControllerNumber,
+    _In_ PKEY_VALUE_FULL_INFORMATION * ControllerInformation,
+    _In_ CONFIGURATION_TYPE PeripheralType,
+    _In_ ULONG PeripheralNumber,
+    _In_ PKEY_VALUE_FULL_INFORMATION * PeripheralInformation)
+{
+    PPNP_MAPPER_INFORMATION MapperInfo = Context;
+    PKEY_VALUE_FULL_INFORMATION IdentInfo;
+    SIZE_T IdentInfoLength;
+    PWCHAR Identifier;
+
+    DPRINT("MapperPeripheralCallback: PathName - %S\n", PathName->Buffer);
+
+    if (!ControllerInformation)
+    {
+        DPRINT("MapperPeripheralCallback: ControllerInformation == NULL\n");
+    }
+
+    if (!PeripheralInformation)
+    {
+        DPRINT("MapperPeripheralCallback: PeripheralInformation == NULL\n");
+        return STATUS_SUCCESS;
+    }
+
+    IdentInfo = PeripheralInformation[0];
+
+    if (!IdentInfo)
+    {
+        DPRINT("MapperPeripheralCallback: IdentInfo == NULL\n");
+        goto Exit;
+    }
+
+    MapperInfo->PnPId = MapperTranslatePnPId(PeripheralType,
+                                             PeripheralInformation[0]);
+    if (!MapperInfo->PnPId)
+    {
+        DPRINT("MapperPeripheralCallback: MapperInfo->PnPId == NULL\n");
+        goto Exit;
+    }
+
+    IdentInfoLength = IdentInfo->DataLength;
+
+    if (IdentInfoLength <= sizeof(WCHAR) || IdentInfo->Type != REG_SZ)
+    {
+        DPRINT("MapperPeripheralCallback: IdentInfoLength - %S, IdentInfo->Type - %X\n",
+               IdentInfoLength, IdentInfo->Type);
+        goto Exit;
+    }
+
+    Identifier = (PWCHAR)((ULONG_PTR)IdentInfo + IdentInfo->DataOffset);
+
+    if (*Identifier == UNICODE_NULL)
+    {
+        DPRINT("MapperPeripheralCallback: *IdentInfo == NULL\n");
+        goto Exit;
+    }
+
+    if (MapperInfo->Identifier)
+    {
+        ExFreePoolWithTag(MapperInfo->Identifier, 'rpaM');
+    }
+
+    MapperInfo->Identifier = ExAllocatePoolWithTag(NonPagedPool,
+                                                   IdentInfoLength,
+                                                   'rpaM');
+    if (!Identifier)
+    {
+        DPRINT1("MapperPeripheralCallback: STATUS_INSUFFICIENT_RESOURCES\n");
+        goto Exit;
+    }
+
+    MapperInfo->IdentifierType = IdentInfo->Type;
+    MapperInfo->IdentifierSize = IdentInfoLength;
+
+    RtlCopyMemory(MapperInfo->Identifier, Identifier, IdentInfoLength);
+
+Exit:
+
+    MapperInfo->PeripheralType = PeripheralType;
+    MapperInfo->PeripheralNumber = PeripheralNumber;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 MapperCallback(
     _In_ PVOID Context,
     _In_ PUNICODE_STRING PathName,
