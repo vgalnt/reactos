@@ -628,7 +628,6 @@ MapperConstructRootEnumTree(
     InstanceBuffer = ExAllocatePoolWithTag(NonPagedPool,
                                            PNP_MAPPER_INSTANCE_BUFFER_SIZE,
                                            'rpaM');
-
     if (!InstanceBuffer)
     {
         DPRINT1("MapperConstructRootEnumTree: STATUS_INSUFFICIENT_RESOURCES\n");
@@ -700,32 +699,30 @@ MapperConstructRootEnumTree(
             continue;
         }
 
-        if (Disposition == REG_CREATED_NEW_KEY)
+        if (Disposition != REG_CREATED_NEW_KEY)
         {
-            MapperInfo->IsCreatedNewKey = TRUE;
-            MapperSeedKey(KeyHandle, &KeyName, MapperInfo, IsDisableMapper);
-        }
+            Status = IopGetRegistryValue(KeyHandle, L"Migrated", &KeyInfo);
 
-        Status = IopGetRegistryValue(KeyHandle, L"Migrated", &KeyInfo);
-
-        if (NT_SUCCESS(Status))
-        {
-            if (KeyInfo->Type == REG_DWORD && KeyInfo->DataLength == sizeof(ULONG))
+            if (NT_SUCCESS(Status))
             {
-                if (*(PULONG)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset) != 0)
+                if (KeyInfo->Type == REG_DWORD &&
+                    KeyInfo->DataLength == sizeof(ULONG))
                 {
-                    Disposition = REG_CREATED_NEW_KEY;
+                    if (*(PULONG)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset) != 0)
+                    {
+                        Disposition = REG_CREATED_NEW_KEY;
+                    }
                 }
+
+                ExFreePoolWithTag(KeyInfo, 'uspP');
+
+                RtlInitUnicodeString(&ValueName, L"Migrated");
+                ZwDeleteValueKey(KeyHandle, &ValueName);
             }
-
-            ExFreePoolWithTag(KeyInfo, 'uspP');
-
-            RtlInitUnicodeString(&ValueName, L"Migrated");
-            ZwDeleteValueKey(KeyHandle, &ValueName);
-        }
-        else
-        {
-            DPRINT("MapperConstructRootEnumTree: Status - %X\n", Status);
+            else
+            {
+                DPRINT("MapperConstructRootEnumTree: Status - %X\n", Status);
+            }
         }
 
         if (Disposition == REG_CREATED_NEW_KEY)
@@ -734,7 +731,8 @@ MapperConstructRootEnumTree(
             MapperSeedKey(KeyHandle, &KeyName, MapperInfo, IsDisableMapper);
         }
 
-        MapperMarkKey(KeyHandle, &KeyName, MapperInfo);
+ASSERT(FALSE);
+        //MapperMarkKey(KeyHandle, &KeyName, MapperInfo);
         ZwClose(KeyHandle);
     }
 
