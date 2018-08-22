@@ -613,7 +613,18 @@ IopInitializePlugPlayServices(
         MapperProcessFirmwareTree(PpDisableFirmwareMapper);
         MapperConstructRootEnumTree(PpDisableFirmwareMapper);
 
-        ASSERT(FALSE);
+        DPRINT("IopInitializePlugPlayServices: FIXME PnPBiosMapper\n");
+        DPRINT("IopInitializePlugPlayServices: FIXME MapperPhantomizeDetectedComPorts\n");
+        DPRINT("IopInitializePlugPlayServices: FIXME EisaBuildEisaDeviceNode\n");
+
+        MapperFreeList();
+
+        PipRequestDeviceAction(IopRootDeviceNode->PhysicalDeviceObject,
+                               PipEnumRootDevices,
+                               0,
+                               0,
+                               NULL,
+                               NULL);
         return Status;
     }
 
