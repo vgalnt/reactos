@@ -124,6 +124,147 @@ PiFixupID(
     return 0;
 }
 
+NTSTATUS
+NTAPI
+PpQueryID(
+    PDEVICE_NODE DeviceNode,
+    BUS_QUERY_ID_TYPE IdType,
+    PWCHAR *OutID,
+    PULONG OutIdSize)
+{
+    PUNICODE_STRING ServiceName;
+    ULONG MaxSeparators;
+    SIZE_T Size;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PpQueryID: DeviceNode - %X, IdType - %X\n", DeviceNode, IdType);
+
+    ASSERT(IdType == BusQueryDeviceID ||
+           IdType == BusQueryInstanceID ||
+           IdType == BusQueryHardwareIDs ||
+           IdType == BusQueryCompatibleIDs);
+
+    *OutIdSize = 0;
+
+    Status = PpIrpQueryID(DeviceNode->PhysicalDeviceObject, IdType, OutID);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PpQueryID: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    switch (IdType)
+    {
+        case BusQueryDeviceID:
+            ServiceName = &DeviceNode->Parent->ServiceName;
+            MaxSeparators = MAX_SEPARATORS_DEVICEID;
+
+            Size = PiFixupID(*OutID,
+                             MAX_DEVICE_ID_LEN,
+                             FALSE,
+                             MaxSeparators,
+                             ServiceName);
+
+            *OutIdSize = Size * sizeof(WCHAR);
+            break;
+
+        case BusQueryHardwareIDs:
+        case BusQueryCompatibleIDs:
+
+            Size = PiFixupID(*OutID,
+                             MAX_DEVICE_ID_LEN,
+                             TRUE,
+                             MAX_SEPARATORS_MULTI_SZ,
+                             &DeviceNode->Parent->ServiceName);
+
+            *OutIdSize = Size * sizeof(WCHAR);
+            break;
+
+        case BusQueryInstanceID:
+            ServiceName = &DeviceNode->Parent->ServiceName;
+            MaxSeparators = MAX_SEPARATORS_INSTANCEID;
+
+            Size = PiFixupID(*OutID,
+                             MAX_DEVICE_ID_LEN,
+                             FALSE,
+                             MaxSeparators,
+                             ServiceName);
+
+            *OutIdSize = Size * sizeof(WCHAR);
+            break;
+
+        default:
+            *OutIdSize = 0;
+            break;
+    }
+
+    if (*OutIdSize == 0)
+    {
+        Status = STATUS_PNP_INVALID_ID;
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+ErrorExit:
+
+    DPRINT("PpIrpQueryID: Error Status %X\n", Status);
+
+    if (Status == STATUS_PNP_INVALID_ID || IdType == BusQueryDeviceID)
+    {
+        DPRINT("PpIrpQueryID: Set CM_PROB_INVALID_DATA\n");
+        PipSetDevNodeProblem(DeviceNode, CM_PROB_INVALID_DATA);
+
+        if (!(DeviceNode->Parent->Flags & DNF_CHILD_WITH_INVALID_ID))
+        {
+            DeviceNode->Parent->Flags |= DNF_CHILD_WITH_INVALID_ID;
+
+            DPRINT("PpIrpQueryID: FIXME PpSetInvalidIDEvent\n");
+        }
+    }
+
+    if (Status == STATUS_PNP_INVALID_ID)
+    {
+        DPRINT("PpIrpQueryID: Invalid ID. ServiceName - %wZ\n",
+               &DeviceNode->Parent->ServiceName);
+
+        ASSERT(Status != STATUS_PNP_INVALID_ID);
+    }
+    else
+    {
+        if (IdType || Status == STATUS_INSUFFICIENT_RESOURCES)
+        {
+            if (*OutID)
+            {
+                ExFreePoolWithTag(*OutID, 0);
+                *OutID = 0;
+                *OutIdSize = 0;
+            }
+
+            return Status;
+        }
+
+        DPRINT("PpIrpQueryID: FIXME Log\n");
+        DPRINT("PpIrpQueryID: ServiceName - %wZ, Status - %X\n",
+               &DeviceNode->Parent->ServiceName, Status);
+
+        ASSERT(IdType != BusQueryDeviceID);
+    }
+
+    if (*OutID)
+    {
+        ExFreePoolWithTag(*OutID, 0);
+        *OutID = NULL;
+        *OutIdSize = 0;
+    }
+
+    return Status;
+}
+
 VOID
 NTAPI
 PipEnumerationWorker(
