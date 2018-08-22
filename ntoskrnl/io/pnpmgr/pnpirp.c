@@ -129,4 +129,49 @@ IopQueryDeviceRelations(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PpIrpQueryID(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ BUS_QUERY_ID_TYPE IdType,
+    _Out_ PWCHAR *OutID)
+{
+    IO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PpIrpQueryID: DeviceObject - %p, IdType - %X\n", DeviceObject, IdType);
+
+    ASSERT(IdType == BusQueryDeviceID ||
+           IdType == BusQueryInstanceID ||
+           IdType == BusQueryHardwareIDs ||
+           IdType == BusQueryCompatibleIDs ||
+           IdType == BusQueryDeviceSerialNumber);
+    
+    *OutID = NULL;
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_ID;
+
+    IoStack.Parameters.QueryId.IdType = IdType;
+
+    Status = IopSynchronousCall(DeviceObject, &IoStack, (PVOID *)OutID);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(NT_SUCCESS(Status) || (*OutID == NULL));
+        *OutID = NULL;
+    }
+    else if (*OutID == NULL)
+    {
+        Status = STATUS_NOT_SUPPORTED;
+    }
+
+    DPRINT("PpIrpQueryID: DeviceNode - %X, IdType - %XPiFailQueryID\n");
+
+    return Status;
+}
+
 /* EOF */
