@@ -160,6 +160,14 @@ IopQueryDeviceRelations(
     _Inout_ PDEVICE_RELATIONS * OutPendingDeviceRelations
 );
 
+NTSTATUS
+NTAPI
+PpIrpQueryID(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ BUS_QUERY_ID_TYPE IdType,
+    _Out_ PWCHAR *OutID
+);
+
 //
 // pnpmap.c
 //
