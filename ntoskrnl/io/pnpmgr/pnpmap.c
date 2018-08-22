@@ -593,6 +593,145 @@ MapperProcessFirmwareTree(
     return Status;
 }
 
+VOID
+NTAPI
+MapperMarkKey(
+    _In_ HANDLE KeyHandle,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ PPNP_MAPPER_INFORMATION MapperInfo)
+{
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    PCM_RESOURCE_LIST CmResource;
+    PCM_RESOURCE_LIST CmBootConfigList;
+    UNICODE_STRING ValueName;
+    ULONG KeyNameLength;
+    PWCHAR BufferEnd;
+    ULONG Disposition;
+    ULONG Data;
+    ULONG Length;
+    NTSTATUS Status;
+
+    DPRINT("MapperMarkKey: KeyName - %wZ\n", KeyName);
+
+    KeyNameLength = KeyName->Length;
+
+    Data = 1;
+    RtlInitUnicodeString(&ValueName, L"FirmwareIdentified");
+
+    ZwSetValueKey(KeyHandle,
+                  &ValueName,
+                  0,
+                  REG_DWORD,
+                  &Data,
+                  sizeof(ULONG));
+
+    BufferEnd = &KeyName->Buffer[KeyName->Length / sizeof(WCHAR) + 1];
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               KeyName,
+                               OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+                               NULL,
+                               NULL);
+
+    RtlAppendUnicodeToString(KeyName, L"\\Control");
+
+    Status = ZwCreateKey(&KeyHandle,
+                         KEY_READ | KEY_WRITE,
+                         &ObjectAttributes,
+                         0,
+                         NULL,
+                         REG_OPTION_VOLATILE,
+                         &Disposition);
+
+    if (NT_SUCCESS(Status))
+    {
+        Data = 1;
+        RtlInitUnicodeString(&ValueName, L"FirmwareMember");
+
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_DWORD,
+                      &Data,
+                      sizeof(ULONG));
+
+        ZwClose(KeyHandle);
+    }
+    else
+    {
+        DPRINT("MapperMarkKey: Status - %X\n", Status);
+    }
+
+    if (!MapperInfo->CmFullDescriptor)
+    {
+        goto Exit;
+    }
+
+    KeyName->Length = KeyNameLength;
+    *BufferEnd = UNICODE_NULL;
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               KeyName,
+                               OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+                               NULL,
+                               NULL);
+
+    RtlAppendUnicodeToString(KeyName, L"\\LogConf");
+
+    Status = ZwCreateKey(&KeyHandle,
+                         KEY_READ | KEY_WRITE,
+                         &ObjectAttributes,
+                         0,
+                         NULL,
+                         REG_OPTION_VOLATILE,
+                         &Disposition);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("MapperMarkKey: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    Length = MapperInfo->CmFullDescriptorSize +
+             (sizeof(CM_RESOURCE_LIST) - sizeof(CM_FULL_RESOURCE_DESCRIPTOR));
+
+    CmResource = ExAllocatePoolWithTag(NonPagedPool, Length, 'rpaM');
+
+    if (!CmResource)
+    {
+        DPRINT1("MapperMarkKey: STATUS_INSUFFICIENT_RESOURCES\n");
+        ZwClose(KeyHandle);
+        goto Exit;
+    }
+
+    CmResource->Count = 1;
+
+    RtlCopyMemory(CmResource->List,
+                  MapperInfo->CmFullDescriptor,
+                  MapperInfo->CmFullDescriptorSize);
+
+    CmBootConfigList = MapperAdjustResourceList(CmResource,
+                                                MapperInfo->PnPId,
+                                                &Length);
+
+    RtlInitUnicodeString(&ValueName, L"BootConfig");
+
+    ZwSetValueKey(KeyHandle,
+                  &ValueName,
+                  0,
+                  REG_RESOURCE_LIST,
+                  CmBootConfigList,
+                  Length);
+
+    ExFreePoolWithTag(CmBootConfigList, 'rpaM');
+    ZwClose(KeyHandle);
+
+Exit:
+
+    KeyName->Length = KeyNameLength;
+    *BufferEnd = UNICODE_NULL;
+}
+
 #define PNP_MAPPER_SEED_BUFFER_SIZE 0x400
 
 VOID
