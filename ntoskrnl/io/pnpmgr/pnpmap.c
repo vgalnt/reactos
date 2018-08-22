@@ -593,6 +593,107 @@ MapperProcessFirmwareTree(
     return Status;
 }
 
+PCM_RESOURCE_LIST
+NTAPI
+MapperAdjustResourceList(
+    _In_ PCM_RESOURCE_LIST CmResource,
+    _In_ PWCHAR PnPId,
+    _Inout_ PULONG OutListSize)
+{
+    PCM_RESOURCE_LIST NewCmResource;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR BadCmDescriptor;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR NewCmDescriptor;
+    ULONG ix;
+
+    DPRINT("MapperAdjustResourceList: CmResource - %p, PnPId - %S\n",
+           CmResource, PnPId);
+
+    if (KeI386MachineType == MACHINE_TYPE_EISA)
+    {
+        DPRINT1("MapperAdjustResourceList: FIXME. KeI386MachineType == MACHINE_TYPE_EISA\n");
+        ASSERT(FALSE);
+    }
+
+    if (wcscmp(PnPId, L"*PNP0700") != 0) // Floppy Id
+    {
+        return CmResource;
+    }
+
+    DPRINT("MapperAdjustResourceList: Floppy\n");
+
+    if (CmResource->Count != 1)
+    {
+        DPRINT1("MapperAdjustResourceList: CmResource->Count - %X\n",
+                CmResource->Count);
+        return CmResource;
+    }
+
+    CmDescriptor = CmResource->List[0].PartialResourceList.PartialDescriptors;
+    BadCmDescriptor = NULL;
+
+    if (CmResource->List[0].PartialResourceList.Count == 0)
+    {
+        DPRINT1("MapperAdjustResourceList: CmResource->List[0].PartialResourceList.Count = 0\n");
+        return CmResource;
+    }
+
+    for (ix = 0; ix < CmResource->List[0].PartialResourceList.Count; ix++)
+    {
+        if (CmDescriptor->Type == CmResourceTypePort &&
+            CmDescriptor->u.Port.Length == 8)
+        {
+            if (BadCmDescriptor)
+            {
+                BadCmDescriptor = NULL;
+                break;
+            }
+            else
+            {
+                BadCmDescriptor = CmDescriptor;
+            }
+        }
+
+        CmDescriptor++;
+    }
+
+    if (BadCmDescriptor)
+    {
+        DPRINT("MapperAdjustResourceList: BadCmDescriptor - %p, BadCmDescriptor->u.Port.Length - %X\n",
+               BadCmDescriptor, BadCmDescriptor->u.Port.Length);
+
+        BadCmDescriptor->u.Port.Length = 6;
+
+        NewCmResource = ExAllocatePoolWithTag(NonPagedPool,
+                                              *OutListSize + sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR),
+                                              'rpaM');
+        if (!NewCmResource)
+        {
+            DPRINT1("MapperAdjustResourceList: STATUS_INSUFFICIENT_RESOURCES\n");
+            return CmResource;
+        }
+
+        RtlCopyMemory(NewCmResource, CmResource, *OutListSize);
+
+        NewCmDescriptor = &NewCmResource->List[0].PartialResourceList.PartialDescriptors[0] +
+                          NewCmResource->List[0].PartialResourceList.Count;
+
+        RtlMoveMemory(NewCmDescriptor,
+                      BadCmDescriptor,
+                      sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR));
+
+        NewCmDescriptor->u.Port.Start.QuadPart += 7;
+        NewCmDescriptor->u.Port.Length = 1;
+
+        NewCmResource->List[0].PartialResourceList.Count++;
+        *OutListSize += sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR);
+
+        ExFreePoolWithTag(CmResource, 'rpaM');
+    }
+
+    return NewCmResource;
+}
+
 VOID
 NTAPI
 MapperMarkKey(
