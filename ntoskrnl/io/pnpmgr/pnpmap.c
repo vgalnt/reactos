@@ -102,7 +102,9 @@ PNP_MAPPER_DEVICE_ID KeyboardMap[] =
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
-VOID NTAPI MapperFreeList(VOID)
+VOID
+NTAPI
+MapperFreeList(VOID)
 {
     PPNP_MAPPER_INFORMATION MapperInfo;
     PPNP_MAPPER_INFORMATION NextInfo;

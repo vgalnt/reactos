@@ -165,6 +165,12 @@ IopQueryDeviceRelations(
 //
 VOID
 NTAPI
+MapperFreeList(
+    VOID
+);
+
+VOID
+NTAPI
 MapperConstructRootEnumTree(
     _In_ BOOLEAN IsDisableMapper
 );
