@@ -191,6 +191,13 @@ PpIrpQueryDeviceText(
     _Out_ PWCHAR * OutDeviceText
 );
 
+NTSTATUS
+NTAPI
+PpIrpQueryResourceRequirements(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PIO_RESOURCE_REQUIREMENTS_LIST * IoResource
+);
+
 //
 // pnpmap.c
 //

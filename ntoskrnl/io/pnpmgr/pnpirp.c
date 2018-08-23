@@ -279,4 +279,41 @@ PpIrpQueryDeviceText(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PpIrpQueryResourceRequirements(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PIO_RESOURCE_REQUIREMENTS_LIST * IoResource)
+{
+    NTSTATUS Status;
+    IO_STACK_LOCATION IoStack;
+
+    PAGED_CODE();
+    DPRINT("PpIrpQueryResourceRequirements: DeviceObject - %p\n", DeviceObject);
+
+    *IoResource = NULL;
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_RESOURCE_REQUIREMENTS;
+
+    Status = IopSynchronousCall(DeviceObject, &IoStack, (PVOID *)IoResource);
+
+    ASSERT(NT_SUCCESS(Status) || (*IoResource == NULL));
+
+    if (!NT_SUCCESS(Status))
+    {
+        *IoResource = NULL;
+        return Status;
+    }
+
+    if (*IoResource == NULL)
+    {
+        Status = STATUS_NOT_SUPPORTED;
+    }
+
+    return Status;
+}
+
 /* EOF */
