@@ -168,6 +168,13 @@ PpIrpQueryID(
     _Out_ PWCHAR *OutID
 );
 
+NTSTATUS
+NTAPI
+PpIrpQueryCapabilities(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PDEVICE_CAPABILITIES DeviceCapabilities
+);
+
 //
 // pnpmap.c
 //

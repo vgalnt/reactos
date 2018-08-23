@@ -174,4 +174,33 @@ PpIrpQueryID(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PpIrpQueryCapabilities(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PDEVICE_CAPABILITIES DeviceCapabilities)
+{
+    IO_STACK_LOCATION IoStack;
+
+    PAGED_CODE();
+    DPRINT("PpIrpQueryCapabilities: DeviceCapabilities %p\n", DeviceCapabilities);
+
+    RtlZeroMemory(DeviceCapabilities, sizeof(DEVICE_CAPABILITIES));
+
+    DeviceCapabilities->Size = sizeof(DEVICE_CAPABILITIES);
+    DeviceCapabilities->Version = 1;
+
+    DeviceCapabilities->Address = -1;
+    DeviceCapabilities->UINumber = -1;
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_CAPABILITIES;
+
+    IoStack.Parameters.DeviceCapabilities.Capabilities = DeviceCapabilities;
+
+    return IopSynchronousCall(DeviceObject, &IoStack, NULL);
+}
+
 /* EOF */
