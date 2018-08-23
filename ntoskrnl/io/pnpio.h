@@ -227,6 +227,15 @@ MapperProcessFirmwareTree(
 );
 
 //
+// pnpmgr.c
+//
+USHORT
+NTAPI
+IopGetBusTypeGuidIndex(
+    IN LPGUID BusTypeGuid
+);
+
+//
 // pnpnode.c
 //
 VOID
