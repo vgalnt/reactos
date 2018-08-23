@@ -859,6 +859,63 @@ PpQueryDeviceID(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PiBuildDeviceNodeInstancePath(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ PWCHAR DeviceType,
+    _In_ PWCHAR DeviceID,
+    _In_ PWCHAR InstanceID)
+{
+    SIZE_T Lenght;
+    PWCHAR InstancePath;
+
+    PAGED_CODE();
+    DPRINT("PiBuildDeviceNodeInstancePath: DeviceNode - %p, DeviceType - %S, DeviceID - %S, InstanceID - %S\n",
+           DeviceNode, DeviceType, DeviceID, InstanceID);
+
+    if (!DeviceType || !DeviceID || !InstanceID)
+    {
+        DPRINT("PiBuildDeviceNodeInstancePath: !DeviceType || !DeviceID || !InstanceID\n");
+
+        ASSERT((DeviceNode->Flags & DNF_HAS_PROBLEM) != 0);
+        ASSERT(DeviceNode->Problem == CM_PROB_INVALID_DATA ||
+               DeviceNode->Problem == CM_PROB_OUT_OF_MEMORY ||
+               DeviceNode->Problem == CM_PROB_REGISTRY);
+
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    Lenght = (wcslen(DeviceType) + 1 +
+              wcslen(DeviceID) + 1 +
+              wcslen(InstanceID) + 1) * sizeof(WCHAR);
+
+    InstancePath = ExAllocatePoolWithTag(PagedPool, Lenght, 'nepP');
+
+    if (!InstancePath)
+    {
+        DPRINT1("PiBuildDeviceNodeInstancePath: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlStringCbPrintfW(InstancePath,
+                       Lenght,
+                       L"%s\\%s\\%s",
+                       DeviceType,
+                       DeviceID,
+                       InstanceID);
+
+    if (DeviceNode->InstancePath.Buffer)
+    {
+        IopCleanupDeviceRegistryValues(&DeviceNode->InstancePath);
+        ExFreePoolWithTag(DeviceNode->InstancePath.Buffer, 'nepP');
+    }
+
+    RtlInitUnicodeString(&DeviceNode->InstancePath, InstancePath);
+
+    return STATUS_SUCCESS;
+}
+
 
 VOID
 NTAPI
