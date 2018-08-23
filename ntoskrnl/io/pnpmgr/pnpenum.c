@@ -1035,6 +1035,87 @@ PpMarkDeviceStackStartPending(
     KeReleaseSpinLock(&DeviceStackLock, OldIrql);
 }
 
+NTSTATUS
+NTAPI
+PiQueryResourceRequirements(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ HANDLE KeyHandle)
+{
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResource;
+    UNICODE_STRING ValueName;
+    ULONG ListSize;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PiQueryResourceRequirements: DeviceNode - %p, KeyHandle - %p\n",
+           DeviceNode, KeyHandle);
+
+    Status = PpIrpQueryResourceRequirements(DeviceNode->PhysicalDeviceObject,
+                                            &IoResource);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiQueryResourceRequirements: Status - %X\n", Status);
+        ASSERT(IoResource == NULL);
+        IoResource = NULL;
+    }
+
+    if (IoResource)
+    {
+        ListSize = IoResource->ListSize;
+    }
+    else
+    {
+        ListSize = 0;
+    }
+
+    if (!KeyHandle)
+    {
+        if (IoResource)
+        {
+            ExFreePool(IoResource);
+        }
+
+        DPRINT("PiQueryResourceRequirements: Status - %X\n", Status);
+        return Status;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"BasicConfigVector");
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+    if (IoResource)
+    {
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_RESOURCE_REQUIREMENTS_LIST,
+                      IoResource,
+                      ListSize);
+
+        DeviceNode->Flags |= DNF_RESOURCE_REQUIREMENTS_NEED_FILTERED;
+        DeviceNode->ResourceRequirements = IoResource;
+    }
+    else
+    {
+        ZwDeleteValueKey(KeyHandle, &ValueName);
+    }
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    if (DeviceNode->ResourceRequirements)
+    {
+        DPRINT("PiQueryResourceRequirements: DeviceNode->ResourceRequirements - %p\n",
+               DeviceNode->ResourceRequirements);
+
+        IopDumpResourceRequirementsList(DeviceNode->ResourceRequirements);
+    }
+
+    return Status;
+}
+
 
 VOID
 NTAPI
