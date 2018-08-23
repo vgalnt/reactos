@@ -406,6 +406,34 @@ IopMapDeviceObjectToDeviceInstance(
 
 NTSTATUS
 NTAPI
+IopCleanupDeviceRegistryValues(
+    _In_ PUNICODE_STRING InstancePath)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PNP_DEVICE_INSTANCE_CONTEXT MapContext;
+
+    PAGED_CODE();
+    DPRINT("IopIsAnyDeviceInstanceEnabled: InstancePath - %wZ\n", InstancePath);
+
+    MapContext.DeviceObject = 0;
+    MapContext.InstancePath = InstancePath;
+
+    KeAcquireGuardedMutex(&PpDeviceReferenceTableLock);
+    RtlDeleteElementGenericTableAvl(&PpDeviceReferenceTable, &MapContext);
+    KeReleaseGuardedMutex(&PpDeviceReferenceTableLock);
+
+    DeviceObject = IopDeviceObjectFromDeviceInstance(InstancePath);
+    if (DeviceObject)
+    {
+        ASSERT(!DeviceObject);
+        ObDereferenceObject(DeviceObject);
+    }
+
+    return PpDeviceRegistration(InstancePath, FALSE, NULL);
+}
+
+NTSTATUS
+NTAPI
 PipApplyFunctionToSubKeys(
     _In_opt_ HANDLE RootHandle,
     _In_opt_ PUNICODE_STRING KeyName,

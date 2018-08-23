@@ -302,6 +302,12 @@ IopMapDeviceObjectToDeviceInstance(
     _In_ PUNICODE_STRING InstancePath
 );
 
+NTSTATUS
+NTAPI
+IopCleanupDeviceRegistryValues(
+    _In_ PUNICODE_STRING InstancePath
+);
+
 PDEVICE_OBJECT
 NTAPI
 IopDeviceObjectFromDeviceInstance(
