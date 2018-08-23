@@ -182,6 +182,15 @@ IopQueryDeviceState(
     _Out_ PNP_DEVICE_STATE *OutState
 );
 
+NTSTATUS
+NTAPI
+PpIrpQueryDeviceText(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ DEVICE_TEXT_TYPE DeviceTextType,
+    _In_ LCID LocaleId,
+    _Out_ PWCHAR * OutDeviceText
+);
+
 //
 // pnpmap.c
 //
