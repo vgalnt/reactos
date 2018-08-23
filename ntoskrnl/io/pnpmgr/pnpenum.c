@@ -463,6 +463,235 @@ PiProcessQueryDeviceState(
     return Status;
 }
 
+static
+BOOLEAN
+NTAPI
+PpCompareMultiLineIDs(
+    _In_ PWCHAR Id1,
+    _In_ PWCHAR Id2)
+{
+
+    for (;
+         *Id2 != UNICODE_NULL;
+         Id2 += wcslen(Id2) + 1, Id1 += wcslen(Id1) + 1)
+    {
+        if (*Id1 == UNICODE_NULL)
+        {
+            break;
+        }
+
+        if (_wcsicmp(Id2, Id1) != 0)
+        {
+            break;
+        }
+    }
+
+    if (*Id2 != UNICODE_NULL || *Id1 != UNICODE_NULL)
+    {
+        DPRINT("PpCompareMultiLineIDs: different IDs\n");
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
+PipProcessStartPhase3(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    KEY_VALUE_PARTIAL_INFORMATION ValuePartialInfo;
+    PKEY_VALUE_FULL_INFORMATION ValueFullInfo;
+    PDEVICE_OBJECT DeviceObject;
+    UNICODE_STRING ValueName;
+    HANDLE KeyHandle;
+    PWCHAR HardwareIDs;
+    PWCHAR CompatibleIDs;
+    PWCHAR PrevIDs;
+    ULONG ResultLength;
+    ULONG HardwareIDsSize;
+    ULONG CompatibleIDsSize;
+    ULONG ConfigFlags;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PipProcessStartPhase3: DeviceNode - %p, Instance - %wZ\n",
+           DeviceNode,  &DeviceNode->InstancePath);
+
+    DeviceObject = DeviceNode->PhysicalDeviceObject;
+
+    if (DeviceNode->Flags & DNF_IDS_QUERIED)
+    {
+        DPRINT("PipProcessStartPhase3: DeviceNode->Flags & DNF_IDS_QUERIED\n");
+        goto Exit;
+    }
+
+    Status = PnpDeviceObjectToDeviceInstance(DeviceObject, &KeyHandle, KEY_READ);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipProcessStartPhase3: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    PpQueryID(DeviceNode, BusQueryHardwareIDs, &HardwareIDs, &HardwareIDsSize);
+    PpQueryID(DeviceNode, BusQueryCompatibleIDs, &CompatibleIDs, &CompatibleIDsSize);
+
+    if (!HardwareIDs && !CompatibleIDs)
+    {
+        ZwClose(KeyHandle);
+        DeviceNode->Flags |= DNF_IDS_QUERIED;
+        goto Exit;
+    }
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+    RtlInitUnicodeString(&ValueName, L"ConfigFlags");
+
+    Status = ZwQueryValueKey(KeyHandle,
+                             &ValueName,
+                             KeyValuePartialInformation,
+                             &ValuePartialInfo,
+                             sizeof(ValuePartialInfo) + sizeof(ULONG),
+                             &ResultLength);
+
+    if (NT_SUCCESS(Status) && ValuePartialInfo.Type == REG_DWORD)
+    {
+        ConfigFlags = ValuePartialInfo.Data[0];
+    }
+    else
+    {
+        ConfigFlags = 0;
+    }
+
+    if (HardwareIDs)
+    {
+        if (!(ConfigFlags & 0x400))
+        {
+            Status = IopGetRegistryValue(KeyHandle,
+                                         L"HardwareID",
+                                         &ValueFullInfo);
+
+            if (NT_SUCCESS(Status))
+            {
+                if (ValueFullInfo->Type == REG_MULTI_SZ)
+                {
+                    PrevIDs = (PWCHAR)((ULONG_PTR)ValueFullInfo +
+                                      ValueFullInfo->DataOffset);
+
+                    if (PpCompareMultiLineIDs(HardwareIDs, PrevIDs))
+                    {
+                        DPRINT("PipProcessStartPhase3: HardwareID changed\n");
+                        ConfigFlags |= 0x400;
+                    }
+                }
+
+                ExFreePoolWithTag(ValueFullInfo, 'uspP');
+            }
+        }
+
+        RtlInitUnicodeString(&ValueName, L"HardwareID");
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_MULTI_SZ,
+                      HardwareIDs,
+                      HardwareIDsSize);
+
+        ExFreePoolWithTag(HardwareIDs, 0);
+    }
+
+    if (CompatibleIDs)
+    {
+        if (!(ConfigFlags & 0x400))
+        {
+            Status = IopGetRegistryValue(KeyHandle,
+                                         L"CompatibleIDs",
+                                         &ValueFullInfo);
+
+            if (NT_SUCCESS(Status))
+            {
+                if (ValueFullInfo->Type == REG_MULTI_SZ)
+                {
+                    PrevIDs = (PWCHAR)((ULONG_PTR)ValueFullInfo +
+                                      ValueFullInfo->DataOffset);
+
+                    if (PpCompareMultiLineIDs(HardwareIDs, PrevIDs))
+                    {
+                        DPRINT("PipProcessStartPhase3: CompatibleID changed\n");
+                        ConfigFlags |= 0x400;
+                    }
+                }
+
+                ExFreePoolWithTag(ValueFullInfo, 'uspP');
+            }
+        }
+
+        RtlInitUnicodeString(&ValueName, L"CompatibleIDs");
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_MULTI_SZ,
+                      CompatibleIDs,
+                      CompatibleIDsSize);
+
+        ExFreePoolWithTag(CompatibleIDs, 0);
+    }
+
+    if (ConfigFlags & 0x400)
+    {
+        RtlInitUnicodeString(&ValueName, L"ConfigFlags");
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_DWORD,
+                      &ConfigFlags,
+                      sizeof(ConfigFlags));
+    }
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    ZwClose(KeyHandle);
+    DeviceNode->Flags |= DNF_IDS_QUERIED;
+
+
+Exit:
+
+    if (DeviceNode->Flags & DNF_HAS_PROBLEM &&
+        DeviceNode->Problem == CM_PROB_INVALID_DATA)
+    {
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    DeviceNode->Flags |= DNF_REENUMERATE;
+
+    IopQueryAndSaveDeviceNodeCapabilities(DeviceNode);
+
+    Status = PiProcessQueryDeviceState(DeviceObject);
+
+    DPRINT("PipProcessStartPhase3: FIXME PpSetPlugPlayEvent\n");
+    //PpSetPlugPlayEvent(&GUID_DEVICE_ARRIVAL, DeviceNode->PhysicalDeviceObject);
+
+    /* Report the device to the user-mode pnp manager */
+    IopQueueTargetDeviceEvent(&GUID_DEVICE_ARRIVAL,//GUID_DEVICE_ENUMERATED
+                              &DeviceNode->InstancePath);
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    DPRINT("PipProcessStartPhase3: FIXME PpvUtilTestStartedPdoStack\n");
+    //PpvUtilTestStartedPdoStack(DeviceObject);
+
+    PipSetDevNodeState(DeviceNode, DeviceNodeStarted, NULL);
+
+    return STATUS_SUCCESS;
+}
+
+
 VOID
 NTAPI
 PipEnumerationWorker(
