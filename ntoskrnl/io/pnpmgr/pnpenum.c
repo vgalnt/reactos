@@ -1116,6 +1116,41 @@ PiQueryResourceRequirements(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PpQueryBusInformation(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PPNP_BUS_INFORMATION BusInfo;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PpQueryBusInformation: DeviceNode - %p\n", DeviceNode);
+
+    Status = PpIrpQueryBusInformation(DeviceNode->PhysicalDeviceObject, &BusInfo);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(BusInfo == NULL);
+
+        DeviceNode->ChildBusTypeIndex = -1;
+        DeviceNode->ChildInterfaceType = InterfaceTypeUndefined;
+        DeviceNode->ChildBusNumber = 0xFFFFFFF0;
+    }
+    else
+    {
+        ASSERT(BusInfo);
+
+        DeviceNode->ChildBusTypeIndex = IopGetBusTypeGuidIndex(&BusInfo->BusTypeGuid);
+        DeviceNode->ChildInterfaceType = BusInfo->LegacyBusType;
+        DeviceNode->ChildBusNumber = BusInfo->BusNumber;
+
+        ExFreePool(BusInfo);
+    }
+
+    return Status;
+}
+
 
 VOID
 NTAPI
