@@ -61,6 +61,8 @@ PipAllocateDeviceNode(IN PDEVICE_OBJECT PhysicalDeviceObject)
     InitializeListHead(&DeviceNode->PendedSetInterfaceState);
     InitializeListHead(&DeviceNode->LegacyBusListEntry);
 
+    DeviceNode->State = DeviceNodeUninitialized;
+
     /* Check if there is a PDO */
     if (PhysicalDeviceObject)
     {
