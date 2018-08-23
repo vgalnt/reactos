@@ -203,4 +203,35 @@ PpIrpQueryCapabilities(
     return IopSynchronousCall(DeviceObject, &IoStack, NULL);
 }
 
+NTSTATUS
+NTAPI
+IopQueryDeviceState(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PNP_DEVICE_STATE *OutState)
+{
+    PNP_DEVICE_STATE State;
+    IO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopQueryDeviceState: DeviceObject - %p\n", DeviceObject);
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_PNP_DEVICE_STATE;
+
+    Status = IopSynchronousCall(DeviceObject, &IoStack, (PVOID *)&State);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopQueryDeviceState: Status - %X\n", Status);
+        return Status;
+    }
+
+    *OutState = State;
+
+    return Status;
+}
+
 /* EOF */
