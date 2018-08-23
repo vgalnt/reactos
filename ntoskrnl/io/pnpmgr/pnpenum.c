@@ -819,6 +819,46 @@ PipEnumerateCompleted(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+PpQueryDeviceID(
+    _In_ PDEVICE_NODE DeviceNode,
+    _Out_ PWCHAR *OutFullDeviceID,
+    _Out_ PWCHAR *OutDeviceID)
+{
+    PWCHAR Id;
+    PWCHAR Separator;
+    ULONG IdLength;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PpQueryDeviceID: DeviceNode - %p\n", DeviceNode);
+
+    *OutFullDeviceID = NULL;
+    *OutDeviceID = NULL;
+
+    Status = PpQueryID(DeviceNode, BusQueryDeviceID, &Id, &IdLength);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PpQueryDeviceID: Status - %p\n", Status);
+        ASSERT(Id == NULL && IdLength == 0);
+        return Status;
+    }
+
+    ASSERT(Id && IdLength);
+
+    *OutFullDeviceID = Id;
+
+    Separator = wcschr(Id, L'\\');
+    ASSERT(Separator);
+    *Separator = UNICODE_NULL;
+
+    *OutDeviceID = Separator + 1;
+
+    return Status;
+}
+
 
 VOID
 NTAPI
