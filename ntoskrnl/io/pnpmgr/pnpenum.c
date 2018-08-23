@@ -1001,6 +1001,40 @@ Exit:
     return Status;
 }
 
+VOID
+NTAPI
+PpMarkDeviceStackStartPending(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ BOOLEAN MarkType)
+{
+    PDEVICE_OBJECT Device;
+    PEXTENDED_DEVOBJ_EXTENSION DevObjExtension;
+    KSPIN_LOCK DeviceStackLock;
+    KIRQL OldIrql;
+
+    DPRINT("PpMarkDeviceStackStartPending: DeviceObject %p\n", DeviceObject);
+
+    KeAcquireSpinLock(&DeviceStackLock, &OldIrql);
+
+    for (Device = DeviceObject;
+         Device;
+         Device = Device->AttachedDevice)
+    {
+        DevObjExtension = IoGetDevObjExtension(Device);
+
+        if (MarkType)
+        {
+            DevObjExtension->ExtensionFlags |= DOE_START_PENDING;
+        }
+        else
+        {
+            DevObjExtension->ExtensionFlags &= ~DOE_START_PENDING;
+        }
+    }
+
+    KeReleaseSpinLock(&DeviceStackLock, OldIrql);
+}
+
 
 VOID
 NTAPI
