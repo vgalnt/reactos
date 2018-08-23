@@ -916,6 +916,91 @@ PiBuildDeviceNodeInstancePath(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+PiCreateDeviceInstanceKey(
+    _In_ PDEVICE_NODE DeviceNode,
+    _Out_ PHANDLE OutKeyHandle,
+    _Out_ PULONG OutDisposition)
+{
+    UNICODE_STRING EnumKeyName = RTL_CONSTANT_STRING(ENUM_ROOT);
+    UNICODE_STRING ValueName;
+    PKEY_VALUE_FULL_INFORMATION KeyInfo;
+    HANDLE EnumHandle;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PiCreateDeviceInstanceKey: DeviceNode %p\n", DeviceNode);
+
+    *OutKeyHandle = NULL;
+    *OutDisposition = 0;
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+    Status = IopOpenRegistryKeyEx(&EnumHandle,
+                                  NULL,
+                                  &EnumKeyName,
+                                  KEY_ALL_ACCESS);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiCreateDeviceInstanceKey: Status - %X\n", Status);
+        ASSERT(EnumHandle != NULL);
+        goto Exit;
+    }
+
+    Status = IopCreateRegistryKeyEx(OutKeyHandle,
+                                    EnumHandle,
+                                    &DeviceNode->InstancePath,
+                                    KEY_ALL_ACCESS,
+                                    REG_OPTION_NON_VOLATILE,
+                                    OutDisposition);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiCreateDeviceInstanceKey: Status - %X\n", Status);
+        ASSERT(*OutKeyHandle != NULL);
+        goto Exit;
+    }
+
+    if (*OutDisposition == REG_CREATED_NEW_KEY)
+    {
+        goto Exit;
+    }
+
+    KeyInfo = NULL;
+    IopGetRegistryValue(*OutKeyHandle, L"Migrated", &KeyInfo);
+
+    if (!KeyInfo)
+    {
+        goto Exit;
+    }
+
+    if (KeyInfo->Type == REG_DWORD &&
+        KeyInfo->DataLength == sizeof(ULONG) &&
+        *(PULONG)((ULONG_PTR)&KeyInfo->TitleIndex + KeyInfo->DataOffset))
+    {
+        *OutDisposition = REG_CREATED_NEW_KEY;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"Migrated");
+    ZwDeleteValueKey(*OutKeyHandle, &ValueName);
+
+    ExFreePoolWithTag(KeyInfo, 'uspP');
+
+Exit:
+
+    if (EnumHandle)
+    {
+        ZwClose(EnumHandle);
+    }
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    return Status;
+}
+
 
 VOID
 NTAPI
