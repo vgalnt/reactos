@@ -234,4 +234,49 @@ IopQueryDeviceState(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PpIrpQueryDeviceText(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ DEVICE_TEXT_TYPE DeviceTextType,
+    _In_ LCID LocaleId,
+    _Out_ PWCHAR * OutDeviceText)
+{
+    NTSTATUS Status;
+    IO_STACK_LOCATION IoStack;
+
+    PAGED_CODE();
+    DPRINT("PpIrpQueryDeviceText: DeviceObject - %p\n", DeviceObject);
+
+    ASSERT(DeviceTextType == DeviceTextDescription ||
+           DeviceTextType == DeviceTextLocationInformation);
+
+    *OutDeviceText = NULL;
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_DEVICE_TEXT;
+
+    IoStack.Parameters.QueryDeviceText.DeviceTextType = DeviceTextType;
+    IoStack.Parameters.QueryDeviceText.LocaleId = LocaleId;
+
+    Status = IopSynchronousCall(DeviceObject, &IoStack, (PVOID *)OutDeviceText);
+
+    ASSERT(NT_SUCCESS(Status) || (*OutDeviceText == NULL));
+
+    if (!NT_SUCCESS(Status))
+    {
+        *OutDeviceText = NULL;
+        return Status;
+    }
+
+    if (*OutDeviceText == NULL)
+    {
+        Status = STATUS_NOT_SUPPORTED;
+    }
+
+    return Status;
+}
+
 /* EOF */
