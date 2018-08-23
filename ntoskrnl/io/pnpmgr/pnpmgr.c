@@ -3572,7 +3572,7 @@ IopGetRegistryValue(IN HANDLE Handle,
         return Status;
     }
 
-    FullInformation = ExAllocatePool(NonPagedPool, Size);
+    FullInformation = ExAllocatePoolWithTag(NonPagedPool, Size, 'uspP');
     if (!FullInformation) return STATUS_INSUFFICIENT_RESOURCES;
 
     Status = ZwQueryValueKey(Handle,
@@ -3583,7 +3583,7 @@ IopGetRegistryValue(IN HANDLE Handle,
                              &Size);
     if (!NT_SUCCESS(Status))
     {
-        ExFreePool(FullInformation);
+        ExFreePoolWithTag(FullInformation, 'uspP');
         return Status;
     }
 
