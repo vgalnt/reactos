@@ -316,4 +316,32 @@ PpIrpQueryResourceRequirements(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PpIrpQueryBusInformation(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PPNP_BUS_INFORMATION * OutInformation)
+{
+    IO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PpIrpQueryBusInformation: DeviceObject %p\n", DeviceObject);
+
+    *OutInformation = NULL;
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_BUS_INFORMATION;
+
+    Status = IopSynchronousCall(DeviceObject, &IoStack, (PVOID *)OutInformation);
+
+    if (!NT_SUCCESS(Status))
+    {
+        *OutInformation = NULL;
+    }
+
+    return Status;
+}
+
 /* EOF */
