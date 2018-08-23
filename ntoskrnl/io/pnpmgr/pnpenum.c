@@ -360,6 +360,109 @@ IopQueryAndSaveDeviceNodeCapabilities(
     return Status;
 }
 
+static
+VOID
+NTAPI
+IopIncDisableableDepends(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PDEVICE_NODE node;
+
+    for (node = DeviceNode;
+         node && InterlockedIncrement((PLONG)&node->DisableableDepends) == 1;
+         node = node->Parent)
+    {
+        ;
+    }
+}
+
+static
+VOID
+NTAPI
+IopDecDisableableDepends(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PDEVICE_NODE node;
+
+    for (node = DeviceNode;
+         node && !InterlockedDecrement((PLONG)&node->DisableableDepends);
+         node = node->Parent)
+    {
+        ;
+    }
+}
+
+NTSTATUS
+NTAPI
+PiProcessQueryDeviceState(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    PDEVICE_NODE DeviceNode;
+    PNP_DEVICE_STATE State;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PiProcessQueryDeviceState: DeviceObject - %p\n", DeviceObject);
+
+    Status = IopQueryDeviceState(DeviceObject, &State);
+
+    if (!NT_SUCCESS(Status))
+    {
+        return STATUS_SUCCESS;
+    }
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    if (State & PNP_DEVICE_DONT_DISPLAY_IN_UI)
+    {
+        DeviceNode->UserFlags |= DNUF_DONT_SHOW_IN_UI;
+    }
+    else
+    {
+        DeviceNode->UserFlags &= ~DNUF_DONT_SHOW_IN_UI;
+    }
+
+    if (State & PNP_DEVICE_NOT_DISABLEABLE)
+    {
+        DeviceNode->UserFlags = DeviceNode->UserFlags;
+
+        if (!(DeviceNode->UserFlags & DNUF_NOT_DISABLEABLE))
+        {
+            DeviceNode->UserFlags = DeviceNode->UserFlags | DNUF_NOT_DISABLEABLE;
+            IopIncDisableableDepends(DeviceNode);
+        }
+    }
+    else
+    {
+        if (DeviceNode->UserFlags & DNUF_NOT_DISABLEABLE)
+        {
+            IopDecDisableableDepends(DeviceNode);
+            DeviceNode->UserFlags &= ~DNUF_NOT_DISABLEABLE;
+        }
+    }
+
+    if (State & (PNP_DEVICE_REMOVED | PNP_DEVICE_DISABLED))
+    {
+        DPRINT("PiProcessQueryDeviceState: FIXME PipRequestDeviceRemoval\n");
+        ASSERT(FALSE);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (State & PNP_DEVICE_RESOURCE_REQUIREMENTS_CHANGED)
+    {
+        DPRINT("PiProcessQueryDeviceState: FIXME IopResourceRequirementsChanged\n");
+        ASSERT(FALSE);
+    }
+    else if (State & PNP_DEVICE_FAILED)
+    {
+        DPRINT("PiProcessQueryDeviceState: FIXME PipRequestDeviceRemoval\n");
+        ASSERT(FALSE);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    return Status;
+}
+
 VOID
 NTAPI
 PipEnumerationWorker(
