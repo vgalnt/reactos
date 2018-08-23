@@ -691,6 +691,134 @@ Exit:
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+PipEnumerateCompleted(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PEXTENDED_DEVOBJ_EXTENSION DeviceExt;
+    PDEVICE_RELATIONS DeviceRelations;
+    PDEVICE_NODE ChildDeviceNode;
+    BOOLEAN RemovalChild;
+    ULONG ix;
+    BOOLEAN IsNoChildDeviceNode;
+
+    PAGED_CODE();
+    DPRINT("PipEnumerateCompleted: DeviceNode - %p\n", DeviceNode);
+
+    if (!DeviceNode->OverUsed1.PendingDeviceRelations)
+    {
+        PipSetDevNodeState(DeviceNode, DeviceNodeStarted, NULL);
+        return STATUS_SUCCESS;
+    }
+
+    for (ChildDeviceNode = DeviceNode->Child;
+         ChildDeviceNode;
+         ChildDeviceNode = ChildDeviceNode->Sibling)
+    {
+        ChildDeviceNode->Flags &= ~DNF_ENUMERATED;
+    }
+
+    for (ix = 0;
+         ix < DeviceNode->OverUsed1.PendingDeviceRelations->Count;
+         ix++)
+    {
+        DeviceRelations = DeviceNode->OverUsed1.PendingDeviceRelations;
+        DeviceObject = DeviceRelations->Objects[ix];
+
+        if (DeviceObject->Flags & DO_DEVICE_INITIALIZING)
+        {
+            DPRINT("PipEnumerateCompleted: DO_DEVICE_INITIALIZING! DeviceObject - %p\n",
+                   DeviceObject);
+        }
+
+        DeviceExt = IoGetDevObjExtension(DeviceObject);
+
+        if (DeviceExt->ExtensionFlags & DOE_DELETE_PENDING)
+        {
+            DPRINT("PipEnumerateCompleted: FIXME dump\n");
+            ASSERT(FALSE);
+
+            KeBugCheckEx(PNP_DETECTED_FATAL_ERROR,
+                         4,
+                         (ULONG_PTR)DeviceObject,
+                         0,
+                         0);
+        }
+
+        if (DeviceExt->DeviceNode)
+        {
+            ChildDeviceNode = DeviceExt->DeviceNode;
+            ChildDeviceNode->Flags |= DNF_ENUMERATED;
+
+            if (ChildDeviceNode->DockInfo.DockStatus == DOCK_EJECTIRP_COMPLETED)
+            {
+                DPRINT("PipEnumerateCompleted: FIXME PpProfileCancelTransitioningDock\n");
+                ASSERT(FALSE);
+            }
+
+            ASSERT(!(ChildDeviceNode->Flags & DNF_DEVICE_GONE));
+
+            ObDereferenceObject(DeviceObject);
+        }
+        else
+        {
+            ChildDeviceNode = PipAllocateDeviceNode(DeviceObject);
+            DPRINT("PipEnumerateCompleted: ChildDeviceNode - %p\n", ChildDeviceNode);
+
+            if (ChildDeviceNode)
+            {
+                ChildDeviceNode->Flags |= DNF_ENUMERATED;
+                DeviceObject->Flags |= DO_BUS_ENUMERATED_DEVICE;
+
+                PpDevNodeInsertIntoTree(DeviceNode, ChildDeviceNode);
+
+                DPRINT("PipEnumerateCompleted: FIXME PpSystemHiveTooLarge\n");
+            }
+            else
+            {
+                DPRINT1("PipEnumerateCompleted: Not allocated device node!\n");
+                ObDereferenceObject(DeviceObject);
+            }
+        }
+    }
+
+    ExFreePoolWithTag(DeviceNode->OverUsed1.PendingDeviceRelations, 0);
+    DeviceNode->OverUsed1.PendingDeviceRelations = NULL;
+
+    RemovalChild = FALSE;
+    ChildDeviceNode = DeviceNode->Child;
+
+    for (IsNoChildDeviceNode = ChildDeviceNode == NULL;
+         IsNoChildDeviceNode == FALSE;
+         IsNoChildDeviceNode = ChildDeviceNode == NULL)
+    {
+        if (!(ChildDeviceNode->Flags & DNF_ENUMERATED) &&
+            !(ChildDeviceNode->Flags & DNF_DEVICE_GONE))
+        {
+            ChildDeviceNode->Flags |= DNF_DEVICE_GONE;
+
+            DPRINT1("PipEnumerateCompleted: FIXME PipRequestDeviceRemoval\n");
+            ASSERT(FALSE);
+
+            RemovalChild = TRUE;
+        }
+
+        ChildDeviceNode = ChildDeviceNode->Sibling;
+    }
+
+    ASSERT(DeviceNode->State == DeviceNodeEnumerateCompletion);
+    PipSetDevNodeState(DeviceNode, DeviceNodeStarted, NULL);
+
+    if (RemovalChild && DeviceNode != IopRootDeviceNode)
+    {
+        return STATUS_PNP_RESTART_ENUMERATION;
+    }
+
+    return STATUS_SUCCESS;
+}
+
 
 VOID
 NTAPI
