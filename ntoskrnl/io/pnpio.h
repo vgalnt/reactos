@@ -198,6 +198,13 @@ PpIrpQueryResourceRequirements(
     _Out_ PIO_RESOURCE_REQUIREMENTS_LIST * IoResource
 );
 
+NTSTATUS
+NTAPI
+PpIrpQueryBusInformation(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PPNP_BUS_INFORMATION * OutInformation
+);
+
 //
 // pnpmap.c
 //
