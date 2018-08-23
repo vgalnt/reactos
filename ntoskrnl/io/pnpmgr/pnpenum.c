@@ -267,6 +267,74 @@ ErrorExit:
 
 NTSTATUS
 NTAPI
+PpSaveDeviceCapabilities(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ PDEVICE_CAPABILITIES DeviceCapabilities)
+{
+    UNICODE_STRING ValueName;
+    HANDLE KeyHandle = NULL;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PpSaveDeviceCapabilities: DeviceNode - %p, InstancePath - %wZ\n",
+           DeviceNode, &DeviceNode->InstancePath);
+
+    ASSERT(DeviceNode);
+    ASSERT(DeviceCapabilities);
+
+    Status = PnpDeviceObjectToDeviceInstance(DeviceNode->PhysicalDeviceObject,
+                                             &KeyHandle,
+                                             KEY_ALL_ACCESS);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PpSaveDeviceCapabilities: Status - %X, Pdo - %p\n",
+               Status, DeviceNode->PhysicalDeviceObject);
+
+        ASSERT(NT_SUCCESS(Status));
+        return Status;
+    }
+
+    ASSERT(KeyHandle);
+
+    if (DeviceNode->Flags & DNF_HAS_BOOT_CONFIG)
+    {
+        DeviceCapabilities->SurpriseRemovalOK = 0;
+    }
+
+    DeviceNode->CapabilityFlags = *(PULONG)((ULONG_PTR)&DeviceCapabilities->Version +
+                                            sizeof(DeviceCapabilities->Version));
+
+    RtlInitUnicodeString(&ValueName, L"Capabilities");
+
+    ZwSetValueKey(KeyHandle,
+                  &ValueName,
+                  0,
+                  REG_DWORD,
+                  &DeviceNode->CapabilityFlags,
+                  sizeof(DeviceNode->CapabilityFlags));
+
+    RtlInitUnicodeString(&ValueName, L"UINumber");
+
+    if (DeviceCapabilities->UINumber == -1)
+    {
+        ZwDeleteValueKey(KeyHandle, &ValueName);
+    }
+    else
+    {
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_DWORD,
+                      &DeviceCapabilities->UINumber,
+                      sizeof(DeviceCapabilities->UINumber));
+    }
+
+    ZwClose(KeyHandle);
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IopQueryAndSaveDeviceNodeCapabilities(
     _In_ PDEVICE_NODE DeviceNode)
 {
