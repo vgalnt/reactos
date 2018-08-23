@@ -265,6 +265,33 @@ ErrorExit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopQueryAndSaveDeviceNodeCapabilities(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    DEVICE_CAPABILITIES DeviceCapabilities;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopQueryAndSaveDeviceNodeCapabilities: DeviceNode - %p\n", DeviceNode);
+
+    ASSERT(DeviceNode);
+
+    Status = PpIrpQueryCapabilities(DeviceNode->PhysicalDeviceObject,
+                                    &DeviceCapabilities);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopQueryAndSaveDeviceNodeCapabilities: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = PpSaveDeviceCapabilities(DeviceNode, &DeviceCapabilities);
+
+    return Status;
+}
+
 VOID
 NTAPI
 PipEnumerationWorker(
