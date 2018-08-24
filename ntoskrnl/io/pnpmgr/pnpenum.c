@@ -245,8 +245,8 @@ ErrorExit:
         {
             if (*OutID)
             {
-                ExFreePoolWithTag(*OutID, 0);
-                *OutID = 0;
+                ExFreePool(*OutID);
+                *OutID = NULL;
                 *OutIdSize = 0;
             }
 
@@ -262,7 +262,7 @@ ErrorExit:
 
     if (*OutID)
     {
-        ExFreePoolWithTag(*OutID, 0);
+        ExFreePool(*OutID);
         *OutID = NULL;
         *OutIdSize = 0;
     }
@@ -860,6 +860,338 @@ PpQueryDeviceID(
     *Separator = UNICODE_NULL;
 
     *OutDeviceID = Separator + 1;
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
+PipMakeGloballyUniqueId(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PWCHAR InstanceID,
+    _Out_ PWCHAR *OutUniqueId)
+{
+    UNICODE_STRING EnumKeyName = RTL_CONSTANT_STRING(ENUM_ROOT);
+    UNICODE_STRING ValueName;
+    KEY_VALUE_PARTIAL_INFORMATION KeyValue;
+    PKEY_VALUE_PARTIAL_INFORMATION PrefixBuffer;
+    PDEVICE_NODE ParentNode;
+    PWCHAR UniqueIdBuffer;
+    PWSTR UniqueIdString = NULL;
+    PWCHAR UniqueIdStringEnd;
+    HANDLE Handle;
+    HANDLE KeyHandle;
+    ULONG InstanceCounter;
+    ULONG ResultLength;
+    ULONG UniqueParentID;
+    ULONG InstanceIdLen;
+    PWSTR pChar;
+    ULONG Key;
+    ULONG Hash;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PipMakeGloballyUniqueId: InstanceID - %S\n", InstanceID);
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+    ParentNode = (IopGetDeviceNode(DeviceObject))->Parent;
+
+    Status = IopOpenRegistryKeyEx(&Handle,
+                                  NULL,
+                                  &EnumKeyName,
+                                  KEY_READ | KEY_WRITE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PipMakeGloballyUniqueId: Status - %X\n", Status);
+
+        ExReleaseResourceLite(&PpRegistryDeviceResource);
+        KeLeaveCriticalRegion();
+
+        *OutUniqueId = NULL;
+        return Status;
+    }
+
+    Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                  Handle,
+                                  &ParentNode->InstancePath,
+                                  KEY_READ | KEY_WRITE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipMakeGloballyUniqueId: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"UniqueParentID");
+
+    Status = ZwQueryValueKey(KeyHandle,
+                             &ValueName,
+                             KeyValuePartialInformation,
+                             &KeyValue,
+                             sizeof(KEY_VALUE_PARTIAL_INFORMATION),
+                             &ResultLength);
+
+    if (NT_SUCCESS(Status))
+    {
+        ASSERT(KeyValue.Type == REG_DWORD);
+        ASSERT(KeyValue.DataLength == sizeof(ULONG));
+
+        if (KeyValue.Type != REG_DWORD ||
+            KeyValue.DataLength != sizeof(ULONG))
+        {
+            Status = STATUS_INVALID_PARAMETER;
+            ZwClose(KeyHandle);
+            goto Exit;
+        }
+
+        UniqueParentID = KeyValue.Data[0];
+
+        UniqueIdString = ExAllocatePoolWithTag(PagedPool,
+                                               9 * sizeof(WCHAR),
+                                               'nepP');
+        if (!UniqueIdString)
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            ZwClose(KeyHandle);
+            goto Exit;
+        }
+
+        RtlStringCbPrintfW(UniqueIdString,
+                           9 * sizeof(WCHAR),
+                           L"%x",
+                           UniqueParentID);
+
+        goto MakeUniqueId;
+    }
+
+    /* 
+        Format key "ParentIdPrefix" ("%x&%x&%x"):
+        [ParentNode->Level] + "&" + [Hash] + "&" + [InstanceCounter]
+                      8        1      8       1        8
+    */
+
+    ResultLength = 66; // (sizeof(KEY_VALUE_PARTIAL_INFORMATION) - (1+3)) + (8+1+8+1+8)*2 + sizeof(UNICODE_NULL)
+
+    PrefixBuffer = ExAllocatePoolWithTag(PagedPool, ResultLength, 'nepP');
+
+    if (!PrefixBuffer)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        ZwClose(KeyHandle);
+        goto Exit;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"ParentIdPrefix");
+
+    Status = ZwQueryValueKey(KeyHandle,
+                             &ValueName,
+                             KeyValuePartialInformation,
+                             PrefixBuffer,
+                             ResultLength,
+                             &ResultLength);
+
+    if (!NT_SUCCESS(Status))
+    {
+        /* 
+            Format key "NextParentID" ("%s.%x.%x"):
+            "NextParentID" + "." + [Hash] + "." + [ParentNode->Level]
+                              1      8       1        8
+        */
+
+        ResultLength = wcslen(L"NextParentID") + 19; // (1+8+1+8) + 1
+
+        Status = RtlUpcaseUnicodeString(&ValueName,
+                                        &ParentNode->InstancePath,
+                                        TRUE);
+        if (!NT_SUCCESS(Status))
+        {
+            ZwClose(KeyHandle);
+            goto Exit;
+        }
+
+        /* Calculate hash for UniqueId */
+        Key = 0;
+
+        for (pChar = ValueName.Buffer;
+             pChar < &ValueName.Buffer[ValueName.Length / sizeof(WCHAR)];
+             pChar++)
+        {
+            Key = *pChar + 37 * Key; // ?37?
+        }
+
+        Hash = abs(CMP_HASH_IRRATIONAL * Key) % CMP_HASH_PRIME;
+
+        RtlFreeUnicodeString(&ValueName);
+
+        UniqueIdString = ExAllocatePoolWithTag(PagedPool,
+                                               ResultLength * sizeof(WCHAR),
+                                               'nepP');
+        if (!UniqueIdString)
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            ZwClose(KeyHandle);
+            goto Exit;
+        }
+
+        RtlStringCbPrintfW(UniqueIdString,
+                           ResultLength * sizeof(WCHAR),
+                           L"%s.%x.%x",
+                           L"NextParentID",
+                           Hash,
+                           ParentNode->Level);
+
+        RtlInitUnicodeString(&ValueName, UniqueIdString);
+
+        Status = ZwQueryValueKey(Handle,
+                                 &ValueName,
+                                 KeyValuePartialInformation,
+                                 &KeyValue,
+                                 sizeof(KEY_VALUE_PARTIAL_INFORMATION),
+                                 &ResultLength);
+
+        if (NT_SUCCESS(Status) &&
+            KeyValue.Type == REG_DWORD &&
+            KeyValue.DataLength == sizeof(ULONG))
+        {
+            InstanceCounter = KeyValue.Data[0];
+        }
+        else
+        {
+            InstanceCounter = 0;
+        }
+
+        InstanceCounter++;
+
+        Status = ZwSetValueKey(Handle,
+                               &ValueName,
+                               0,
+                               REG_DWORD,
+                               &InstanceCounter,
+                               sizeof(ULONG));
+
+        if (!NT_SUCCESS(Status))
+        {
+            ZwClose(KeyHandle);
+            goto Exit;
+        }
+
+        InstanceCounter--;
+
+        RtlStringCchPrintfExW(UniqueIdString,
+                              ResultLength,
+                              &UniqueIdStringEnd,
+                              NULL,
+                              0,
+                              L"%x&%x&%x",
+                              ParentNode->Level,
+                              Hash,
+                              InstanceCounter);
+
+        ResultLength = (UniqueIdStringEnd - UniqueIdString) + 1;
+
+        RtlInitUnicodeString(&ValueName, L"ParentIdPrefix");
+
+        Status = ZwSetValueKey(KeyHandle,
+                               &ValueName,
+                               0,
+                               REG_SZ,
+                               UniqueIdString,
+                               ResultLength * sizeof(WCHAR));
+
+        if (!NT_SUCCESS(Status))
+        {
+            ZwClose(KeyHandle);
+            goto Exit;
+        }
+    }
+    else
+    {
+        if (PrefixBuffer->Type != REG_SZ)
+        {
+            ASSERT(PrefixBuffer->Type == REG_SZ);
+
+            if (PrefixBuffer->Type != REG_SZ)
+            {
+                Status = STATUS_INVALID_PARAMETER;
+                ZwClose(KeyHandle);
+                goto Exit;
+            }
+        }
+
+        UniqueIdString = ExAllocatePoolWithTag(PagedPool,
+                                               PrefixBuffer->DataLength,
+                                               'nepP');
+
+        if (!UniqueIdString)
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            ZwClose(KeyHandle);
+            goto Exit;
+        }
+
+        RtlStringCbCopyW(UniqueIdString,
+                         PrefixBuffer->DataLength,
+                         (PWSTR)PrefixBuffer->Data);
+    }
+
+MakeUniqueId:
+
+    if (InstanceID)
+    {
+        InstanceIdLen = wcslen(InstanceID);
+    }
+    else
+    {
+        InstanceIdLen = 0;
+    }
+
+    ResultLength = wcslen(UniqueIdString) + InstanceIdLen + 2;
+
+    UniqueIdBuffer = ExAllocatePoolWithTag(PagedPool,
+                                           ResultLength * sizeof(WCHAR),
+                                           'nepP');
+    if (!UniqueIdBuffer)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    if (InstanceID)
+    {
+        RtlStringCchPrintfW(UniqueIdBuffer,
+                            ResultLength,
+                            L"%s&%s",
+                            UniqueIdString,
+                            InstanceID);
+    }
+    else
+    {
+        RtlStringCchCopyW(UniqueIdBuffer,
+                          ResultLength,
+                          UniqueIdString);
+    }
+
+    ZwClose(KeyHandle);
+
+Exit:
+
+    ZwClose(Handle);
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    if (PrefixBuffer)
+    {
+        ExFreePoolWithTag(PrefixBuffer, 'nepP');
+    }
+
+    if (UniqueIdString)
+    {
+        ExFreePoolWithTag(UniqueIdString, 'nepP');
+    }
+
+    *OutUniqueId = UniqueIdBuffer;
 
     return Status;
 }
