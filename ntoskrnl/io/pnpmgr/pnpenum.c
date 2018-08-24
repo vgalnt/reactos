@@ -2047,6 +2047,86 @@ PiCriticalCallbackVerifyCriticalEntry(HANDLE KeyHandle)
     return NT_SUCCESS(Status);
 }
 
+NTSTATUS
+NTAPI
+PiCriticalOpenFirstMatchingSubKey(
+    _In_ PWSTR IdString,
+    _In_ HANDLE DatabaseRootHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ PIP_CRITICAL_CALLBACK_VERIFY_CRITICAL_ENTRY CallbackRoutine,
+    _Out_ PHANDLE MatchingKeyHandle)
+{
+    UNICODE_STRING MatchingString;
+    PWCHAR String;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PiCriticalOpenFirstMatchingSubKey: IdString - %S\n", IdString);
+
+    if (!IdString || !DatabaseRootHandle || !MatchingKeyHandle)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    *MatchingKeyHandle = NULL;
+    Status = STATUS_OBJECT_NAME_NOT_FOUND;
+
+    if (!*IdString)
+    {
+        return Status;
+    }
+
+    for (String = IdString;
+         *String;
+         String += wcslen(String) + 1)
+    {
+        RtlInitUnicodeString(&MatchingString, String);
+
+        Status = IopOpenRegistryKeyEx(MatchingKeyHandle,
+                                      DatabaseRootHandle,
+                                      &MatchingString,
+                                      DesiredAccess);
+        if (!NT_SUCCESS(Status))
+        {
+            ASSERT(*MatchingKeyHandle == NULL);
+            *MatchingKeyHandle = NULL;
+            continue;
+        }
+
+        ASSERT(*MatchingKeyHandle != NULL);
+
+        if (CallbackRoutine)
+        {
+            if (CallbackRoutine(*MatchingKeyHandle))
+            {
+                DPRINT("PiCriticalOpenFirstMatchingSubKey: Callback return TRUE\n");
+                break;
+            }
+        }
+        else
+        {
+            DPRINT("PiCriticalOpenFirstMatchingSubKey: CallbackRoutine == NULL\n");
+            break;
+        }
+
+        Status = STATUS_OBJECT_NAME_NOT_FOUND;
+
+        ZwClose(*MatchingKeyHandle);
+        *MatchingKeyHandle = NULL;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(*MatchingKeyHandle == NULL);
+    }
+    else if (!*MatchingKeyHandle)
+    {
+        ASSERT(*MatchingKeyHandle != NULL);
+    }
+
+    return Status;
+}
+
 
 VOID
 NTAPI
