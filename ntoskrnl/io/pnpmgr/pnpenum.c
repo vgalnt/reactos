@@ -24,6 +24,7 @@ extern KSPIN_LOCK IopPnPSpinLock;
 extern LIST_ENTRY IopPnpEnumerationRequestList;
 extern KEVENT PiEnumerationLock;
 extern BOOLEAN PnPBootDriversLoaded;
+extern BOOLEAN PiCriticalDeviceDatabaseEnabled;
 
 /* DATA **********************************************************************/
 
@@ -1150,6 +1151,114 @@ PpQueryBusInformation(
         DeviceNode->ChildBusNumber = BusInfo->BusNumber;
 
         ExFreePool(BusInfo);
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
+PiQueryAndAllocateBootResources(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ HANDLE KeyHandle)
+{
+    PCM_RESOURCE_LIST CmResource = NULL;
+    UNICODE_STRING ValueName;
+    ULONG CmLength = 0;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    PAGED_CODE();
+    ASSERT(DeviceNode);
+
+    DPRINT("PiQueryAndAllocateBootResources: DeviceNode - %p, DeviceNode->BootResources - %p\n",
+           DeviceNode, DeviceNode->BootResources);
+
+    if (DeviceNode->BootResources == NULL)
+    {
+        Status = PpIrpQueryResources(DeviceNode->PhysicalDeviceObject,
+                                     &CmResource,
+                                     &CmLength);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PiQueryAndAllocateBootResources: Status - %X, DeviceNode->BootResources - %p\n",
+                   Status, DeviceNode->BootResources);
+
+            ASSERT(CmResource == NULL && CmLength == 0);
+
+            CmResource = NULL;
+            CmLength = 0;
+        }
+    }
+    else
+    {
+        DPRINT("PiQueryAndAllocateBootResources: %S already has BOOT config in PiQueryAndAllocateBootResources!\n",
+               DeviceNode->InstancePath.Buffer);
+    }
+
+    if (!KeyHandle || DeviceNode->BootResources)
+    {
+        if (CmResource)
+        {
+            ExFreePoolWithTag(CmResource, 0);
+        }
+
+        DPRINT("PiQueryAndAllocateBootResources: DeviceNode->BootResources - %X\n",
+               DeviceNode->BootResources);
+
+        return Status;
+    }
+    else
+    {
+        DPRINT("PiQueryAndAllocateBootResources: KeyHandle - %X\n", KeyHandle);
+    }
+
+    RtlInitUnicodeString(&ValueName, L"BootConfig");
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+    if (CmResource)
+    {
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_RESOURCE_LIST,
+                      CmResource,
+                      CmLength);
+    }
+    else
+    {
+        ZwDeleteValueKey(KeyHandle, &ValueName);
+    }
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    if (!CmResource)
+    {
+        return Status;
+    }
+
+    Status = IopAllocateBootResourcesRoutine(4,
+                                             DeviceNode->PhysicalDeviceObject,
+                                             CmResource);
+
+    DPRINT("PiQueryAndAllocateBootResources: DeviceNode->BootResources - %X, Status - %X\n",
+           DeviceNode->BootResources, Status);
+
+    if (DeviceNode->BootResources)
+    {
+        IopDumpCmResourceList(DeviceNode->BootResources);
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        DeviceNode->Flags |= DNF_HAS_BOOT_CONFIG;
+    }
+
+    if (CmResource)
+    {
+        ExFreePoolWithTag(CmResource, 0);
     }
 
     return Status;

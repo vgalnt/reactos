@@ -15,6 +15,7 @@
 
 /* GLOBALS *******************************************************************/
 
+extern PPNP_RESERVED_RESOURCES_CONTEXT IopInitReservedResourceList;
 extern KSEMAPHORE PpRegistrySemaphore;
 extern INTERFACE_TYPE PnpDefaultInterfaceType;
 extern BOOLEAN IopBootConfigsReserved;
