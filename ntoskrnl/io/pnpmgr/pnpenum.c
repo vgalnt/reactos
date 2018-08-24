@@ -1596,6 +1596,43 @@ PiQueryAndAllocateBootResources(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PiCriticalQueryRegistryValueCallback(
+    _In_ PWSTR ValueName,
+    _In_ ULONG ValueType,
+    _In_ PVOID ValueData,
+    _In_ ULONG ValueLength,
+    _In_opt_ PVOID Context,
+    _In_opt_ PVOID EntryContext)
+{
+    /* "Security" key */
+
+    DPRINT("PiCriticalQueryRegistryValueCallback: ValueName - %S\n", ValueName);
+
+    if (ValueType != REG_BINARY)
+    {
+        DPRINT("PiCriticalQueryRegistryValueCallback: ValueType - %X\n", ValueType);
+        return STATUS_SUCCESS;
+    }
+
+    if (!ValueLength)
+    {
+        DPRINT("PiCriticalQueryRegistryValueCallback: ValueLength == 0\n");
+        return STATUS_SUCCESS;
+    }
+
+    if (!ValueData)
+    {
+        DPRINT("PiCriticalQueryRegistryValueCallback: ValueData == NULL\n");
+        return STATUS_SUCCESS;
+    }
+
+    DPRINT("PiCriticalQueryRegistryValueCallback: FIXME ...\n");
+    ASSERT(FALSE);
+
+    return STATUS_SUCCESS;
+}
 
 VOID
 NTAPI
