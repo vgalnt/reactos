@@ -840,21 +840,20 @@ HalpQueryIdPdo(IN PDEVICE_OBJECT DeviceObject,
     ULONG Length = 0;
     PWCHAR Buffer;
 
+    DPRINT("HalpQueryIdPdo: IdType - %X\n", IdType);
+
     /* Get the PDO type */
     PdoExtension = DeviceObject->DeviceExtension;
     PdoType = PdoExtension->PdoType;
 
-    /* What kind of ID is being requested? */
-    DPRINT("ID: %d\n", IdType);
     switch (IdType)
     {
         case BusQueryDeviceID:
         case BusQueryHardwareIDs:
 
-            /* What kind of PDO is this? */
-            if (PdoType == HalPdo)
+            if (PdoType == PciPdo)
             {
-                /* ACPI ID */
+                /* PCI bus */
                 CurrentId = L"PCI_HAL\\PNP0A03";
                 RtlCopyMemory(Id, CurrentId, (wcslen(CurrentId) * sizeof(WCHAR)) + sizeof(UNICODE_NULL));
                 Length += (wcslen(CurrentId) * sizeof(WCHAR)) + sizeof(UNICODE_NULL);
@@ -863,19 +862,22 @@ HalpQueryIdPdo(IN PDEVICE_OBJECT DeviceObject,
                 RtlCopyMemory(&Id[wcslen(Id) + 1], CurrentId, (wcslen(CurrentId) * sizeof(WCHAR)) + sizeof(UNICODE_NULL));
                 Length += (wcslen(CurrentId) * sizeof(WCHAR)) + sizeof(UNICODE_NULL);
             }
-#if 0
-            else if (PdoType == PciPdo)
+            else if (PdoType == IsaPdo || PdoType == McaPdo)
             {
-                /* WatchDog ID */
-                CurrentId = L"ACPI_HAL\\PNP0C18";
+                DPRINT1("HalpQueryIdPdo: FIXME IsaPdo | McaPdo !\n");
+                ASSERT(FALSE);
+#if 0
+                /* ISA bus */ // ISA_HAL\\PNP0A00
+                /* EISA bus */ // ISA_HAL\PNP0A02
+                CurrentId = L"ISA_HAL\\PNP0A00";
                 RtlCopyMemory(Id, CurrentId, (wcslen(CurrentId) * sizeof(WCHAR)) + sizeof(UNICODE_NULL));
                 Length += (wcslen(CurrentId) * sizeof(WCHAR)) + sizeof(UNICODE_NULL);
 
-                CurrentId = L"*PNP0C18";
+                CurrentId = L"*PNP0A00";
                 RtlCopyMemory(&Id[wcslen(Id) + 1], CurrentId, (wcslen(CurrentId) * sizeof(WCHAR)) + sizeof(UNICODE_NULL));
                 Length += (wcslen(CurrentId) * sizeof(WCHAR)) + sizeof(UNICODE_NULL);
-            }
 #endif
+            }
             else
             {
                 /* Unknown */
