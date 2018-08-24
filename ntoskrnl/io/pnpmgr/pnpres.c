@@ -2075,6 +2075,37 @@ Exit:
 
 NTSTATUS
 NTAPI
+IopAllocateBootResources(
+    _In_ ULONG AllocationType,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PCM_RESOURCE_LIST CmResource)
+{
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopAllocateBootResources: DeviceObject %p\n", DeviceObject);
+
+    KeEnterCriticalRegion();
+
+    KeWaitForSingleObject(&PpRegistrySemaphore,
+                          DelayExecution,
+                          KernelMode,
+                          FALSE,
+                          NULL);
+
+    Status = IopAllocateBootResourcesInternal(AllocationType,
+                                              DeviceObject,
+                                              CmResource);
+
+    KeReleaseSemaphore(&PpRegistrySemaphore, IO_NO_INCREMENT, 1, FALSE);
+
+    KeLeaveCriticalRegion();
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IopReportBootResources(
     _In_ ULONG AllocationType,
     _In_ PDEVICE_OBJECT DeviceObject,
