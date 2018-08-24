@@ -32,6 +32,7 @@ INTERFACE_TYPE PnpDefaultInterfaceType;
 
 PCM_RESOURCE_LIST IopInitHalResources;
 extern PPHYSICAL_MEMORY_DESCRIPTOR MmPhysicalMemoryBlock;
+PPNP_RESERVED_RESOURCES_CONTEXT IopInitReservedResourceList = NULL;
 
 ARBITER_INSTANCE IopRootBusNumberArbiter;
 ARBITER_INSTANCE IopRootIrqArbiter;
@@ -56,6 +57,7 @@ BOOLEAN PnPBootDriversInitialized = FALSE;
 BOOLEAN IopBootConfigsReserved = FALSE;
 
 BOOLEAN PpDisableFirmwareMapper = FALSE;
+BOOLEAN PiCriticalDeviceDatabaseEnabled = TRUE;
 
 /* FUNCTIONS ******************************************************************/
 
