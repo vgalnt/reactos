@@ -1755,6 +1755,119 @@ Next:
 
 NTSTATUS
 NTAPI
+PipReadDeviceConfiguration(
+    _In_ HANDLE KeyHandle,
+    _In_ ULONG ConfigType,
+    _Out_ PCM_RESOURCE_LIST * OutCmResource,
+    _Out_ SIZE_T * OutSize)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    PCM_RESOURCE_LIST CmResource;
+    PCM_FULL_RESOURCE_DESCRIPTOR FullList;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PWCHAR ValueName;
+    SIZE_T Length;
+    ULONG DataSize;
+    ULONG ix;
+    ULONG jx;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PipReadDeviceConfiguration: KeyHandle - %p, ConfigType - %X\n", KeyHandle, ConfigType);
+
+    *OutCmResource = NULL;
+    *OutSize = 0;
+
+    if (ConfigType == 1)
+    {
+        ValueName = L"AllocConfig";
+    }
+    else if (ConfigType == 2)
+    {
+        ValueName = L"ForcedConfig";
+    }
+    else if (ConfigType == 4)
+    {
+        ValueName = L"BootConfig";
+    }
+    else
+    {
+        DPRINT("PipReadDeviceConfiguration: Unknown ConfigType - %X\n", ConfigType);
+        return STATUS_INVALID_PARAMETER_2;
+    }
+
+    Status = IopGetRegistryValue(KeyHandle, ValueName, &ValueInfo);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipReadDeviceConfiguration: Status - %X\n", Status);
+        return Status;
+    }
+
+    if (ValueInfo->Type != REG_RESOURCE_LIST)
+    {
+        DPRINT("PipReadDeviceConfiguration: ValueInfo->Type != REG_RESOURCE_LIST\n");
+        Status = STATUS_UNSUCCESSFUL;
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+        return Status;
+    }
+
+    Length = ValueInfo->DataLength;
+
+    if (!Length)
+    {
+        DPRINT("PipReadDeviceConfiguration: Length - 0\n");
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+        return Status;
+    }
+
+    *OutCmResource = ExAllocatePoolWithTag(PagedPool, Length, 'uspP');
+
+    if (!*OutCmResource)
+    {
+        DPRINT1("PipReadDeviceConfiguration: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+        return Status;
+    }
+
+    *OutSize = ValueInfo->DataLength;
+
+    CmResource = *OutCmResource;
+
+    RtlCopyMemory(CmResource,
+                  (PUCHAR)ValueInfo + ValueInfo->DataOffset,
+                  ValueInfo->DataLength);
+
+    FullList = CmResource->List;
+
+    for (ix = 0; ix < CmResource->Count; ix++)
+    {
+        DPRINT("PipReadDeviceConfiguration: ix - %X\n", ix);
+
+        if (FullList->InterfaceType == InterfaceTypeUndefined)
+        {
+            FullList->BusNumber = 0;
+            FullList->InterfaceType = PnpDefaultInterfaceType;
+        }
+
+        CmDescriptor = FullList->PartialResourceList.PartialDescriptors;
+
+        for (jx = 0; jx < FullList->PartialResourceList.Count; jx++)
+        {
+            CmDescriptor = IopGetNextCmPartialDescriptor(CmDescriptor);
+        }
+
+        FullList = (PCM_FULL_RESOURCE_DESCRIPTOR)CmDescriptor;
+    }
+
+    ExFreePoolWithTag(ValueInfo, 'uspP');
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IopGetDeviceResourcesFromRegistry(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ BOOLEAN ResourcesType,
