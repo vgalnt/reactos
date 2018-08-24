@@ -24,6 +24,8 @@ typedef struct _IOPNP_DEVICE_EXTENSION
     ULONG CompatibleIdListSize;
 } IOPNP_DEVICE_EXTENSION, *PIOPNP_DEVICE_EXTENSION;
 
+PNP_ALLOCATE_RESOURCES_ROUTINE IopAllocateBootResourcesRoutine;
+
 PUNICODE_STRING PiInitGroupOrderTable;
 USHORT PiInitGroupOrderTableCount;
 INTERFACE_TYPE PnpDefaultInterfaceType;
@@ -46,6 +48,8 @@ LIST_ENTRY IopPnpEnumerationRequestList;
 extern KEVENT PiEnumerationLock;
 ERESOURCE PiEngineLock;
 ERESOURCE PiDeviceTreeLock;
+
+KSEMAPHORE PpRegistrySemaphore;
 
 BOOLEAN PnPBootDriversLoaded = FALSE;
 BOOLEAN PnPBootDriversInitialized = FALSE;
@@ -648,6 +652,9 @@ IopInitializePlugPlayServices(
     KeInitializeEvent(&PiEnumerationLock, NotificationEvent, TRUE);
     ExInitializeResourceLite(&PiEngineLock);
     ExInitializeResourceLite(&PiDeviceTreeLock);
+    KeInitializeSemaphore(&PpRegistrySemaphore, 1, 1);
+
+    IopAllocateBootResourcesRoutine = IopReportBootResources;
 
     /* Get the default interface */
     PnpDefaultInterfaceType = IopDetermineDefaultInterfaceType();

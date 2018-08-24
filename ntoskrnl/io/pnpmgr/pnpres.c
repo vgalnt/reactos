@@ -15,6 +15,7 @@
 
 /* GLOBALS *******************************************************************/
 
+extern KSEMAPHORE PpRegistrySemaphore;
 extern INTERFACE_TYPE PnpDefaultInterfaceType;
 extern BOOLEAN IopBootConfigsReserved;
 
@@ -1767,7 +1768,6 @@ PipReadDeviceConfiguration(
     PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
     PWCHAR ValueName;
     SIZE_T Length;
-    ULONG DataSize;
     ULONG ix;
     ULONG jx;
     NTSTATUS Status;
@@ -1878,8 +1878,8 @@ IopGetDeviceResourcesFromRegistry(
     PIO_RESOURCE_REQUIREMENTS_LIST IoResource;
     PKEY_VALUE_FULL_INFORMATION ValueInfo;
     UNICODE_STRING ValueName;
-    HANDLE InstanceKeyHandle == NULL;
-    HANDLE KeyHandle == NULL;
+    HANDLE InstanceKeyHandle = NULL;
+    HANDLE KeyHandle = NULL;
     PWCHAR ConfigVectorName;
     NTSTATUS Status;
 
@@ -1890,7 +1890,7 @@ IopGetDeviceResourcesFromRegistry(
     *OutResource = NULL;
     *OutSize = 0;
 
-    Status = IopDeviceObjectToDeviceInstance(DeviceObject,
+    Status = PnpDeviceObjectToDeviceInstance(DeviceObject,
                                              &InstanceKeyHandle,
                                              KEY_READ);
 
@@ -1988,7 +1988,7 @@ IopGetDeviceResourcesFromRegistry(
         {
             Status = PipReadDeviceConfiguration(KeyHandle,
                                                 1,
-                                                OutResource,
+                                                (PCM_RESOURCE_LIST *)OutResource,
                                                 OutSize);
             ZwClose(KeyHandle);
 
@@ -2024,7 +2024,7 @@ IopGetDeviceResourcesFromRegistry(
 
         Status = PipReadDeviceConfiguration(KeyHandle,
                                             2,
-                                            OutResource,
+                                            (PCM_RESOURCE_LIST *)OutResource,
                                             OutSize);
         if (NT_SUCCESS(Status))
         {
@@ -2053,7 +2053,7 @@ IopGetDeviceResourcesFromRegistry(
 
         Status = PipReadDeviceConfiguration(KeyHandle,
                                             4,
-                                            OutResource,
+                                            (PCM_RESOURCE_LIST *)OutResource,
                                             OutSize);
     }
 
@@ -2071,5 +2071,6 @@ Exit:
 
     return Status;
 }
+
 
 /* EOF */

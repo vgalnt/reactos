@@ -91,6 +91,21 @@ typedef BOOLEAN
     _In_ PVOID Context
 );
 
+typedef
+NTSTATUS
+(*PNP_ALLOCATE_RESOURCES_ROUTINE)(
+    ULONG Type,
+    PDEVICE_OBJECT DeviceObject,
+    PCM_RESOURCE_LIST CmResource
+);
+
+typedef struct _PNP_RESERVED_RESOURCES_CONTEXT
+{ 
+    struct _PNP_RESERVED_RESOURCES_CONTEXT * NextReservedContext;
+    PDEVICE_OBJECT DeviceObject;
+    PCM_RESOURCE_LIST ReservedResource;
+} PNP_RESERVED_RESOURCES_CONTEXT, *PPNP_RESERVED_RESOURCES_CONTEXT; 
+
 //
 // debug.c
 //

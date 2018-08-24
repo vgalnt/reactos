@@ -16,6 +16,10 @@
 
 /* GLOBALS *******************************************************************/
 
+extern PNP_ALLOCATE_RESOURCES_ROUTINE IopAllocateBootResourcesRoutine;
+
+extern ERESOURCE PpRegistryDeviceResource;
+
 extern KSPIN_LOCK IopPnPSpinLock;
 extern LIST_ENTRY IopPnpEnumerationRequestList;
 extern KEVENT PiEnumerationLock;
@@ -127,10 +131,10 @@ PiFixupID(
 NTSTATUS
 NTAPI
 PpQueryID(
-    PDEVICE_NODE DeviceNode,
-    BUS_QUERY_ID_TYPE IdType,
-    PWCHAR *OutID,
-    PULONG OutIdSize)
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ BUS_QUERY_ID_TYPE IdType,
+    _Out_ PWCHAR *OutID,
+    _In_ PULONG OutIdSize)
 {
     PUNICODE_STRING ServiceName;
     ULONG MaxSeparators;
