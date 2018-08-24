@@ -1634,6 +1634,337 @@ PiCriticalQueryRegistryValueCallback(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+PiCriticalCopyCriticalDeviceProperties(
+    _In_ HANDLE KeyHandle,
+    _In_ HANDLE CriticalHandle)
+{
+    PKEY_VALUE_FULL_INFORMATION KeyValueFullInfo;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[9];
+    PVOID SecurityContext = NULL;
+    UNICODE_STRING LowerFiltersString;
+    UNICODE_STRING UpperFiltersString;
+    UNICODE_STRING ClassGuidString;
+    UNICODE_STRING ServiceString;
+    UNICODE_STRING ValueName;
+    ULONG DataSize = 0;
+    ULONG defaultData = 0;
+    ULONG DeviceCharacteristicsContext = 0;
+    ULONG ExclusiveData = 0;
+    ULONG DeviceTypeData = 0;
+    NTSTATUS status;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PiCriticalCopyCriticalDeviceProperties()\n");
+
+    if (!KeyHandle || !CriticalHandle)
+    {
+        ASSERT(FALSE);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    RtlZeroMemory(&QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].Flags = RTL_QUERY_REGISTRY_DIRECT;
+    QueryTable[0].Name = L"Service";
+    QueryTable[0].EntryContext = &ServiceString;
+    QueryTable[0].DefaultType = REG_SZ;
+    QueryTable[0].DefaultData = L"";
+    QueryTable[0].DefaultLength = 0;
+
+    QueryTable[1].Flags = RTL_QUERY_REGISTRY_DIRECT;
+    QueryTable[1].Name = L"ClassGUID";
+    QueryTable[1].EntryContext = &ClassGuidString;
+    QueryTable[1].DefaultType = REG_SZ;
+    QueryTable[1].DefaultData = L"";
+    QueryTable[1].DefaultLength = 0;
+
+    QueryTable[2].Flags = RTL_QUERY_REGISTRY_DIRECT + RTL_QUERY_REGISTRY_NOEXPAND;
+    QueryTable[2].Name = L"LowerFilters";
+    QueryTable[2].EntryContext = &LowerFiltersString;
+    QueryTable[2].DefaultType = REG_MULTI_SZ;
+    QueryTable[2].DefaultData = L"";
+    QueryTable[2].DefaultLength = 0;
+
+    QueryTable[3].Flags = RTL_QUERY_REGISTRY_DIRECT + RTL_QUERY_REGISTRY_NOEXPAND;
+    QueryTable[3].Name = L"UpperFilters";
+    QueryTable[3].EntryContext = &UpperFiltersString;
+    QueryTable[3].DefaultType = REG_MULTI_SZ;
+    QueryTable[3].DefaultData = L"";
+    QueryTable[3].DefaultLength = 0;
+
+    QueryTable[4].Flags = RTL_QUERY_REGISTRY_DIRECT;
+    QueryTable[4].Name = L"DeviceType";
+    QueryTable[4].EntryContext = &DeviceTypeData;
+    QueryTable[4].DefaultType = REG_DWORD;
+    QueryTable[4].DefaultData = &defaultData;
+    QueryTable[4].DefaultLength = sizeof(defaultData);
+
+    QueryTable[5].Flags = RTL_QUERY_REGISTRY_DIRECT;
+    QueryTable[5].Name = L"Exclusive";
+    QueryTable[5].EntryContext = &ExclusiveData;
+    QueryTable[5].DefaultType = REG_DWORD;
+    QueryTable[5].DefaultData = &defaultData;
+    QueryTable[5].DefaultLength = sizeof(defaultData);
+
+    QueryTable[6].Flags = RTL_QUERY_REGISTRY_DIRECT;
+    QueryTable[6].Name = L"DeviceCharacteristics";
+    QueryTable[6].EntryContext = &DeviceCharacteristicsContext;
+    QueryTable[6].DefaultType = REG_DWORD;
+    QueryTable[6].DefaultData = &defaultData;
+    QueryTable[6].DefaultLength = sizeof(defaultData);
+
+    QueryTable[7].QueryRoutine = PiCriticalQueryRegistryValueCallback;
+    QueryTable[7].Flags = 0;
+    QueryTable[7].Name = L"Security";
+    QueryTable[7].EntryContext = &SecurityContext;
+    QueryTable[7].DefaultType = REG_BINARY;
+    QueryTable[7].DefaultData = 0;
+    QueryTable[7].DefaultLength = 0;
+
+    RtlZeroMemory(&ServiceString, sizeof(ServiceString));
+    RtlZeroMemory(&ClassGuidString, sizeof(ClassGuidString));
+    RtlZeroMemory(&LowerFiltersString, sizeof(LowerFiltersString));
+    RtlZeroMemory(&UpperFiltersString, sizeof(UpperFiltersString));
+
+    Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE | RTL_REGISTRY_OPTIONAL,
+                                    (PCWSTR)CriticalHandle,
+                                    QueryTable,
+                                    NULL,
+                                    NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    if (!ServiceString.Length && ServiceString.Buffer)
+    {
+        RtlFreeUnicodeString(&ServiceString);
+    }
+
+    if (!ClassGuidString.Length && ClassGuidString.Buffer)
+    {
+        RtlFreeUnicodeString(&ClassGuidString);
+    }
+
+    if (UpperFiltersString.Length <= sizeof(WCHAR) && UpperFiltersString.Buffer)
+    {
+        RtlFreeUnicodeString(&UpperFiltersString);
+    }
+
+    if (LowerFiltersString.Length <= sizeof(WCHAR) && LowerFiltersString.Buffer)
+    {
+        RtlFreeUnicodeString(&LowerFiltersString);
+    }
+
+    DPRINT("PiCriticalCopyCriticalDeviceProperties: Setup critical service\n");
+
+    if (!ServiceString.Buffer)
+    {
+        DPRINT1("PiCriticalCopyCriticalDeviceProperties: ServiceString.Buffer == NULL\n");
+        ASSERT(ServiceString.Buffer);
+        Status = STATUS_UNSUCCESSFUL;
+        goto Exit;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"Service");
+
+    DPRINT("PiCriticalCopyCriticalDeviceProperties: ServiceString - %wZ, ValueName - %wZ\n",
+           &ServiceString, &ValueName);
+
+    Status = ZwSetValueKey(KeyHandle,
+                           &ValueName,
+                           0,
+                           REG_SZ,
+                           ServiceString.Buffer,
+                           ServiceString.Length + sizeof(WCHAR));
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiCriticalCopyCriticalDeviceProperties: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    if (ClassGuidString.Buffer)
+    {
+        RtlInitUnicodeString(&ValueName, L"ClassGUID");
+
+        DPRINT("PiCriticalCopyCriticalDeviceProperties: ClassGuidString - %wZ, ValueName - %wZ\n",
+               &ClassGuidString, &ValueName);
+
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_SZ,
+                      ClassGuidString.Buffer,
+                      ClassGuidString.Length + sizeof(WCHAR));
+    }
+
+    if (LowerFiltersString.Buffer)
+    {
+        RtlInitUnicodeString(&ValueName, L"LowerFilters");
+
+        DPRINT("PiCriticalCopyCriticalDeviceProperties: LowerFiltersString - %wZ, ValueName - %wZ\n",
+               &LowerFiltersString, &ValueName);
+
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_MULTI_SZ,
+                      LowerFiltersString.Buffer,
+                      LowerFiltersString.Length);
+    }
+
+    if (UpperFiltersString.Buffer)
+    {
+        RtlInitUnicodeString(&ValueName, L"UpperFilters");
+
+        DPRINT("PiCriticalCopyCriticalDeviceProperties: UpperFiltersString - %wZ, ValueName - %wZ\n",
+               &UpperFiltersString, &ValueName);
+
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_MULTI_SZ,
+                      UpperFiltersString.Buffer,
+                      UpperFiltersString.Length);
+    }
+
+    if (DeviceTypeData)
+    {
+        RtlInitUnicodeString(&ValueName, L"DeviceType");
+
+        DPRINT("PiCriticalCopyCriticalDeviceProperties: DeviceType - %X, ValueName - %wZ\n",
+               &DeviceTypeData, &ValueName);
+
+        Status = ZwSetValueKey(KeyHandle,
+                               &ValueName,
+                               0,
+                               REG_DWORD,
+                               &DeviceTypeData,
+                               sizeof(DeviceTypeData));
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PiCriticalCopyCriticalDeviceProperties: Status - %X\n", Status);
+            goto Exit;
+        }
+    }
+
+    if (ExclusiveData)
+    {
+        RtlInitUnicodeString(&ValueName, L"Exclusive");
+
+        DPRINT("PiCriticalCopyCriticalDeviceProperties: ValueName - %wZ\n", &ValueName);
+
+        Status = ZwSetValueKey(KeyHandle,
+                               &ValueName,
+                               0,
+                               REG_DWORD,
+                               &ExclusiveData,
+                               sizeof(ExclusiveData));
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PiCriticalCopyCriticalDeviceProperties: Status - %X\n", Status);
+            goto Exit;
+        }
+    }
+
+    if (DeviceCharacteristicsContext)
+    {
+        RtlInitUnicodeString(&ValueName, L"DeviceCharacteristics");
+
+        DPRINT("PiCriticalCopyCriticalDeviceProperties: ValueName - %wZ\n", &ValueName);
+
+        Status = ZwSetValueKey(KeyHandle,
+                               &ValueName,
+                               0,
+                               REG_DWORD,
+                               &DeviceCharacteristicsContext,
+                               sizeof(DeviceCharacteristicsContext));
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PiCriticalCopyCriticalDeviceProperties: Status - %X\n", Status);
+            goto Exit;
+        }
+    }
+
+    if (SecurityContext)
+    {
+        RtlInitUnicodeString(&ValueName, L"Security");
+
+        DPRINT("PiCriticalCopyCriticalDeviceProperties: ValueName - %wZ\n", &ValueName);
+
+        Status = ZwSetValueKey(KeyHandle,
+                               &ValueName,
+                               0,
+                               REG_DWORD,
+                               SecurityContext,
+                               DataSize);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PiCriticalCopyCriticalDeviceProperties: Status - %X\n", Status);
+            goto Exit;
+        }
+    }
+
+    KeyValueFullInfo = NULL;
+
+    status = IopGetRegistryValue(CriticalHandle,
+                                 L"PreservePreInstall",
+                                 &KeyValueFullInfo);
+
+    if (!NT_SUCCESS(status))
+    {
+        DPRINT("PiCriticalCopyCriticalDeviceProperties: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    ASSERT(KeyValueFullInfo);
+    ASSERT(KeyValueFullInfo->Type == REG_DWORD);
+    ASSERT(KeyValueFullInfo->DataLength == sizeof(ULONG));
+
+    if (KeyValueFullInfo->Type == REG_DWORD &&
+        KeyValueFullInfo->DataLength == sizeof(ULONG))
+    {
+        RtlInitUnicodeString(&ValueName, L"PreservePreInstall");
+
+        status = ZwSetValueKey(KeyHandle,
+                               &ValueName,
+                               KeyValueFullInfo->TitleIndex,
+                               KeyValueFullInfo->Type,
+                               (PUCHAR)KeyValueFullInfo + KeyValueFullInfo->DataOffset,
+                               KeyValueFullInfo->DataLength);
+
+        if (!NT_SUCCESS(status))
+        {
+            DPRINT("PiCriticalCopyCriticalDeviceProperties: Status - %X\n", Status);
+        }
+    }
+
+    ExFreePoolWithTag(KeyValueFullInfo, 'uspP');
+
+Exit:
+
+    RtlFreeUnicodeString(&ServiceString);
+    RtlFreeUnicodeString(&ClassGuidString);
+    RtlFreeUnicodeString(&LowerFiltersString);
+    RtlFreeUnicodeString(&UpperFiltersString);
+
+    if (SecurityContext)
+    {
+        ExFreePool(SecurityContext);
+    }
+
+    return Status;
+}
+
+
 VOID
 NTAPI
 PipEnumerationWorker(
