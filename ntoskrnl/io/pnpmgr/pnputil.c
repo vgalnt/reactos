@@ -592,4 +592,49 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopReplaceSeparatorWithPound(
+    _Out_ PUNICODE_STRING OutString,
+    _In_ PUNICODE_STRING InString)
+{
+    NTSTATUS Status;
+    PWSTR InChar;
+    PWSTR OutChar;
+    USHORT InStringLen;
+    ULONG ix;
+
+    PAGED_CODE();
+
+    ASSERT(InString);
+    ASSERT(OutString);
+
+    if (InString->Length > OutString->MaximumLength)
+    {
+        Status = STATUS_BUFFER_TOO_SMALL;
+        return Status;
+    }
+
+    InChar = InString->Buffer;
+    OutChar = OutString->Buffer;
+
+    InStringLen = InString->Length / sizeof(WCHAR);
+
+    for (ix = 0; ix < InStringLen; ix++, InChar++, OutChar++)
+    {
+        if (*InChar == '\\' || *InChar == '//')
+        {
+            *OutChar = '#';
+        }
+        else
+        {
+            *OutChar = *InChar;
+        }
+    }
+
+    OutString->Length = InString->Length;
+
+    return STATUS_SUCCESS;
+}
+
 /* EOF */

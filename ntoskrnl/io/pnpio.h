@@ -395,4 +395,11 @@ PipApplyFunctionToSubKeys(
     _In_ PVOID Context
 );
 
+NTSTATUS
+NTAPI
+IopReplaceSeparatorWithPound(
+    _Out_ PUNICODE_STRING OutString,
+    _In_ PUNICODE_STRING InString
+);
+
 #endif  /* _PNPIO_H */
