@@ -637,4 +637,169 @@ IopReplaceSeparatorWithPound(
     return STATUS_SUCCESS;
 }
 
+BOOLEAN
+NTAPI
+IopIsDeviceInstanceEnabled(
+    _In_ HANDLE InstanceKeyHandle,
+    _In_ PUNICODE_STRING Instance,
+    _In_ BOOLEAN IsDisableDevice)
+{
+    UNICODE_STRING EnumKeyName = RTL_CONSTANT_STRING(ENUM_ROOT);
+    UNICODE_STRING ControlName;
+    PKEY_VALUE_FULL_INFORMATION KeyInfo;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_NODE DeviceNode;
+    HANDLE EnumKeyHandle;
+    HANDLE KeyHandle;
+    ULONG DisableCountValue;
+    ULONG ConfigFlags;
+    NTSTATUS Status;
+    BOOLEAN IsOpenedEnum = FALSE;
+    BOOLEAN Result = TRUE;
+
+    PAGED_CODE();
+    DPRINT("IopIsDeviceInstanceEnabled: Instance - %wZ, IsDisableDevice - %X\n",
+           Instance, IsDisableDevice);
+
+    DeviceObject = IopDeviceObjectFromDeviceInstance(Instance);
+
+    if (DeviceObject)
+    {
+        DeviceNode = IopGetDeviceNode(DeviceObject);
+    }
+    else
+    {
+        DeviceNode = NULL;
+    }
+
+    if (DeviceNode)
+    {
+        if ((DeviceNode->Flags & DNF_HAS_PROBLEM &&
+             DeviceNode->Problem == CM_PROB_DISABLED) ||
+            (DeviceNode->Flags & DNF_HAS_PROBLEM &&
+             DeviceNode->Problem == CM_PROB_HARDWARE_DISABLED))
+        {
+            Result = FALSE;
+            goto Exit;
+        }
+    }
+
+    if (!InstanceKeyHandle)
+    {
+        Status = IopOpenRegistryKeyEx(&EnumKeyHandle,
+                                      NULL,
+                                      &EnumKeyName,
+                                      KEY_READ);
+        if (!NT_SUCCESS(Status))
+        {
+            Result = FALSE;
+            goto Exit;
+        }
+
+        Status = IopOpenRegistryKeyEx(&InstanceKeyHandle,
+                                      EnumKeyHandle,
+                                      Instance,
+                                      KEY_READ);
+        ZwClose(EnumKeyHandle);
+
+        if (!NT_SUCCESS(Status))
+        {
+            Result = FALSE;
+            goto Exit;
+        }
+
+        IsOpenedEnum = TRUE;
+    }
+
+    ConfigFlags = 0;
+
+    Status = IopGetRegistryValue(InstanceKeyHandle,
+                                 L"ConfigFlags",
+                                 &KeyInfo);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (KeyInfo->Type == REG_DWORD &&
+            KeyInfo->DataLength == sizeof(ULONG))
+        {
+            ConfigFlags = *(PULONG)((ULONG_PTR)&KeyInfo->TitleIndex +
+                                    KeyInfo->DataOffset);
+        }
+
+        ExFreePoolWithTag(KeyInfo, 'uspP');
+    }
+
+    if (ConfigFlags & 1)
+    {
+        ConfigFlags = 1;
+    }
+    else
+    {
+        IopGetDeviceInstanceCsConfigFlags(Instance, &ConfigFlags);
+    }
+
+    if (!(ConfigFlags & 7))
+    {
+        RtlInitUnicodeString(&ControlName, L"Control");
+
+        Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                      InstanceKeyHandle,
+                                      &ControlName,
+                                      KEY_READ);
+        if (!NT_SUCCESS(Status))
+        {
+            goto Exit;
+        }
+
+        DisableCountValue = 0;
+
+        Status = IopGetRegistryValue(KeyHandle,
+                                     L"DisableCount",
+                                     &KeyInfo);
+        if (NT_SUCCESS(Status))
+        {
+            if (KeyInfo->Type == REG_DWORD &&
+                KeyInfo->DataLength == sizeof(ULONG))
+            {
+                DisableCountValue = *(PULONG)((ULONG_PTR)&KeyInfo->TitleIndex +
+                                              KeyInfo->DataOffset);
+            }
+
+            ExFreePoolWithTag(KeyInfo, 'uspP');
+        }
+
+        ZwClose(KeyHandle);
+
+        if (!DisableCountValue)
+        {
+            goto Exit;
+        }
+    }
+
+    Result = FALSE;
+
+    if (IsDisableDevice &&
+        DeviceNode &&
+        DeviceNode->State != DeviceNodeUninitialized)
+    {
+        DPRINT("IopIsDeviceInstanceEnabled: FIXME IopDisableDevice()\n");
+        ASSERT(FALSE);
+        //IopDisableDevice(DeviceNode);
+    }
+
+Exit:
+
+    if (DeviceObject)
+    {
+        ObDereferenceObject(DeviceObject);
+    }
+
+    if (IsOpenedEnum)
+    {
+        ZwClose(InstanceKeyHandle);
+    }
+
+    return Result;
+}
+
 /* EOF */
