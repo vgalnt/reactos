@@ -1964,6 +1964,89 @@ Exit:
     return Status;
 }
 
+BOOLEAN
+NTAPI
+PiCriticalCallbackVerifyCriticalEntry(HANDLE KeyHandle)
+{
+    PKEY_VALUE_FULL_INFORMATION KeyValueFullInfo;
+    ULONG Type;
+    ULONG DataLength;
+    ULONG ClassGUIDLenght;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PiCriticalCallbackVerifyCriticalEntry()\n");
+
+    if (!KeyHandle)
+    {
+        DPRINT("PiCriticalCallbackVerifyCriticalEntry: KeyHandle - NULL\n");
+        return FALSE;
+    }
+
+    KeyValueFullInfo = NULL;
+
+    Status = IopGetRegistryValue(KeyHandle, L"Service", &KeyValueFullInfo);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiCriticalCallbackVerifyCriticalEntry: Status - %X\n", Status);
+        ASSERT(KeyValueFullInfo == NULL);
+        return FALSE;
+    }
+
+    ASSERT(KeyValueFullInfo);
+
+    Type = KeyValueFullInfo->Type;
+    DataLength = KeyValueFullInfo->DataLength;
+
+    ExFreePoolWithTag(KeyValueFullInfo, 'uspP');
+
+    if (Type != REG_SZ || DataLength <= sizeof(WCHAR))
+    {
+        DPRINT("PiCriticalCallbackVerifyCriticalEntry: Type - %X, DataLength - %X\n",
+               Type, DataLength);
+
+        return FALSE;
+    }
+
+    KeyValueFullInfo = NULL;
+
+    Status = IopGetRegistryValue(KeyHandle, L"ClassGUID", &KeyValueFullInfo);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(KeyValueFullInfo == NULL);
+
+        if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
+        {
+            Status = STATUS_SUCCESS;
+        }
+
+        DPRINT("PiCriticalCallbackVerifyCriticalEntry: Status %X\n", Status);
+        return FALSE;
+    }
+
+    ASSERT(KeyValueFullInfo != NULL);
+
+    Type = KeyValueFullInfo->Type;
+    DataLength = KeyValueFullInfo->DataLength;
+
+    ExFreePoolWithTag(KeyValueFullInfo, 'uspP');
+
+    ClassGUIDLenght = strlen("{00000000-0000-0000-0000-000000000000}") * sizeof(WCHAR);
+
+    if (Type != REG_SZ ||
+        (DataLength > sizeof(WCHAR) && DataLength < ClassGUIDLenght))
+    {
+        DPRINT("PiCriticalCallbackVerifyCriticalEntry: Type - %X, DataLength - %X\n",
+               Type, DataLength);
+
+        Status = STATUS_UNSUCCESSFUL;
+    }
+
+    return NT_SUCCESS(Status);
+}
+
 
 VOID
 NTAPI
