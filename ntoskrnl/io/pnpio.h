@@ -402,4 +402,12 @@ IopReplaceSeparatorWithPound(
     _In_ PUNICODE_STRING InString
 );
 
+BOOLEAN
+NTAPI
+IopIsDeviceInstanceEnabled(
+    _In_ HANDLE KeyHandle,
+    _In_ PUNICODE_STRING Instance,
+    _In_ BOOLEAN IsDisableDevice
+);
+
 #endif  /* _PNPIO_H */
