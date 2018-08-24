@@ -365,12 +365,6 @@ HalpRemoveRange(
     _In_ PSUPPORTED_RANGE Range,
     _In_ LONGLONG Base,
     _In_ LONGLONG Limit)
-VOID
-NTAPI 
-HalpRemoveRange(
-    _In_ PSUPPORTED_RANGE Range,
-    _In_ LONGLONG Base,
-    _In_ LONGLONG Limit)
 {
     PSUPPORTED_RANGE Current;
 
