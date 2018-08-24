@@ -15,6 +15,7 @@
 
 /* GLOBALS *******************************************************************/
 
+extern INTERFACE_TYPE PnpDefaultInterfaceType;
 extern BOOLEAN IopBootConfigsReserved;
 
 /* DATA **********************************************************************/
@@ -1750,6 +1751,212 @@ Next:
     }
 
     return Result;
+}
+
+NTSTATUS
+NTAPI
+IopGetDeviceResourcesFromRegistry(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ BOOLEAN ResourcesType,
+    _In_ ULONG Flags,
+    _Out_ PVOID * OutResource,
+    _Out_ SIZE_T * OutSize)
+{
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResource;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    UNICODE_STRING ValueName;
+    HANDLE InstanceKeyHandle == NULL;
+    HANDLE KeyHandle == NULL;
+    PWCHAR ConfigVectorName;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopGetDeviceResourcesFromRegistry: DeviceObject - %p, Res.Type - %X, Flags - %X\n",
+           DeviceObject, ResourcesType, Flags);
+
+    *OutResource = NULL;
+    *OutSize = 0;
+
+    Status = IopDeviceObjectToDeviceInstance(DeviceObject,
+                                             &InstanceKeyHandle,
+                                             KEY_READ);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGetDeviceResourcesFromRegistry: Status - %X\n", Status);
+        return Status;
+    }
+
+    if (ResourcesType)
+    {
+        /* ResourcesType == TRUE (PIO_RESOURCE_REQUIREMENTS_LIST) */
+
+        RtlInitUnicodeString(&ValueName, L"LogConf");
+
+        Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                      InstanceKeyHandle,
+                                      &ValueName,
+                                      KEY_READ);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("IopGetDeviceResourcesFromRegistry: Status - %X\n", Status);
+            ZwClose(InstanceKeyHandle);
+            return Status;
+        }
+
+        if (Flags & 1)
+        {
+            ConfigVectorName = L"OverrideConfigVector";
+        }
+        else if (Flags & 2)
+        {
+            ConfigVectorName = L"BasicConfigVector";
+        }
+        else
+        {
+            goto Exit;
+        }
+
+        Status = IopGetRegistryValue(KeyHandle, ConfigVectorName, &ValueInfo);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("IopGetDeviceResourcesFromRegistry: Status - %X\n", Status);
+            goto Exit;
+        }
+
+        if (ValueInfo->Type != REG_RESOURCE_REQUIREMENTS_LIST ||
+            ValueInfo->DataLength == 0)
+        {
+            ExFreePoolWithTag(ValueInfo, 'uspP');
+            goto Exit;
+        }
+
+        IoResource = ExAllocatePoolWithTag(PagedPool,
+                                           ValueInfo->DataLength,
+                                           'uspP');
+        *OutResource = IoResource;
+
+        if (!IoResource)
+        {
+            DPRINT1("IopGetDeviceResourcesFromRegistry: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            ExFreePoolWithTag(ValueInfo, 'uspP');
+            goto Exit;
+        }
+
+        *OutSize = ValueInfo->DataLength;
+
+        RtlCopyMemory(IoResource,
+                      (PUCHAR)ValueInfo + ValueInfo->DataOffset,
+                      ValueInfo->DataLength);
+
+        if (IoResource->InterfaceType == InterfaceTypeUndefined)
+        {
+            IoResource->BusNumber = 0;
+            IoResource->InterfaceType = PnpDefaultInterfaceType;
+        }
+
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+        goto Exit;
+    }
+
+    /* ResourcesType == FALSE (PCM_RESOURCE_LIST) */
+
+    if (Flags & 1)
+    {
+        RtlInitUnicodeString(&ValueName, L"Control");
+
+        Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                      InstanceKeyHandle,
+                                      &ValueName,
+                                      KEY_READ);
+        if (NT_SUCCESS(Status))
+        {
+            Status = PipReadDeviceConfiguration(KeyHandle,
+                                                1,
+                                                OutResource,
+                                                OutSize);
+            ZwClose(KeyHandle);
+
+            if (NT_SUCCESS(Status))
+            {
+                goto Exit;
+            }
+
+            DPRINT("IopGetDeviceResourcesFromRegistry: Status - %X\n", Status);
+        }
+        else
+        {
+            DPRINT("IopGetDeviceResourcesFromRegistry: Status - %X\n", Status);
+        }
+    }
+
+    KeyHandle = NULL;
+
+    if (Flags & 2)
+    {
+        RtlInitUnicodeString(&ValueName, L"LogConf");
+
+        Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                      InstanceKeyHandle,
+                                      &ValueName,
+                                      KEY_READ);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("IopGetDeviceResourcesFromRegistry: Status - %X\n", Status);
+            ZwClose(InstanceKeyHandle);
+            return Status;
+        }
+
+        Status = PipReadDeviceConfiguration(KeyHandle,
+                                            2,
+                                            OutResource,
+                                            OutSize);
+        if (NT_SUCCESS(Status))
+        {
+            goto Exit;
+        }
+
+        DPRINT("IopGetDeviceResourcesFromRegistry: Status - %X\n", Status);
+    }
+
+    if (Flags & 4)
+    {
+        if (!KeyHandle)
+        {
+            RtlInitUnicodeString(&ValueName, L"LogConf");
+
+            Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                          InstanceKeyHandle,
+                                          &ValueName,
+                                          KEY_READ);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT("IopGetDeviceResourcesFromRegistry: Status - %X\n", Status);
+                goto Exit;
+            }
+        }
+
+        Status = PipReadDeviceConfiguration(KeyHandle,
+                                            4,
+                                            OutResource,
+                                            OutSize);
+    }
+
+Exit:
+
+    if (!KeyHandle)
+    {
+        ZwClose(KeyHandle);
+    }
+
+    if (!InstanceKeyHandle)
+    {
+        ZwClose(InstanceKeyHandle);
+    }
+
+    return Status;
 }
 
 /* EOF */

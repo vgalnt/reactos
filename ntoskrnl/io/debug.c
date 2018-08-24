@@ -50,7 +50,6 @@ IopDumpCmResourceDescriptor(
     }
 }
 
-static
 PCM_PARTIAL_RESOURCE_DESCRIPTOR
 NTAPI
 IopGetNextCmPartialDescriptor(
