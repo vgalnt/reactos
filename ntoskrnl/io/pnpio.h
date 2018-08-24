@@ -331,6 +331,14 @@ IopGetDeviceResourcesFromRegistry(
     _Out_ SIZE_T * OutSize
 );
 
+NTSTATUS
+NTAPI
+IopReportBootResources(
+    _In_ ULONG AllocationType,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PCM_RESOURCE_LIST CmResource
+);
+
 //
 // pnputil.c
 //
