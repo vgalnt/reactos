@@ -4867,4 +4867,173 @@ IoTranslateBusAddress(IN INTERFACE_TYPE InterfaceType,
                                   TranslatedAddress);
 }
 
+#define PIP_FIRST_LENGHT_INSTANCE 10
+#define PIP_VALUE_INFO_SIZE       256
+
+NTSTATUS
+NTAPI
+PiFindDevInstMatch(
+    _In_ HANDLE ServiceHandle,
+    _In_ PUNICODE_STRING InstancePath,
+    _Out_ PULONG OutData,
+    _Out_ PUNICODE_STRING OutString,
+    _Out_ PULONG OutInstanceNum)
+{
+    NTSTATUS Status;
+    ULONG BufferLen;
+    UNICODE_STRING TmpString;
+    UNICODE_STRING ValueName;
+    USHORT StrLen;
+    ULONG ResultLength;
+    PWSTR BufferEnd;
+    ULONG Length;
+    ULONG Count = 0;
+    PWSTR Buffer;
+    PKEY_VALUE_FULL_INFORMATION KeyInfo = NULL;
+    ULONG InstanceNum;
+
+    PAGED_CODE();
+    DPRINT("PiFindDevInstMatch: InstancePath - %wZ\n", InstancePath);
+
+    OutString->Length = 0;
+    OutString->Buffer = NULL;
+
+    *OutData = 0;
+    *OutInstanceNum = -1;
+
+    Status = IopGetRegistryValue(ServiceHandle, L"Count", &KeyInfo);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiFindDevInstMatch: Status - %X\n", Status);
+        return Status != STATUS_OBJECT_NAME_NOT_FOUND ? Status : STATUS_SUCCESS;
+    }
+
+    if (KeyInfo->Type == REG_DWORD && KeyInfo->DataLength >= sizeof(ULONG))
+    {
+        Count = *(PULONG)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset);
+        *OutData = Count;
+    }
+
+    ExFreePoolWithTag(KeyInfo, 'uspP');
+
+    KeyInfo = ExAllocatePoolWithTag(PagedPool, PIP_VALUE_INFO_SIZE, '  pP');
+
+    if (!KeyInfo)
+    {
+        DPRINT("PiFindDevInstMatch: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Buffer = ExAllocatePoolWithTag(PagedPool,
+                                   PIP_FIRST_LENGHT_INSTANCE * sizeof(WCHAR),
+                                   '  pP');
+
+    if (!Buffer)
+    {
+        DPRINT("PiFindDevInstMatch: Status - %X\n", Status);
+        ExFreePoolWithTag(KeyInfo, '  pP');
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    for (InstanceNum = 0; InstanceNum < Count; InstanceNum++)
+    {
+        RtlStringCchPrintfExW(Buffer,
+                              PIP_FIRST_LENGHT_INSTANCE,
+                              &BufferEnd,
+                              0,
+                              0,
+                              L"%u",
+                              InstanceNum);
+
+        BufferLen = BufferEnd - Buffer;
+
+        if (BufferLen == -1)
+        {
+            ValueName.Length = PIP_FIRST_LENGHT_INSTANCE * sizeof(WCHAR);
+        }
+        else
+        {
+            ValueName.Length = BufferLen * sizeof(WCHAR);
+        }
+
+        ValueName.MaximumLength = PIP_FIRST_LENGHT_INSTANCE * sizeof(WCHAR);
+        ValueName.Buffer = Buffer;
+
+        Length = PIP_VALUE_INFO_SIZE;
+
+        Status = ZwQueryValueKey(ServiceHandle,
+                                 &ValueName,
+                                 KeyValueFullInformation,
+                                 KeyInfo,
+                                 Length,
+                                 &ResultLength);
+
+        if (NT_SUCCESS(Status))
+        {
+            if (KeyInfo->Type == REG_SZ && KeyInfo->DataLength > sizeof(WCHAR))
+            {
+                PnpRegSzToString((PWCHAR)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset),
+                                 KeyInfo->DataLength,
+                                 &StrLen);
+
+                TmpString.Length = StrLen;
+                TmpString.MaximumLength = (USHORT)KeyInfo->DataLength;
+                TmpString.Buffer = (PWCHAR)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset);
+
+                if (RtlEqualUnicodeString(&TmpString, InstancePath, TRUE))
+                {
+                    *OutString = ValueName;
+                    *OutInstanceNum = InstanceNum;
+                    break;
+                }
+            }
+            else
+            {
+                DPRINT("PiFindDevInstMatch: Type - %X, Length - %X\n",
+                       KeyInfo->Type, KeyInfo->DataLength);
+            }
+        }
+        else
+        {
+            if (Status == STATUS_BUFFER_OVERFLOW ||
+                Status == STATUS_BUFFER_TOO_SMALL)
+            {
+                DPRINT("PiFindDevInstMatch: Status - %X\n", Status);
+
+                ExFreePoolWithTag(KeyInfo, '  pP');
+
+                Length = ResultLength;
+
+                KeyInfo = ExAllocatePoolWithTag(PagedPool, ResultLength, '  pP');
+
+                if (!KeyInfo)
+                {
+                    DPRINT("PiFindDevInstMatch: STATUS_INSUFFICIENT_RESOURCES\n");
+                    ExFreePoolWithTag(Buffer, '  pP');
+                    return STATUS_INSUFFICIENT_RESOURCES;
+                }
+
+                InstanceNum--;
+            }
+            else
+            {
+                DPRINT("PiFindDevInstMatch: Status - %X\n", Status);
+            }
+        }
+    }
+
+    if (KeyInfo)
+    {
+        ExFreePoolWithTag(KeyInfo, '  pP');
+    }
+
+    if (!OutString->Length)
+    {
+        ExFreePoolWithTag(Buffer, '  pP');
+    }
+
+    return STATUS_SUCCESS;
+}
+
 /* EOF */
