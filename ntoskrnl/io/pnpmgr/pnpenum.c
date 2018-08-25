@@ -2381,6 +2381,587 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PiProcessNewDeviceNode(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PKEY_VALUE_FULL_INFORMATION KeyInfo;
+    UNICODE_STRING ValueName;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_OBJECT DupeDeviceObject;
+    DEVICE_CAPABILITIES DeviceCapabilities;
+    PWCHAR DeviceID;
+    PWCHAR FullDeviceID;
+    PWCHAR LocationInformation;
+    PWCHAR Description;
+    PWCHAR InstanceID;
+    ULONG InstanceIdSize;
+    PWCHAR HardwareIDs;
+    ULONG HardwareIDsSize;
+    PWCHAR CompatibleIDs;
+    ULONG CompatibleIDsSize;
+    HANDLE Handle;
+    HANDLE KeyHandle;
+    ULONG Disposition = 0;
+    ULONG Problem;
+    ULONG ConfigFlags;
+    NTSTATUS status;
+    NTSTATUS Status = STATUS_SUCCESS;
+    BOOLEAN GloballyUnique;
+    BOOLEAN HasProblem;
+    BOOLEAN CreatedNewKey = FALSE;
+
+    PAGED_CODE();
+    DPRINT("PiProcessNewDeviceNode: DeviceNode - %p\n", DeviceNode);
+
+    DeviceObject = DeviceNode->PhysicalDeviceObject;
+
+    Status = PpQueryDeviceID(DeviceNode, &FullDeviceID, &DeviceID);
+
+    if (Status == STATUS_PNP_INVALID_ID)
+    {
+        DPRINT("PiProcessNewDeviceNode: STATUS_PNP_INVALID_ID\n");
+        Status = STATUS_UNSUCCESSFUL;
+    }
+
+    DeviceNode->UserFlags &= ~DNUF_DONT_SHOW_IN_UI;
+    GloballyUnique = FALSE;
+
+    Status = PpIrpQueryCapabilities(DeviceObject, &DeviceCapabilities);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (DeviceCapabilities.NoDisplayInUI)
+        {
+            DeviceNode->UserFlags = DeviceNode->UserFlags | DNUF_DONT_SHOW_IN_UI;
+        }
+
+        if (DeviceCapabilities.UniqueID)
+        {
+            GloballyUnique = TRUE;
+        }
+    }
+
+    DPRINT("PiProcessNewDeviceNode: FIXME PpProfileProcessDockDeviceCapability\n");
+
+    PpIrpQueryDeviceText(DeviceNode->PhysicalDeviceObject,
+                         DeviceTextDescription,
+                         PsDefaultSystemLocaleId,
+                         &Description);
+
+    PpIrpQueryDeviceText(DeviceNode->PhysicalDeviceObject,
+                         DeviceTextLocationInformation,
+                         PsDefaultSystemLocaleId,
+                         &LocationInformation);
+
+    Status = PpQueryID(DeviceNode,
+                       BusQueryInstanceID,
+                       &InstanceID,
+                       &InstanceIdSize);
+
+    ASSERT(Status != STATUS_NOT_SUPPORTED || !GloballyUnique);
+
+    if (GloballyUnique)
+    {
+        DPRINT("PiProcessNewDeviceNode: GloballyUnique\n");
+
+        if (Status == STATUS_NOT_SUPPORTED)
+        {
+            PipSetDevNodeProblem(DeviceNode, CM_PROB_INVALID_DATA);
+            DeviceNode->Parent->Flags |= DNF_CHILD_WITH_INVALID_ID;
+
+            DPRINT("PiProcessNewDeviceNode: FIXME PpSetInvalidIDEvent\n");
+        }
+    }
+    else if ((!(DeviceNode->Flags & DNF_HAS_PROBLEM) ||
+              (DeviceNode->Problem != CM_PROB_INVALID_DATA)) &&
+             (DeviceNode->Parent != IopRootDeviceNode))
+    {
+        ValueName.Buffer = NULL;
+
+        Status = PipMakeGloballyUniqueId(DeviceObject,
+                                         InstanceID,
+                                         &ValueName.Buffer);
+        if (InstanceID)
+        {
+            ExFreePool(InstanceID);
+        }
+
+        InstanceID = ValueName.Buffer;
+        DPRINT("PiProcessNewDeviceNode: InstanceID - %S\n", InstanceID);
+
+        if (ValueName.Buffer == NULL)
+        {
+            InstanceIdSize = 0;
+            ASSERT(!NT_SUCCESS(Status));
+        }
+        else
+        {
+            InstanceIdSize = (wcslen(ValueName.Buffer) + 1) * sizeof(WCHAR);
+        }
+    }
+
+    while (TRUE)
+    {
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PiProcessNewDeviceNode: Status - %X\n", Status);
+
+            if (!(DeviceNode->Flags & DNF_HAS_PROBLEM) ||
+                DeviceNode->Problem != CM_PROB_INVALID_DATA)
+            {
+                if (Status == STATUS_INSUFFICIENT_RESOURCES)
+                {
+                    PipSetDevNodeProblem(DeviceNode, CM_PROB_OUT_OF_MEMORY);
+                }
+                else
+                {
+                    PipSetDevNodeProblem(DeviceNode, CM_PROB_REGISTRY);
+                }
+            }
+        }
+
+        status = PiBuildDeviceNodeInstancePath(DeviceNode,
+                                               FullDeviceID,
+                                               DeviceID,
+                                               InstanceID);
+        if (NT_SUCCESS(status))
+        {
+            status = PiCreateDeviceInstanceKey(DeviceNode,
+                                               &KeyHandle,
+                                               &Disposition);
+        }
+        else
+        {
+            DPRINT("PiProcessNewDeviceNode: status - %X\n", status);
+            Status = status;
+        }
+
+        PpMarkDeviceStackStartPending(DeviceObject, TRUE);
+        PipSetDevNodeState(DeviceNode, DeviceNodeInitialized, NULL);
+
+        if (DeviceNode->Flags & DNF_HAS_PROBLEM &&
+            (DeviceNode->Problem == CM_PROB_INVALID_DATA ||
+             DeviceNode->Problem == CM_PROB_OUT_OF_MEMORY ||
+             DeviceNode->Problem == CM_PROB_REGISTRY))
+        {
+            break;
+        }
+
+        if (Disposition == REG_CREATED_NEW_KEY)
+        {
+            KeEnterCriticalRegion();
+            ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+            if (KeyHandle)
+            {
+                if (Description)
+                {
+                    RtlInitUnicodeString(&ValueName, L"DeviceDesc");
+
+                    DPRINT("PiProcessNewDeviceNode: Description - %S, size - %X\n",
+                           Description, sizeof(WCHAR) * wcslen(Description) + sizeof(WCHAR));
+
+                    ZwSetValueKey(KeyHandle,
+                                  &ValueName,
+                                  0,
+                                  REG_SZ,
+                                  Description,
+                                  sizeof(WCHAR) * wcslen(Description) + sizeof(WCHAR));
+                }
+                else
+                {
+                    DPRINT("PiProcessNewDeviceNode: HACK!!! Description == 0. FIXME\n");
+
+                    RtlInitUnicodeString(&ValueName, L"DeviceDesc");
+
+                    DPRINT("PiProcessNewDeviceNode: Description - %S, size - %X\n",
+                           L"Unknown device", sizeof(WCHAR) * wcslen(L"Unknown device") + sizeof(WCHAR));
+
+                    ZwSetValueKey(KeyHandle,
+                                  &ValueName,
+                                  0,
+                                  REG_SZ,
+                                  L"Unknown device",
+                                  sizeof(WCHAR) * wcslen(L"Unknown device") + sizeof(WCHAR));
+                }
+            }
+            else
+            {
+                DPRINT("PiProcessNewDeviceNode: KeyHandle == 0\n");
+            }
+
+            if (Description)
+            {
+                ExFreePool(Description);
+                Description = NULL;
+            }
+
+            ExReleaseResourceLite(&PpRegistryDeviceResource);
+            KeLeaveCriticalRegion();
+            break;
+        }
+
+        DupeDeviceObject = IopDeviceObjectFromDeviceInstance(&DeviceNode->InstancePath);
+
+        if (!DupeDeviceObject)
+        {
+            break;
+        }
+
+        if (DupeDeviceObject == DeviceObject)
+        {
+            DPRINT("PiProcessNewDeviceNode: DupeDeviceObject\n");
+            ASSERT(FALSE);
+            ObDereferenceObject(DupeDeviceObject);
+            break;
+        }
+
+        if (!GloballyUnique)
+        {
+            DPRINT("PiProcessNewDeviceNode: DupeDeviceObject\n");
+            ASSERT(FALSE);
+            KeBugCheckEx(PNP_DETECTED_FATAL_ERROR,
+                         1,
+                         (ULONG_PTR)DeviceObject,
+                         (ULONG_PTR)DupeDeviceObject,
+                         0);
+        }
+
+        GloballyUnique = FALSE;
+        PipSetDevNodeProblem(DeviceNode, CM_PROB_DUPLICATE_DEVICE);
+
+        DPRINT("PiProcessNewDeviceNode: CM_PROB_DUPLICATE_DEVICE!\n");
+        ASSERT(FALSE);
+    }
+
+    HasProblem = (DeviceNode->Flags & DNF_HAS_PROBLEM);
+
+    if (!HasProblem ||
+        (DeviceNode->Problem != CM_PROB_INVALID_DATA &&
+         DeviceNode->Problem != CM_PROB_OUT_OF_MEMORY &&
+         DeviceNode->Problem != CM_PROB_REGISTRY))
+    {
+        KeEnterCriticalRegion();
+        ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+        if (KeyHandle && LocationInformation)
+        {
+            RtlInitUnicodeString(&ValueName, L"LocationInformation");
+
+            ZwSetValueKey(KeyHandle,
+                          &ValueName,
+                          0,
+                          REG_SZ,
+                          LocationInformation,
+                          sizeof(WCHAR) * wcslen(LocationInformation) + sizeof(WCHAR));
+        }
+
+        if (LocationInformation)
+        {
+            ExFreePool(LocationInformation);
+            LocationInformation = NULL;
+        }
+
+        PpSaveDeviceCapabilities(DeviceNode, &DeviceCapabilities);
+
+        Problem = 0;
+        CreatedNewKey = Disposition == REG_CREATED_NEW_KEY;
+
+        status = IopGetRegistryValue(KeyHandle, L"ConfigFlags", &KeyInfo);
+
+        if (NT_SUCCESS(status))
+        {
+            ConfigFlags = *(PULONG)((ULONG_PTR)&KeyInfo->TitleIndex +
+                                    KeyInfo->DataOffset);
+
+            if (ConfigFlags & 0x20) // ?
+            {
+                Problem = CM_PROB_REINSTALL;
+                CreatedNewKey = TRUE;
+                ExFreePoolWithTag(KeyInfo, 'uspP');
+            }
+            else if (ConfigFlags & 0x40) // ?
+            {
+                Problem = CM_PROB_FAILED_INSTALL;
+                CreatedNewKey = TRUE;
+                ExFreePoolWithTag(KeyInfo, 'uspP');
+            }
+            else
+            {
+                ExFreePoolWithTag(KeyInfo, 'uspP');
+            }
+        }
+        else
+        {
+            DPRINT("PiProcessNewDeviceNode: status - %X\n", status);
+            ConfigFlags = 0;
+            Problem = CM_PROB_NOT_CONFIGURED;
+            CreatedNewKey = TRUE;
+        }
+
+        DPRINT("PiProcessNewDeviceNode: CreatedNewKey - %X, Problem - %X\n",
+               CreatedNewKey, Problem);
+
+        if (Problem)
+        {
+            if (DeviceCapabilities. RawDeviceOK)
+            {
+                ConfigFlags |= 0x400; // ?
+                RtlInitUnicodeString(&ValueName, L"ConfigFlags");
+
+                ZwSetValueKey(KeyHandle,
+                              &ValueName,
+                              0,
+                              REG_DWORD,
+                              &ConfigFlags,
+                              sizeof(ConfigFlags));
+            }
+            else
+            {
+                PipSetDevNodeProblem(DeviceNode, Problem);
+            }
+        }
+
+        DPRINT("PiProcessNewDeviceNode: InstancePath - %wZ\n",
+               &DeviceNode->InstancePath);
+
+        status = IopMapDeviceObjectToDeviceInstance(DeviceNode->PhysicalDeviceObject,
+                                                    &DeviceNode->InstancePath);
+        if (!NT_SUCCESS(status))
+        {
+            DPRINT("PiProcessNewDeviceNode: status - %X\n", status);
+            ASSERT(NT_SUCCESS(status));
+            Status = status;
+        }
+
+        ExReleaseResourceLite(&PpRegistryDeviceResource);
+        KeLeaveCriticalRegion();
+    }
+
+    PpQueryID(DeviceNode,
+              BusQueryHardwareIDs,
+              &HardwareIDs,
+              &HardwareIDsSize);
+
+    PpQueryID(DeviceNode,
+              BusQueryCompatibleIDs,
+              &CompatibleIDs,
+              &CompatibleIDsSize);
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+    DeviceNode->Flags |= DNF_IDS_QUERIED;
+
+    HasProblem = DeviceNode->Flags & DNF_HAS_PROBLEM;
+
+    if (!HasProblem ||
+        (DeviceNode->Problem != CM_PROB_INVALID_DATA &&
+         DeviceNode->Problem != CM_PROB_OUT_OF_MEMORY &&
+         DeviceNode->Problem != CM_PROB_REGISTRY))
+    {
+        RtlInitUnicodeString(&ValueName, L"LogConf");
+
+        IopCreateRegistryKeyEx(&Handle,
+                               KeyHandle,
+                               &ValueName,
+                               KEY_ALL_ACCESS,
+                               REG_OPTION_NON_VOLATILE,
+                               NULL);
+    }
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    PiQueryResourceRequirements(DeviceNode, Handle);
+    //IopDumpResourceRequirementsList(DeviceNode->ResourceRequirements);
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+    DPRINT("PiProcessNewDeviceNode: FIXME IopIsRemoteBootCard()\n");
+
+    if (KeyHandle)
+    {
+        if (HardwareIDs)
+        {
+            RtlInitUnicodeString(&ValueName, L"HardwareID");
+
+            ZwSetValueKey(KeyHandle,
+                          &ValueName,
+                          0,
+                          REG_MULTI_SZ,
+                          HardwareIDs,
+                          HardwareIDsSize);
+        }
+    }
+
+    if (HardwareIDs)
+    {
+        ExFreePool(HardwareIDs);
+        HardwareIDs = NULL;
+    }
+
+    if (KeyHandle)
+    {
+        if (CompatibleIDs)
+        {
+            RtlInitUnicodeString(&ValueName, L"CompatibleIDs");
+
+            ZwSetValueKey(KeyHandle,
+                          &ValueName,
+                          0,
+                          REG_MULTI_SZ,
+                          CompatibleIDs,
+                          CompatibleIDsSize);
+        }
+    }
+
+    if (CompatibleIDs)
+    {
+        ExFreePool(CompatibleIDs);
+        CompatibleIDs = NULL;
+    }
+
+    Status = STATUS_SUCCESS;
+
+    DPRINT("PiProcessNewDeviceNode: FIXME IopSetupRemoteBootCard()\n");
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    PpQueryBusInformation(DeviceNode);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (CreatedNewKey &&
+            !DeviceCapabilities.HardwareDisabled &&
+            (!(DeviceNode->Flags & DNF_HAS_PROBLEM) ||
+             DeviceNode->Problem != CM_PROB_NEED_RESTART))
+        {
+            PpCriticalProcessCriticalDevice(DeviceNode);
+        }
+
+        if (DeviceNode->Flags & (DNF_HAS_PROBLEM | DNF_HAS_PRIVATE_PROBLEM))
+        {
+            DPRINT("PiProcessNewDeviceNode: Flags - %X, Problem - %X\n",
+                   DeviceNode->Flags, DeviceNode->Problem);
+
+            ASSERT(DeviceNode->Flags & DNF_HAS_PROBLEM);
+
+            ASSERT(DeviceNode->Problem == CM_PROB_NOT_CONFIGURED ||
+                   DeviceNode->Problem == CM_PROB_REINSTALL ||
+                   DeviceNode->Problem == CM_PROB_FAILED_INSTALL ||
+                   DeviceNode->Problem == CM_PROB_PARTIAL_LOG_CONF ||
+                   DeviceNode->Problem == CM_PROB_HARDWARE_DISABLED ||
+                   DeviceNode->Problem == CM_PROB_NEED_RESTART ||
+                   DeviceNode->Problem == CM_PROB_DUPLICATE_DEVICE ||
+                   DeviceNode->Problem == CM_PROB_INVALID_DATA ||
+                   DeviceNode->Problem == CM_PROB_OUT_OF_MEMORY ||
+                   DeviceNode->Problem == CM_PROB_REGISTRY);
+        }
+
+        HasProblem = (DeviceNode->Flags & DNF_HAS_PROBLEM);
+
+        if (!HasProblem ||
+            (DeviceNode->Problem != CM_PROB_DISABLED &&
+             DeviceNode->Problem != CM_PROB_HARDWARE_DISABLED &&
+             DeviceNode->Problem != CM_PROB_NEED_RESTART &&
+             DeviceNode->Problem != CM_PROB_INVALID_DATA &&
+             DeviceNode->Problem != CM_PROB_OUT_OF_MEMORY &&
+             DeviceNode->Problem != CM_PROB_REGISTRY))
+        {
+            IopIsDeviceInstanceEnabled(KeyHandle,
+                                       &DeviceNode->InstancePath,
+                                       TRUE);
+        }
+    }
+    else
+    {
+        DPRINT("PiProcessNewDeviceNode: Status - %X\n", Status);
+    }
+
+    PiQueryAndAllocateBootResources(DeviceNode, Handle);
+
+    HasProblem = DeviceNode->Flags & DNF_HAS_PROBLEM;
+
+    if (!HasProblem ||
+        (DeviceNode->Problem != CM_PROB_INVALID_DATA &&
+         DeviceNode->Problem != CM_PROB_OUT_OF_MEMORY &&
+         DeviceNode->Problem != CM_PROB_REGISTRY))
+    {
+        NTSTATUS status;
+
+        KeEnterCriticalRegion();
+        ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+        PpSaveDeviceCapabilities(DeviceNode, &DeviceCapabilities);
+
+        ExReleaseResourceLite(&PpRegistryDeviceResource);
+        KeLeaveCriticalRegion();
+
+        PpHotSwapUpdateRemovalPolicy(DeviceNode);
+
+        DPRINT("PiProcessNewDeviceNode: FIXME IopNotifySetupDeviceArrival\n");
+
+        status = PpDeviceRegistration(&DeviceNode->InstancePath,
+                                      TRUE,
+                                      &DeviceNode->ServiceName);
+
+        if (NT_SUCCESS(status) &&
+            (DeviceNode->Flags & DNF_HAS_PROBLEM) &&
+            DeviceNode->Problem == CM_PROB_NOT_CONFIGURED)
+        {
+            PipClearDevNodeProblem(DeviceNode);
+        }
+
+        DPRINT("PiProcessNewDeviceNode: FIXME PpSetPlugPlayEvent\n");
+
+        /* Report the device to the user-mode pnp manager */
+        IopQueueTargetDeviceEvent(&GUID_DEVICE_ENUMERATED,
+                                  &DeviceNode->InstancePath);
+    }
+
+    if (HardwareIDs)
+    {
+        ExFreePool(HardwareIDs);
+    }
+    if (CompatibleIDs)
+    {
+        ExFreePool(CompatibleIDs);
+    }
+    if (Handle)
+    {
+        ZwClose(Handle);
+    }
+    if (KeyHandle)
+    {
+        ZwClose(KeyHandle);
+    }
+    if (InstanceID)
+    {
+        ExFreePool(InstanceID);
+    }
+    if (LocationInformation)
+    {
+        ExFreePool(LocationInformation);
+    }
+    if (Description)
+    {
+        ExFreePool(Description);
+    }
+    if (FullDeviceID)
+    {
+        ExFreePool(FullDeviceID);
+    }
+
+    DPRINT("PiProcessNewDeviceNode: exit Status - %X\n", Status);
+
+    return Status;
+}
+
 
 VOID
 NTAPI
