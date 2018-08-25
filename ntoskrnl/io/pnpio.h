@@ -306,6 +306,12 @@ PpDevNodeInsertIntoTree(
     _In_ PDEVICE_NODE DeviceNode
 );
 
+VOID
+NTAPI
+PpHotSwapUpdateRemovalPolicy(
+    _In_ PDEVICE_NODE DeviceNode
+);
+
 //
 // pnpres.c
 //

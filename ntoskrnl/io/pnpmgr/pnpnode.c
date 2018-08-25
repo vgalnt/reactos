@@ -355,5 +355,85 @@ PiHotSwapGetDefaultBusRemovalPolicy(
     *OutPolicy = Policy;
 }
 
+VOID
+NTAPI
+PpHotSwapUpdateRemovalPolicy(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PDEVICE_NODE DetachableNode;
+    PDEVICE_OBJECT Pdo;
+    DEVICE_REMOVAL_POLICY Policy;
+    ULONG PolicySize;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PpHotSwapUpdateRemovalPolicy: DeviceNode - %p\n", DeviceNode);
+
+    //PpDevNodeAssertLockLevel(1);
+
+    PiHotSwapGetDetachableNode(DeviceNode, &DetachableNode);
+
+    if (!DetachableNode)
+    {
+        DeviceNode->RemovalPolicy = RemovalPolicyExpectNoRemoval;
+        DeviceNode->HardwareRemovalPolicy = RemovalPolicyExpectNoRemoval;
+
+        DPRINT("PpHotSwapUpdateRemovalPolicy: RemovalPolicy - %X, HardwareRemovalPolicy - %X\n",
+               DeviceNode->RemovalPolicy, DeviceNode->HardwareRemovalPolicy);
+
+        return;
+    }
+
+    Pdo = DeviceNode->PhysicalDeviceObject;
+
+    if ((Pdo->Characteristics & 0x300) == 0x200) // (FILE_DEVICE_SECURE_OPEN | ???)
+    {
+        Policy = RemovalPolicyExpectOrderlyRemoval;
+    }
+    else if ((Pdo->Characteristics & 0x300) == 0x300)
+    {
+        Policy = RemovalPolicyExpectSurpriseRemoval;
+    }
+    else if (DeviceNode == DetachableNode)
+    {
+        PiHotSwapGetDefaultBusRemovalPolicy(DeviceNode, &Policy);
+    }
+    else
+    {
+        Policy = 6; //?
+    }
+
+    if (DeviceNode != DetachableNode &&
+        Policy > DeviceNode->Parent->RemovalPolicy)
+    {
+        Policy = DeviceNode->Parent->RemovalPolicy;
+    }
+
+    DeviceNode->RemovalPolicy = Policy;
+    DeviceNode->HardwareRemovalPolicy = Policy;
+
+    PolicySize = sizeof(Policy);
+
+    Status = PiGetDeviceRegistryProperty(Pdo,
+                                         REG_DWORD,
+                                         L"RemovalPolicy",
+                                         NULL,
+                                         &Policy,
+                                         &PolicySize);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PpHotSwapUpdateRemovalPolicy: Status - %X\n", Status);
+        return;
+    }
+
+    if (Policy == RemovalPolicyExpectOrderlyRemoval ||
+        Policy == RemovalPolicyExpectSurpriseRemoval)
+    {
+        DeviceNode->RemovalPolicy = Policy;
+    }
+
+    DPRINT("PpHotSwapUpdateRemovalPolicy: RemovalPolicy - %X, HardwareRemovalPolicy - %X\n",
+           DeviceNode->RemovalPolicy, DeviceNode->HardwareRemovalPolicy);
+}
 
 /* EOF */
