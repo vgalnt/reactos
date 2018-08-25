@@ -3762,9 +3762,10 @@ PnpBusTypeGuidGet(IN USHORT Index,
 
 NTSTATUS
 NTAPI
-PnpDeviceObjectToDeviceInstance(IN PDEVICE_OBJECT DeviceObject,
-                                IN PHANDLE DeviceInstanceHandle,
-                                IN ACCESS_MASK DesiredAccess)
+PnpDeviceObjectToDeviceInstance(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PHANDLE DeviceInstanceHandle,
+    _In_ ACCESS_MASK DesiredAccess)
 {
     NTSTATUS Status;
     HANDLE KeyHandle;
@@ -4912,3 +4913,5 @@ IoTranslateBusAddress(IN INTERFACE_TYPE InterfaceType,
                                   AddressSpace,
                                   TranslatedAddress);
 }
+
+/* EOF */
