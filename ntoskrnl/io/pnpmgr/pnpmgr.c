@@ -5236,4 +5236,162 @@ PiForEachDriverQueryRoutine(
     return Status;
 }
 
+NTSTATUS
+PpForEachDeviceInstanceDriver(
+    _In_ PUNICODE_STRING InstancePath,
+    _In_ PVOID Function,
+    _In_ PBOOLEAN EnableInstance)
+{
+    UNICODE_STRING ControlClassName = RTL_CONSTANT_STRING(L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Class");
+    UNICODE_STRING EnumKeyName = RTL_CONSTANT_STRING(ENUM_ROOT);
+    UNICODE_STRING KeyName;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[4];
+    DEVICE_REGISTRATION_CONTEXT Context;
+    PKEY_VALUE_FULL_INFORMATION KeyInfo;
+    HANDLE Handle = NULL;
+    HANDLE KeyHandle;
+    HANDLE EnumHandle;
+    HANDLE InstanceHandle;
+    ULONG entryContext[3];
+    NTSTATUS status;
+    NTSTATUS Status;
+    USHORT Lenght;
+
+    PAGED_CODE();
+
+    DPRINT("PpForEachDeviceInstanceDriver: InstancePath - %wZ\n", InstancePath);
+
+    Status = IopOpenRegistryKeyEx(&EnumHandle,
+                                  NULL,
+                                  &EnumKeyName,
+                                  KEY_READ);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PpForEachDeviceInstanceDriver: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = IopOpenRegistryKeyEx(&InstanceHandle,
+                                  EnumHandle,
+                                  InstancePath,
+                                  KEY_READ);
+    ZwClose(EnumHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PpForEachDeviceInstanceDriver: Status - %X\n", Status);
+        return Status;
+    }
+
+    status = IopGetRegistryValue(InstanceHandle, L"ClassGUID", &KeyInfo);
+
+    if (NT_SUCCESS(status))
+    {
+        if (KeyInfo->Type == REG_SZ && KeyInfo->DataLength)
+        {
+            PnpRegSzToString((PWCHAR)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset),
+                             KeyInfo->DataLength,
+                             &Lenght);
+
+            KeyName.Length = Lenght;
+            KeyName.MaximumLength = KeyInfo->DataLength;
+            KeyName.Buffer = (PWSTR)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset);
+
+            DPRINT("PpForEachDeviceInstanceDriver: KeyName - %wZ\n", &KeyName);
+
+            status = IopOpenRegistryKeyEx(&KeyHandle,
+                                          NULL,
+                                          &ControlClassName,
+                                          KEY_READ);
+            if (NT_SUCCESS(status))
+            {
+                IopOpenRegistryKeyEx(&Handle,
+                                     KeyHandle,
+                                     &KeyName,
+                                     KEY_READ);
+                ZwClose(KeyHandle);
+            }
+        }
+
+        ExFreePoolWithTag(KeyInfo, 'uspP');
+        KeyInfo = 0;
+    }
+
+    Context.InstancePath = InstancePath;
+    Context.Function = Function;
+    Context.EnableInstance = EnableInstance;
+
+    if (Handle)
+    {
+        RtlZeroMemory(&QueryTable, sizeof(QueryTable));
+
+        entryContext[0] = 0;
+        QueryTable[0].EntryContext = &entryContext[0];
+        QueryTable[0].Name = L"LowerFilters";
+        QueryTable[0].QueryRoutine = PiForEachDriverQueryRoutine;
+
+        Status = RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE | RTL_REGISTRY_HANDLE,
+                                        Handle,
+                                        &QueryTable[0],
+                                        &Context,
+                                        NULL);
+    }
+
+    if (!Handle || NT_SUCCESS(Status))
+    {
+        RtlZeroMemory(&QueryTable, sizeof(QueryTable));
+
+        entryContext[0] = 1;
+        QueryTable[0].EntryContext = &entryContext[0];
+        QueryTable[0].Name = L"LowerFilters";
+        QueryTable[0].QueryRoutine = PiForEachDriverQueryRoutine;
+
+        entryContext[1] = 2;
+        QueryTable[1].EntryContext = &entryContext[1];
+        QueryTable[1].Name = L"Service";
+        QueryTable[1].QueryRoutine = PiForEachDriverQueryRoutine;
+
+        entryContext[2] = 3;
+        QueryTable[2].EntryContext = &entryContext[2];
+        QueryTable[2].Name = L"UpperFilters";
+        QueryTable[2].QueryRoutine = PiForEachDriverQueryRoutine;
+
+        Status = RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE | RTL_REGISTRY_HANDLE,
+                                        InstanceHandle,
+                                        &QueryTable[0],
+                                        &Context,
+                                        NULL);
+        if (NT_SUCCESS(Status))
+        {
+            if (!Handle)
+            {
+                ZwClose(InstanceHandle);
+                return Status;
+            }
+
+            RtlZeroMemory(&QueryTable, sizeof(QueryTable));
+
+            entryContext[0] = 4;
+            QueryTable[0].EntryContext = &entryContext[0];
+            QueryTable[0].Name = L"UpperFilters";
+            QueryTable[0].QueryRoutine = PiForEachDriverQueryRoutine;
+
+            Status = RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE | RTL_REGISTRY_HANDLE,
+                                            Handle,
+                                            &QueryTable[0],
+                                            &Context,
+                                            NULL);
+        }
+    }
+
+    if (Handle)
+    {
+        ZwClose(Handle);
+    }
+
+    ZwClose(InstanceHandle);
+
+    return Status;
+}
+
 /* EOF */
