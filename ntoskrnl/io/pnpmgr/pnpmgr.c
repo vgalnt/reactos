@@ -5441,4 +5441,147 @@ PpForEachDeviceInstanceDriver(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PiDeviceRegistration(
+    _In_ PUNICODE_STRING InstancePath,
+    _In_ BOOLEAN IsEnableInstance,
+    _In_ PUNICODE_STRING ServiceName)
+{
+    UNICODE_STRING EnumKeyName = RTL_CONSTANT_STRING(ENUM_ROOT);
+    UNICODE_STRING SourceString;
+    PKEY_VALUE_FULL_INFORMATION KeyInfo;
+    HANDLE EnumHandle;
+    HANDLE KeyHandle = NULL;
+    USHORT Length = 0;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    if (ServiceName)
+    {
+        DPRINT("PiDeviceRegistration: InstancePath - %wZ, IsEnableInstance - %X, ServiceName - %wZ\n",
+               InstancePath, IsEnableInstance, ServiceName);
+    }
+    else
+    {
+        DPRINT("PiDeviceRegistration: InstancePath - %wZ, IsEnableInstance - %X\n",
+               InstancePath, IsEnableInstance);
+    }
+
+    if (ServiceName)
+    {
+        RtlZeroMemory(&ServiceName, sizeof(ServiceName));
+    }
+
+    if (InstancePath->Length <= sizeof(WCHAR))
+    {
+        Status = STATUS_INVALID_PARAMETER;
+        DPRINT("PiDeviceRegistration: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    if (InstancePath->Buffer[InstancePath->Length / sizeof(WCHAR) - 1] == '\\')
+    {
+        InstancePath->Length = InstancePath->Length - sizeof(WCHAR);
+    }
+
+    Status = IopOpenRegistryKeyEx(&EnumHandle,
+                                  NULL,
+                                  &EnumKeyName,
+                                  KEY_READ);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiDeviceRegistration: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                  EnumHandle,
+                                  InstancePath,
+                                  KEY_READ);
+    ZwClose(EnumHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiDeviceRegistration: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    Status = IopGetRegistryValue(KeyHandle, L"Service", &KeyInfo);
+    ZwClose(KeyHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
+        {
+            DPRINT("PiDeviceRegistration: Service - STATUS_OBJECT_NAME_NOT_FOUND\n");
+            return STATUS_SUCCESS;
+        }
+        DPRINT("PiDeviceRegistration: Status - %X\n", Status);
+    }
+    else
+    {
+        Status = STATUS_OBJECT_NAME_NOT_FOUND;
+
+        if (KeyInfo->Type == REG_SZ && KeyInfo->DataLength > sizeof(WCHAR))
+        {
+            PnpRegSzToString((PWCHAR)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset),
+                             KeyInfo->DataLength,
+                             &Length);
+
+            Status = STATUS_SUCCESS;
+
+            SourceString.Length = Length;
+            SourceString.MaximumLength = KeyInfo->DataLength;
+            SourceString.Buffer = (PWSTR)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset);
+
+            if (ServiceName)
+            {
+                Status = PnpConcatenateUnicodeStrings(ServiceName,
+                                                      &SourceString,
+                                                      NULL);
+
+                DPRINT("PiDeviceRegistration: ServiceName %wZ\n", ServiceName);
+            }
+        }
+
+        ExFreePoolWithTag(KeyInfo, 'uspP');
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiDeviceRegistration: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    Status = PpForEachDeviceInstanceDriver(InstancePath,
+                                           PiProcessDriverInstance,
+                                           &IsEnableInstance);
+    if (NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    DPRINT("PiDeviceRegistration: Status - %X\n", Status);
+
+    if (IsEnableInstance)
+    {
+        IsEnableInstance = FALSE;
+        PpForEachDeviceInstanceDriver(InstancePath,
+                                      PiProcessDriverInstance,
+                                      &IsEnableInstance);
+    }
+
+ErrorExit:
+
+    if (ServiceName && ServiceName->Length)
+    {
+        ExFreePool(ServiceName->Buffer);
+        RtlZeroMemory(&ServiceName, sizeof(ServiceName));
+    }
+
+    return Status;
+}
+
 /* EOF */
