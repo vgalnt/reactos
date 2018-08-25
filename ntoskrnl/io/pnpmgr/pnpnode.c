@@ -308,4 +308,52 @@ PiHotSwapGetDetachableNode(
     *OutDeviceNode = CurrentNode;
 }
 
+VOID NTAPI
+PiHotSwapGetDefaultBusRemovalPolicy(
+    _In_ PDEVICE_NODE DeviceNode,
+    _Out_ DEVICE_REMOVAL_POLICY * OutPolicy)
+{
+    DEVICE_REMOVAL_POLICY Policy;
+    PDEVICE_NODE ParentNode;
+
+    PAGED_CODE();
+    DPRINT("PiHotSwapGetDefaultBusRemovalPolicy: DeviceNode - %p\n", DeviceNode);
+
+    //PpDevNodeAssertLockLevel(1);
+
+    if ((DeviceNode->InstancePath.Length > (wcslen(L"USB\\") * sizeof(WCHAR)) &&
+         !_wcsnicmp(DeviceNode->InstancePath.Buffer, L"USB\\", wcslen(L"USB\\"))) ||
+        (DeviceNode->InstancePath.Length > (wcslen(L"1394\\") * sizeof(WCHAR)) &&
+         !_wcsnicmp(DeviceNode->InstancePath.Buffer, L"1394\\", wcslen(L"1394\\"))) ||
+        (DeviceNode->InstancePath.Length > (wcslen(L"SBP2\\") * sizeof(WCHAR)) &&
+         !_wcsnicmp(DeviceNode->InstancePath.Buffer, L"SBP2\\", wcslen(L"SBP2\\"))) ||
+        (DeviceNode->InstancePath.Length > (wcslen(L"PCMCIA\\") * sizeof(WCHAR)) &&
+         !_wcsnicmp(DeviceNode->InstancePath.Buffer, L"PCMCIA\\", wcslen(L"PCMCIA\\"))))
+    {
+        DPRINT("PiHotSwapGetDefaultBusRemovalPolicy: *OutPolicy - 5\n");
+        *OutPolicy = 5;
+        return;
+    }
+
+    ParentNode = DeviceNode->Parent;
+
+    if (((DeviceNode->InstancePath.Length > (wcslen(L"PCI\\") * sizeof(WCHAR)) && 
+          !_wcsnicmp(DeviceNode->InstancePath.Buffer, L"PCI\\", wcslen(L"PCI\\"))) &&
+         (ParentNode->ServiceName.Length == (wcslen(L"PCMCIA") * sizeof(WCHAR)) &&
+          !_wcsicmp(ParentNode->ServiceName.Buffer, L"PCMCIA"))))
+    {
+        DPRINT("PiHotSwapGetDefaultBusRemovalPolicy: *OutPolicy - 5\n");
+        Policy = 5;
+    }
+    else
+    {
+        DPRINT("PiHotSwapGetDefaultBusRemovalPolicy: *OutPolicy - 4\n");
+        Policy = 4;
+    }
+
+    DPRINT("PiHotSwapGetDefaultBusRemovalPolicy: Policy - %X\n", Policy);
+    *OutPolicy = Policy;
+}
+
+
 /* EOF */
