@@ -2127,6 +2127,144 @@ PiCriticalOpenFirstMatchingSubKey(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PiCriticalOpenCriticalDeviceKey(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ HANDLE Handle,
+    _In_ PHANDLE CriticalDeviceEntryHandle)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    HANDLE DatabaseRootHandle;
+    HANDLE DeviceInstanceHandle;
+    UNICODE_STRING CddNameString;
+    PWSTR IdNameString[2];
+    PWCHAR IdBuffer;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PiCriticalOpenCriticalDeviceKey: DeviceNode - %p\n", DeviceNode);
+
+    if (!DeviceNode || !CriticalDeviceEntryHandle)
+    {
+        DPRINT("PiCriticalOpenCriticalDeviceKey: CriticalDeviceEntryHandle - %p\n",
+               CriticalDeviceEntryHandle);
+
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    *CriticalDeviceEntryHandle = NULL;
+
+    if (Handle)
+    {
+        DatabaseRootHandle = Handle;
+    }
+    else
+    {
+        RtlInitUnicodeString(&CddNameString,
+                             L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\CriticalDeviceDatabase");
+
+        Status = IopOpenRegistryKeyEx(&DatabaseRootHandle,
+                                      NULL,
+                                      &CddNameString,
+                                      KEY_READ);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PiCriticalOpenCriticalDeviceKey: Status - %X\n", Status);
+            return Status;
+        }
+    }
+
+    ASSERT(DatabaseRootHandle);
+
+    DeviceObject = DeviceNode->PhysicalDeviceObject;
+    DeviceInstanceHandle = NULL;
+
+    Status = PnpDeviceObjectToDeviceInstance(DeviceObject,
+                                             &DeviceInstanceHandle,
+                                             KEY_READ);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiCriticalOpenCriticalDeviceKey: Status - %X\n", Status);
+        ASSERT(!DeviceInstanceHandle);
+        goto Exit;
+    }
+
+    ASSERT(DeviceInstanceHandle);
+
+    IdNameString[0] = L"HardwareID";
+    IdNameString[1] = L"CompatibleIDs";
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        ValueInfo = NULL;
+
+        Status = IopGetRegistryValue(DeviceInstanceHandle,
+                                     IdNameString[ix],
+                                     &ValueInfo);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PiCriticalOpenCriticalDeviceKey: Status - %X\n", Status);
+        }
+        else
+        {
+            ASSERT(ValueInfo);
+
+            if (ValueInfo->Type == REG_MULTI_SZ)
+            {
+                IdBuffer = (PWCHAR)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
+
+                CddNameString.Buffer = IdBuffer;
+                CddNameString.Length = ValueInfo->DataLength;
+                CddNameString.MaximumLength = CddNameString.Length;
+
+                Status = IopReplaceSeparatorWithPound(&CddNameString,
+                                                      &CddNameString);
+                ASSERT(NT_SUCCESS(Status));
+
+                Status = PiCriticalOpenFirstMatchingSubKey(IdBuffer,
+                                                           DatabaseRootHandle,
+                                                           KEY_READ,
+                                                           PiCriticalCallbackVerifyCriticalEntry,
+                                                           CriticalDeviceEntryHandle);
+
+                ExFreePoolWithTag(ValueInfo, 'uspP');
+
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT("PiCriticalOpenCriticalDeviceKey: Status - %X\n", Status);
+                    continue;
+                }
+                else
+                {
+                    ASSERT(*CriticalDeviceEntryHandle);
+                    ZwClose(DeviceInstanceHandle);
+                    goto Exit;
+                }
+            }
+
+            Status = STATUS_UNSUCCESSFUL;
+            ExFreePoolWithTag(ValueInfo, 'uspP');
+        }
+    }
+
+    if (DeviceInstanceHandle)
+    {
+        ZwClose(DeviceInstanceHandle);
+    }
+
+Exit:
+
+    if (!Handle && DatabaseRootHandle)
+    {
+        ZwClose(DatabaseRootHandle);
+    }
+
+    return Status;
+}
+
 
 VOID
 NTAPI
