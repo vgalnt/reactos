@@ -282,4 +282,30 @@ PpDevNodeInsertIntoTree(
     //IoDeviceNodeTreeSequence++;
 }
 
+VOID NTAPI
+PiHotSwapGetDetachableNode(
+    _In_ PDEVICE_NODE DeviceNode,
+    _Out_ PDEVICE_NODE * OutDeviceNode)
+{
+    PDEVICE_NODE CurrentNode;
+
+    PAGED_CODE();
+    DPRINT("PiHotSwapGetDetachableNode: DeviceNode - %p\n", DeviceNode);
+
+    //PpDevNodeAssertLockLevel(0);
+
+    for (CurrentNode = DeviceNode;
+         CurrentNode;
+         CurrentNode = CurrentNode->Parent)
+    {
+        if (CurrentNode->CapabilityFlags & 0x18) // (EjectSupported | Removable) FIXME
+        {
+            DPRINT("PiHotSwapGetDetachableNode: CurrentNode - %p\n", CurrentNode);
+            break;
+        }
+    }
+
+    *OutDeviceNode = CurrentNode;
+}
+
 /* EOF */
