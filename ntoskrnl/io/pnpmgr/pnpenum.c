@@ -2265,6 +2265,122 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PpCriticalProcessCriticalDevice(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo = NULL;
+    HANDLE CriticalDeviceEntryHandle = NULL;
+    HANDLE DeviceInstanceHandle = NULL;
+    UNICODE_STRING ValueName;
+    ULONG ConfigFlags = 0;
+    NTSTATUS Status;
+    NTSTATUS status;
+
+    PAGED_CODE();
+    DPRINT("PpCriticalProcessCriticalDevice: DeviceNode - %p\n", DeviceNode);
+
+    if (!DeviceNode)
+    {
+        DPRINT("PpCriticalProcessCriticalDevice: DeviceNode - NULL\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!PiCriticalDeviceDatabaseEnabled)
+    {
+        DPRINT("PpCriticalProcessCriticalDevice: PiCriticalDeviceDatabaseEnabled - FALSE\n");
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    Status = PiCriticalOpenCriticalDeviceKey(DeviceNode,
+                                             NULL,
+                                             &CriticalDeviceEntryHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PpCriticalProcessCriticalDevice: Status - %X\n", Status);
+        ASSERT(CriticalDeviceEntryHandle == NULL);
+        goto Exit;
+    }
+
+    ASSERT(CriticalDeviceEntryHandle != NULL);
+
+    Status = PnpDeviceObjectToDeviceInstance(DeviceNode->PhysicalDeviceObject,
+                                             &DeviceInstanceHandle,
+                                             KEY_ALL_ACCESS);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PpCriticalProcessCriticalDevice: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    ASSERT(DeviceInstanceHandle != NULL);
+
+    Status = PiCriticalCopyCriticalDeviceProperties(DeviceInstanceHandle,
+                                                    CriticalDeviceEntryHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PpCriticalProcessCriticalDevice: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    DPRINT("PpCriticalProcessCriticalDevice: FIXME PiCriticalPreInstallDevice\n");
+
+    status = IopGetRegistryValue(DeviceInstanceHandle,
+                                 L"ConfigFlags",
+                                 &ValueInfo);
+    if (NT_SUCCESS(status))
+    {
+        ASSERT(ValueInfo);
+
+        if (ValueInfo->Type == REG_DWORD && 
+            ValueInfo->DataLength == sizeof(ULONG))
+        {
+            ConfigFlags = *(PULONG)((ULONG_PTR)ValueInfo +
+                                    ValueInfo->DataOffset);
+        }
+
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+    }
+
+    DPRINT("PpCriticalProcessCriticalDevice: ConfigFlags - %X\n", ConfigFlags);
+    ConfigFlags = (ConfigFlags & ~(0x20 | 0x40)) | 0x400; // ??
+
+    RtlInitUnicodeString(&ValueName, L"ConfigFlags");
+
+    ZwSetValueKey(DeviceInstanceHandle,
+                  &ValueName,
+                  0,
+                  REG_DWORD,
+                  &ConfigFlags,
+                  sizeof(ConfigFlags));
+
+    if (DeviceNode->Flags & (DNF_HAS_PROBLEM | DNF_HAS_PRIVATE_PROBLEM))
+    {
+        ASSERT(DeviceNode->Flags & DNF_HAS_PROBLEM);
+
+        ASSERT(DeviceNode->Problem == CM_PROB_NOT_CONFIGURED ||
+               DeviceNode->Problem == CM_PROB_REINSTALL ||
+               DeviceNode->Problem == CM_PROB_FAILED_INSTALL);
+    }
+
+    PipClearDevNodeProblem(DeviceNode);
+
+Exit:
+
+    if (CriticalDeviceEntryHandle)
+    {
+        ZwClose(CriticalDeviceEntryHandle);
+    }
+
+    if (DeviceInstanceHandle)
+    {
+        ZwClose(DeviceInstanceHandle);
+    }
+
+    return Status;
+}
+
 
 VOID
 NTAPI
