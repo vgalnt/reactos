@@ -282,6 +282,14 @@ PnpDeviceObjectToDeviceInstance(
     _In_ ACCESS_MASK DesiredAccess
 );
 
+NTSTATUS
+NTAPI
+PpDeviceRegistration(
+    _In_ PUNICODE_STRING InstancePath,
+    _In_ BOOLEAN Param1,
+    _In_ PUNICODE_STRING ServiceName
+);
+
 //
 // pnpnode.c
 //

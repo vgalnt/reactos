@@ -5584,4 +5584,39 @@ ErrorExit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PpDeviceRegistration(
+    _In_ PUNICODE_STRING InstancePath,
+    _In_ BOOLEAN IsEnableInstance,
+    _In_ PUNICODE_STRING ServiceName)
+{
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    if (ServiceName)
+    {
+        DPRINT("PpDeviceRegistration: IsEnableInstance - %X, InstancePath - %wZ, ServiceName - %wZ\n",
+               IsEnableInstance, InstancePath, ServiceName);
+    }
+    else
+    {
+        DPRINT("PpDeviceRegistration: IsEnableInstance - %X, InstancePath - %wZ\n",
+               IsEnableInstance, InstancePath);
+    }
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceExclusiveLite(&PpRegistryDeviceResource, TRUE);
+
+    Status = PiDeviceRegistration(InstancePath,
+                                  IsEnableInstance,
+                                  ServiceName);
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    return Status;
+}
+
 /* EOF */
