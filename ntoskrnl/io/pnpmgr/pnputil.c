@@ -791,6 +791,69 @@ PipOpenServiceEnumKeys(
 
 NTSTATUS
 NTAPI
+IopOpenDeviceParametersSubkey(
+    _Out_ PHANDLE OutHandle,
+    _In_opt_ HANDLE ParentKey,
+    _In_ PUNICODE_STRING NameString,
+    _In_ ACCESS_MASK Access)
+{
+    UNICODE_STRING ParametersName;
+    ULONG Disposition;
+    HANDLE KeyHandle;
+    ULONG ReturnLength;
+    NTSTATUS Status;
+
+    DPRINT("IopOpenDeviceParametersSubkey: NameString - %wZ\n", NameString);
+
+    Status = IopOpenRegistryKeyEx(&KeyHandle, ParentKey, NameString, KEY_WRITE);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopOpenDeviceParametersSubkey: Status - %X\n", Status);
+        return Status;
+    }
+
+    RtlInitUnicodeString(&ParametersName, L"Device Parameters");
+
+    Status = IopCreateRegistryKeyEx(OutHandle,
+                                    KeyHandle,
+                                    &ParametersName,
+                                    Access | (WRITE_DAC | READ_CONTROL),
+                                    REG_OPTION_NON_VOLATILE,
+                                    &Disposition );
+    ZwClose(KeyHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopOpenDeviceParametersSubkey: Status - %X\n", Status);
+        return Status;
+    }
+
+    if (Disposition != REG_CREATED_NEW_KEY)
+    {
+        return STATUS_SUCCESS;
+    }
+
+    Status = ZwQuerySecurityObject(*OutHandle,
+                                   DACL_SECURITY_INFORMATION,
+                                   NULL,
+                                   0,
+                                   &ReturnLength);
+
+    if (Status != STATUS_BUFFER_TOO_SMALL)
+    {
+        DPRINT("IopOpenDeviceParametersSubkey: Status - %X\n", Status);
+        return STATUS_SUCCESS;
+    }
+
+    DPRINT("IopOpenDeviceParametersSubkey: FIXME SecurityObject\n");
+    //ASSERT(FALSE);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 IopReplaceSeparatorWithPound(
     _Out_ PUNICODE_STRING OutString,
     _In_ PUNICODE_STRING InString)

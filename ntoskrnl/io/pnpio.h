@@ -454,6 +454,15 @@ PipOpenServiceEnumKeys(
 
 NTSTATUS
 NTAPI
+IopOpenDeviceParametersSubkey(
+    _Out_ PHANDLE OutHandle,
+    _In_opt_ HANDLE ParentKey,
+    _In_ PUNICODE_STRING NameString,
+    _In_ ACCESS_MASK Access
+);
+
+NTSTATUS
+NTAPI
 IopReplaceSeparatorWithPound(
     _Out_ PUNICODE_STRING OutString,
     _In_ PUNICODE_STRING InString
