@@ -688,6 +688,109 @@ IopGetDeviceInstanceCsConfigFlags(
 
 NTSTATUS
 NTAPI
+PipOpenServiceEnumKeys(
+    _In_ PUNICODE_STRING ServiceString,
+    _In_ ACCESS_MASK Access,
+    _Out_ PHANDLE OutServiceHandle,
+    _Out_ PHANDLE OutEnumHandle,
+    _In_ BOOLEAN IsCreateKey)
+{
+    NTSTATUS Status;
+    UNICODE_STRING EnumName;
+    HANDLE Handle;
+    HANDLE EnumHandle;
+    HANDLE ServiceHandle;
+    UNICODE_STRING KeyName = RTL_CONSTANT_STRING(
+        L"\\REGISTRY\\MACHINE\\SYSTEM\\CurrentControlSet\\Services\\");
+
+    DPRINT("PipOpenServiceEnumKeys: ServiceString %wZ\n", ServiceString);
+
+    Status = IopOpenRegistryKeyEx(&Handle,
+                                  NULL,
+                                  &KeyName,
+                                  Access);
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    Status = IopOpenRegistryKeyEx(&ServiceHandle,
+                                  Handle,
+                                  ServiceString,
+                                  Access);
+
+    ZwClose(Handle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipOpenServiceEnumKeys: Status - %X\n", Status);
+        return Status;
+    }
+
+    if (!OutEnumHandle && !IsCreateKey)
+    {
+        if (OutServiceHandle)
+        {
+            *OutServiceHandle = ServiceHandle;
+        }
+        else
+        {
+            ZwClose(ServiceHandle);
+        }
+
+        return STATUS_SUCCESS;
+    }
+
+    RtlInitUnicodeString(&EnumName, REGSTR_KEY_ENUM);
+
+    if (IsCreateKey)
+    {
+        Status = IopCreateRegistryKeyEx(&EnumHandle,
+                                        ServiceHandle,
+                                        &EnumName,
+                                        Access,
+                                        REG_OPTION_VOLATILE,
+                                        NULL);
+    }
+    else
+    {
+        Status = IopOpenRegistryKeyEx(&EnumHandle,
+                                      ServiceHandle,
+                                      &EnumName,
+                                      Access);
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipOpenServiceEnumKeys: Status - %X\n", Status);
+        ZwClose(ServiceHandle);
+        return Status;
+    }
+
+    if (OutEnumHandle)
+    {
+        *OutEnumHandle = EnumHandle;
+    }
+    else
+    {
+        ZwClose(EnumHandle);
+    }
+
+    if (OutServiceHandle)
+    {
+        *OutServiceHandle = ServiceHandle;
+    }
+    else
+    {
+        ZwClose(ServiceHandle);
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 IopReplaceSeparatorWithPound(
     _Out_ PUNICODE_STRING OutString,
     _In_ PUNICODE_STRING InString)
