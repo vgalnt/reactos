@@ -5250,4 +5250,37 @@ Exit:
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+PiForEachDriverQueryRoutine(
+    _In_ PWSTR ValueName,
+    _In_ ULONG ValueType,
+    _In_ PVOID ValueData,
+    _In_ ULONG ValueLength,
+    _In_ PVOID Context,
+    _In_ PVOID EntryContext)
+{
+    PDEVICE_REGISTRATION_CONTEXT DevContext = Context;
+    UNICODE_STRING DestinationString;
+    NTSTATUS Status;
+
+    DPRINT("PiForEachDriverQueryRoutine: ValueData - %S\n", ValueData);
+
+    if (ValueType != REG_SZ || ValueLength <= sizeof(WCHAR))
+    {
+        DPRINT("PiForEachDriverQueryRoutine: ValueType - %X, ValueLength - %X\n",
+               ValueType, ValueLength);
+
+        return STATUS_SUCCESS;
+    }
+
+    RtlInitUnicodeString(&DestinationString, ValueData);
+
+    Status = PiProcessDriverInstance(DevContext->InstancePath,
+                                     &DestinationString,
+                                     (PULONG)EntryContext,
+                                     DevContext->EnableInstance);
+    return Status;
+}
+
 /* EOF */
