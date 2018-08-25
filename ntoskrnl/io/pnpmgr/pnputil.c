@@ -594,6 +594,100 @@ Exit:
 
 NTSTATUS
 NTAPI
+IopGetDeviceInstanceCsConfigFlags(
+    _In_ PUNICODE_STRING InstanceName,
+    _Out_ PULONG OutConfigFlagsValue)
+{
+    NTSTATUS Status;
+    UNICODE_STRING KeyName;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    HANDLE KeyHandle;
+    HANDLE Handle;
+    UNICODE_STRING HwProfileKeyName = RTL_CONSTANT_STRING(
+        L"\\REGISTRY\\MACHINE\\SYSTEM\\CurrentControlSet\\Hardware Profiles\\Current");
+
+    PAGED_CODE();
+    DPRINT("IopGetDeviceInstanceCsConfigFlags: InstanceName - %wZ\n",
+           InstanceName);
+
+    *OutConfigFlagsValue = 0;
+
+    Status = IopOpenRegistryKeyEx(&Handle,
+                                  NULL,
+                                  &HwProfileKeyName,
+                                  KEY_READ);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGetDeviceInstanceCsConfigFlags: Status - %X\n", Status);
+        return Status;
+    }
+
+    RtlInitUnicodeString(&KeyName, L"System\\CurrentControlSet");
+
+    Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                  Handle,
+                                  &KeyName,
+                                  KEY_READ);
+
+    ZwClose(Handle);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGetDeviceInstanceCsConfigFlags: Status - %X\n", Status);
+        return Status;
+    }
+
+    RtlInitUnicodeString(&KeyName, REGSTR_KEY_ENUM);
+
+    Status = IopOpenRegistryKeyEx(&Handle,
+                                  KeyHandle,
+                                  &KeyName,
+                                  KEY_READ);
+    ZwClose(KeyHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGetDeviceInstanceCsConfigFlags: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                  Handle,
+                                  InstanceName,
+                                  KEY_READ);
+    ZwClose(Handle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGetDeviceInstanceCsConfigFlags: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = IopGetRegistryValue(KeyHandle,
+                                 REGSTR_VAL_CSCONFIGFLAGS,
+                                 &ValueInfo);
+    ZwClose(KeyHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGetDeviceInstanceCsConfigFlags: Status - %X\n", Status);
+        return Status;
+    }
+
+    if (ValueInfo->Type == REG_DWORD &&
+        ValueInfo->DataLength >= sizeof(ULONG))
+    {
+        *OutConfigFlagsValue = *(PULONG)((ULONG_PTR)ValueInfo +
+                                         ValueInfo->DataOffset);
+    }
+
+    ExFreePoolWithTag(ValueInfo, 'uspP');
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IopReplaceSeparatorWithPound(
     _Out_ PUNICODE_STRING OutString,
     _In_ PUNICODE_STRING InString)

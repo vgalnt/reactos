@@ -437,6 +437,13 @@ PipApplyFunctionToSubKeys(
 
 NTSTATUS
 NTAPI
+IopGetDeviceInstanceCsConfigFlags(
+    _In_ PUNICODE_STRING InstanceName,
+    _Out_ PULONG OutConfigFlagsValue
+);
+
+NTSTATUS
+NTAPI
 IopReplaceSeparatorWithPound(
     _Out_ PUNICODE_STRING OutString,
     _In_ PUNICODE_STRING InString
