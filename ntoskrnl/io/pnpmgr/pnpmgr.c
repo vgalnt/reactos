@@ -4899,7 +4899,7 @@ PiFindDevInstMatch(
     OutString->Buffer = NULL;
 
     *OutData = 0;
-    *OutInstanceNum = -1;
+    *OutInstanceNum = (ULONG)-1;
 
     Status = IopGetRegistryValue(ServiceHandle, L"Count", &KeyInfo);
 
@@ -4948,7 +4948,7 @@ PiFindDevInstMatch(
 
         BufferLen = BufferEnd - Buffer;
 
-        if (BufferLen == -1)
+        if (BufferLen == (ULONG)-1)
         {
             ValueName.Length = PIP_FIRST_LENGHT_INSTANCE * sizeof(WCHAR);
         }
@@ -5032,6 +5032,173 @@ PiFindDevInstMatch(
     {
         ExFreePoolWithTag(Buffer, '  pP');
     }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+PiProcessDriverInstance(
+    _In_ PUNICODE_STRING InstancePath,
+    _In_ PUNICODE_STRING ServiceString,
+    _In_ PULONG EntryContext,
+    _In_ PBOOLEAN EnableInstance)
+{
+    NTSTATUS Status;
+    PWSTR InstanceBuffer;
+    ULONG InstanceLength;
+    PWSTR InstanceNewBuffer;
+    ULONG Length;
+    UNICODE_STRING UnicodeString;
+    UNICODE_STRING ValueName;
+    HANDLE KeyHandle = NULL;
+    ULONG InstanceNum;
+    ULONG Data = 0;
+    WCHAR ValueBuffer[PIP_FIRST_LENGHT_INSTANCE];
+    PWCHAR BufferEnd;
+    ULONG entryContext = *EntryContext;
+
+    PAGED_CODE();
+    DPRINT("PiProcessDriverInstance: [%X] InstancePath - %wZ, ServiceString - %wZ\n",
+           entryContext, InstancePath, ServiceString);
+
+    ASSERT(EnableInstance != NULL);
+
+    Status = PipOpenServiceEnumKeys(ServiceString,
+                                    KEY_ALL_ACCESS,
+                                    NULL,
+                                    &KeyHandle,
+                                    TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiProcessDriverInstance: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = PiFindDevInstMatch(KeyHandle,
+                                InstancePath,
+                                &Data,
+                                &UnicodeString,
+                                &InstanceNum);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiProcessDriverInstance: Status - %X\n", Status);
+        ZwClose(KeyHandle);
+        return Status;
+    }
+
+    if (UnicodeString.Buffer)
+    {
+        ASSERT(InstanceNum != (ULONG)-1);
+
+        if (*EnableInstance == TRUE)
+        {
+            goto Exit;
+        }
+
+        ZwDeleteValueKey(KeyHandle, &UnicodeString);
+        Data--;
+
+        if (Data)
+        {
+            DPRINT("PiProcessDriverInstance: FIXME PiRearrangeDeviceInstances\n");
+            ASSERT(FALSE);
+        }
+    }
+    else
+    {
+        if (*EnableInstance == FALSE)
+        {
+            ZwClose(KeyHandle);
+            return STATUS_SUCCESS;
+        }
+
+        InstanceBuffer = InstancePath->Buffer;
+        InstanceLength = InstancePath->Length;
+
+        if (InstanceBuffer[InstanceLength / sizeof(WCHAR) - 1])
+        {
+            InstanceNewBuffer = ExAllocatePoolWithTag(PagedPool,
+                                                      InstanceLength + sizeof(WCHAR),
+                                                      '  pP');
+
+            if (InstanceNewBuffer)
+            {
+                RtlCopyMemory(InstanceNewBuffer,
+                              InstanceBuffer,
+                              InstanceLength);
+
+                *(PWCHAR)((ULONG_PTR)InstanceNewBuffer + InstanceLength) = UNICODE_NULL;
+
+                InstanceLength += sizeof(WCHAR);
+                InstanceBuffer = InstanceNewBuffer;
+            }
+        }
+
+        RtlStringCchPrintfExW(ValueBuffer,
+                              PIP_FIRST_LENGHT_INSTANCE,
+                              &BufferEnd,
+                              NULL,
+                              0,
+                              L"%u",
+                              Data);
+
+        ValueName.MaximumLength = PIP_FIRST_LENGHT_INSTANCE * sizeof(WCHAR);
+
+        Length = ((ULONG_PTR)BufferEnd - (ULONG_PTR)ValueBuffer) / sizeof(WCHAR);
+
+        if (Length == (ULONG)-1)
+        {
+            ValueName.Length = PIP_FIRST_LENGHT_INSTANCE * sizeof(WCHAR);
+        }
+        else
+        {
+            ValueName.Length = Length * sizeof(WCHAR);
+        }
+
+        ValueName.Buffer = ValueBuffer;
+
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_SZ,
+                      InstanceBuffer,
+                      InstanceLength);
+
+        if (InstanceNewBuffer)
+        {
+            ExFreePoolWithTag(InstanceNewBuffer, '  pP');
+        }
+
+        Data++;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"Count");
+
+    ZwSetValueKey(KeyHandle,
+                  &ValueName,
+                  0,
+                  REG_DWORD,
+                  &Data,
+                  sizeof(ULONG));
+
+    RtlInitUnicodeString(&ValueName, L"NextInstance");
+
+    ZwSetValueKey(KeyHandle,
+                  &ValueName,
+                  0,
+                  REG_DWORD,
+                  &Data,
+                  sizeof(ULONG));
+
+Exit:
+
+    if (UnicodeString.Buffer)
+    {
+        RtlFreeUnicodeString(&UnicodeString);
+    }
+
+    ZwClose(KeyHandle);
 
     return STATUS_SUCCESS;
 }
