@@ -233,6 +233,14 @@ PpIrpQueryBusInformation(
     _Out_ PPNP_BUS_INFORMATION * OutInformation
 );
 
+NTSTATUS
+NTAPI
+PpIrpQueryResources(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PCM_RESOURCE_LIST * OutResourceList,
+    _Out_ PULONG OutSize
+);
+
 //
 // pnpmap.c
 //
@@ -386,6 +394,7 @@ IopReportBootResources(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResource
 );
+
 
 //
 // pnputil.c
