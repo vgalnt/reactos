@@ -2962,6 +2962,58 @@ PiProcessNewDeviceNode(
     return Status;
 }
 
+BOOLEAN
+NTAPI
+PipGetRegistryDwordWithFallback(
+    _In_ PUNICODE_STRING ValueName,
+    _In_ HANDLE Handle,
+    _In_ HANDLE PropertiesHandle,
+    _Out_ PULONG OutValue)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    HANDLE KeyHandle[3];
+    ULONG Count = 0;
+    ULONG ix;
+    NTSTATUS Status;
+    BOOLEAN Result = FALSE;
+
+    if (Handle)
+    {
+        KeyHandle[Count++] = Handle;
+    }
+
+    if (PropertiesHandle)
+    {
+        KeyHandle[Count++] = PropertiesHandle;
+    }
+
+    KeyHandle[Count] = NULL;
+
+    for (ix = 0;
+         ix < Count && Result == FALSE;
+         ix++)
+    {
+        ValueInfo = NULL;
+
+        Status = IopGetRegistryValue(KeyHandle[ix],
+                                     ValueName->Buffer,
+                                     &ValueInfo);
+
+        if (NT_SUCCESS(Status) && ValueInfo->Type == REG_DWORD)
+        {
+            *OutValue = *(PULONG)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
+            Result = TRUE;
+        }
+
+        if (ValueInfo)
+        {
+            ExFreePoolWithTag(ValueInfo, 'uspP');
+        }
+    }
+
+    return Result;
+}
+
 
 VOID
 NTAPI
