@@ -3014,6 +3014,145 @@ PipGetRegistryDwordWithFallback(
     return Result;
 }
 
+NTSTATUS
+NTAPI 
+PipChangeDeviceObjectFromRegistryProperties(
+    _In_ PDEVICE_OBJECT PhysicalDeviceObject,
+    _In_ HANDLE PropertiesHandle,
+    _In_ HANDLE KeyHandle,
+    _In_ BOOLEAN IsUsePdosSettings)
+{
+    UNICODE_STRING ValueName;
+    PDEVICE_NODE DeviceNode;
+    PDEVICE_OBJECT Device;
+    ULONG Exclusive;
+    ULONG DeviceType;
+    ULONG DeviceCharacteristics;
+    ULONG Characteristics;
+    BOOLEAN OverideDeviceCharacteristics;
+    BOOLEAN OverideSecurity;
+    BOOLEAN OverideExclusive;
+    BOOLEAN OverideDeviceType;
+
+    PAGED_CODE();
+    ASSERT(PhysicalDeviceObject);
+
+    DeviceNode = IopGetDeviceNode(PhysicalDeviceObject);
+    ASSERT(DeviceNode);
+
+    DPRINT("PipChangeDeviceObjectFromRegistryProperties: InstancePath - %wZ\n",
+           &DeviceNode->InstancePath);
+
+    RtlInitUnicodeString(&ValueName, L"DeviceType");
+    OverideDeviceType = PipGetRegistryDwordWithFallback(&ValueName,
+                                                        KeyHandle,
+                                                        PropertiesHandle,
+                                                        &DeviceType);
+    if (!OverideDeviceType)
+    {
+        DeviceType = 0;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"Exclusive");
+    OverideExclusive = PipGetRegistryDwordWithFallback(&ValueName,
+                                                       KeyHandle,
+                                                       PropertiesHandle,
+                                                       &Exclusive);
+    if (!OverideExclusive)
+    {
+        Exclusive = 0;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"DeviceCharacteristics");
+    OverideDeviceCharacteristics = PipGetRegistryDwordWithFallback(&ValueName,
+                                                                   KeyHandle,
+                                                                   PropertiesHandle,
+                                                                   &DeviceCharacteristics);
+    if (!OverideDeviceCharacteristics)
+    {
+        DeviceCharacteristics = 0;
+    }
+
+    Device = PhysicalDeviceObject;
+
+    if (IsUsePdosSettings || Device->AttachedDevice == NULL)
+    {
+        DPRINT("PipChangeDeviceObjectFromRegistryProperties: IsUsePdosSettings - %X\n",
+               IsUsePdosSettings);
+    }
+    else
+    {
+        DPRINT("PipChangeDeviceObjectFromRegistryProperties: Ignoring PDO's settings\n");
+        Device = Device->AttachedDevice;
+    }
+
+    Characteristics = 0;
+
+    for (; Device; Device = Device->AttachedDevice)
+    {
+        Characteristics |= Device->Characteristics;
+    }
+
+    DeviceCharacteristics |= Characteristics;
+    DeviceCharacteristics &= (FILE_REMOVABLE_MEDIA |
+                              FILE_READ_ONLY_DEVICE |
+                              FILE_FLOPPY_DISKETTE |
+                              FILE_WRITE_ONCE_MEDIA |
+                              FILE_DEVICE_SECURE_OPEN);
+
+    DPRINT("PipChangeDeviceObjectFromRegistryProperties: FIXME 'Security'\n");
+
+    if (!OverideDeviceType &&
+        !OverideDeviceCharacteristics &&
+        !OverideExclusive)// && !SecurityDesc)
+    {
+        DPRINT("PipChangeDeviceObjectFromRegistryProperties: No property changes\n");
+    }
+    else
+    {
+        if (OverideDeviceType)
+        {
+            DPRINT("PipChangeDeviceObjectFromRegistryProperties: DeviceType - %X\n",
+                   DeviceType);
+        }
+        if (OverideDeviceCharacteristics)
+        {
+            DPRINT("PipChangeDeviceObjectFromRegistryProperties: DeviceCharacteristics - %X\n",
+                   DeviceCharacteristics);
+        }
+        if (OverideExclusive)
+        {
+            DPRINT("PipChangeDeviceObjectFromRegistryProperties: Exclusive - %X\n",
+                   Exclusive);
+        }
+    }
+
+    if (OverideDeviceType)
+    {
+        PhysicalDeviceObject->DeviceType = DeviceType;
+    }
+    if (OverideExclusive && Exclusive)
+    {
+        PhysicalDeviceObject->Flags |= DOE_REMOVE_PROCESSED;
+    }
+
+    PhysicalDeviceObject->Characteristics |= DeviceCharacteristics;
+    PhysicalDeviceObject->Characteristics &= ~(FILE_REMOVABLE_MEDIA |
+                                               FILE_READ_ONLY_DEVICE |
+                                               FILE_FLOPPY_DISKETTE |
+                                               FILE_WRITE_ONCE_MEDIA |
+                                               FILE_DEVICE_SECURE_OPEN);
+
+    for (Device = PhysicalDeviceObject->AttachedDevice;
+         Device;
+         Device = Device->AttachedDevice)
+    {
+        Device->Characteristics |= DeviceCharacteristics;
+    }
+
+    return STATUS_SUCCESS;
+}
+
 
 VOID
 NTAPI
