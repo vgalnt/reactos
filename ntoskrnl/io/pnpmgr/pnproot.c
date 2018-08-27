@@ -21,6 +21,8 @@
 
 extern ERESOURCE PpRegistryDeviceResource;
 
+extern PNP_ALLOCATE_RESOURCES_ROUTINE IopAllocateBootResourcesRoutine;
+
 /* DATA **********************************************************************/
 
 typedef struct _PNPROOT_DEVICE
@@ -196,8 +198,416 @@ IopInitializeDeviceInstanceKey(
     _In_ PUNICODE_STRING KeyName,
     _In_ PVOID Context)
 {
-    DPRINT("IopInitializeDeviceInstanceKey: KeyName - %wZ\n", KeyName);
-    ASSERT(0);
+    PPNP_ROOT_RELATIONS_CONTEXT RelationContext = Context;
+    PEXTENDED_DEVOBJ_EXTENSION DeviceObjectExtension;
+    PKEY_VALUE_FULL_INFORMATION ServiceValueInfo;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_OBJECT * pDevices;
+    PDEVICE_NODE DeviceNode = NULL;
+    PCM_RESOURCE_LIST CmResouce;
+    PUNICODE_STRING EnumString;
+    UNICODE_STRING Name;
+    DEVICE_CAPABILITIES_FLAGS CapFlags;
+    ULONG Legacy;
+    ULONG Problem;
+    ULONG ConfigFlags;
+    ULONG ServiceType;
+    NTSTATUS Status;
+    BOOLEAN DuplicateOf = FALSE;
+    BOOLEAN Result;
+
+    PAGED_CODE();
+    DPRINT("IopInitializeDeviceInstanceKey: KeyName - %wZ, RelationContext->Objects - %p\n",
+           KeyName, RelationContext->Objects);
+
+    Status = IopGetRegistryValue(KeyHandle, L"Phantom", &ValueInfo);
+
+    if (NT_SUCCESS(Status))
+    {
+        ULONG Phantom;
+
+        if ((ValueInfo->Type == REG_DWORD) &&
+            (ValueInfo->DataLength >= sizeof(ULONG)))
+        {
+            Phantom = *(PULONG)((ULONG_PTR)ValueInfo +
+                                ValueInfo->DataOffset);
+        }
+        else
+        {
+            Phantom = 0;
+        }
+
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+
+        if (Phantom)
+        {
+            return TRUE;
+        }
+    }
+
+    if (RelationContext->Count == RelationContext->MaxDevices)
+    {
+        PVOID NewRelationContext;
+        ULONG NewSize;
+
+        NewSize = (PNP_MAX_ROOT_DEVICES +
+                   RelationContext->Count) * sizeof(PDEVICE_OBJECT);
+
+        NewRelationContext = ExAllocatePoolWithTag(PagedPool, NewSize, 'ddpP');
+
+        if (!NewRelationContext)
+        {
+            RelationContext->Status = STATUS_INSUFFICIENT_RESOURCES;
+            return FALSE;
+        }
+
+        RtlCopyMemory(NewRelationContext,
+                      RelationContext->Objects,
+                      RelationContext->Count * sizeof(PDEVICE_OBJECT));
+
+        ExFreePoolWithTag(RelationContext->Objects, 'ddpP');
+
+        RelationContext->Objects = NewRelationContext;
+        RelationContext->MaxDevices = NewSize / sizeof(PDEVICE_OBJECT);
+    }
+
+    EnumString = RelationContext->RootEnumString;
+
+    if (EnumString->Buffer[EnumString->Length / sizeof(WCHAR) - 1] != '\\')
+    {
+        EnumString->Buffer[EnumString->Length / sizeof(WCHAR)] = '\\';
+        EnumString->Length += sizeof(WCHAR);
+    }
+
+    RtlAppendUnicodeStringToString(EnumString, KeyName);
+    DeviceObject = IopDeviceObjectFromDeviceInstance(EnumString);
+
+    if (DeviceObject)
+    {
+        pDevices = RelationContext->Objects;
+        pDevices[RelationContext->Count] = DeviceObject;
+        RelationContext->Count++;
+
+        return TRUE;
+    }
+
+    if (!PipIsFirmwareMapperDevicePresent(KeyHandle))
+    {
+        return TRUE;
+    }
+
+    Status = IopGetRegistryValue(KeyHandle,
+                                 L"DuplicateOf",
+                                 &ValueInfo);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (ValueInfo->Type == REG_SZ &&
+            ValueInfo->DataLength > 0)
+        {
+            DuplicateOf = TRUE;
+        }
+
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+    }
+
+    ServiceValueInfo = NULL;
+    RtlZeroMemory(&Name, sizeof(Name));
+
+    Status = IopGetRegistryValue(KeyHandle, L"Service", &ServiceValueInfo);
+
+    if (NT_SUCCESS(Status) &&
+        ServiceValueInfo->Type == REG_SZ &&
+        ServiceValueInfo->DataLength)
+    {
+        PWCHAR Buffer;
+
+        Buffer = (PWCHAR)((ULONG_PTR)ServiceValueInfo +
+                          ServiceValueInfo->DataOffset);
+
+        PnpRegSzToString(Buffer,
+                         ServiceValueInfo->DataLength,
+                         &Name.Length);
+
+        Name.MaximumLength = ServiceValueInfo->DataLength;
+        Name.Buffer = Buffer;
+    }
+
+    Status = IopGetDeviceInstanceCsConfigFlags(EnumString, &ConfigFlags);
+
+    if (NT_SUCCESS(Status) && ConfigFlags & 2) // ?
+    {
+        ExFreePoolWithTag(ServiceValueInfo, 'uspP');
+        return TRUE;
+    }
+
+    Legacy = 0;
+
+    Status = IopGetRegistryValue(KeyHandle, L"Legacy", &ValueInfo);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (ValueInfo->Type == REG_DWORD &&
+            ValueInfo->DataLength >= sizeof(ULONG))
+        {
+            Legacy = *(PULONG)((ULONG_PTR)ValueInfo +
+                               ValueInfo->DataOffset);
+        }
+
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+
+        if (Legacy)
+        {
+            Status = IopGetServiceType(&Name, &ServiceType);
+
+            if (Name.Length == 0 ||
+                !NT_SUCCESS(Status) ||
+                ServiceType != SERVICE_KERNEL_DRIVER)
+            {
+                PpDeviceRegistration(EnumString, TRUE, NULL);
+
+                if (!ServiceValueInfo)
+                {
+                    return TRUE;
+                }
+
+                ExFreePoolWithTag(ServiceValueInfo, 'uspP');
+                return TRUE;
+            }
+        }
+    }
+
+    if (ServiceValueInfo)
+    {
+        ExFreePoolWithTag(ServiceValueInfo, 'uspP');
+    }
+
+    Status = IoCreateDevice(IopRootDriverObject,
+                            sizeof(PNP_LEGACY_DEVICE_EXTENSION),
+                            NULL,
+                            FILE_DEVICE_CONTROLLER,
+                            FILE_AUTOGENERATED_DEVICE_NAME,
+                            FALSE,
+                            &DeviceObject);
+
+    if (!NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    DeviceObject->Flags |= DO_BUS_ENUMERATED_DEVICE;
+
+    DeviceObjectExtension = IoGetDevObjExtension(DeviceObject);
+    DeviceObjectExtension->ExtensionFlags |= DOE_START_PENDING;
+
+    DeviceNode = PipAllocateDeviceNode(DeviceObject);
+
+    if (DeviceNode == NULL) // FIXME PpSystemHiveTooLarge
+    {
+        IoDeleteDevice(DeviceObject);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        DeviceObject = NULL;
+        goto Exit;
+    }
+
+    Status = PnpConcatenateUnicodeStrings(&DeviceNode->InstancePath,
+                                          EnumString,
+                                          NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        IoDeleteDevice(DeviceObject);
+        DeviceObject = NULL;
+        goto Exit;
+    }
+
+    DeviceNode->Flags = (DNF_MADEUP | DNF_ENUMERATED);
+    PipSetDevNodeState(DeviceNode, DeviceNodeInitialized, NULL);
+    PpDevNodeInsertIntoTree(IopRootDeviceNode, DeviceNode);
+
+    if (Legacy)
+    {
+        DeviceNode->Flags |= (DNF_LEGACY_DRIVER | DNF_NO_RESOURCE_REQUIRED);
+        PipSetDevNodeState(DeviceNode, DeviceNodeStarted, NULL);
+    }
+    else
+    {
+        ConfigFlags = 0;
+
+        Status = IopGetRegistryValue(KeyHandle,
+                                     L"ConfigFlags",
+                                     &ValueInfo);
+        if (!NT_SUCCESS(Status))
+        {
+            if (Status == STATUS_OBJECT_NAME_NOT_FOUND ||
+                Status == STATUS_OBJECT_PATH_NOT_FOUND)
+            {
+                PipSetDevNodeProblem(DeviceNode, CM_PROB_NOT_CONFIGURED);
+            }
+        }
+        else
+        {
+            if (ValueInfo->Type == REG_DWORD &&
+                ValueInfo->DataLength >= sizeof(ULONG))
+            {
+                ConfigFlags = *(PULONG)((ULONG_PTR)ValueInfo +
+                                        ValueInfo->DataOffset);
+            }
+
+            ExFreePoolWithTag(ValueInfo, 'uspP');
+
+            if (ConfigFlags & 0x20) // ?
+            {
+                PipSetDevNodeProblem(DeviceNode, CM_PROB_REINSTALL);
+            }
+            else if (ConfigFlags & 0x2000) // ?
+            {
+                PipSetDevNodeProblem(DeviceNode, CM_PROB_PARTIAL_LOG_CONF);
+            }
+            else if (ConfigFlags & 0x40) // ?
+            {
+                PipSetDevNodeProblem(DeviceNode, CM_PROB_FAILED_INSTALL);
+            }
+        }
+    }
+
+    if (DuplicateOf)
+    {
+        DeviceNode->Flags |= DNF_DUPLICATE;
+    }
+
+    Status = IopGetRegistryValue(KeyHandle,
+                                 L"NoResourceAtInitTime",
+                                 &ValueInfo);
+    if (NT_SUCCESS(Status))
+    {
+        if (ValueInfo->Type == REG_DWORD &&
+            ValueInfo->DataLength >= sizeof(ULONG))
+        {
+            if (*(PULONG)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset))
+            {
+                DeviceNode->Flags |= DNF_NO_RESOURCE_REQUIRED;
+            }
+        }
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+    }
+
+    IopQueryAndSaveDeviceNodeCapabilities(DeviceNode);
+
+    CapFlags.AsULONG = DeviceNode->CapabilityFlags;
+
+    if ((CapFlags.HardwareDisabled) &&
+        (!(DeviceNode->Flags & DNF_HAS_PROBLEM) ||
+         DeviceNode->Problem != CM_PROB_NOT_CONFIGURED))
+    {
+        PipClearDevNodeProblem(DeviceNode);
+        PipSetDevNodeProblem(DeviceNode, CM_PROB_HARDWARE_DISABLED);
+    }
+
+    if (DeviceNode->Flags & (DNF_HAS_PROBLEM | DNF_HAS_PRIVATE_PROBLEM) &&
+       !CapFlags.HardwareDisabled)
+    {
+        PpCriticalProcessCriticalDevice(DeviceNode);
+    }
+
+    if (DeviceNode->Flags & (DNF_HAS_PROBLEM | DNF_HAS_PRIVATE_PROBLEM))
+    {
+        ASSERT(DeviceNode->Flags & DNF_HAS_PROBLEM);
+
+        ASSERT(DeviceNode->Problem == CM_PROB_NOT_CONFIGURED || 
+               DeviceNode->Problem == CM_PROB_REINSTALL ||
+               DeviceNode->Problem == CM_PROB_FAILED_INSTALL ||
+               DeviceNode->Problem == CM_PROB_HARDWARE_DISABLED ||
+               DeviceNode->Problem == CM_PROB_PARTIAL_LOG_CONF);
+    }
+
+    if ((!(DeviceNode->Flags & DNF_HAS_PROBLEM) ||
+         DeviceNode->Problem != CM_PROB_DISABLED) &&
+        (!(DeviceNode->Flags & DNF_HAS_PROBLEM) ||
+         DeviceNode->Problem != CM_PROB_HARDWARE_DISABLED))
+    {
+        if (!IopIsDeviceInstanceEnabled(KeyHandle,
+                                        &DeviceNode->InstancePath,
+                                        TRUE))
+        {
+            PipClearDevNodeProblem(DeviceNode);
+            PipSetDevNodeProblem(DeviceNode, CM_PROB_DISABLED);
+        }
+    }
+
+    DPRINT("IopInitializeDeviceInstanceKey: FIXME IopNotifySetupDeviceArrival\n");
+
+    /* Report the device's enumeration to umpnpmgr */
+    IopQueueTargetDeviceEvent(&GUID_DEVICE_ENUMERATED,
+                              &DeviceNode->InstancePath);
+
+    /* Report the device's arrival to umpnpmgr */
+    IopQueueTargetDeviceEvent(&GUID_DEVICE_ARRIVAL,
+                              &DeviceNode->InstancePath);
+
+    Status = PpDeviceRegistration(&DeviceNode->InstancePath,
+                                  TRUE,
+                                  &DeviceNode->ServiceName);
+    if (NT_SUCCESS(Status))
+    {
+        if ((DeviceNode->Flags & DNF_HAS_PROBLEM) &&
+            (DeviceNode->Problem == CM_PROB_NOT_CONFIGURED))
+        {
+            PipClearDevNodeProblem(DeviceNode);
+        }
+    }
+
+    Status = IopMapDeviceObjectToDeviceInstance(DeviceNode->PhysicalDeviceObject,
+                                                &DeviceNode->InstancePath);
+    ASSERT(NT_SUCCESS(Status));
+    ObReferenceObject(DeviceObject);
+
+    CmResouce = NULL;
+
+    Status = IopGetDeviceResourcesFromRegistry(DeviceObject,
+                                               FALSE,
+                                               4,
+                                               (PVOID *)&CmResouce,
+                                               &ServiceType);
+    if (NT_SUCCESS(Status) && CmResouce)
+    {
+        Status = IopAllocateBootResourcesRoutine(4,
+                                                 DeviceNode->PhysicalDeviceObject,
+                                                 CmResouce);
+        if (NT_SUCCESS(Status))
+        {
+            DeviceNode->Flags |= DNF_HAS_BOOT_CONFIG;
+        }
+
+        ExFreePool(CmResouce);
+    }
+
+    Status = STATUS_SUCCESS;
+    ObReferenceObject(DeviceObject);
+
+Exit:
+
+    EnumString->Length = RelationContext->RootEnumString->Length;
+
+    if (NT_SUCCESS(Status))
+    {
+        ASSERT(DeviceObject);
+
+        pDevices = RelationContext->Objects;
+        pDevices[RelationContext->Count] = DeviceObject;
+        RelationContext->Count++;
+
+        DPRINT("IopInitializeDeviceInstanceKey: Objects - %p, Status - %X\n",
+               RelationContext->Objects, RelationContext->Status);
+
+        return TRUE;
+    }
+
+    RelationContext->Status = Status;
+
+    DPRINT("IopInitializeDeviceInstanceKey: Objects - %p, Status - %X\n",
+           RelationContext->Objects, RelationContext->Status);
+
     return FALSE;
 }
 
