@@ -23,13 +23,44 @@ extern ERESOURCE PpRegistryDeviceResource;
 extern KSPIN_LOCK IopPnPSpinLock;
 extern LIST_ENTRY IopPnpEnumerationRequestList;
 extern KEVENT PiEnumerationLock;
+
+extern ULONG InitSafeBootMode;
+
 extern BOOLEAN PnPBootDriversLoaded;
+extern BOOLEAN PnPBootDriversInitialized;
 extern BOOLEAN PiCriticalDeviceDatabaseEnabled;
+extern BOOLEAN PnpSystemInit;
 
 /* DATA **********************************************************************/
 
 WORK_QUEUE_ITEM PipDeviceEnumerationWorkItem;
 BOOLEAN PipEnumerationInProgress;
+
+/* See DDK "Types of WDM Drivers" */
+typedef enum _PIP_DRIVER_TYPE
+{
+    LowerDeviceFilters,
+    LowerClassFilters,
+    DeviceService,
+    UpperDeviceFilters,
+    UpperClassFilters,
+    PipMaxServiceType
+} PIP_DRIVER_TYPE; 
+
+typedef struct _DRIVER_ADD_DEVICE_ENTRY
+{
+    PDRIVER_OBJECT DriverObject;
+    struct _DRIVER_ADD_DEVICE_ENTRY *NextEntry;
+} DRIVER_ADD_DEVICE_ENTRY, *PDRIVER_ADD_DEVICE_ENTRY;
+
+typedef struct _DRIVER_ADD_DEVICE_CONTEXT
+{
+    PDEVICE_NODE DeviceNode;
+    BOOLEAN EnableLoadDriver;
+    UCHAR Padded[3];
+    SERVICE_LOAD_TYPE * DriverLoadType;
+    PDRIVER_ADD_DEVICE_ENTRY DriverLists[PipMaxServiceType];
+} DRIVER_ADD_DEVICE_CONTEXT, *PDRIVER_ADD_DEVICE_CONTEXT;
 
 /* FUNCTIONS *****************************************************************/
 
