@@ -108,6 +108,88 @@ IopGetServiceType(
 }
 
 BOOLEAN
+NTAPI
+PipIsFirmwareMapperDevicePresent(
+    _In_ HANDLE KeyHandle)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    UNICODE_STRING ControlName;
+    ULONG FirmwareIdentified = 0;
+    ULONG FirmwareMember;
+    HANDLE Handle;
+    NTSTATUS Status;
+    BOOLEAN Result;
+
+    PAGED_CODE();
+    DPRINT("PipIsFirmwareMapperDevicePresent()\n");
+
+    Status = IopGetRegistryValue(KeyHandle,
+                                 L"FirmwareIdentified",
+                                 &ValueInfo);
+    if (!NT_SUCCESS(Status))
+    {
+        return TRUE;
+    }
+
+    if (ValueInfo->Type == REG_DWORD &&
+        ValueInfo->DataLength == sizeof(ULONG))
+    {
+        FirmwareIdentified = *(PULONG)((ULONG_PTR)ValueInfo +
+                                       ValueInfo->DataOffset);
+    }
+
+    ExFreePoolWithTag(ValueInfo, 'uspP');
+
+    if (!FirmwareIdentified)
+    {
+        return TRUE;
+    }
+
+    RtlInitUnicodeString(&ControlName, L"Control");
+
+    Status = IopOpenRegistryKeyEx(&Handle,
+                                  KeyHandle,
+                                  &ControlName,
+                                  KEY_READ);
+    if (!NT_SUCCESS(Status))
+    {
+        return FALSE;
+    }
+
+    Status = IopGetRegistryValue(Handle,
+                                 L"FirmwareMember",
+                                 &ValueInfo);
+    ZwClose(Handle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        return FALSE;
+    }
+
+    FirmwareMember = 0;
+
+    if (ValueInfo->Type == REG_DWORD &&
+        ValueInfo->DataLength == sizeof(ULONG))
+    {
+        FirmwareMember = *(PULONG)((ULONG_PTR)ValueInfo +
+                                   ValueInfo->DataOffset);
+    }
+
+    ExFreePoolWithTag(ValueInfo, 'uspP');
+
+    if (!FirmwareMember)
+    {
+        Result = FALSE;
+    }
+    else
+    {
+        Result = TRUE;
+    }
+
+    return Result;
+}
+
+BOOLEAN
 NTAPI 
 IopInitializeDeviceInstanceKey(
     _In_ HANDLE KeyHandle,
