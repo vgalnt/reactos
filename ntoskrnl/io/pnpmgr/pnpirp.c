@@ -408,7 +408,7 @@ NTSTATUS
 NTAPI
 IopQueryLegacyBusInformation(
     _In_ PDEVICE_OBJECT DeviceObject,
-    _Out_ GUID *OutBusTypeGuid,
+    _Out_ GUID * OutBusTypeGuid,
     _Out_ INTERFACE_TYPE * OutInterfaceType,
     _Out_ PULONG OutBusNumber)
 {

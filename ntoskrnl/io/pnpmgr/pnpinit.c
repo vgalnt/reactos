@@ -33,6 +33,7 @@ INTERFACE_TYPE PnpDefaultInterfaceType;
 PCM_RESOURCE_LIST IopInitHalResources;
 extern PPHYSICAL_MEMORY_DESCRIPTOR MmPhysicalMemoryBlock;
 PPNP_RESERVED_RESOURCES_CONTEXT IopInitReservedResourceList = NULL;
+LIST_ENTRY IopLegacyBusInformationTable[MaximumInterfaceType];
 
 ARBITER_INSTANCE IopRootBusNumberArbiter;
 ARBITER_INSTANCE IopRootIrqArbiter;
@@ -516,6 +517,11 @@ IopInitializePlugPlayServices(
     ExInitializeResourceLite(&PiEngineLock);
     ExInitializeResourceLite(&PiDeviceTreeLock);
     KeInitializeSemaphore(&PpRegistrySemaphore, 1, 1);
+
+    for (ix = Internal; ix < MaximumInterfaceType; ix++)
+    {
+        InitializeListHead(&IopLegacyBusInformationTable[ix]);
+    }
 
     IopAllocateBootResourcesRoutine = IopReportBootResources;
 
