@@ -3243,6 +3243,446 @@ IopReferenceDriverObjectByName(
     return DriverObject;
 }
 
+NTSTATUS
+NTAPI
+PipCallDriverAddDeviceQueryRoutine(
+    _In_ PWSTR ValueName,
+    _In_ ULONG ValueType,
+    _In_ PVOID ValueData,
+    _In_ ULONG ValueLength,
+    _In_ PVOID Context,
+    _In_ PVOID ServiceType)
+{
+    PDRIVER_ADD_DEVICE_CONTEXT QueryContext = Context;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    PDRIVER_ADD_DEVICE_ENTRY * DriverEntry;
+    PDRIVER_ADD_DEVICE_ENTRY Entry;
+    PDRIVER_OBJECT DriverObject;
+    UNICODE_STRING DriverName;
+    UNICODE_STRING ServiceName;
+    PNP_DEVNODE_STATE NodeState;
+    SERVICE_LOAD_TYPE ServiceLoadType;
+    PWSTR Buffer;
+    PWSTR NewBuffer;
+    PWCHAR pChar;
+    ULONG Problem;
+    HANDLE ServicesHandle;
+    HANDLE Handle = NULL;
+    NTSTATUS Status;
+    NTSTATUS InitStatus;
+    SHORT OrderIndex;
+    BOOLEAN IsNotMadeupService = FALSE;
+    BOOLEAN IsAllocatedDriverName = FALSE;
+
+    DPRINT("PipCallDriverAddDeviceQueryRoutine: ValueName - %ws, Type - %X, Len - %X, ValueData - %S\n",
+           ValueName, ValueType, ValueLength, ValueData);
+
+    if (ValueType != REG_SZ)
+    {
+        DPRINT("PipCallDriverAddDeviceQueryRoutine: Invalid ValueType\n");
+        return STATUS_SUCCESS;
+    }
+
+    if (ValueLength <= sizeof(WCHAR))
+    {
+        DPRINT("PipCallDriverAddDeviceQueryRoutine: ValueLength <= sizeof(WCHAR)\n");
+        return STATUS_SUCCESS;
+    }
+
+    RtlInitUnicodeString(&ServiceName, (PCWSTR)ValueData);
+    Buffer = ServiceName.Buffer;
+
+    for (pChar = L"\\Driver\\";
+         *pChar != UNICODE_NULL;
+         pChar++, Buffer++)
+    {
+        if (*pChar != *Buffer)
+        {
+            /* Not madeup service */
+            IsNotMadeupService = TRUE;
+            break;
+        }
+    }
+
+    if (IsNotMadeupService)
+    {
+        PUNICODE_STRING serviceName;
+
+        serviceName = &QueryContext->DeviceNode->ServiceName;
+
+        if (serviceName->Length == 0)
+        {
+            NewBuffer = ExAllocatePoolWithTag(NonPagedPool,
+                                              ServiceName.MaximumLength,
+                                              'nepP');
+            if (!NewBuffer)
+            {
+                DPRINT1("PipCallDriverAddDeviceQueryRoutine: Cannot allocate memory!\n");
+                RtlZeroMemory(serviceName, sizeof(UNICODE_STRING));
+                Status = STATUS_UNSUCCESSFUL;
+                goto Exit;
+            }
+
+            serviceName->Length = ServiceName.Length;
+            serviceName->MaximumLength = ServiceName.MaximumLength;
+            serviceName->Buffer = NewBuffer;
+
+            RtlCopyMemory(NewBuffer,
+                          ServiceName.Buffer,
+                          ServiceName.MaximumLength);
+        }
+
+        Status = PipOpenServiceEnumKeys(&ServiceName,
+                                        KEY_READ,
+                                        &Handle,
+                                        NULL,
+                                        FALSE);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PipCallDriverAddDeviceQueryRoutine: Status - %X\n", Status);
+            PipSetDevNodeProblem(QueryContext->DeviceNode, CM_PROB_REGISTRY);
+            goto Exit;
+        }
+
+        Status = IopGetDriverNameFromKeyNode(Handle, &DriverName);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PipCallDriverAddDeviceQueryRoutine: Status - %X\n", Status);
+            PipSetDevNodeProblem(QueryContext->DeviceNode, CM_PROB_REGISTRY);
+            goto Exit;
+        }
+
+        IsAllocatedDriverName = TRUE;
+
+        DPRINT("PipCallDriverAddDeviceQueryRoutine: Not Madeup service - %wZ\n", &DriverName);
+    }
+    else
+    {
+        RtlInitUnicodeString(&DriverName, ServiceName.Buffer);
+        DPRINT("PipCallDriverAddDeviceQueryRoutine: Madeup service - %wZ\n", &DriverName);
+    }
+
+    DriverObject = IopReferenceDriverObjectByName(&DriverName);
+    DPRINT("PipCallDriverAddDeviceQueryRoutine: DriverObject - %p\n", DriverObject);
+
+    if (DriverObject)
+    {
+        goto SetupDriver;
+    }
+
+    if (!IsNotMadeupService)
+    {
+        ASSERT(FALSE);
+        DPRINT("PipCallDriverAddDeviceQueryRoutine: No DriverObject for madeup service\n");
+        Status = STATUS_UNSUCCESSFUL;
+        goto Exit;
+    }
+
+    ServiceLoadType = DisableLoad;
+
+    Status = IopGetRegistryValue(Handle, L"Start", &ValueInfo);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (ValueInfo->Type == REG_DWORD &&
+            ValueInfo->DataLength == sizeof(ULONG))
+        {
+            ServiceLoadType = *(PULONG)((ULONG_PTR)&ValueInfo->TitleIndex +
+                                        ValueInfo->DataOffset);
+        }
+
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+    }
+
+    if (ServiceType == ULongToPtr(DeviceService) || PnPBootDriversInitialized)
+    {
+        if (!QueryContext->EnableLoadDriver)
+        {
+            DPRINT("PipCallDriverAddDeviceQueryRoutine: Not allowed to load drivers yet\n");
+            Status = STATUS_UNSUCCESSFUL;
+            goto Exit;
+        }
+
+        if (ServiceLoadType > *QueryContext->DriverLoadType)
+        {
+            if (ServiceLoadType == DisableLoad)
+            {
+                if (!(QueryContext->DeviceNode->Flags & (DNF_HAS_PROBLEM |
+                                                         DNF_HAS_PRIVATE_PROBLEM)))
+                {
+                    PipSetDevNodeProblem(QueryContext->DeviceNode,
+                                         CM_PROB_DISABLED_SERVICE);
+                }
+            }
+
+            DPRINT("PipCallDriverAddDeviceQueryRoutine: Service is disabled or not at right time to load it\n");
+            ASSERT(FALSE);
+
+            Status = STATUS_UNSUCCESSFUL;
+            goto Exit;
+        }
+
+        Status = PipOpenServiceEnumKeys(&ServiceName,
+                                        KEY_READ,
+                                        &ServicesHandle,
+                                        NULL,
+                                        FALSE);
+        if (NT_SUCCESS(Status))
+        {
+            Status = IopLoadDriver(ServicesHandle,
+                                   FALSE,
+                                   ServiceType != ULongToPtr(DeviceService),
+                                   &InitStatus);
+
+            if (!NT_SUCCESS(Status))
+            {
+                ASSERT(FALSE);
+
+                if (Status == STATUS_FAILED_DRIVER_ENTRY)
+                {
+                    if (InitStatus == STATUS_INSUFFICIENT_RESOURCES)
+                    {
+                        Status = STATUS_INSUFFICIENT_RESOURCES;
+                    }
+                }
+                else if (Status != STATUS_INSUFFICIENT_RESOURCES  &&
+                         Status != STATUS_PLUGPLAY_NO_DEVICE &&
+                         Status != STATUS_DRIVER_FAILED_PRIOR_UNLOAD &&
+                         Status != STATUS_DRIVER_BLOCKED &&
+                         Status != STATUS_DRIVER_BLOCKED_CRITICAL)
+                {
+                    Status = STATUS_DRIVER_UNABLE_TO_LOAD;
+                }
+            }
+
+            if (PnpSystemInit)
+            {
+                IopReinitializeDrivers();
+            }
+        }
+        else
+        {
+            DPRINT("PipCallDriverAddDeviceQueryRoutine: Status - %X\n", Status);
+            ASSERT(FALSE);
+
+            if (Status != STATUS_INSUFFICIENT_RESOURCES)
+            {
+                Status = STATUS_ILL_FORMED_SERVICE_ENTRY;
+            }
+        }
+
+        DriverObject = IopReferenceDriverObjectByName(&DriverName);
+
+        if (DriverObject)
+        {
+            goto SetupDriver;
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PipCallDriverAddDeviceQueryRoutine: Status - %X\n", Status);
+            ASSERT(FALSE);
+
+            if (/*(PiUserModeRunning == FALSE) && */ 
+                Status != STATUS_DRIVER_BLOCKED_CRITICAL &&
+                Status != STATUS_DRIVER_BLOCKED)
+            {
+                goto Exit;
+            }
+        }
+        else
+        {
+            ASSERT(InitSafeBootMode);
+            Status = STATUS_NOT_SAFE_MODE_DRIVER;
+        }
+    }
+    else
+    {
+        OrderIndex = PpInitGetGroupOrderIndex(Handle);
+        DPRINT("PipCallDriverAddDeviceQueryRoutine: OrderIndex - %X\n",
+               OrderIndex);
+
+        DPRINT("PipCallDriverAddDeviceQueryRoutine: FIXME PipLoadBootFilterDriver\n");
+        ASSERT(FALSE);
+        Status = 0;//PipLoadBootFilterDriver(Handle, &DriverName, OrderIndex, &DriverObject);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PipCallDriverAddDeviceQueryRoutine: Status - %X\n", Status);
+            ASSERT(FALSE);
+
+            if (Status != STATUS_DRIVER_BLOCKED &&
+                Status != STATUS_DRIVER_BLOCKED_CRITICAL)
+            {
+                goto Exit;
+            }
+        }
+        else
+        {
+            PDRIVER_OBJECT tempDrvObj;
+
+            ASSERT(DriverObject);
+            ASSERT(FALSE);
+
+            tempDrvObj = IopReferenceDriverObjectByName(&DriverName);
+            ASSERT(tempDrvObj == DriverObject);
+        }
+    }
+
+    if (!DriverObject)
+    {
+        ASSERT(!NT_SUCCESS(Status));
+
+        DPRINT("PipCallDriverAddDeviceQueryRoutine: No DriverObject. Status - %X\n",
+               Status);
+
+        if (QueryContext->DeviceNode->Flags & (DNF_HAS_PROBLEM |
+                                               DNF_HAS_PRIVATE_PROBLEM))
+        {
+            ASSERT(FALSE);
+            goto Exit;
+        }
+
+        switch (Status)
+        {
+            case STATUS_FAILED_DRIVER_ENTRY:
+                Problem = CM_PROB_FAILED_DRIVER_ENTRY;
+                break;
+
+            case STATUS_INSUFFICIENT_RESOURCES:
+                Problem = CM_PROB_OUT_OF_MEMORY;
+                break;
+
+            case STATUS_ILL_FORMED_SERVICE_ENTRY:
+                Problem = CM_PROB_DRIVER_SERVICE_KEY_INVALID;
+                break;
+
+            case STATUS_PLUGPLAY_NO_DEVICE:
+                Problem = CM_PROB_LEGACY_SERVICE_NO_DEVICES;
+                break;
+
+            case STATUS_DRIVER_UNABLE_TO_LOAD:
+                Problem = CM_PROB_DRIVER_FAILED_LOAD;
+                break;
+
+            case STATUS_DRIVER_BLOCKED_CRITICAL:
+                Problem = CM_PROB_DRIVER_BLOCKED;
+                QueryContext->DeviceNode->Flags |= DNF_DRIVER_BLOCKED;
+                break;
+
+            case STATUS_DRIVER_BLOCKED:
+                Status = STATUS_SUCCESS;
+                Problem = 0;
+                QueryContext->DeviceNode->Flags |= DNF_DRIVER_BLOCKED;
+                break;
+
+            case STATUS_DRIVER_FAILED_PRIOR_UNLOAD:
+                Problem = CM_PROB_DRIVER_FAILED_PRIOR_UNLOAD;
+                break;
+
+            default:
+                ASSERT(FALSE);
+                Problem = CM_PROB_FAILED_ADD;
+                break;
+        }
+
+        if (Problem != 0)
+        {
+            PipSetDevNodeProblem(QueryContext->DeviceNode, Problem);
+        }
+
+#if DBG
+        QueryContext->DeviceNode->DebugStatus = Status;
+#endif
+        goto Exit;
+    }
+
+SetupDriver:
+
+    if (DriverObject->Flags & DRVO_INITIALIZED)
+    {
+        DPRINT("PipCallDriverAddDeviceQueryRoutine: DriverObject - %p\n",
+               DriverObject);
+
+        if (IopIsLegacyDriver(DriverObject))
+        {
+            DPRINT("PipCallDriverAddDeviceQueryRoutine: Is a legacy driver\n");
+
+            if (ServiceType == ULongToPtr(DeviceService))
+            {
+                QueryContext->DeviceNode->Flags |= DNF_LEGACY_DRIVER;
+
+                PipSetDevNodeState(QueryContext->DeviceNode,
+                                   DeviceNodeStarted,
+                                   NULL);
+
+                Status = STATUS_UNSUCCESSFUL;
+            }
+            else
+            {
+                Status = STATUS_SUCCESS;
+            }
+
+            goto Exit;
+        }
+
+        NodeState = QueryContext->DeviceNode->State;
+
+        if (NodeState == DeviceNodeInitialized ||
+            NodeState == DeviceNodeDriversAdded)
+        {
+            DriverEntry = &QueryContext->DriverLists[(ULONG)ServiceType];
+            Status = STATUS_SUCCESS;
+
+            Entry = ExAllocatePoolWithTag(PagedPool,
+                                          sizeof(DRIVER_ADD_DEVICE_ENTRY),
+                                          'nepP');
+            if (Entry)
+            {
+                Entry->DriverObject = DriverObject;
+                Entry->NextEntry = NULL;
+
+                while (*DriverEntry)
+                {
+                    DriverEntry = &((*DriverEntry)->NextEntry);
+                }
+
+                *DriverEntry = Entry;
+            }
+            else
+            {
+                DPRINT("PipCallDriverAddDeviceQueryRoutine: Unable to allocate memory!\n");
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+            }
+        }
+        else
+        {
+            DPRINT("PipCallDriverAddDeviceQueryRoutine: State - %X\n", NodeState);
+            Status = STATUS_UNSUCCESSFUL;
+        }
+    }
+    else
+    {
+        ObDereferenceObject(DriverObject);
+        Status = STATUS_UNSUCCESSFUL;
+    }
+
+Exit:
+
+    if (Handle)
+    {
+        ZwClose(Handle);
+    }
+
+    if (IsAllocatedDriverName)
+    {
+        RtlFreeUnicodeString(&DriverName);
+    }
+
+    return Status;
+}
+
 
 VOID
 NTAPI
