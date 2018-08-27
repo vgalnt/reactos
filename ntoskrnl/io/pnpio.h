@@ -112,6 +112,35 @@ BOOLEAN
     _In_ HANDLE KeyHandle
 );
 
+typedef union _DEVICE_CAPABILITIES_FLAGS
+{
+    struct {
+        ULONG  DeviceD1:1;
+        ULONG  DeviceD2:1;
+        ULONG  LockSupported:1;
+        ULONG  EjectSupported:1;
+        ULONG  Removable:1;
+        ULONG  DockDevice:1;
+        ULONG  UniqueID:1;
+        ULONG  SilentInstall:1;
+        ULONG  RawDeviceOK:1;
+        ULONG  SurpriseRemovalOK:1;
+        ULONG  WakeFromD0:1;
+        ULONG  WakeFromD1:1;
+        ULONG  WakeFromD2:1;
+        ULONG  WakeFromD3:1;
+        ULONG  HardwareDisabled:1;
+        ULONG  NonDynamic:1;
+        ULONG  WarmEjectSupported:1;
+        ULONG  NoDisplayInUI:1;
+        ULONG  Reserved:14;
+    };
+    ULONG AsULONG;
+} DEVICE_CAPABILITIES_FLAGS, *PDEVICE_CAPABILITIES_FLAGS;
+
+C_ASSERT(sizeof(DEVICE_CAPABILITIES_FLAGS) == sizeof(ULONG));
+
+
 //=== iomgr ================================
 
 //
