@@ -10,12 +10,16 @@
 /* INCLUDES ******************************************************************/
 
 #include <ntoskrnl.h>
+#include "../pnpio.h"
+
 //#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS *******************************************************************/
 
 #define ENUM_NAME_ROOT L"Root"
+
+extern ERESOURCE PpRegistryDeviceResource;
 
 /* DATA **********************************************************************/
 
@@ -56,6 +60,52 @@ typedef struct _PNP_ROOT_RELATIONS_CONTEXT {
 #define PNP_MAX_ROOT_DEVICES 256
 
 /* FUNCTIONS *****************************************************************/
+
+NTSTATUS
+NTAPI
+IopGetServiceType(
+    _In_ PUNICODE_STRING ServiceName,
+    _Out_ PULONG OutServiceType)
+{
+    NTSTATUS Status;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    HANDLE Handle;
+
+    PAGED_CODE();
+    DPRINT("IopGetServiceType: ServiceName - %wZ\n", ServiceName);
+
+    *OutServiceType = -1;
+
+    Status = PipOpenServiceEnumKeys(ServiceName,
+                                    KEY_READ,
+                                    &Handle,
+                                    NULL,
+                                    FALSE);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    Status = IopGetRegistryValue(Handle, L"Type", &ValueInfo);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ZwClose(Handle);
+        return Status;
+    }
+
+    if (ValueInfo->Type == REG_DWORD &&
+        ValueInfo->DataLength >= sizeof(ULONG))
+    {
+        *OutServiceType = *(PULONG)((ULONG_PTR)ValueInfo +
+                                    ValueInfo->DataOffset);
+    }
+
+    ExFreePoolWithTag(ValueInfo, 'uspP');
+    ZwClose(Handle);
+
+    return Status;
+}
 
 BOOLEAN
 NTAPI 
