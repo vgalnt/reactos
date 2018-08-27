@@ -20,6 +20,8 @@ extern KSPIN_LOCK IopPnPSpinLock;
 extern ERESOURCE PiEngineLock;
 extern ERESOURCE PiDeviceTreeLock;
 extern ULONG IopMaxDeviceNodeLevel; 
+extern KSEMAPHORE PpRegistrySemaphore;
+extern LIST_ENTRY IopLegacyBusInformationTable[MaximumInterfaceType];
 
 /* DATA **********************************************************************/
 

@@ -3683,6 +3683,485 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PipCallDriverAddDevice(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ BOOLEAN IsLoadDriver,
+    _In_ SERVICE_LOAD_TYPE * DriverLoadType)
+{
+    UNICODE_STRING EnumKeyName = RTL_CONSTANT_STRING(ENUM_ROOT);
+    UNICODE_STRING ControlClassName = RTL_CONSTANT_STRING(
+        L"\\REGISTRY\\MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Class");
+    UNICODE_STRING PropertiesString;
+    UNICODE_STRING ClassGuidString;
+    UNICODE_STRING DeviceDescString;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[3];
+    PKEY_VALUE_FULL_INFORMATION KeyInfo = NULL;
+    DRIVER_ADD_DEVICE_CONTEXT QueryContext;
+    PDRIVER_ADD_DEVICE_ENTRY Entry;
+    PIP_DRIVER_TYPE DriverType;
+    INTERFACE_TYPE * InterfaceType;
+    PDEVICE_OBJECT PDO;
+    PDEVICE_OBJECT TopLowFIO = NULL;
+    PDEVICE_OBJECT FDO;
+    PDEVICE_OBJECT UpperDO;
+    HANDLE Handle;
+    HANDLE ControlClassHandle;
+    HANDLE PropertiesHandle = NULL;
+    HANDLE KeyHandle;
+    HANDLE ClassGuidHandle = NULL;
+    PULONG BusNumber;
+    ULONG ix;
+    NTSTATUS Status;
+    USHORT Length;
+    BOOLEAN DeviceRaw = TRUE;
+    BOOLEAN IsUsePdosSettings;
+
+    PAGED_CODE();
+    DPRINT("PipCallDriverAddDevice: DeviceNode - %p, DevNode Flags - %X, IsLoadDriver - %X, DriverLoadType - %p\n",
+           DeviceNode, DeviceNode->Flags, IsLoadDriver, *DriverLoadType);
+
+    PDO = DeviceNode->PhysicalDeviceObject;
+
+    if (PDO->Flags & DO_DEVICE_INITIALIZING)
+    {
+        DPRINT("PipCallDriverAddDevice: DO_DEVICE_INITIALIZING!\n");
+    }
+
+    if (!IsLoadDriver)
+    {
+        DPRINT("PipCallDriverAddDevice: Won't load driver\n");
+    }
+
+    DPRINT("PipCallDriverAddDevice: InstancePath - %wZ\n",
+           &DeviceNode->InstancePath);
+
+    Status = IopOpenRegistryKeyEx(&Handle, NULL, &EnumKeyName, KEY_READ);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                  Handle,
+                                  &DeviceNode->InstancePath,
+                                  KEY_READ);
+    ZwClose(Handle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = IopGetRegistryValue(KeyHandle, L"ClassGUID", &KeyInfo);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (KeyInfo->Type == REG_SZ && KeyInfo->DataLength)
+        {
+            PnpRegSzToString((PWCHAR)((ULONG_PTR)KeyInfo + KeyInfo->DataOffset),
+                             KeyInfo->DataLength,
+                             &Length);
+
+            ClassGuidString.Length = Length;
+            ClassGuidString.MaximumLength = (USHORT)KeyInfo->DataLength;
+            ClassGuidString.Buffer = (PWSTR)((ULONG_PTR)KeyInfo +
+                                             KeyInfo->DataOffset);
+
+            DPRINT("PipCallDriverAddDevice: ClassGuidString - %wZ\n",
+                   &ClassGuidString);
+
+            DPRINT("PipCallDriverAddDevice: FIXME IopSafebootDriverLoad()\n");
+            if (InitSafeBootMode /*&& !IopSafebootDriverLoad(&ClassGuidString)*/)
+            {
+                PKEY_VALUE_FULL_INFORMATION keyinfo = NULL;
+
+                DPRINT("SAFEBOOT: skipping device - %wZ\n", &ClassGuidString);
+                ASSERT(FALSE);
+
+                Status = IopGetRegistryValue(KeyHandle, L"DeviceDesc", &keyinfo);
+
+                if (!NT_SUCCESS(Status))
+                {
+                    IopBootLog(&ClassGuidString, FALSE);
+                }
+                else
+                {
+                    RtlInitUnicodeString(&DeviceDescString,
+                                        (PCWSTR)((ULONG_PTR)keyinfo +
+                                                 keyinfo->DataOffset));
+
+                    IopBootLog(&DeviceDescString, FALSE);
+                }
+
+                ZwClose(KeyHandle);
+                return STATUS_UNSUCCESSFUL;
+            }
+
+            Status = IopOpenRegistryKeyEx(&ControlClassHandle,
+                                          NULL,
+                                          &ControlClassName,
+                                          KEY_READ);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+            }
+            else
+            {
+                Status = IopOpenRegistryKeyEx(&ClassGuidHandle,
+                                              ControlClassHandle,
+                                              &ClassGuidString,
+                                              KEY_READ);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+                }
+
+                ZwClose(ControlClassHandle);
+            }
+
+            if (ClassGuidHandle)
+            {
+                RtlInitUnicodeString(&PropertiesString, L"Properties");
+
+                Status = IopOpenRegistryKeyEx(&PropertiesHandle,
+                                              ClassGuidHandle,
+                                              &PropertiesString,
+                                              KEY_READ);
+
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+                }
+            }
+        }
+
+        ExFreePoolWithTag(KeyInfo, 'uspP');
+        KeyInfo = NULL;
+    }
+
+    RtlZeroMemory(&QueryContext, sizeof(QueryContext));
+
+    QueryContext.EnableLoadDriver = IsLoadDriver;
+    QueryContext.DriverLoadType = DriverLoadType;
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].QueryRoutine = PipCallDriverAddDeviceQueryRoutine;
+    QueryTable[0].Name = L"LowerFilters";
+    QueryTable[0].EntryContext = ULongToPtr(LowerDeviceFilters);
+
+    QueryContext.DeviceNode = DeviceNode;
+
+    Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE,
+                                    (PCWSTR)KeyHandle,
+                                    QueryTable,
+                                    &QueryContext,
+                                    NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+    }
+    else
+    {
+        if (ClassGuidHandle)
+        {
+            QueryTable[0].QueryRoutine = PipCallDriverAddDeviceQueryRoutine;
+            QueryTable[0].Name = L"LowerFilters";
+            QueryTable[0].EntryContext = ULongToPtr(LowerClassFilters);
+
+            Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE,
+                                            (PWSTR)ClassGuidHandle,
+                                            QueryTable,
+                                            &QueryContext,
+                                            NULL);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+            }
+        }
+
+        if (NT_SUCCESS(Status))
+        {
+            QueryTable[0].QueryRoutine = PipCallDriverAddDeviceQueryRoutine;
+            QueryTable[0].Flags = 4;
+            QueryTable[0].Name = L"Service";
+            QueryTable[0].EntryContext = ULongToPtr(DeviceService);
+
+            Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE,
+                                            (PCWSTR)KeyHandle,
+                                            QueryTable,
+                                            &QueryContext,
+                                            NULL);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+            }
+        }
+    }
+
+    if (DeviceNode->Flags & DNF_LEGACY_DRIVER)
+    {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DEVICE_CAPABILITIES_FLAGS CapsFlags;
+
+        DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+
+        if (Status != STATUS_OBJECT_NAME_NOT_FOUND)
+        {
+            goto Exit;
+        }
+
+        CapsFlags.AsULONG = DeviceNode->CapabilityFlags;
+
+        if (CapsFlags.RawDeviceOK)
+        {
+            PipClearDevNodeProblem(DeviceNode);
+            DeviceRaw = TRUE;
+            IsUsePdosSettings = TRUE;
+        }
+        else
+        {
+            Status = STATUS_UNSUCCESSFUL;
+            goto Exit;
+        }
+    }
+    else
+    {
+        ASSERT(QueryContext.DriverLists[DeviceService] != NULL);
+
+        if (QueryContext.DriverLists[DeviceService]->NextEntry)
+        {
+            DPRINT("PipCallDriverAddDevice: Not one service!\n");
+            PipSetDevNodeProblem(DeviceNode, CM_PROB_REGISTRY);
+            Status = STATUS_UNSUCCESSFUL;
+            goto Exit;
+        }
+
+        IsUsePdosSettings = FALSE;
+    }
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].QueryRoutine = PipCallDriverAddDeviceQueryRoutine;
+    QueryTable[0].Name = L"UpperFilters";
+    QueryTable[0].EntryContext = ULongToPtr(UpperDeviceFilters);
+
+    Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE,
+                                    (PCWSTR)KeyHandle,
+                                    QueryTable,
+                                    &QueryContext,
+                                    NULL);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    if (ClassGuidHandle)
+    {
+        QueryTable[0].QueryRoutine = PipCallDriverAddDeviceQueryRoutine;
+        QueryTable[0].Name = L"UpperFilters";
+        QueryTable[0].EntryContext = ULongToPtr(UpperClassFilters);
+
+        Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE,
+                                        (PCWSTR)ClassGuidHandle,
+                                        QueryTable,
+                                        &QueryContext,
+                                        NULL);
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    ASSERT(!(DeviceNode->Flags & DNF_LEGACY_DRIVER));
+    ASSERT((QueryContext.DriverLists[DeviceService] != NULL) || (DeviceRaw));
+
+    FDO = NULL;
+    TopLowFIO = NULL;
+
+    for (DriverType = LowerDeviceFilters;
+         DriverType < PipMaxServiceType;
+         DriverType++)
+    {
+        DPRINT("PipCallDriverAddDevice: DriverType - %X\n", DriverType);
+
+        if (DriverType == DeviceService)
+        {
+            TopLowFIO = IoGetAttachedDeviceReference(PDO);
+
+            if (DeviceRaw)
+            {
+                if (QueryContext.DriverLists[DeviceService])
+                {
+                    ASSERT(!QueryContext.DriverLists[DeviceService]->NextEntry);
+                }
+                else
+                {
+                    PipSetDevNodeState(DeviceNode, DeviceNodeDriversAdded, NULL);
+                }
+            }
+            else
+            {
+                ASSERT(QueryContext.DriverLists[DeviceService]);
+                ASSERT(!QueryContext.DriverLists[DeviceService]->NextEntry);
+            }
+        }
+
+        for (Entry = QueryContext.DriverLists[DriverType];
+             Entry;
+             Entry = Entry->NextEntry)
+        {
+            DPRINT("PipCallDriverAddDevice: Adding driver - %p\n",
+                   Entry->DriverObject);
+
+            ASSERT(Entry->DriverObject);
+            ASSERT(Entry->DriverObject->DriverExtension);
+            ASSERT(Entry->DriverObject->DriverExtension->AddDevice);
+
+            //DPRINT("PipCallDriverAddDevice: FIXME PpvUtilCallAddDevice()\n");
+            Status = Entry->DriverObject->DriverExtension->
+                     AddDevice(Entry->DriverObject, PDO);
+
+            DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+
+            if (!NT_SUCCESS(Status))
+            {
+                if (DriverType == DeviceService)
+                {
+                    DPRINT("PipCallDriverAddDevice: FIXME IovUtilMarkStack()\n");
+                    DPRINT("PipCallDriverAddDevice: FIXME PipRequestDeviceRemoval()\n");
+                    ASSERT(FALSE);
+                    Status = STATUS_PNP_RESTART_ENUMERATION;
+                    goto Exit;
+                }
+            }
+            else
+            {
+                if (DriverType == DeviceService)
+                {
+                    FDO = TopLowFIO->AttachedDevice;
+                    ASSERT(FDO);
+                }
+
+                PipSetDevNodeState(DeviceNode, DeviceNodeDriversAdded, NULL);
+            }
+
+            UpperDO = IoGetAttachedDeviceReference(PDO);
+
+            if (UpperDO->Flags & DO_DEVICE_INITIALIZING)
+            {
+                DPRINT("PipCallDriverAddDevice: DO_DEVICE_INITIALIZING!\n");
+            }
+
+            ObDereferenceObject(UpperDO);
+        }
+    }
+
+    DPRINT("PipCallDriverAddDevice: FIXME IovUtilMarkStack()\n");
+
+    Status = PipChangeDeviceObjectFromRegistryProperties(PDO,
+                                                         PropertiesHandle,
+                                                         KeyHandle,
+                                                         IsUsePdosSettings);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+        DPRINT("PipCallDriverAddDevice: FIXME PipRequestDeviceRemoval()\n");
+        ASSERT(FALSE);
+        Status = STATUS_PNP_RESTART_ENUMERATION;
+        goto Exit;
+    }
+
+    BusNumber = &DeviceNode->BusNumber;
+    InterfaceType = &DeviceNode->InterfaceType;
+
+    Status = IopQueryLegacyBusInformation(PDO,
+                                          0,
+                                          &DeviceNode->InterfaceType,
+                                          &DeviceNode->BusNumber);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCallDriverAddDevice: Status - %X\n", Status);
+        *InterfaceType = InterfaceTypeUndefined;
+        *BusNumber = 0xFFFFFFF0;
+    }
+    else
+    {
+        IopInsertLegacyBusDeviceNode(DeviceNode, *InterfaceType, *BusNumber);
+    }
+
+    Status = STATUS_SUCCESS;
+
+    ASSERT(DeviceNode->State == DeviceNodeDriversAdded);
+
+Exit:
+
+    DPRINT("PipCallDriverAddDevice: DeviceNode->Flags - %X\n", DeviceNode->Flags);
+
+    for (ix = 0;
+         ix < PipMaxServiceType;
+         ix++)
+    {
+        PDRIVER_ADD_DEVICE_ENTRY Entry;
+        PDRIVER_ADD_DEVICE_ENTRY DriverLists;
+
+        DriverLists = QueryContext.DriverLists[ix];
+
+        for (Entry = DriverLists;
+             Entry;
+             Entry = Entry->NextEntry)
+        {
+            ASSERT(Entry->DriverObject);
+
+            if (PnPBootDriversInitialized)
+            {
+                DPRINT("PipCallDriverAddDevice: FIXME IopUnloadAttachedDriver(). DriverName - %wZ\n",
+                       &Entry->DriverObject->DriverName);
+
+                ASSERT(FALSE);
+            }
+
+            ObDereferenceObject(Entry->DriverObject);
+            ExFreePoolWithTag(Entry, 'nepP');
+        }
+    }
+
+    ZwClose(KeyHandle);
+
+    if (ClassGuidHandle)
+    {
+        ZwClose(ClassGuidHandle);
+    }
+
+    if (PropertiesHandle)
+    {
+        ZwClose(PropertiesHandle);
+    }
+
+    if (TopLowFIO)
+    {
+        ObDereferenceObject(TopLowFIO);
+    }
+
+    DPRINT("PipCallDriverAddDevice: Returning Status - %X\n", Status);
+
+    return Status;
+}
+
 
 VOID
 NTAPI
