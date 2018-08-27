@@ -200,6 +200,12 @@ IopGetBusName(
 //
 NTSTATUS
 NTAPI
+IopQueryAndSaveDeviceNodeCapabilities(
+    _In_ PDEVICE_NODE DeviceNode
+);
+
+NTSTATUS
+NTAPI
 PipRequestDeviceAction(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIP_ENUM_TYPE RequestType,
