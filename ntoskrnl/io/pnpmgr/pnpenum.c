@@ -3184,6 +3184,65 @@ PipChangeDeviceObjectFromRegistryProperties(
     return STATUS_SUCCESS;
 }
 
+PDRIVER_OBJECT
+NTAPI
+IopReferenceDriverObjectByName(
+    _In_ PUNICODE_STRING Name)
+{
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    PDRIVER_OBJECT DriverObject;
+    HANDLE Handle;
+    PVOID Object;
+    NTSTATUS Status;
+
+    if (!Name->Length)
+    {
+        DPRINT("IopReferenceDriverObjectByName: Name->Length == 0\n");
+        return NULL;
+    }
+
+    DPRINT("IopReferenceDriverObjectByName: Name - %wZ\n", Name);
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               Name,
+                               OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+                               NULL,
+                               NULL);
+
+    Status = ObOpenObjectByName(&ObjectAttributes,
+                                IoDriverObjectType,
+                                KernelMode,
+                                NULL,
+                                FILE_READ_ATTRIBUTES,
+                                NULL,
+                                &Handle);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopReferenceDriverObjectByName: Status - %X\n", Status);
+        return NULL;
+    }
+
+    Status = ObReferenceObjectByHandle(Handle,
+                                       0,
+                                       IoDriverObjectType,
+                                       KernelMode,
+                                       &Object,
+                                       NULL);
+    NtClose(Handle);
+         
+    if (NT_SUCCESS(Status))
+    {
+        DriverObject = (PDRIVER_OBJECT)Object;
+    }
+    else
+    {
+        DPRINT("IopReferenceDriverObjectByName: Status - %X\n", Status);
+        DriverObject = NULL;
+    }
+
+    return DriverObject;
+}
+
 
 VOID
 NTAPI
