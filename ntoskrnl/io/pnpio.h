@@ -112,6 +112,18 @@ BOOLEAN
     _In_ HANDLE KeyHandle
 );
 
+//=== iomgr ================================
+
+//
+// driver.c
+//
+BOOLEAN
+NTAPI
+IopIsLegacyDriver(
+    _In_ PDRIVER_OBJECT DriverObject
+);
+
+//=== pnpmgr ===============================
 
 //
 // debug.c

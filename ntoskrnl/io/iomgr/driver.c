@@ -41,6 +41,27 @@ PLIST_ENTRY IopGroupTable;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
+BOOLEAN
+NTAPI
+IopIsLegacyDriver(
+    _In_ PDRIVER_OBJECT DriverObject)
+{
+    BOOLEAN Result;
+    PAGED_CODE();
+
+    if (DriverObject->DriverExtension->AddDevice != NULL)
+    {
+        return FALSE;
+    }
+
+    if ((DriverObject->Flags & DRVO_LEGACY_DRIVER) == DRVO_LEGACY_DRIVER)
+    {
+        Result = TRUE;
+    }
+
+    return Result;
+}
+
 NTSTATUS
 NTAPI
 IopInvalidDeviceRequest(
