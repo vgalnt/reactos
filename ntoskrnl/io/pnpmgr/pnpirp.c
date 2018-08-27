@@ -404,4 +404,83 @@ PpIrpQueryResources(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopQueryLegacyBusInformation(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ GUID *OutBusTypeGuid,
+    _Out_ INTERFACE_TYPE * OutInterfaceType,
+    _Out_ PULONG OutBusNumber)
+{
+    PLEGACY_BUS_INFORMATION BusInfo;
+    PDEVICE_NODE ParentDeviceNode;
+    PDEVICE_NODE DeviceNode;
+    IO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopQueryLegacyBusInformation: DeviceObject - %p\n", DeviceObject);
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_LEGACY_BUS_INFORMATION;
+
+    Status = IopSynchronousCall(DeviceObject, &IoStack, (PVOID *)&BusInfo);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopQueryLegacyBusInformation: Status - %X\n", Status);
+        return Status;
+    }
+
+    if (!BusInfo)
+    {
+        DeviceNode = IopGetDeviceNode(DeviceObject);
+
+        if (!DeviceNode)
+        {
+            ASSERT(BusInfo);
+            return Status;
+        }
+
+        ParentDeviceNode = DeviceNode->Parent;
+
+        if (!ParentDeviceNode)
+        {
+            ASSERT(BusInfo);
+            return Status;
+        }
+
+        if (ParentDeviceNode->ServiceName.Buffer)
+        {
+            DPRINT("IopQueryLegacyBusInformation: STATUS_SUCCESS and BusInfo == NULL! Driver - %wZ\n",
+                   &ParentDeviceNode->ServiceName);
+        }
+
+        ASSERT(BusInfo != NULL);
+
+        return Status;
+    }
+
+    if (OutBusTypeGuid)
+    {
+        RtlCopyMemory(OutBusTypeGuid, &BusInfo->BusTypeGuid, sizeof(GUID));
+    }
+
+    if (OutInterfaceType)
+    {
+        *OutInterfaceType = BusInfo->LegacyBusType;
+    }
+
+    if (OutBusNumber)
+    {
+        *OutBusNumber = BusInfo->BusNumber;
+    }
+
+    ExFreePool(BusInfo);
+
+    return Status;
+}
+
 /* EOF */
