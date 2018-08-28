@@ -466,6 +466,7 @@ IopInitializePlugPlayServices(
     UNICODE_STRING KeyName = RTL_CONSTANT_STRING(L"\\REGISTRY\\MACHINE\\SYSTEM\\CURRENTCONTROLSET");
     UNICODE_STRING PnpManagerDriverName = RTL_CONSTANT_STRING(DRIVER_ROOT_NAME L"PnpManager");
     PDEVICE_OBJECT Pdo;
+    ULONG ix;
 
     if (Phase != 0 && Phase != 1)
     {

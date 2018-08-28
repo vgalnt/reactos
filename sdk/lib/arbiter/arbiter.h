@@ -39,6 +39,7 @@ extern "C" {
 #endif
 
 #define ARB_ORDERING_LIST_DEFAULT_COUNT  16
+#define ARB_ORDERING_LIST_ADD_COUNT      8
 
 /* FIXME structures changes for NT >= 6.0 */
 
