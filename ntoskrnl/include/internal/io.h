@@ -571,14 +571,6 @@ IopDetectResourceConflict(
 //
 NTSTATUS
 NTAPI
-PipCallDriverAddDevice(
-    IN PDEVICE_NODE DeviceNode,
-    IN BOOLEAN LoadDriver,
-    IN PDRIVER_OBJECT DriverObject
-);
-
-NTSTATUS
-NTAPI
 IopInitializePlugPlayServices(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock,
     _In_ ULONG Phase

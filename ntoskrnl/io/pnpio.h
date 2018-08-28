@@ -210,6 +210,14 @@ IopGetBusName(
     _In_ INTERFACE_TYPE IfType
 );
 
+VOID
+NTAPI
+devnode(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ ULONG Flags,
+    _In_ PUNICODE_STRING ServiceName
+);
+
 //
 // pnpenum.c
 //
@@ -217,6 +225,14 @@ NTSTATUS
 NTAPI
 IopQueryAndSaveDeviceNodeCapabilities(
     _In_ PDEVICE_NODE DeviceNode
+);
+
+NTSTATUS
+NTAPI
+PipCallDriverAddDevice(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ BOOLEAN IsLoadDriver,
+    _In_ SERVICE_LOAD_TYPE * DriverLoadType
 );
 
 NTSTATUS
