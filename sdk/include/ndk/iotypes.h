@@ -860,8 +860,13 @@ typedef struct _DEVICE_NODE
     struct _DEVICE_NODE *Parent;
     struct _DEVICE_NODE *LastChild;
     ULONG Level;
+#if defined(_M_X64)
+    ULONG Padded1;
+#endif
     struct _PO_DEVICE_NOTIFY *Notify;
+#if (NTDDI_VERSION >= NTDDI_LONGHORN)
     PO_IRP_MANAGER PoIrpManager;
+#endif
     PNP_DEVNODE_STATE State;
     PNP_DEVNODE_STATE PreviousState;
     PNP_DEVNODE_STATE StateHistory[20];
@@ -871,6 +876,9 @@ typedef struct _DEVICE_NODE
     ULONG Flags;
     ULONG UserFlags;
     ULONG Problem;
+#if defined(_M_X64)
+    ULONG Padded2;
+#endif
     PDEVICE_OBJECT PhysicalDeviceObject;
     PCM_RESOURCE_LIST ResourceList;
     PCM_RESOURCE_LIST ResourceListTranslated;
@@ -885,6 +893,9 @@ typedef struct _DEVICE_NODE
     USHORT ChildBusTypeIndex;
     UCHAR RemovalPolicy;
     UCHAR HardwareRemovalPolicy;
+#if defined(_M_X64)
+    ULONG Padded3;
+#endif
     LIST_ENTRY TargetDeviceNotify;
     LIST_ENTRY DeviceArbiterList;
     LIST_ENTRY DeviceTranslatorList;
@@ -896,6 +907,9 @@ typedef struct _DEVICE_NODE
     {
         struct _DEVICE_NODE *LegacyDeviceNode;
         PDEVICE_RELATIONS PendingDeviceRelations;
+#if (NTDDI_VERSION >= NTDDI_LONGHORN)
+        PVOID Information;
+#endif
     } OverUsed1;
     union
     {
@@ -906,22 +920,64 @@ typedef struct _DEVICE_NODE
     PCM_RESOURCE_LIST BootResourcesTranslated;
 #endif
     ULONG CapabilityFlags;
+#if defined(_M_X64)
+    ULONG Padded4;
+#endif
     struct
     {
         PROFILE_STATUS DockStatus;
+#if defined(_M_X64)
+        ULONG Padded5;
+#endif
         LIST_ENTRY ListEntry;
         WCHAR *SerialNumber;
     } DockInfo;
     ULONG DisableableDepends;
+#if defined(_M_X64)
+    ULONG Padded6;
+#endif
     LIST_ENTRY PendedSetInterfaceState;
     LIST_ENTRY LegacyBusListEntry;
     ULONG DriverUnloadRetryCount;
+#if defined(_M_X64)
+    ULONG Padded7;
+#endif
     struct _DEVICE_NODE *PreviousParent;
     ULONG DeletedChidren;
+#if defined(_M_X64)
+    ULONG Padded8;
+#endif
 #if (NTDDI_VERSION >= NTDDI_LONGHORN)
     ULONG NumaNodeIndex;
 #endif
+#if DBG
+    NTSTATUS DebugStatus;
+#endif
 } DEVICE_NODE, *PDEVICE_NODE;
+
+#if defined(_M_X64)
+  #if (NTDDI_VERSION >= NTDDI_LONGHORN)
+    //C_ASSERT(sizeof(DEVICE_NODE) == 0x220);
+    //if DBG ?
+  #else
+    //C_ASSERT(sizeof(DEVICE_NODE) == 0x1C0);
+    //if DBG ?
+  #endif
+#else
+  #if (NTDDI_VERSION >= NTDDI_LONGHORN)
+    #if DBG
+      C_ASSERT(sizeof(DEVICE_NODE) == 0x15C);
+    #else
+      C_ASSERT(sizeof(DEVICE_NODE) == 0x158);
+    #endif
+  #else
+    #if DBG
+      C_ASSERT(sizeof(DEVICE_NODE) == 0x124);
+    #else
+      C_ASSERT(sizeof(DEVICE_NODE) == 0x120);
+    #endif
+  #endif
+#endif
 
 //
 // Resource Aribtrer Entry
