@@ -417,6 +417,12 @@ IopInsertLegacyBusDeviceNode(
     _In_ ULONG Bus
 );
 
+VOID
+NTAPI
+IopMarkHalDeviceNode(
+    VOID
+);
+
 //
 // pnpres.c
 //
