@@ -230,6 +230,20 @@ NTSTATUS NTAPI IopDmaInitialize();
 NTSTATUS NTAPI IopIrqInitialize();
 NTSTATUS NTAPI IopBusNumberInitialize();
 
+BOOLEAN
+FASTCALL
+INIT_FUNCTION
+IopInitializeBootDrivers(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+VOID
+FASTCALL
+INIT_FUNCTION
+IopInitializeSystemDrivers(
+    VOID
+);
+
 //
 // pnpirp.c
 //

@@ -562,7 +562,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 
     /* Load boot start drivers */
     DPRINT("IoInitSystem: IopInitializeBootDrivers()\n");
-    IopInitializeBootDrivers();
+    IopInitializeBootDrivers(LoaderBlock);
     ASSERT(FALSE);
 
     /* Call back drivers that asked for */

@@ -934,6 +934,7 @@ IopInitializeBuiltinDriver(IN PLDR_DATA_TABLE_ENTRY BootLdrEntry)
     return Status;
 }
 
+#if 0
 /*
  * IopInitializeBootDrivers
  *
@@ -1140,6 +1141,7 @@ IopInitializeBootDrivers(VOID)
     /* In old ROS, the loader list became empty after this point. Simulate. */
     InitializeListHead(&KeLoaderBlock->LoadOrderListHead);
 }
+#endif
 
 VOID
 FASTCALL

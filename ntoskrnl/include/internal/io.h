@@ -1095,18 +1095,6 @@ PnpRootRegisterDevice(
 //
 // Driver Routines
 //
-VOID
-FASTCALL
-IopInitializeBootDrivers(
-    VOID
-);
-
-VOID
-FASTCALL
-IopInitializeSystemDrivers(
-    VOID
-);
-
 NTSTATUS
 NTAPI
 IopCreateDriver(IN PUNICODE_STRING DriverName OPTIONAL,
