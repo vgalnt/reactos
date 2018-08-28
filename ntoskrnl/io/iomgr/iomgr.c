@@ -10,7 +10,9 @@
 /* INCLUDES ****************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+#include "../pnpio.h"
+
+//#define NDEBUG
 #include <debug.h>
 
 ULONG IopTraceLevel = 0;
@@ -537,6 +539,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     }
 
     /* Initialize PnP manager */
+    DPRINT("IoInitSystem: IopInitializePlugPlayServices(0)\n");
     IopInitializePlugPlayServices(LoaderBlock, 0);
 
     /* Initialize SHIM engine */
@@ -546,16 +549,21 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     WmiInitialize();
 
     /* Initialize HAL Root Bus Driver */
+    DPRINT("IoInitSystem: HalInitPnpDriver()\n");
     HalInitPnpDriver();
+    IopMarkHalDeviceNode();
 
     /* Make loader block available for the whole kernel */
     IopLoaderBlock = LoaderBlock;
 
     /* Initialize PnP manager */
+    DPRINT("IoInitSystem: IopInitializePlugPlayServices(1)\n");
     IopInitializePlugPlayServices(LoaderBlock, 1);
 
     /* Load boot start drivers */
+    DPRINT("IoInitSystem: IopInitializeBootDrivers()\n");
     IopInitializeBootDrivers();
+    ASSERT(FALSE);
 
     /* Call back drivers that asked for */
     IopReinitializeBootDrivers();
@@ -597,7 +605,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 #endif
 
     /* Load services for devices found by PnP manager */
-    IopInitializePnpServices(IopRootDeviceNode);
+    //IopInitializePnpServices(IopRootDeviceNode);
 
     /* Load system start drivers */
     IopInitializeSystemDrivers();
