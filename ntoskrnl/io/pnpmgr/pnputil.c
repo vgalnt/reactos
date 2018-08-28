@@ -1062,4 +1062,136 @@ Exit:
     return Result;
 }
 
+NTSTATUS
+NTAPI
+IopGetDriverNameFromKeyNode(
+    _In_ HANDLE KeyHandle,
+    _Inout_ PUNICODE_STRING OutDriverName)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    PKEY_BASIC_INFORMATION KeyBasicInfo;
+    UNICODE_STRING DriverNameString;
+    PWSTR DriverName;
+    PWCHAR Buffer;
+    PWCHAR pChar;
+    ULONG ResultLength;
+    ULONG ServiceType;
+    ULONG Len;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopGetDriverNameFromKeyNode()\n");
+
+    Status = IopGetRegistryValue(KeyHandle, L"ObjectName", &ValueInfo);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (ValueInfo->DataLength == 0 || ValueInfo->DataLength == 1)
+        {
+            ExFreePoolWithTag(ValueInfo, 'uspP');
+            return STATUS_ILL_FORMED_SERVICE_ENTRY;
+        }
+
+        OutDriverName->Length = ValueInfo->DataLength - sizeof(WCHAR);
+        OutDriverName->MaximumLength = ValueInfo->DataLength;
+
+        Buffer = (PWCHAR)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
+        Len = OutDriverName->Length / sizeof(WCHAR);
+
+        for (pChar = (PWCHAR)ValueInfo; Len; Len--)
+        {
+            *pChar = *Buffer;
+            pChar++;
+            Buffer++;
+        }
+
+        OutDriverName->Buffer = (PWSTR)ValueInfo;
+
+        return STATUS_SUCCESS;
+    }
+
+    Status = IopGetRegistryValue(KeyHandle, L"Type", &ValueInfo);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGetDriverNameFromKeyNode: Status - %X\n", Status);
+        return STATUS_ILL_FORMED_SERVICE_ENTRY;
+    }
+
+    if (!ValueInfo->DataLength)
+    {
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+        return STATUS_ILL_FORMED_SERVICE_ENTRY;
+    }
+
+    ServiceType = *(PULONG)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
+
+    if (ServiceType == SERVICE_FILE_SYSTEM_DRIVER ||
+        ServiceType == SERVICE_RECOGNIZER_DRIVER)
+    {
+        DriverName = L"\\FileSystem\\";
+    }
+    else
+    {
+        DriverName = L"\\Driver\\";
+    }
+
+    OutDriverName->Length = wcslen(DriverName) * sizeof(WCHAR);
+
+    ZwQueryKey(KeyHandle, KeyBasicInformation, NULL, 0, &ResultLength);
+
+    KeyBasicInfo = ExAllocatePoolWithTag(NonPagedPool, ResultLength, TAG_IO);
+
+    if (!KeyBasicInfo)
+    {
+        DPRINT1("IopGetDriverNameFromKeyNode: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+        return Status;
+    }
+
+    Status = ZwQueryKey(KeyHandle,
+                        KeyBasicInformation,
+                        KeyBasicInfo,
+                        ResultLength,
+                        &ResultLength);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopGetDriverNameFromKeyNode: Status - %X\n", Status);
+        goto Exit;
+    }
+
+    OutDriverName->MaximumLength = KeyBasicInfo->NameLength +
+                                   OutDriverName->Length;
+
+    OutDriverName->Buffer = ExAllocatePoolWithTag(NonPagedPool,
+                                                  OutDriverName->MaximumLength,
+                                                  TAG_IO);
+    if (!OutDriverName->Buffer)
+    {
+        DPRINT1("IopGetDriverNameFromKeyNode: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    OutDriverName->Length = 0;
+    RtlAppendUnicodeToString(OutDriverName, DriverName);
+
+    DriverNameString.Length = KeyBasicInfo->NameLength;
+    DriverNameString.MaximumLength = DriverNameString.Length;
+    DriverNameString.Buffer = KeyBasicInfo->Name;
+
+    RtlAppendUnicodeStringToString(OutDriverName, &DriverNameString);
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    ExFreePoolWithTag(KeyBasicInfo, TAG_IO);
+    ExFreePoolWithTag(ValueInfo, 'uspP');
+
+    return Status;
+}
+
 /* EOF */
