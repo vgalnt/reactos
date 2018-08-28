@@ -3061,7 +3061,7 @@ PipChangeDeviceObjectFromRegistryProperties(
     ULONG DeviceCharacteristics;
     ULONG Characteristics;
     BOOLEAN OverideDeviceCharacteristics;
-    BOOLEAN OverideSecurity;
+    //BOOLEAN OverideSecurity;
     BOOLEAN OverideExclusive;
     BOOLEAN OverideDeviceType;
 
