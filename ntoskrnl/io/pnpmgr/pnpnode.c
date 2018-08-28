@@ -22,6 +22,7 @@ extern ERESOURCE PiDeviceTreeLock;
 extern ULONG IopMaxDeviceNodeLevel; 
 extern KSEMAPHORE PpRegistrySemaphore;
 extern LIST_ENTRY IopLegacyBusInformationTable[MaximumInterfaceType];
+extern PDEVICE_NODE IopRootDeviceNode;
 
 /* DATA **********************************************************************/
 
@@ -518,6 +519,27 @@ IopInsertLegacyBusDeviceNode(
 
     KeReleaseSemaphore(&PpRegistrySemaphore, IO_NO_INCREMENT, 1, FALSE);
     KeLeaveCriticalRegion();
+}
+
+VOID
+NTAPI
+IopMarkHalDeviceNode(VOID)
+{
+    PDEVICE_NODE DeviceNode;
+
+    for (DeviceNode = IopRootDeviceNode->Child;
+         DeviceNode;
+         DeviceNode = DeviceNode->Sibling)
+    {
+        if ((DeviceNode->State == DeviceNodeStarted ||
+             DeviceNode->State == DeviceNodeStartPostWork) &&
+            !(DeviceNode->Flags & DNF_LEGACY_DRIVER))
+        {
+            IopRootDeviceNode = DeviceNode;
+            DeviceNode->Flags |= DNF_HAL_NODE;
+            return;
+        }
+    }
 }
 
 /* EOF */
