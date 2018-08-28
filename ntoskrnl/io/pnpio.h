@@ -555,4 +555,11 @@ IopIsDeviceInstanceEnabled(
     _In_ BOOLEAN IsDisableDevice
 );
 
+NTSTATUS
+NTAPI
+IopGetDriverNameFromKeyNode(
+    _In_ HANDLE KeyHandle,
+    _Inout_ PUNICODE_STRING OutDriverName
+);
+
 #endif  /* _PNPIO_H */
