@@ -1851,6 +1851,20 @@ IoGetDriverObjectExtension(IN PDRIVER_OBJECT DriverObject,
     return DriverExtensions + 1;
 }
 
+NTSTATUS
+NTAPI
+IopLoadDriver(
+    _In_ HANDLE ServiceHandle,
+    _In_ BOOLEAN SafeBootModeFlag,
+    _In_ BOOLEAN IsFilter,
+    _Out_ NTSTATUS * OutInitStatus)
+{
+    DPRINT("IopLoadDriver: SafeBootModeFlag - %X, IsFilter - %X\n",
+           SafeBootModeFlag, IsFilter);
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
 VOID
 NTAPI
 IopLoadUnloadDriverWorker(
