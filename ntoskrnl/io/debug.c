@@ -7,8 +7,16 @@
  */
 
 #include <ntoskrnl.h>
+#include "pnpio.h"
+
 //#define NDEBUG
 #include <debug.h>
+
+/* GLOBALS ********************************************************************/
+
+extern PDEVICE_NODE IopRootDeviceNode;
+
+/* FUNCTIONS ******************************************************************/
 
 VOID
 NTAPI
@@ -377,6 +385,98 @@ PipGetDeviceNodeStateName(
     }
 
     return Name;
+}
+
+VOID
+NTAPI
+PipDumpDeviceNodes(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ ULONG Level,
+    _In_ ULONG Flags)
+{
+    PDEVICE_NODE ChildDeviceNode;
+    PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
+    PARBITER_INSTANCE Arbiter;
+    PLIST_ENTRY ArbiterListHead;
+    PLIST_ENTRY Entry;
+
+    DPRINT("Level - %X DevNode - %p for PDO - %p\n", Level, DeviceNode, DeviceNode->PhysicalDeviceObject);
+    DPRINT("InstancePath    - %wZ\n", &DeviceNode->InstancePath);
+    if (DeviceNode->ServiceName.Length)
+    {
+    DPRINT("ServiceName     - %wZ\n", &DeviceNode->ServiceName);
+    }
+
+    DPRINT("State           - %X, %S\n", DeviceNode->State, PipGetDeviceNodeStateName(DeviceNode->State));
+    DPRINT("Previous State  - %X, %S\n", DeviceNode->PreviousState, PipGetDeviceNodeStateName(DeviceNode->PreviousState));
+    if (DeviceNode->Problem)
+    {
+    DPRINT("Problem         - %X\n", DeviceNode->Problem);
+    }
+
+    ArbiterListHead = &DeviceNode->DeviceArbiterList;
+
+    for (Entry = DeviceNode->DeviceArbiterList.Flink;
+         Entry != ArbiterListHead;
+         Entry = Entry->Flink)
+    {
+        ArbiterEntry = CONTAINING_RECORD(Entry, PI_RESOURCE_ARBITER_ENTRY, DeviceArbiterList);
+        ASSERT(ArbiterEntry);
+
+        Arbiter = (PARBITER_INSTANCE)ArbiterEntry->ArbiterInterface->Context;
+        ASSERT(Arbiter);
+
+        DPRINT("ArbiterEntry(%X) - %X\n", ArbiterEntry->ResourceType, ArbiterEntry);
+        DPRINT("Arbiter           - %S\n", Arbiter->Name);
+    }
+
+    if (Flags & 2)
+    {
+        /* Display boot configuration (reported by IRP_MN_QUERY_RESOURCES) and AllocatedResources */
+        if (DeviceNode->ResourceList)
+        {
+            DPRINT("------------ ResourceList ------------\n");
+            IopDumpCmResourceList(DeviceNode->ResourceList);
+        }
+
+        if (DeviceNode->BootResources)
+        {
+            DPRINT("------------ BootResources ------------\n");
+            IopDumpCmResourceList(DeviceNode->BootResources);
+        }
+    }
+
+    if (Flags & 4)
+    {
+        /* Display resources required (reported by IRP_MN_FILTER_RESOURCE_REQUIREMENTS) */
+        if (DeviceNode->ResourceRequirements)
+        {
+            DPRINT("------------ ResourceRequirements ------------\n");
+            IopDumpResourceRequirementsList(DeviceNode->ResourceRequirements);
+        }
+
+    }
+
+    if (Flags & 8)
+    {
+        /* Display translated resources (AllocatedResourcesTranslated)  */
+        if (DeviceNode->ResourceListTranslated)
+        {
+            DPRINT("------------ ResourceListTranslated ------------\n");
+            IopDumpCmResourceList(DeviceNode->ResourceListTranslated);
+        }
+    }
+
+    if (Flags & 1)
+    {
+        /* Traversal of all children nodes */
+        for (ChildDeviceNode = DeviceNode->Child;
+             ChildDeviceNode != NULL;
+             ChildDeviceNode = ChildDeviceNode->Sibling)
+        {
+            PipDumpDeviceNodes(ChildDeviceNode, Level + 1, Flags);
+        }
+    }
 }
 
 /* Displays information about a node in the device tree.
