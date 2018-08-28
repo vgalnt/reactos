@@ -10,6 +10,7 @@
 
 #include <hal.h>
 #include "legacy.h"
+#include "ranges.h"
 
 //#define NDEBUG
 #include <debug.h>
@@ -62,11 +63,12 @@ NTAPI
 HalpRemoveAssignedResources(
     IN PBUS_HANDLER BusHandler)
 {
-    UNICODE_STRING ResourceMapName = RTL_CONSTANT_STRING(L"\\Registry\\Machine\\HARDWARE\\RESOURCEMAP");
+    UNICODE_STRING ResourceMapName = 
+        RTL_CONSTANT_STRING(L"\\Registry\\Machine\\HARDWARE\\RESOURCEMAP");
     UNICODE_STRING NameString;
     PKEY_BASIC_INFORMATION KeyInfo;
     PKEY_FULL_INFORMATION FullKeyInfo;
-    PKEY_VALUE_BASIC_INFORMATION ValueInfo;
+    //PKEY_VALUE_BASIC_INFORMATION ValueInfo;
     PKEY_VALUE_FULL_INFORMATION FullValueInfo;
     PCM_RESOURCE_LIST CmResource;
     PCM_FULL_RESOURCE_DESCRIPTOR CmFullList;
@@ -98,7 +100,7 @@ HalpRemoveAssignedResources(
 
     KeyInfo = (PKEY_BASIC_INFORMATION)FullValueInfo;
     FullKeyInfo = (PKEY_FULL_INFORMATION)FullValueInfo;
-    ValueInfo = (PKEY_VALUE_BASIC_INFORMATION)FullValueInfo;
+    //ValueInfo = (PKEY_VALUE_BASIC_INFORMATION)FullValueInfo;
 
     TranslatedNameSize = wcslen(L".Translated") * sizeof(WCHAR);
     BusTranslatedNameSize = wcslen(L".Bus.Translated") * sizeof(WCHAR);
@@ -110,7 +112,9 @@ HalpRemoveAssignedResources(
                                  FALSE);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("HalpRemoveAssignedResources: ..\RESOURCEMAP not opened. Status - %X\n", Status);
+        DPRINT1("HalpRemoveAssignedResources: ...RESOURCEMAP not opened. Status - %X\n",
+                Status);
+
         ASSERT(FALSE);
         ExFreePoolWithTag(FullValueInfo, ' laH');
         return Status;
@@ -234,7 +238,8 @@ HalpRemoveAssignedResources(
                     goto NextValueKey;
                 }
 
-                CmResource = (PCM_RESOURCE_LIST)((ULONG_PTR)FullValueInfo + FullValueInfo->DataOffset);
+                CmResource = (PCM_RESOURCE_LIST)((ULONG_PTR)FullValueInfo +
+                                                 FullValueInfo->DataOffset);
 
                 //HalpDumpCmResourceList(CmResource);
 
