@@ -11,7 +11,7 @@
 #include <ntoskrnl.h>
 #include "../pnpio.h"
 
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 #include "../mm/ARM3/miarm.h"
