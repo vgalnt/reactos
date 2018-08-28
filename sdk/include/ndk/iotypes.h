@@ -164,6 +164,7 @@ extern POBJECT_TYPE NTSYSAPI IoDriverObjectType;
 //
 // Device Node Flags
 //
+#if 0 // old flags
 #define DNF_PROCESSED                           0x00000001
 #define DNF_STARTED                             0x00000002
 #define DNF_START_FAILED                        0x00000004
@@ -196,6 +197,40 @@ extern POBJECT_TYPE NTSYSAPI IoDriverObjectType;
 #define DNF_HAS_BOOT_CONFIG                     0x20000000
 #define DNF_BOOT_CONFIG_RESERVED                0x40000000
 #define DNF_HAS_PROBLEM                         0x80000000 // ???
+#endif
+
+#define DNF_MADEUP                              (0x00000001) // The device was created and is owned by the PnP Manager. It was not created by a bus driver. 
+#define DNF_DUPLICATE                           (0x00000002) // The device node is a duplicate of another enumerated device node. 
+#define DNF_HAL_NODE                            (0x00000004) // The device node is the root node created by the hardware abstraction layer (HAL). 
+#define DNF_REENUMERATE                         (0x00000008) // The device needs to be re-enumerated. 
+#define DNF_ENUMERATED                          (0x00000010) // The PDO for the device was exposed by its parent. 
+#define DNF_IDS_QUERIED                         (0x00000020) // The operating system should send IRP_MN_QUERY_ID requests to the device driver. 
+#define DNF_HAS_BOOT_CONFIG                     (0x00000040) // The device has resources assigned by the BIOS. The device is considered pseudo-started and needs to participate in rebalancing. 
+#define DNF_BOOT_CONFIG_RESERVED                (0x00000080) // The boot resources of the device are reserved. 
+#define DNF_NO_RESOURCE_REQUIRED                (0x00000100) // The device does not require resources. 
+#define DNF_RESOURCE_REQUIREMENTS_NEED_FILTERED (0x00000200) // The device's resource requirements list is a filtered list. 
+#define DNF_RESOURCE_REQUIREMENTS_CHANGED       (0x00000400) // The device's resource requirements list has changed. 
+#define DNF_NON_STOPPED_REBALANCE               (0x00000800) // The device can be restarted with new resources without being stopped. 
+#define DNF_LEGACY_DRIVER                       (0x00001000) // The device's controlling driver is a non-PnP driver. 
+#define DNF_HAS_PROBLEM                         (0x00002000) // The device has a problem and will be removed. 
+#define DNF_HAS_PRIVATE_PROBLEM                 (0x00004000) // The device reported PNP_DEVICE_FAILED without also reporting PNP_DEVICE_RESOURCE_REQUIREMENTS_CHANGED. 
+#define DNF_HARDWARE_VERIFICATION               (0x00008000) // The device node has hardware verification. 
+#define DNF_DEVICE_GONE                         (0x00010000) // The device's PDO is no longer returned in an IRP_QUERY_RELATIONS request. 
+#define DNF_LEGACY_RESOURCE_DEVICENODE          (0x00020000) // The device node was created for legacy resource allocation. 
+#define DNF_NEEDS_REBALANCE                     (0x00040000) // The device node has triggered rebalancing. 
+#define DNF_LOCKED_FOR_EJECT                    (0x00080000) // The device is being ejected or is related to a device that is being ejected. 
+#define DNF_DRIVER_BLOCKED                      (0x00100000) // One or more of the drivers for the device node have been blocked from loading. 
+#define DNF_CHILD_WITH_INVALID_ID               (0x00200000) // One or more children of the device node have invalid IDs. 
+#define DNF_ASYNC_START_NOT_SUPPORTED           (0x00400000) // The device does not support asynchronous starts. 
+#define DNF_ASYNC_ENUMERATION_NOT_SUPPORTED     (0x00800000) // The device does not support asynchronous enumeration. 
+#define DNF_LOCKED_FOR_REBALANCE                (0x01000000) // The device is locked for rebalancing. 
+#define DNF_UNINSTALLED                         (0x02000000) // An IRP_MN_QUERY_REMOVE_DEVICE request is in progress for the device. 
+#define DNF_NO_LOWER_DEVICE_FILTERS             (0x04000000) // There is no Registry entry of the lower-device-filters type for the device. 
+#define DNF_NO_LOWER_CLASS_FILTERS              (0x08000000) // There is no Registry entry of the lower-class-filters type for the device. 
+#define DNF_NO_SERVICE                          (0x10000000) // There is no Registry entry of the service the for the device. 
+#define DNF_NO_UPPER_DEVICE_FILTERS             (0x20000000) // There is no Registry entry of the upper-device-filters type for the device. 
+#define DNF_NO_UPPER_CLASS_FILTERS              (0x40000000) // There is no Registry entry of the upper-class-filters type for the device. 
+#define DNF_WAITING_FOR_FDO                     (0x80000000) // Enumeration of the device is waiting until the driver attaches its FDO. 
 
 //
 // Device Node User Flags
