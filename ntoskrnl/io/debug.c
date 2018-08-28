@@ -296,4 +296,44 @@ IopGetBusName(
     }
 }
 
+/* Displays information about a node in the device tree.
+   See !devnode extension for WinDbg.
+   devnode (Address [Flags] [Service])
+   devnode (0, 1, NULL) - displays the entire device tree.
+   devnode (1, 0, NULL) - displays all pending removals of device objects
+   devnode (2, 0, NULL) - displays all pending ejects of device objects
+*/
+
+VOID
+NTAPI
+devnode(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ ULONG Flags,
+    _In_ PUNICODE_STRING ServiceName)
+{
+    DPRINT("devnode: DeviceNode - %X, Flags - %X, ServiceName - %X\n",
+           DeviceNode, Flags, ServiceName);
+
+    if (DeviceNode == ULongToPtr(1) ||
+        DeviceNode == ULongToPtr(2))
+    {
+        DPRINT("devnode: FIXME [pending removals] and [pending ejects] NOT IMPLEMENTED\n");
+        ASSERT(FALSE);
+        return;
+    }
+
+    if (ServiceName)
+    {
+        DPRINT("devnode: FIXME [ServiceName] - %zW NOT IMPLEMENTED\n", ServiceName);
+        ASSERT(FALSE);
+    }
+
+    if (!DeviceNode)
+    {
+        DeviceNode = IopRootDeviceNode;
+    }
+
+    PipDumpDeviceNodes(DeviceNode, 0, Flags);
+}
+
 /* EOF */
