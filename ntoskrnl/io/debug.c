@@ -296,12 +296,95 @@ IopGetBusName(
     }
 }
 
+PWSTR
+NTAPI
+PipGetDeviceNodeStateName(
+    _In_ PNP_DEVNODE_STATE State)
+{
+    PWSTR Name;
+
+    switch (State)
+    {
+        case DeviceNodeUnspecified:
+            Name = L"DeviceNodeUnspecified";
+            break;
+        case DeviceNodeUninitialized:
+            Name = L"DeviceNodeUninitialized";
+            break;
+        case DeviceNodeInitialized:
+            Name = L"DeviceNodeInitialized";
+            break;
+        case DeviceNodeDriversAdded:
+            Name = L"DeviceNodeDriversAdded";
+            break;
+        case DeviceNodeResourcesAssigned:
+            Name = L"DeviceNodeResourcesAssigned";
+            break;
+        case DeviceNodeStartPending:
+            Name = L"DeviceNodeStartPending";
+            break;
+        case DeviceNodeStartCompletion:
+            Name = L"DeviceNodeStartCompletion";
+            break;
+        case DeviceNodeStartPostWork:
+            Name = L"DeviceNodeStartPostWork";
+            break;
+        case DeviceNodeStarted:
+            Name = L"DeviceNodeStarted";
+            break;
+        case DeviceNodeQueryStopped:
+            Name = L"DeviceNodeQueryStopped";
+            break;
+        case DeviceNodeStopped:
+            Name = L"DeviceNodeStopped";
+            break;
+        case DeviceNodeRestartCompletion:
+            Name = L"DeviceNodeRestartCompletion";
+            break;
+        case DeviceNodeEnumeratePending:
+            Name = L"DeviceNodeEnumeratePending";
+            break;
+        case DeviceNodeEnumerateCompletion:
+            Name = L"DeviceNodeEnumerateCompletion";
+            break;
+        case DeviceNodeAwaitingQueuedDeletion:
+            Name = L"DeviceNodeAwaitingQueuedDeletion";
+            break;
+        case DeviceNodeAwaitingQueuedRemoval:
+            Name = L"DeviceNodeAwaitingQueuedRemoval";
+            break;
+        case DeviceNodeQueryRemoved:
+            Name = L"DeviceNodeQueryRemoved";
+            break;
+        case DeviceNodeRemovePendingCloses:
+            Name = L"DeviceNodeRemovePendingCloses";
+            break;
+        case DeviceNodeRemoved:
+            Name = L"DeviceNodeRemoved";
+            break;
+        case DeviceNodeDeletePendingCloses:
+            Name = L"DeviceNodeDeletePendingCloses";
+            break;
+        case DeviceNodeDeleted:
+            Name = L"DeviceNodeDeleted";
+            break;
+        default:
+            if (State != MaxDeviceNodeState)
+            {
+                ASSERT(FALSE);
+            }
+            break;
+    }
+
+    return Name;
+}
+
 /* Displays information about a node in the device tree.
    See !devnode extension for WinDbg.
    devnode (Address [Flags] [Service])
-   devnode (0, 1, NULL) - displays the entire device tree.
-   devnode (1, 0, NULL) - displays all pending removals of device objects
-   devnode (2, 0, NULL) - displays all pending ejects of device objects
+   devnode (NULL,     1,      NULL)   - displays the entire device tree.
+   devnode (1,        0,      NULL)   - displays all pending removals of device objects
+   devnode (2,        0,      NULL)   - displays all pending ejects of device objects
 */
 
 VOID
