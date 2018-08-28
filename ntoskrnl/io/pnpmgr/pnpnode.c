@@ -441,4 +441,83 @@ PpHotSwapUpdateRemovalPolicy(
            DeviceNode->RemovalPolicy, DeviceNode->HardwareRemovalPolicy);
 }
 
+VOID
+NTAPI
+IopInsertLegacyBusDeviceNode(
+    _In_ PDEVICE_NODE LegacyDeviceNode,
+    _In_ INTERFACE_TYPE InterfaceType,
+    _In_ ULONG BusNumber)
+{
+    PLIST_ENTRY Head;
+    PLIST_ENTRY Entry;
+    PDEVICE_NODE deviceNode;
+    ULONG busNumber;
+  
+    PAGED_CODE();
+    DPRINT("IopInsertLegacyBusDeviceNode: LegacyDeviceNode - %p, InterfaceType - %X, BusNumber - %X\n",
+           LegacyDeviceNode, InterfaceType, BusNumber);
+
+    ASSERT (InterfaceType < MaximumInterfaceType &&
+            InterfaceType > InterfaceTypeUndefined);
+
+    if (InterfaceType >= MaximumInterfaceType ||
+        InterfaceType <= InterfaceTypeUndefined ||
+        InterfaceType == PNPBus)
+    {
+        return;
+    }
+
+    if (InterfaceType == Eisa)
+    {
+        InterfaceType = Isa;
+    }
+
+    KeEnterCriticalRegion();
+    KeWaitForSingleObject(&PpRegistrySemaphore,
+                          DelayExecution,
+                          KernelMode,
+                          FALSE,
+                          NULL);
+
+    Head = &IopLegacyBusInformationTable[InterfaceType];
+
+    for (Entry = Head->Flink; ; Entry = Entry->Flink)
+    {
+        if (Entry == Head)
+        {
+            DPRINT("IopInsertLegacyBusDeviceNode: Inserting: InstancePath - %wZ, Interface - %X,  BusNumber - %X\n",
+                   &LegacyDeviceNode->InstancePath, InterfaceType, BusNumber);
+
+            InsertTailList(Entry, &LegacyDeviceNode->LegacyBusListEntry);
+            break;
+        }
+
+        deviceNode = CONTAINING_RECORD(Entry, DEVICE_NODE, LegacyBusListEntry);
+        busNumber = deviceNode->BusNumber;
+
+        if (busNumber == BusNumber)
+        {
+            if (deviceNode != LegacyDeviceNode)
+            {
+                DPRINT("IopInsertLegacyBusDeviceNode: Identical deviceNode - %wZ and LegacyDeviceNode - %\n",
+                       &deviceNode->InstancePath, &LegacyDeviceNode->InstancePath);
+            }
+
+            break;
+        }
+
+        if (busNumber > BusNumber)
+        {
+            DPRINT("IopInsertLegacyBusDeviceNode: Inserting: InstancePath - %wZ, Interface - %X,  BusNumber - %X\n",
+                   &LegacyDeviceNode->InstancePath, InterfaceType, BusNumber);
+
+            InsertTailList(Entry, &LegacyDeviceNode->LegacyBusListEntry);
+            break;
+        }
+    }
+
+    KeReleaseSemaphore(&PpRegistrySemaphore, IO_NO_INCREMENT, 1, FALSE);
+    KeLeaveCriticalRegion();
+}
+
 /* EOF */
