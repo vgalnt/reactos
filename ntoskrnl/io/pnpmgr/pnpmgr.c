@@ -47,6 +47,12 @@ typedef struct _DEVICE_ACTION_DATA
     DEVICE_RELATION_TYPE Type;
 } DEVICE_ACTION_DATA, *PDEVICE_ACTION_DATA;
 
+typedef struct _DEVICE_REGISTRATION_CONTEXT {
+    PUNICODE_STRING InstancePath;
+    PVOID Function;
+    PBOOLEAN EnableInstance;
+} DEVICE_REGISTRATION_CONTEXT, *PDEVICE_REGISTRATION_CONTEXT;
+
 /* FUNCTIONS *****************************************************************/
 NTSTATUS
 NTAPI
