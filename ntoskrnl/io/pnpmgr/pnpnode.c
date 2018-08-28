@@ -290,6 +290,7 @@ PiHotSwapGetDetachableNode(
     _Out_ PDEVICE_NODE * OutDeviceNode)
 {
     PDEVICE_NODE CurrentNode;
+    DEVICE_CAPABILITIES_FLAGS CapsFlags;
 
     PAGED_CODE();
     DPRINT("PiHotSwapGetDetachableNode: DeviceNode - %p\n", DeviceNode);
@@ -300,7 +301,9 @@ PiHotSwapGetDetachableNode(
          CurrentNode;
          CurrentNode = CurrentNode->Parent)
     {
-        if (CurrentNode->CapabilityFlags & 0x18) // (EjectSupported | Removable) FIXME
+        CapsFlags.AsULONG = CurrentNode->CapabilityFlags;
+
+        if (CapsFlags.EjectSupported || CapsFlags.Removable)
         {
             DPRINT("PiHotSwapGetDetachableNode: CurrentNode - %p\n", CurrentNode);
             break;
