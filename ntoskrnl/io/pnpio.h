@@ -146,6 +146,22 @@ typedef struct _IOPNP_DEVICE_EXTENSION
     ULONG CompatibleIdListSize;
 } IOPNP_DEVICE_EXTENSION, *PIOPNP_DEVICE_EXTENSION;
 
+typedef struct _PNP_REQ_LIST PNP_REQ_LIST, *PPNP_REQ_LIST;
+
+typedef struct _PNP_RESOURCE_REQUEST
+{ 
+    PDEVICE_OBJECT PhysicalDevice;
+    ULONG Flags;
+    ARBITER_REQUEST_SOURCE AllocationType;
+    ULONG Priority;
+    ULONG Position;
+    PIO_RESOURCE_REQUIREMENTS_LIST ResourceRequirements;
+    PPNP_REQ_LIST ReqList;
+    PCM_RESOURCE_LIST ResourceAssignment;
+    PCM_RESOURCE_LIST TranslatedResourceAssignment;
+    NTSTATUS Status;
+} PNP_RESOURCE_REQUEST, *PPNP_RESOURCE_REQUEST; 
+
 //=== iomgr ================================
 
 //
