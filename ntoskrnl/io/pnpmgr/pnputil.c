@@ -1327,4 +1327,174 @@ Exit:
     return Status;
 }
 
+BOOLEAN
+NTAPI
+IopIsAnyDeviceInstanceEnabled(
+    _In_ PUNICODE_STRING ServiceKeyName,
+    _In_ HANDLE ServiceKeyHandle,
+    _In_ BOOLEAN IsLegacyDriver)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    UNICODE_STRING DeviceInstance;
+    UNICODE_STRING ValueName;
+    HANDLE KeyHandle;
+    HANDLE LegacyHandle;
+    HANDLE EnumHandle;
+    ULONG LegacyValue;
+    ULONG Count;
+    ULONG ix;
+    NTSTATUS Status;
+    BOOLEAN IsEnabled;
+    BOOLEAN Result = FALSE;
+    BOOLEAN IsOpenService = FALSE;
+
+    PAGED_CODE();
+    DPRINT("IopIsAnyDeviceInstanceEnabled: ServiceKeyName - %wZ, IsLegacyDriver - %X\n",
+           ServiceKeyName, IsLegacyDriver);
+
+    if (ServiceKeyHandle)
+    {
+        RtlInitUnicodeString(&ValueName, L"Enum");
+
+        Status = IopOpenRegistryKeyEx(&EnumHandle,
+                                      ServiceKeyHandle,
+                                      &ValueName,
+                                      KEY_READ);
+    }
+    else
+    {
+        Status = PipOpenServiceEnumKeys(ServiceKeyName,
+                                        KEY_READ,
+                                        &ServiceKeyHandle,
+                                        &EnumHandle,
+                                        FALSE);
+        if (!NT_SUCCESS(Status))
+        {
+            return Result;
+        }
+
+        IsOpenService = TRUE;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsOpenService)
+        {
+            ZwClose(ServiceKeyHandle);
+        }
+
+        return Result;
+    }
+
+    Count = 0;
+
+    Status = IopGetRegistryValue(EnumHandle, L"Count", &ValueInfo);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (ValueInfo->Type == REG_DWORD &&
+            ValueInfo->DataLength >= sizeof(ULONG))
+        {
+            Count = *(PULONG)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
+        }
+
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+    }
+
+    ZwClose(EnumHandle);
+
+    if (!Count)
+    {
+        if (IsOpenService)
+        {
+            ZwClose(ServiceKeyHandle);
+        }
+        return Result;
+    }
+
+    for (ix = 0; ix < Count; ix++)
+    {
+        Status = PipServiceInstanceToDeviceInstance(ServiceKeyHandle,
+                                                    NULL,
+                                                    ix,
+                                                    &DeviceInstance,
+                                                    &LegacyHandle,
+                                                    KEY_ALL_ACCESS);
+        if (!NT_SUCCESS(Status))
+        {
+            continue;
+        }
+
+        IsEnabled = IopIsDeviceInstanceEnabled(NULL, &DeviceInstance, TRUE);
+
+        ExFreePoolWithTag(DeviceInstance.Buffer, '  pP');
+
+        if (!IsEnabled)
+        {
+            ZwClose(LegacyHandle);
+            continue;
+        }
+
+        LegacyValue = 0;
+
+        if (!IsLegacyDriver)
+        {
+            Status = IopGetRegistryValue(LegacyHandle,
+                                         L"Legacy",
+                                         &ValueInfo);
+
+            if (NT_SUCCESS(Status))
+            {
+                if (ValueInfo->Type == REG_DWORD &&
+                    ValueInfo->DataLength == sizeof(ULONG))
+                {
+                    LegacyValue = *(PULONG)((ULONG_PTR)ValueInfo +
+                                            ValueInfo->DataOffset);
+                }
+
+                ExFreePoolWithTag(ValueInfo, 'uspP');
+
+                if (LegacyValue)
+                {
+                    ZwClose(LegacyHandle);
+                    continue;
+                }
+            }
+        }
+
+        RtlInitUnicodeString(&ValueName, L"Control");
+
+        Status = IopCreateRegistryKeyEx(&KeyHandle,
+                                        LegacyHandle,
+                                        &ValueName,
+                                        KEY_ALL_ACCESS,
+                                        REG_OPTION_VOLATILE,
+                                        NULL);
+        if (NT_SUCCESS(Status))
+        {
+            RtlInitUnicodeString(&ValueName, L"ActiveService");
+
+            ZwSetValueKey(KeyHandle,
+                          &ValueName,
+                          0,
+                          REG_SZ,
+                          ServiceKeyName->Buffer,
+                          ServiceKeyName->Length + sizeof(WCHAR));
+
+            ZwClose(KeyHandle);
+        }
+
+        Result = TRUE;
+
+        ZwClose(LegacyHandle);
+    }
+
+    if (IsOpenService)
+    {
+        ZwClose(ServiceKeyHandle);
+    }
+
+    return Result;
+}
+
 /* EOF */
