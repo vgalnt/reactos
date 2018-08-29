@@ -2080,6 +2080,20 @@ Exit:
 
 NTSTATUS
 NTAPI
+IopAllocateBootResourcesInternal(
+    _In_ ULONG AllocationType,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PCM_RESOURCE_LIST CmResource)
+{
+    PAGED_CODE();
+    DPRINT("IopAllocateBootResourcesInternal: AllocationType - %X, DeviceObject - %p\n",
+           AllocationType, DeviceObject);
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 IopAllocateBootResources(
     _In_ ULONG AllocationType,
     _In_ PDEVICE_OBJECT DeviceObject,
