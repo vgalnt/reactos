@@ -140,12 +140,11 @@ typedef union _DEVICE_CAPABILITIES_FLAGS
 
 C_ASSERT(sizeof(DEVICE_CAPABILITIES_FLAGS) == sizeof(ULONG));
 
-typedef struct _PNP_LEGACY_DEVICE_EXTENSION
+typedef struct _IOPNP_DEVICE_EXTENSION
 {
-    PWCHAR CompatibleIDs;
-    SIZE_T CompatibleIdsLenght;
-} PNP_LEGACY_DEVICE_EXTENSION, *PPNP_LEGACY_DEVICE_EXTENSION;
-
+    PWCHAR CompatibleIdList;
+    ULONG CompatibleIdListSize;
+} IOPNP_DEVICE_EXTENSION, *PIOPNP_DEVICE_EXTENSION;
 
 //=== iomgr ================================
 
