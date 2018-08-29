@@ -4163,6 +4163,48 @@ Exit:
 }
 
 NTSTATUS
+PiMarkDeviceTreeForReenumerationWorker(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ PVOID Context)
+{
+    PAGED_CODE();
+
+    if (DeviceNode->State != DeviceNodeStarted)
+    {
+        return STATUS_SUCCESS;
+    }
+
+    DeviceNode->Flags |= DNF_REENUMERATE;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+PiMarkDeviceTreeForReenumeration(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ BOOLEAN EnumSubtree)
+{
+    DEVICETREE_TRAVERSE_CONTEXT Context;
+
+    PAGED_CODE();
+
+    PiMarkDeviceTreeForReenumerationWorker(DeviceNode, NULL);
+
+    if (EnumSubtree == FALSE)
+    {
+        return STATUS_SUCCESS;
+    }
+
+    IopInitDeviceTreeTraverseContext(&Context,
+                                     DeviceNode,
+                                     PiMarkDeviceTreeForReenumerationWorker,
+                                     DeviceNode);
+
+   return IopTraverseDeviceTree(&Context);
+}
+
+NTSTATUS
 NTAPI
 PiProcessReenumeration(
     _In_ PPIP_ENUM_REQUEST Request)
