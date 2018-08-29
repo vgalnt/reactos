@@ -213,6 +213,141 @@ Exit:
 
 NTSTATUS
 NTAPI
+ArbPruneOrdering(
+    _Out_ PARBITER_ORDERING_LIST OrderingList,
+    _In_ ULONGLONG MinimumAddress,
+    _In_ ULONGLONG MaximumAddress)
+{
+    PARBITER_ORDERING Current;
+    PARBITER_ORDERING Orderings;
+    PARBITER_ORDERING NewOrderings;
+    PARBITER_ORDERING TmpOrderings;
+    ULONG TmpOrderingsSize;
+    ULONG ix;
+    USHORT Count;
+
+    //PAGED_CODE();
+    DPRINT("ArbPruneOrdering: OrderingList->Count - %X, MinimumAddress - %I64X, MaximumAddress - %I64X\n",
+            OrderingList->Count, MinimumAddress, MaximumAddress);
+
+    ASSERT(OrderingList);
+    ASSERT(OrderingList->Orderings);
+
+    if (MaximumAddress < MinimumAddress)
+    {
+        DPRINT("ArbPruneOrdering: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    TmpOrderingsSize = (2 * OrderingList->Count * sizeof(ARBITER_ORDERING)) +
+                       sizeof(ARBITER_ORDERING);
+
+    TmpOrderings = ExAllocatePoolWithTag(PagedPool,
+                                         TmpOrderingsSize,
+                                        'LbrA');
+    if (!TmpOrderings)
+    {
+        DPRINT("ArbPruneOrdering: STATUS_INSUFFICIENT_RESOURCES\n");
+        goto ErrorExit;
+    }
+
+    Current = TmpOrderings;
+    Orderings = OrderingList->Orderings;
+
+    for (ix = 0; ix < OrderingList->Count; ix++)
+    {
+        if (MaximumAddress < Orderings[0].Start ||
+            MinimumAddress > Orderings[0].End)
+        {
+            Current->Start = Orderings[0].Start;
+            Current->End = Orderings[0].End;
+        }
+        else if (MinimumAddress <= Orderings[0].Start)
+        {
+            if (MaximumAddress >= Orderings[0].End)
+            {
+                continue;
+            }
+            else
+            {
+                Current->Start = MaximumAddress + 1;
+                Current->End = Orderings[0].End;
+            }
+        }
+        else
+        {
+            if (MaximumAddress >= Orderings[0].End)
+            {
+                Current->Start = Orderings[0].Start;
+                Current->End = MinimumAddress - 1;
+            }
+            else
+            {
+                Current->Start = MaximumAddress + 1;
+                Current->End = Orderings[0].End;
+
+                Current++;
+
+                Current->Start = Orderings[0].Start;
+                Current->End = MinimumAddress - 1;
+            }
+        }
+
+        Current++;
+    }
+
+    Count = Current - TmpOrderings;
+    ASSERT(Current - TmpOrderings >= 0);
+
+    if (!Count)
+    {
+        ExFreePoolWithTag(TmpOrderings, 'LbrA');
+        OrderingList->Count = Count;
+        return STATUS_SUCCESS;
+    }
+
+    if (Count > OrderingList->Maximum)
+    {
+        NewOrderings = ExAllocatePoolWithTag(PagedPool,
+                                             Count * sizeof(ARBITER_ORDERING),
+                                             'LbrA');
+        if (!NewOrderings)
+        {
+            DPRINT("ArbPruneOrdering: STATUS_INSUFFICIENT_RESOURCES\n");
+            goto ErrorExit;
+        }
+
+        if (OrderingList->Orderings)
+        {
+            ExFreePoolWithTag(OrderingList->Orderings, 'LbrA');
+        }
+
+        OrderingList->Orderings = NewOrderings;
+        OrderingList->Maximum = Count;
+    }
+
+    RtlCopyMemory(OrderingList->Orderings,
+                  TmpOrderings,
+                  Count * sizeof(ARBITER_ORDERING));
+
+    OrderingList->Count = Count;
+
+    ExFreePoolWithTag(TmpOrderings, 'LbrA');
+
+    return STATUS_SUCCESS;
+
+ErrorExit:
+
+    if (TmpOrderings)
+    {
+        ExFreePoolWithTag(TmpOrderings, 'LbrA');
+    }
+
+    return STATUS_INSUFFICIENT_RESOURCES;
+}
+
+NTSTATUS
+NTAPI
 ArbInitializeOrderingList(
     _Out_ PARBITER_ORDERING_LIST OrderList)
 {
