@@ -223,6 +223,12 @@ devnode(
 //
 NTSTATUS
 NTAPI
+PpCriticalProcessCriticalDevice(
+    _In_ PDEVICE_NODE DeviceNode
+);
+
+NTSTATUS
+NTAPI
 IopQueryAndSaveDeviceNodeCapabilities(
     _In_ PDEVICE_NODE DeviceNode
 );

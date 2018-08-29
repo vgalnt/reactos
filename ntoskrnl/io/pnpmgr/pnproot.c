@@ -210,12 +210,10 @@ IopInitializeDeviceInstanceKey(
     UNICODE_STRING Name;
     DEVICE_CAPABILITIES_FLAGS CapFlags;
     ULONG Legacy;
-    ULONG Problem;
     ULONG ConfigFlags;
     ULONG ServiceType;
     NTSTATUS Status;
     BOOLEAN DuplicateOf = FALSE;
-    BOOLEAN Result;
 
     PAGED_CODE();
     DPRINT("IopInitializeDeviceInstanceKey: KeyName - %wZ, RelationContext->Objects - %p\n",
