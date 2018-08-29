@@ -241,7 +241,7 @@ HalpRemoveAssignedResources(
                 CmResource = (PCM_RESOURCE_LIST)((ULONG_PTR)FullValueInfo +
                                                  FullValueInfo->DataOffset);
 
-                //HalpDumpCmResourceList(CmResource);
+                HalpDumpCmResourceList(CmResource);
 
                 CmFullList = &CmResource->List[0];
 
@@ -277,7 +277,6 @@ HalpRemoveAssignedResources(
                                 break;
 
                             default:
-                                DPRINT1("HalpRemoveAssignedResources: CmDescriptor->Type == CmResourceTypeDeviceSpecific !!!\n");
                                 ASSERT(CmDescriptor->Type != CmResourceTypeDeviceSpecific);
                                 break;
                         }

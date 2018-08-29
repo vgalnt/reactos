@@ -1179,8 +1179,7 @@ MapperConstructRootEnumTree(
             MapperSeedKey(KeyHandle, &KeyName, MapperInfo, IsDisableMapper);
         }
 
-ASSERT(FALSE);
-        //MapperMarkKey(KeyHandle, &KeyName, MapperInfo);
+        MapperMarkKey(KeyHandle, &KeyName, MapperInfo);
         ZwClose(KeyHandle);
     }
 
