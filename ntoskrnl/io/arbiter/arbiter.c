@@ -261,6 +261,66 @@ ArbFreeOrderingList(
 
 NTSTATUS
 NTAPI
+ArbpGetRegistryValue(
+    _In_ HANDLE KeyHandle,
+    _In_ PCWSTR SourceString,
+    _Out_ PKEY_VALUE_FULL_INFORMATION * OutValueInfo)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    UNICODE_STRING DestinationString;
+    ULONG ResultLength;
+    NTSTATUS Status;
+
+    //PAGED_CODE();
+    DPRINT("ArbpGetRegistryValue: SourceString - %S\n", SourceString);
+
+    RtlInitUnicodeString(&DestinationString, SourceString);
+
+    Status = ZwQueryValueKey(KeyHandle,
+                             &DestinationString,
+                             KeyFullInformation | KeyNodeInformation,
+                             NULL,
+                             0,
+                             &ResultLength);
+
+    if (Status != STATUS_BUFFER_OVERFLOW &&
+        Status != STATUS_BUFFER_TOO_SMALL)
+    {
+        DPRINT("ArbpGetRegistryValue: Status - %X\n", Status);
+        return Status;
+    }
+
+    ValueInfo = ExAllocatePoolWithTag(PagedPool, ResultLength, 'MbrA');
+
+    if (!ValueInfo)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        DPRINT("ArbpGetRegistryValue: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = ZwQueryValueKey(KeyHandle,
+                             &DestinationString,
+                             KeyFullInformation|KeyNodeInformation,
+                             ValueInfo,
+                             ResultLength,
+                             &ResultLength);
+    if (NT_SUCCESS(Status))
+    {
+        *OutValueInfo = ValueInfo;
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        DPRINT("ArbpGetRegistryValue: Status - %X\n", Status);
+        ExFreePoolWithTag(ValueInfo, 'MbrA');
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 ArbBuildAssignmentOrdering(
     _Inout_ PARBITER_INSTANCE ArbInstance,
     _In_ PCWSTR OrderName,
