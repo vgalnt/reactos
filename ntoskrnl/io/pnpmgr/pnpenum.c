@@ -4162,6 +4162,57 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PiProcessReenumeration(
+    _In_ PPIP_ENUM_REQUEST Request)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_NODE DeviceNode;
+    ULONG ReenumerationType;
+    SERVICE_LOAD_TYPE DriverLoadType;
+
+    PAGED_CODE();
+    DPRINT("PiProcessReenumeration: Request - %p, Request->RequestType - %X\n",
+           Request, Request->RequestType);
+
+    DeviceObject = Request->DeviceObject;
+    ASSERT(DeviceObject);
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    if (DeviceNode->State == DeviceNodeDeletePendingCloses ||
+        DeviceNode->State == DeviceNodeDeleted)
+    {
+        ObDereferenceObject(DeviceObject);
+        return STATUS_DELETE_PENDING;
+    }
+
+    if (Request->RequestType == PipEnumDeviceOnly)
+    {
+        ReenumerationType = PIP_REENUM_TYPE_SINGLE;
+        PiMarkDeviceTreeForReenumeration(DeviceNode, FALSE);
+    }
+    else
+    {
+        // BusRelations
+        ReenumerationType = PIP_REENUM_TYPE_SUBTREE;
+        PiMarkDeviceTreeForReenumeration(DeviceNode, TRUE);
+    }
+
+    DriverLoadType = DemandLoad;
+
+    PipProcessDevNodeTree(DeviceNode,
+                          PnPBootDriversInitialized,
+                          FALSE,
+                          ReenumerationType,
+                          TRUE,
+                          FALSE,
+                          &DriverLoadType,
+                          Request);
+
+    return STATUS_SUCCESS;
+}
 
 VOID
 NTAPI
@@ -4245,7 +4296,7 @@ Start:
                             DPRINT("PipEnumerationWorker: PipEnumSystemHiveLimitChange\n");
                         }
                         ASSERT(FALSE);
-                        Status = 0;//PiProcessReenumeration(Request);
+                        Status = PiProcessReenumeration(Request);
                         IsDereferenceObject = FALSE;
                         break;
 
