@@ -667,6 +667,41 @@ IopInitializePlugPlayServices(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+IopInitializeAttributesAndCreateObject(
+    _In_ PUNICODE_STRING ObjectName,
+    _In_ POBJECT_ATTRIBUTES ObjectAttributes,
+    _Out_ PVOID * OutObject)
+{
+    PDRIVER_OBJECT DriverObject;
+    SIZE_T ObjectSize;
+    NTSTATUS Status;
+
+    ObjectSize = sizeof(DRIVER_OBJECT) + sizeof(EXTENDED_DRIVER_EXTENSION);
+
+    InitializeObjectAttributes(ObjectAttributes,
+                               ObjectName,
+                               OBJ_PERMANENT | OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+                               NULL,
+                               NULL);
+ 
+    /* Create the Object */
+    Status = ObCreateObject(KernelMode,
+                            IoDriverObjectType,
+                            ObjectAttributes,
+                            KernelMode,
+                            NULL,
+                            ObjectSize,
+                            0,
+                            0,
+                            (PVOID *)&DriverObject);
+
+    *OutObject = DriverObject;
+
+    return Status;
+}
+
 BOOLEAN
 FASTCALL
 INIT_FUNCTION
