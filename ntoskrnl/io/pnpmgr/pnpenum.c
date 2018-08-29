@@ -4168,8 +4168,232 @@ NTAPI
 PipEnumerationWorker(
     _In_ PVOID Context)
 {
-    DPRINT("PipEnumerationWorker()\n");
-    ASSERT(FALSE);
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_NODE DeviceNode;
+    PPIP_ENUM_REQUEST Request;
+    BOOLEAN IsDereferenceObject;
+    BOOLEAN IsBootProcess = FALSE;
+    BOOLEAN IsAssignResources = FALSE;
+    KIRQL OldIrql;
+    NTSTATUS Status;
+
+    PpDevNodeLockTree(1);
+
+    while (TRUE)
+    {
+        Status = STATUS_SUCCESS;
+        IsDereferenceObject = TRUE;
+
+        KeAcquireSpinLock(&IopPnPSpinLock, &OldIrql);
+
+        Request = CONTAINING_RECORD(IopPnpEnumerationRequestList.Flink,
+                                    PIP_ENUM_REQUEST,
+                                    RequestLink);
+
+        if (IsListEmpty(&IopPnpEnumerationRequestList))
+        {
+            break;
+        }
+
+        RemoveHeadList(&IopPnpEnumerationRequestList);
+
+Start:
+        KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+
+        if (Request)
+        {
+            InitializeListHead(&Request->RequestLink);
+
+            //FIXME: Check ShuttingDown\n");
+
+            DeviceObject = Request->DeviceObject;
+            ASSERT(DeviceObject);
+
+            DeviceNode = IopGetDeviceNode(DeviceObject);
+            ASSERT(DeviceNode);
+
+            if (DeviceNode->State == DeviceNodeDeleted)
+            {
+                Status = STATUS_UNSUCCESSFUL;
+            }
+            else
+            {
+                DPRINT("PipEnumerationWorker: DeviceObject - %p, Request->RequestType - %X\n",
+                       DeviceObject,
+                       Request->RequestType);
+
+                switch (Request->RequestType)
+                {
+                    case PipEnumDeviceOnly:
+                    case PipEnumDeviceTree:
+                    case PipEnumRootDevices:
+                    case PipEnumSystemHiveLimitChange:
+                        if (Request->RequestType == PipEnumDeviceOnly)
+                        {
+                            DPRINT("PipEnumerationWorker: PipEnumDeviceOnly\n");
+                        }
+                        else if (Request->RequestType == PipEnumDeviceTree)
+                        {
+                            DPRINT("PipEnumerationWorker: PipEnumDeviceTree\n");
+                        }
+                        else if (Request->RequestType == PipEnumRootDevices)
+                        {
+                            DPRINT("PipEnumerationWorker: PipEnumRootDevices\n");
+                        }
+                        else if (Request->RequestType == PipEnumSystemHiveLimitChange)
+                        {
+                            DPRINT("PipEnumerationWorker: PipEnumSystemHiveLimitChange\n");
+                        }
+                        ASSERT(FALSE);
+                        Status = 0;//PiProcessReenumeration(Request);
+                        IsDereferenceObject = FALSE;
+                        break;
+
+                    case PipEnumAddBootDevices:
+                        DPRINT("PipEnumerationWorker: PipEnumAddBootDevices\n");
+                        ASSERT(FALSE);
+                        Status = 0;//PiProcessAddBootDevices(Request);
+                        DPRINT("PipEnumerationWorker: end\n");
+                        break;
+
+                    case PipEnumBootDevices:
+                        DPRINT("PipEnumerationWorker: PipEnumBootDevices\n");
+                        ASSERT(FALSE);
+                        IsBootProcess = TRUE;
+                        Request = NULL;
+                        goto Start;
+
+                    case PipEnumAssignResources:
+                        DPRINT("PipEnumerationWorker: PipEnumAssignResources\n");
+                        ASSERT(FALSE);
+                        IsAssignResources = TRUE;
+                        Request = NULL;
+                        goto Start;
+
+                    case PipEnumGetSetDeviceStatus:
+                        DPRINT("PipEnumerationWorker: PipEnumGetSetDeviceStatus\n");
+                        ASSERT(FALSE);
+                        break;
+
+                    case PipEnumInvalidateRelationsInList:
+                        DPRINT("PipEnumerationWorker: PipEnumInvalidateRelationsInList\n");
+                        ASSERT(FALSE);
+                        break;
+
+                    case PipEnumClearProblem:
+                        DPRINT("PipEnumerationWorker: PipEnumClearProblem\n");
+                        ASSERT(FALSE);
+                        break;
+
+                    case PipEnumHaltDevice:
+                        DPRINT("PipEnumerationWorker: PipEnumHaltDevice\n");
+                        ASSERT(FALSE);
+                        break;
+
+                    case PipEnumInvalidateDeviceState:
+                        DPRINT("PipEnumerationWorker: PipEnumInvalidateDeviceState\n");
+                        ASSERT(FALSE);
+                        Status = 0;//PiProcessRequeryDeviceState(Request);
+                        break;
+
+                    case PipEnumResetDevice:
+                        DPRINT("PipEnumerationWorker: PipEnumResetDevice\n");
+                        ASSERT(FALSE);
+                        goto RestartDevice;
+
+                    case PipEnumStartDevice:
+                        DPRINT("PipEnumerationWorker: PipEnumStartDevice\n");
+                        ASSERT(FALSE);
+RestartDevice:
+                        Status = 0;//PiRestartDevice(Request);
+                        break;
+
+                    case PipEnumIoResourceChanged:
+                        DPRINT("PipEnumerationWorker: PipEnumIoResourceChanged\n");
+                        ASSERT(FALSE);
+                        Status = 0;//PiProcessResourceRequirementsChanged(Request);
+                        if (!NT_SUCCESS(Status))
+                        {
+                            ASSERT(FALSE);
+                            IsAssignResources = TRUE;
+                            Status = STATUS_SUCCESS;
+                            Request = NULL;
+                            goto Start;
+                        }
+                        break;
+
+                    case PipEnumSetProblem:
+                        DPRINT("PipEnumerationWorker: PipEnumSetProblem\n");
+                        ASSERT(FALSE);
+                        break;
+
+                    case PipEnumShutdownPnpDevices:
+                        DPRINT("PipEnumerationWorker: PipEnumShutdownPnpDevices\n");
+                        ASSERT(FALSE);
+                        break;
+
+                    case PipEnumStartSystemDevices:
+                        DPRINT("PipEnumerationWorker: PipEnumStartSystemDevices\n");
+                        ASSERT(FALSE);
+                        Status = 0;//PiProcessStartSystemDevices(Request);
+                        IsDereferenceObject = FALSE;
+                        break;
+
+                    default:
+                        ASSERT(FALSE);
+                        break;
+                }
+            }
+
+            // ? Request->RequestListEntry ?
+
+            if (Request->CompletionStatus)
+            {
+                *Request->CompletionStatus = Status;
+            }
+
+            if (Request->CompletionEvent)
+            {
+                KeSetEvent(Request->CompletionEvent, IO_NO_INCREMENT, FALSE);
+            }
+
+            if (IsDereferenceObject)
+            {
+                ObDereferenceObject(Request->DeviceObject);
+            }
+
+            ExFreePoolWithTag(Request, TAG_IO);
+        }
+        else if (IsAssignResources || IsBootProcess)
+        {
+            //SERVICE_LOAD_TYPE DriverLoadType = DemandLoad;
+
+            ObReferenceObject(IopRootDeviceNode->PhysicalDeviceObject);
+
+            ASSERT(FALSE);
+/*
+            PipProcessDevNodeTree(IopRootDeviceNode,
+                                  PnPBootDriversInitialized,
+                                  IsAssignResources,
+                                  0,
+                                  FALSE,
+                                  FALSE,
+                                  &DriverLoadType,
+                                  NULL);
+*/
+            IsAssignResources = FALSE;
+            IsBootProcess = FALSE;
+        }
+        else
+        {
+            ASSERT(FALSE);
+        }
+    }
+
+    PipEnumerationInProgress = FALSE;
+    KeSetEvent(&PiEnumerationLock, IO_NO_INCREMENT, FALSE);
+    KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+    PpDevNodeUnlockTree(1);
 }
 
 NTSTATUS
