@@ -10,8 +10,12 @@
 /* INCLUDES ******************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+#include "../pnpio.h"
 #include <debug.h>
+
+/* GLOBALS *******************************************************************/
+
+extern ERESOURCE PpRegistryDeviceResource;
 
 /* TYPES *******************************************************************/
 
