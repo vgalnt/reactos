@@ -267,12 +267,305 @@ ArbBuildAssignmentOrdering(
     _In_ PCWSTR ReservedOrderName,
     _In_ PARB_TRANSLATE_ORDERING TranslateOrderingFunction)
 {
+    UNICODE_STRING ArbitersKeyName = RTL_CONSTANT_STRING(
+        L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Arbiters");
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    PKEY_VALUE_FULL_INFORMATION ReservedValueInfo = NULL;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    IO_RESOURCE_DESCRIPTOR TranslatedIoDesc;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    PARBITER_ORDERING Orderings;
+    HANDLE ArbitersKeyHandle = NULL;
+    HANDLE OrderingKeyHandle = NULL;
+    ULONGLONG MinimumAddress;
+    ULONGLONG MaximumAddress;
+    PWCHAR ValueName;
+    PCWSTR CurrentOrderName;
+    ULONG Dummy1;
+    ULONG Dummy2;
+    ULONG ix;
+    NTSTATUS Status;
+
     //PAGED_CODE();
     DPRINT("ArbBuildAssignmentOrdering: ArbInstance - %p, OrderName - %S, ReservedOrderName - %S, TranslateOrderingFunction - %p\n",
            ArbInstance, OrderName, ReservedOrderName, TranslateOrderingFunction);
 
+    KeWaitForSingleObject(ArbInstance->MutexEvent,
+                          Executive,
+                          KernelMode,
+                          FALSE,
+                          NULL);
+
+    ArbFreeOrderingList(&ArbInstance->OrderingList);
+    ArbFreeOrderingList(&ArbInstance->ReservedList);
+
+    Status = ArbInitializeOrderingList(&ArbInstance->OrderingList);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    Status = ArbInitializeOrderingList(&ArbInstance->ReservedList);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               &ArbitersKeyName,
+                               OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+                               NULL,
+                               NULL);
+
+    Status = ZwOpenKey(&ArbitersKeyHandle, KEY_READ, &ObjectAttributes);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    // 0 - AllocationOrder, 1 - ReservedResources
+
+    for (ix = 0; ix <= 1; ix++)
+    {
+        ValueInfo = NULL;
+
+        if (ix == 0)
+        {
+            CurrentOrderName = OrderName;
+            RtlInitUnicodeString(&ArbitersKeyName, L"AllocationOrder");
+        }
+        else
+        {
+            CurrentOrderName = ReservedOrderName;
+            RtlInitUnicodeString(&ArbitersKeyName, L"ReservedResources");
+        }
+
+        InitializeObjectAttributes(&ObjectAttributes,
+                                   &ArbitersKeyName,
+                                   OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+                                   ArbitersKeyHandle,
+                                   NULL);
+        if (ix == 0)
+        {
+            Status = ZwOpenKey(&OrderingKeyHandle,
+                               KEY_READ,
+                               &ObjectAttributes);
+        }
+        else
+        {
+            Status = ZwCreateKey(&OrderingKeyHandle,
+                                 KEY_READ,
+                                 &ObjectAttributes,
+                                 0,
+                                 NULL,
+                                 REG_OPTION_NON_VOLATILE,
+                                 NULL);
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+            goto ErrorExit;
+        }
+
+        Status = ArbpGetRegistryValue(OrderingKeyHandle,
+                                      CurrentOrderName,
+                                      &ValueInfo);
+
+        if (!NT_SUCCESS(Status) || !ValueInfo)
+        {
+            DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+            goto ErrorExit;
+        }
+
+        if (ix == 1 && ValueInfo->Type == REG_SZ)
+        {
+            // for "ReservedResources" key
+
+            ValueName = (PWCHAR)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
+            DPRINT("ArbBuildAssignmentOrdering: ValueName - %S\n", ValueName);
+
+            if (ValueName[(ValueInfo->DataLength / sizeof(WCHAR)) - 1])
+            {
+                DPRINT("ArbBuildAssignmentOrdering: ErrorExit\n");
+                goto ErrorExit;
+            }
+
+            Status = ArbpGetRegistryValue(OrderingKeyHandle,
+                                          ValueName,
+                                          &ReservedValueInfo);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+                goto ErrorExit;
+            }
+
+            ExFreePoolWithTag(ValueInfo, 'MbrA');
+            ValueInfo = ReservedValueInfo;
+        }
+
+        ZwClose(OrderingKeyHandle);
+
+        if (ValueInfo->Type != REG_RESOURCE_REQUIREMENTS_LIST)
+        {
+            DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+            Status = STATUS_INVALID_PARAMETER;
+            goto ErrorExit;
+        }
+
+        IoResources = (PIO_RESOURCE_REQUIREMENTS_LIST)
+                      ((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
+
+        ASSERT(IoResources->AlternativeLists == 1);
+        IopDumpResourceRequirementsList(IoResources);
+
+        for (IoDescriptor = &IoResources->List[0].Descriptors[0];
+             IoDescriptor < &IoResources->List[0].Descriptors[0] + IoResources->List[0].Count;
+             IoDescriptor++)
+        {
+            if (TranslateOrderingFunction)
+            {
+                Status = TranslateOrderingFunction(&TranslatedIoDesc,
+                                                   IoDescriptor);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+                    goto ErrorExit;
+                }
+            }
+            else
+            {
+                RtlCopyMemory(&TranslatedIoDesc,
+                              IoDescriptor,
+                              sizeof(TranslatedIoDesc));
+            }
+
+            if (TranslatedIoDesc.Type == ArbInstance->ResourceType)
+            {
+                Status = ArbInstance->UnpackRequirement(&TranslatedIoDesc,
+                                                        &MinimumAddress,
+                                                        &MaximumAddress,
+                                                        &Dummy1,
+                                                        &Dummy2);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+                    goto ErrorExit;
+                }
+
+                if (ix == 0)
+                {
+                    Status = ArbAddOrdering(&ArbInstance->OrderingList,
+                                            MinimumAddress,
+                                            MaximumAddress);
+
+                    if (!NT_SUCCESS(Status))
+                    {
+                        DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+                        goto ErrorExit;
+                    }
+                }
+                else
+                {
+                    Status = ArbAddOrdering(&ArbInstance->ReservedList,
+                                            MinimumAddress,
+                                            MaximumAddress);
+
+                    if (!NT_SUCCESS(Status))
+                    {
+                        DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+                        goto ErrorExit;
+                    }
+
+                    Status = ArbPruneOrdering(&ArbInstance->OrderingList,
+                                              MinimumAddress,
+                                              MaximumAddress);
+
+                    if (!NT_SUCCESS(Status))
+                    {
+                        DPRINT("ArbBuildAssignmentOrdering: Status - %X\n", Status);
+                        goto ErrorExit;
+                    }
+                }
+            }
+        }
+    }
+
+    ZwClose(ArbitersKeyHandle);
+
+    Orderings = ArbInstance->OrderingList.Orderings;
+
+    for (Orderings = &ArbInstance->OrderingList.Orderings[0];
+         Orderings < &ArbInstance->OrderingList.Orderings[ArbInstance->OrderingList.Count];
+         Orderings++)
+    {
+        DPRINT("ArbBuildAssignmentOrdering: OrderingList(%I64X - %I64X)\n",
+               Orderings->Start, Orderings->End);
+    }
+
+    Orderings = ArbInstance->ReservedList.Orderings;
+
+    for (Orderings = &ArbInstance->ReservedList.Orderings[0];
+         Orderings < &ArbInstance->ReservedList.Orderings[ArbInstance->ReservedList.Count];
+         Orderings++)
+    {
+        DPRINT("ArbBuildAssignmentOrdering: ReservedList(%I64X - %I64X)\n",
+               Orderings->Start, Orderings->End);
+    }
+
+    KeSetEvent(ArbInstance->MutexEvent, IO_NO_INCREMENT, FALSE);
+
+    return STATUS_SUCCESS;
+
+ErrorExit:
+
+    DPRINT("ArbBuildAssignmentOrdering: ErrorExit. Status - %X\n", Status);
     ASSERT(FALSE);
-    return 0;
+
+    if (ArbitersKeyHandle)
+    {
+        ZwClose(ArbitersKeyHandle);
+    }
+
+    if (OrderingKeyHandle)
+    {
+        ZwClose(OrderingKeyHandle);
+    }
+
+    if (ValueInfo)
+    {
+        ExFreePoolWithTag(ValueInfo, 'MbrA');
+    }
+
+    if (ReservedValueInfo)
+    {
+        ExFreePoolWithTag(ReservedValueInfo, 'MbrA');
+    }
+
+    if (ArbInstance->OrderingList.Orderings)
+    {
+        ExFreePoolWithTag(ArbInstance->OrderingList.Orderings, 'LbrA');
+        ArbInstance->OrderingList.Count = 0;
+        ArbInstance->OrderingList.Maximum = 0;
+    }
+
+    if (ArbInstance->ReservedList.Orderings)
+    {
+        ExFreePoolWithTag(ArbInstance->ReservedList.Orderings, 'LbrA');
+        ArbInstance->ReservedList.Count = 0;
+        ArbInstance->ReservedList.Maximum = 0;
+    }
+
+    KeSetEvent(ArbInstance->MutexEvent, IO_NO_INCREMENT, FALSE);
+
+    return Status;
 }
 
 NTSTATUS
