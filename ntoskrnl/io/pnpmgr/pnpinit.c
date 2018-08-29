@@ -18,12 +18,6 @@
 
 /* GLOBALS ********************************************************************/
 
-typedef struct _IOPNP_DEVICE_EXTENSION
-{
-    PWCHAR CompatibleIdList;
-    ULONG CompatibleIdListSize;
-} IOPNP_DEVICE_EXTENSION, *PIOPNP_DEVICE_EXTENSION;
-
 PNP_ALLOCATE_RESOURCES_ROUTINE IopAllocateBootResourcesRoutine;
 
 PUNICODE_STRING PiInitGroupOrderTable;
