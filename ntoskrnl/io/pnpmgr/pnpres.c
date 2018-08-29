@@ -1571,7 +1571,7 @@ NTAPI
 IopProcessAssignResources(
     _In_ PDEVICE_NODE DeviceNode,
     _In_ BOOLEAN IncludeFailedDevices,
-    _Inout_ BOOLEAN * OutIsAssigned)
+    _Inout_ BOOLEAN *OutIsAssigned)
 {
     PPIP_ASSIGN_RESOURCES_CONTEXT AssignContext;
     DEVICETREE_TRAVERSE_CONTEXT Context;

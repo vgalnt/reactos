@@ -595,7 +595,7 @@ IopSendRemoveDevice(IN PDEVICE_OBJECT DeviceObject)
 {
     IO_STACK_LOCATION Stack;
     PVOID Dummy;
-    PDEVICE_NODE DeviceNode = IopGetDeviceNode(DeviceObject);
+    //PDEVICE_NODE DeviceNode = IopGetDeviceNode(DeviceObject);
 
     /* Drop all our state for this device in case it isn't really going away */
 ASSERT(FALSE);
@@ -2706,171 +2706,6 @@ ASSERT(FALSE);
    return STATUS_SUCCESS;
 }
 
-/*
- * IopActionInitChildServices
- *
- * Initialize the service for all (direct) child nodes of a parent node
- *
- * Parameters
- *    DeviceNode
- *       Pointer to device node.
- *    Context
- *       Pointer to parent node to initialize child node services for.
- *
- * Remarks
- *    If the driver image for a service is not loaded and initialized
- *    it is done here too. Any errors that occur are logged instead so
- *    that all child services have a chance of being initialized.
- */
-
-NTSTATUS
-IopActionInitChildServices(PDEVICE_NODE DeviceNode,
-                           PVOID Context)
-{
-   PDEVICE_NODE ParentDeviceNode;
-   NTSTATUS Status;
-   BOOLEAN BootDrivers = !PnpSystemInit;
-
-   DPRINT("IopActionInitChildServices(%p, %p)\n", DeviceNode, Context);
-
-   ParentDeviceNode = Context;
-
-   /*
-    * We are called for the parent too, but we don't need to do special
-    * handling for this node
-    */
-   if (DeviceNode == ParentDeviceNode)
-   {
-      DPRINT("Success\n");
-      return STATUS_SUCCESS;
-   }
-
-   /*
-    * We don't want to check for a direct child because
-    * this function is called during boot to reinitialize
-    * devices with drivers that couldn't load yet due to
-    * stage 0 limitations (ie can't load from disk yet).
-    */
-
-   if (!(DeviceNode->Flags & DNF_PROCESSED))
-   {
-       DPRINT1("Child not ready to be added\n");
-       return STATUS_SUCCESS;
-   }
-
-   if (IopDeviceNodeHasFlag(DeviceNode, DNF_STARTED) ||
-       IopDeviceNodeHasFlag(DeviceNode, DNF_ADDED) ||
-       IopDeviceNodeHasFlag(DeviceNode, DNF_DISABLED))
-       return STATUS_SUCCESS;
-
-   if (DeviceNode->ServiceName.Buffer == NULL)
-   {
-      /* We don't need to worry about loading the driver because we're
-       * being driven in raw mode so our parent must be loaded to get here */
-      Status = IopInitializeDevice(DeviceNode, NULL);
-      if (NT_SUCCESS(Status))
-      {
-          Status = IopStartDevice(DeviceNode);
-          if (!NT_SUCCESS(Status))
-          {
-              DPRINT1("IopStartDevice(%wZ) failed with status 0x%08x\n",
-                      &DeviceNode->InstancePath, Status);
-          }
-      }
-   }
-   else
-   {
-      PLDR_DATA_TABLE_ENTRY ModuleObject;
-      PDRIVER_OBJECT DriverObject;
-
-      KeEnterCriticalRegion();
-      ExAcquireResourceExclusiveLite(&IopDriverLoadResource, TRUE);
-      /* Get existing DriverObject pointer (in case the driver has
-         already been loaded and initialized) */
-      Status = IopGetDriverObject(
-          &DriverObject,
-          &DeviceNode->ServiceName,
-          FALSE);
-
-      if (!NT_SUCCESS(Status))
-      {
-         /* Driver is not initialized, try to load it */
-         Status = IopLoadServiceModule(&DeviceNode->ServiceName, &ModuleObject);
-
-         if (NT_SUCCESS(Status) || Status == STATUS_IMAGE_ALREADY_LOADED)
-         {
-            /* Initialize the driver */
-            Status = IopInitializeDriverModule(DeviceNode, ModuleObject,
-                  &DeviceNode->ServiceName, FALSE, &DriverObject);
-            if (!NT_SUCCESS(Status)) DeviceNode->Problem = CM_PROB_FAILED_DRIVER_ENTRY;
-         }
-         else if (Status == STATUS_DRIVER_UNABLE_TO_LOAD)
-         {
-            DPRINT1("Service '%wZ' is disabled\n", &DeviceNode->ServiceName);
-            DeviceNode->Problem = CM_PROB_DISABLED_SERVICE;
-         }
-         else
-         {
-            DPRINT("IopLoadServiceModule(%wZ) failed with status 0x%08x\n",
-                    &DeviceNode->ServiceName, Status);
-            if (!BootDrivers) DeviceNode->Problem = CM_PROB_DRIVER_FAILED_LOAD;
-         }
-      }
-      ExReleaseResourceLite(&IopDriverLoadResource);
-      KeLeaveCriticalRegion();
-
-      /* Driver is loaded and initialized at this point */
-      if (NT_SUCCESS(Status))
-      {
-          /* Initialize the device, including all filters */
-          Status = PipCallDriverAddDevice(DeviceNode, FALSE, DriverObject);
-
-          /* Remove the extra reference */
-          ObDereferenceObject(DriverObject);
-      }
-      else
-      {
-         /*
-          * Don't disable when trying to load only boot drivers
-          */
-         if (!BootDrivers)
-         {
-            IopDeviceNodeSetFlag(DeviceNode, DNF_DISABLED);
-         }
-      }
-   }
-
-   return STATUS_SUCCESS;
-}
-
-/*
- * IopInitializePnpServices
- *
- * Initialize services for discovered children
- *
- * Parameters
- *    DeviceNode
- *       Top device node to start initializing services.
- *
- * Return Value
- *    Status
- */
-NTSTATUS
-IopInitializePnpServices(IN PDEVICE_NODE DeviceNode)
-{
-   DEVICETREE_TRAVERSE_CONTEXT Context;
-
-   DPRINT("IopInitializePnpServices(%p)\n", DeviceNode);
-
-   IopInitDeviceTreeTraverseContext(
-      &Context,
-      DeviceNode,
-      IopActionInitChildServices,
-      DeviceNode);
-
-   return IopTraverseDeviceTree(&Context);
-}
-
 static NTSTATUS INIT_FUNCTION
 IopEnumerateDetectedDevices(
    IN HANDLE hBaseKey,
@@ -4274,8 +4109,9 @@ IoInvalidateDeviceState(IN PDEVICE_OBJECT PhysicalDeviceObject)
         {
             DPRINT1("Restart after resource rebalance failed\n");
 
-            DeviceNode->Flags &= ~(DNF_STARTED | DNF_START_REQUEST_PENDING);
-            DeviceNode->Flags |= DNF_START_FAILED;
+ASSERT(FALSE);
+            //DeviceNode->Flags &= ~(DNF_STARTED | DNF_START_REQUEST_PENDING);
+            //DeviceNode->Flags |= DNF_START_FAILED;
 
             IopRemoveDevice(DeviceNode);
         }
@@ -4801,7 +4637,8 @@ IoRequestDeviceEject(IN PDEVICE_OBJECT PhysicalDeviceObject)
     }
     else
     {
-        DeviceNode->Flags |= DNF_DISABLED;
+ASSERT(FALSE);
+//        DeviceNode->Flags |= DNF_DISABLED;
     }
 
     IopQueueTargetDeviceEvent(&GUID_DEVICE_EJECT,

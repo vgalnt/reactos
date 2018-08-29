@@ -169,7 +169,7 @@ PpIrpQueryID(
         Status = STATUS_NOT_SUPPORTED;
     }
 
-    DPRINT("PpIrpQueryID: FIXME PiFailQueryID\n");
+    DPRINT("PpIrpQueryID: DeviceNode - %X, IdType - %XPiFailQueryID\n");
 
     return Status;
 }
