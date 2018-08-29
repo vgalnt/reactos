@@ -4434,6 +4434,7 @@ PipProcessDevNodeTree(
                         if (NT_SUCCESS(Status))
                         {
                             EnumStatus = 0;
+                            ParentNode = CurrentNode;
                         }
                         break;
 
