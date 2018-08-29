@@ -413,7 +413,7 @@ IopCleanupDeviceRegistryValues(
     PNP_DEVICE_INSTANCE_CONTEXT MapContext;
 
     PAGED_CODE();
-    DPRINT("IopIsAnyDeviceInstanceEnabled: InstancePath - %wZ\n", InstancePath);
+    DPRINT("IopCleanupDeviceRegistryValues: InstancePath - %wZ\n", InstancePath);
 
     MapContext.DeviceObject = 0;
     MapContext.InstancePath = InstancePath;
@@ -1191,6 +1191,139 @@ Exit:
     ExFreePoolWithTag(KeyBasicInfo, TAG_IO);
     ExFreePoolWithTag(ValueInfo, 'uspP');
 
+    return Status;
+}
+
+NTSTATUS
+NTAPI
+PipServiceInstanceToDeviceInstance(
+    _In_ HANDLE ServiceKeyHandle,
+    _In_ PUNICODE_STRING ServiceKeyName,
+    _In_ ULONG InstanceNum,
+    _Out_ PUNICODE_STRING OutInstanceName,
+    _Out_ PHANDLE OutHandle,
+    _In_ ACCESS_MASK DesiredAccess)
+{
+    UNICODE_STRING EnumKeyName = RTL_CONSTANT_STRING(ENUM_ROOT);
+    UNICODE_STRING InstanceName;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    HANDLE Handle;
+    WCHAR Buffer[20];
+    NTSTATUS Status;
+    USHORT Length;
+
+    DPRINT("PipServiceInstanceToDeviceInstance: ServiceKeyName - %wZ, InstanceNum - %X\n",
+           ServiceKeyName, InstanceNum);
+
+    if (ServiceKeyHandle)
+    {
+        RtlInitUnicodeString(&InstanceName, L"Enum");
+
+        Status = IopOpenRegistryKeyEx(&Handle,
+                                      ServiceKeyHandle,
+                                      &InstanceName,
+                                      KEY_READ);
+    }
+    else
+    {
+        Status = PipOpenServiceEnumKeys(ServiceKeyName,
+                                        KEY_READ,
+                                        NULL,
+                                        &Handle,
+                                        FALSE);
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    RtlStringCbPrintfW(Buffer,
+                       20 * sizeof(WCHAR),
+                       L"%u",
+                       InstanceNum);
+
+    Status = IopGetRegistryValue(Handle, Buffer, &ValueInfo);
+
+    ZwClose(Handle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    if (ValueInfo->Type == REG_SZ)
+    {
+        PnpRegSzToString((PWCHAR)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset),
+                                  ValueInfo->DataLength,
+                                  &Length);
+
+        InstanceName.Length = Length;
+        InstanceName.MaximumLength = ValueInfo->DataLength;
+
+        InstanceName.Buffer = (PWSTR)((ULONG_PTR)ValueInfo +
+                                      ValueInfo->DataOffset);
+
+        if (!Length)
+        {
+            Status = STATUS_OBJECT_PATH_NOT_FOUND;
+        }
+    }
+    else
+    {
+        Status = STATUS_INVALID_PLUGPLAY_DEVICE_PATH;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    if (OutHandle)
+    {
+        Status = IopOpenRegistryKeyEx(&Handle,
+                                      NULL,
+                                      &EnumKeyName,
+                                      KEY_READ);
+
+        if (!NT_SUCCESS(Status))
+        {
+            goto Exit;
+        }
+
+        Status = IopOpenRegistryKeyEx(OutHandle,
+                                      Handle,
+                                      &InstanceName,
+                                      DesiredAccess);
+
+        ZwClose(Handle);
+
+        if (!NT_SUCCESS(Status))
+        {
+            goto Exit;
+        }
+    }
+
+    if (!OutInstanceName)
+    {
+        goto Exit;
+    }
+
+    Status = PnpConcatenateUnicodeStrings(OutInstanceName,
+                                          &InstanceName,
+                                          NULL);
+
+    if (!NT_SUCCESS(Status))
+    {
+        if (OutHandle)
+        {
+            ZwClose(*OutHandle);
+        }
+    }
+
+Exit:
+
+    ExFreePoolWithTag(ValueInfo, 'uspP');
     return Status;
 }
 
