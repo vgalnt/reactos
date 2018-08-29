@@ -644,4 +644,12 @@ IopGetDriverNameFromKeyNode(
     _Inout_ PUNICODE_STRING OutDriverName
 );
 
+BOOLEAN
+NTAPI
+IopIsAnyDeviceInstanceEnabled(
+    _In_ PUNICODE_STRING ServiceKeyName,
+    _In_ HANDLE ServiceKeyHandle,
+    _In_ BOOLEAN IsLegacyDriver
+);
+
 #endif  /* _PNPIO_H */
