@@ -46,6 +46,7 @@ ERESOURCE PiEngineLock;
 ERESOURCE PiDeviceTreeLock;
 
 KSEMAPHORE PpRegistrySemaphore;
+extern ERESOURCE PpRegistryDeviceResource;
 
 BOOLEAN PnPBootDriversLoaded = FALSE;
 BOOLEAN PnPBootDriversInitialized = FALSE;
@@ -713,12 +714,285 @@ IopInitializeAttributesAndCreateObject(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopInitializeBuiltinDriver(
+    _In_ PUNICODE_STRING DriverName,
+    _In_ PUNICODE_STRING RegistryPath,
+    _In_ PDRIVER_INITIALIZE EntryPoint,
+    _In_ PLDR_DATA_TABLE_ENTRY BootLdrEntry,
+    _In_ BOOLEAN IsFilter,
+    _Out_ PDRIVER_OBJECT * OutDriverObject)
+{
+    UNICODE_STRING HardwareKeyName = 
+        RTL_CONSTANT_STRING(L"\\Registry\\Machine\\Hardware\\Description\\System");
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    PDRIVER_OBJECT DriverObject;
+    PDRIVER_EXTENSION DriverExtension;
+    PLIST_ENTRY Entry;
+    PVOID ImageBase;
+    PIMAGE_NT_HEADERS NtHeader;
+    PWCHAR ServiceNameBuffer;
+    PWCHAR Buffer;
+    PWSTR Ptr;
+    HANDLE KeyHandle;
+    HANDLE Handle;
+    ULONG RegPathLength;
+    ULONG Size;
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT("\n");
+    DPRINT("IopInitializeBuiltinDriver: DriverName - %wZ, RegistryPath - %wZ, BootLdrEntry - %p\n",
+           DriverName, RegistryPath, BootLdrEntry);
+
+    *OutDriverObject = NULL;
+
+    Status = IopInitializeAttributesAndCreateObject(DriverName,
+                                                    &ObjectAttributes,
+                                                    (PVOID *)&DriverObject);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopInitializeBuiltinDriver: Status - %X\n", Status);
+        return Status;
+    }
+
+    RtlZeroMemory(DriverObject,
+                  sizeof(DRIVER_OBJECT) +
+                  sizeof(EXTENDED_DRIVER_EXTENSION));
+
+    DriverObject->DriverExtension = (PDRIVER_EXTENSION)(DriverObject + 1);
+    DriverObject->DriverExtension->DriverObject = DriverObject;
+
+    /* Loop all Major Functions */
+    for (ix = 0; ix <= IRP_MJ_MAXIMUM_FUNCTION; ix++)
+    {
+        /* Invalidate each function */
+        DriverObject->MajorFunction[ix] = IopInvalidDeviceRequest;
+    }
+
+    DriverObject->Type = IO_TYPE_DRIVER;
+    DriverObject->Size = sizeof(DRIVER_OBJECT);
+    DriverObject->DriverInit = EntryPoint;
+
+    Status = ObInsertObject(DriverObject,
+                            NULL,
+                            FILE_READ_DATA,
+                            0,
+                            NULL,
+                            &Handle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopInitializeBuiltinDriver: Status - %X\n", Status);
+        return Status;
+    }
+
+    Status = ObReferenceObjectByHandle(Handle,
+                                       0,
+                                       IoDriverObjectType,
+                                       KernelMode,
+                                       (PVOID *)&DriverObject,
+                                       NULL);
+
+    ASSERT(Status == STATUS_SUCCESS);
+
+    for (Entry = PsLoadedModuleList.Flink;
+         Entry != &PsLoadedModuleList && BootLdrEntry;
+         Entry = Entry->Flink)
+    {
+        PLDR_DATA_TABLE_ENTRY LdrEntry;
+
+        LdrEntry = CONTAINING_RECORD(Entry,
+                                     LDR_DATA_TABLE_ENTRY,
+                                     InLoadOrderLinks);
+
+        if (RtlEqualUnicodeString(&BootLdrEntry->BaseDllName,
+                                  &LdrEntry->BaseDllName,
+                                  TRUE))
+        {
+            DriverObject->DriverSection = LdrEntry;
+            break;
+        }
+    }
+
+    if (!BootLdrEntry)
+    {
+        DPRINT("IopInitializeBuiltinDriver: BootLdrEntry = NULL\n");
+        ASSERT(FALSE);
+        ImageBase = NULL;
+        DriverObject->Flags |= DRVO_LEGACY_DRIVER;
+    }
+    else
+    {
+        ImageBase = BootLdrEntry->DllBase;
+        NtHeader = RtlImageNtHeader(ImageBase);
+
+        DriverObject->DriverStart = ImageBase;
+        DriverObject->DriverSize = NtHeader->OptionalHeader.SizeOfImage;
+
+        if (!(NtHeader->OptionalHeader.DllCharacteristics &
+              IMAGE_DLLCHARACTERISTICS_WDM_DRIVER))
+        {
+            DriverObject->Flags |= DRVO_LEGACY_DRIVER;
+        }
+
+        /* Display 'Loading XXX...' message */
+        IopDisplayLoadingMessage(&BootLdrEntry->BaseDllName);
+    }
+
+    InbvIndicateProgress();
+
+    Buffer = ExAllocatePoolWithTag(PagedPool,
+                                   DriverName->MaximumLength + sizeof(WCHAR),
+                                   TAG_IO);
+    if (Buffer)
+    {
+        RtlCopyMemory(Buffer, DriverName->Buffer, DriverName->MaximumLength);
+        Buffer[DriverName->Length / sizeof(WCHAR)] = UNICODE_NULL;
+
+        DriverObject->DriverName.Buffer = Buffer;
+        DriverObject->DriverName.MaximumLength = DriverName->MaximumLength;
+        DriverObject->DriverName.Length = DriverName->Length;
+    }
+    else
+    {
+        DPRINT1("IopInitializeBuiltinDriver: Buffer not allocated!\n");
+    }
+
+    DriverExtension = DriverObject->DriverExtension;
+    RegPathLength = RegistryPath->Length;
+
+    if (!RegistryPath || RegPathLength == 0)
+    {
+        RtlZeroMemory(&DriverExtension->ServiceKeyName, sizeof(UNICODE_STRING));
+    }
+    else
+    {
+        RegPathLength /= sizeof(WCHAR);
+        Ptr = &RegistryPath->Buffer[RegPathLength - 1];
+
+        if (*Ptr == '\\')
+        {
+            Buffer = &RegistryPath->Buffer[RegPathLength - 2];
+        }
+        else
+        {
+            Buffer = &RegistryPath->Buffer[RegPathLength - 1];
+        }
+
+        for (Size = 0; Ptr != RegistryPath->Buffer; Size += sizeof(WCHAR))
+        {
+            if (*Ptr == '\\')
+            {
+                Ptr += 1;
+                Buffer = Ptr;
+                break;
+            }
+            Ptr -= 1;
+            Buffer = Ptr;
+        }
+
+        if (Ptr == RegistryPath->Buffer)
+        {
+            Size += sizeof(WCHAR);
+            DPRINT("IopInitializeBuiltinDriver: Size - %X\n", Size);
+        }
+
+        ServiceNameBuffer = ExAllocatePoolWithTag(NonPagedPool,
+                                                  Size + sizeof(WCHAR),
+                                                  TAG_IO);
+        if (!ServiceNameBuffer)
+        {
+            DriverExtension->ServiceKeyName.Buffer = NULL;
+            DriverExtension->ServiceKeyName.Length = 0;
+
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Exit;
+        }
+
+        RtlCopyMemory(ServiceNameBuffer, Ptr, Size);
+        ServiceNameBuffer[Size / sizeof(WCHAR)] = UNICODE_NULL;
+
+        DriverExtension->ServiceKeyName.Length = Size;
+        DriverExtension->ServiceKeyName.MaximumLength = Size + sizeof(WCHAR);
+        DriverExtension->ServiceKeyName.Buffer = ServiceNameBuffer;
+
+        DPRINT("IopInitializeBuiltinDriver: ServiceKeyName - %wZ\n",
+               &DriverExtension->ServiceKeyName);
+
+        Status = IopOpenRegistryKeyEx(&KeyHandle,
+                                      NULL,
+                                      RegistryPath,
+                                      KEY_ALL_ACCESS);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("IopInitializeBuiltinDriver: Status - %X\n", Status);
+            ASSERT(FALSE);
+            goto Exit;
+        }
+
+        ASSERT(FALSE);
+        Status = 0;//IopPrepareDriverLoading(&DriverExtension->ServiceKeyName,
+                   //                      KeyHandle,
+                   //                      ImageBase,
+                   //                      IsFilter);
+        NtClose(KeyHandle);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("IopInitializeBuiltinDriver: DriverInit Status - %X\n", Status);
+
+            goto Exit;
+        }
+    }
+
+    DriverObject->HardwareDatabase = &HardwareKeyName;
+
+    Status = DriverObject->DriverInit(DriverObject, RegistryPath);
+    DPRINT("IopInitializeBuiltinDriver: DriverInit Status - %X\n", Status);
+
+Exit:
+
+    NtClose(Handle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopInitializeBuiltinDriver: Status - %X\n", Status);
+
+        if (Status != STATUS_PLUGPLAY_NO_DEVICE)
+        {
+            DPRINT("IopInitializeBuiltinDriver: DriverInit Status - %X\n", Status);
+            DriverObject->DriverSection = NULL;
+            DPRINT("IopInitializeBuiltinDriver: FIXME IopDriverLoadingFailed\n");
+        }
+
+        ObMakeTemporaryObject(DriverObject);
+        ObDereferenceObject(DriverObject);
+    }
+    else
+    {
+        DPRINT("IopInitializeBuiltinDriver: ServiceKeyName - %wZ\n",
+               &DriverExtension->ServiceKeyName);
+
+        IopReadyDeviceObjects(DriverObject);
+        *OutDriverObject = DriverObject;
+    }
+
+    DPRINT("IopInitializeBuiltinDriver: Status - %X\n", Status);
+    return Status;
+}
+
 BOOLEAN
 FASTCALL
 INIT_FUNCTION
 IopInitializeBootDrivers(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
+    UNICODE_STRING RawFsName;
+    UNICODE_STRING RegistryPath;
+    PDRIVER_OBJECT DriverObject;
+
     DPRINT("IopInitializeBootDrivers: LoaderBlock - %X\n", LoaderBlock);
 
 #if DBG
@@ -728,6 +1002,23 @@ IopInitializeBootDrivers(
     ASSERT(FALSE);
 #endif
 
+    RtlInitUnicodeString(&RawFsName, L"\\FileSystem\\RAW");
+    RtlInitUnicodeString(&RegistryPath, L"");
+
+    IopInitializeBuiltinDriver(&RawFsName,
+                               &RegistryPath,
+                               RawFsDriverEntry,
+                               NULL,
+                               FALSE,
+                               &DriverObject);
+    if (!DriverObject)
+    {
+        DPRINT("IopInitializeBootDrivers: Failed to initialize RAW filsystem\n");
+        ASSERT(FALSE);
+        return FALSE;
+    }
+
+ASSERT(0);
     return FALSE;
 }
 

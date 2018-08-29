@@ -170,6 +170,19 @@ typedef struct _PNP_RESOURCE_REQUEST
 //
 // driver.c
 //
+NTSTATUS
+NTAPI
+IopInvalidDeviceRequest(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp
+);
+
+VOID
+FASTCALL
+IopDisplayLoadingMessage(
+    _In_ PUNICODE_STRING ServiceName
+);
+
 BOOLEAN
 NTAPI
 IopIsLegacyDriver(
