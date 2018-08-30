@@ -20,8 +20,14 @@ HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\*PNP0A08","ClassGU
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0604","Service",0x00000000,"pci"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0604","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
 
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\pci#ven_8086&dev_7000","Service",0x00000000,"isapnp"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\pci#ven_8086&dev_7000","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\pci#ven_8086&dev_1237","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\isapnp#readdataport","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
+
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\*PNP0C08","Service",0x00000000,"acpi"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\*PNP0C08","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\acpi#fixedbutton","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
 
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0C0300","Service",0x00000000,"usbuhci"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0C0300","ClassGUID",0x00000000,"{36FC9E60-C465-11CF-8056-444553540000}"
@@ -38,8 +44,8 @@ HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#Class_08&SubCl
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#COMPOSITE","Service",0x00000000,"usbccgp"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#COMPOSITE","ClassGUID",0x00000000,"{36FC9E60-C465-11CF-8056-444553540000}"
 
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#CLASS_09","Service",0x00000000,"usbhub"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#CLASS_09","ClassGUID",0x00000000,"{36FC9E60-C465-11CF-8056-444553540000}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#CLASS_09","Service",0x00000000,"usbhub"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#CLASS_09","ClassGUID",0x00000000,"{36FC9E60-C465-11CF-8056-444553540000}"
 
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#ROOT_HUB","Service",0x00000000,"usbhub"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#ROOT_HUB","ClassGUID",0x00000000,"{36FC9E60-C465-11CF-8056-444553540000}"
@@ -47,8 +53,20 @@ HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#ROOT_HUB","Cla
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#ROOT_HUB20","Service",0x00000000,"usbhub"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#ROOT_HUB20","ClassGUID",0x00000000,"{36FC9E60-C465-11CF-8056-444553540000}"
 
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0101","Service",0x00000000,"pciide"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0101","ClassGUID",0x00000000,"{4D36E96A-E325-11CE-BFC1-08002BE10318}"
+
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\pci#ven_8086&dev_7111","Service",0x00000000,"intelide"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\pci#ven_8086&dev_7111","ClassGUID",0x00000000,"{4D36E96A-E325-11CE-BFC1-08002BE10318}"
+
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\*PNP0600","Service",0x00000000,"atapi"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\*PNP0600","ClassGUID",0x00000000,"{4D36E96A-E325-11CE-BFC1-08002BE10318}"
+
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\GenDisk","Service",0x00000000,"disk"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\GenDisk","ClassGUID",0x00000000,"{4D36E967-E325-11CE-BFC1-08002BE10318}"
+
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\GenCdrom","Service",0x00000000,"cdrom"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\GenCdrom","ClassGUID",0x00000000,"{4D36E965-E325-11CE-BFC1-08002BE10318}"
 
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#Class_03","Service",0x00000000,"hidusb"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\USB#Class_03","ClassGUID",0x00000000,"{745a17a0-74d3-11d0-b6fe-00a0c90f57da}"
@@ -332,12 +350,14 @@ HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96B-E325-11CE-BFC1-08002BE103
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96B-E325-11CE-BFC1-08002BE10318}","Icon",0x00000000,"-3"
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96B-E325-11CE-BFC1-08002BE10318}","Installer32",0x00000000,"SysSetup.Dll,KeyboardClassInstaller"
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96B-E325-11CE-BFC1-08002BE10318}","NoInstallClass",0x00000000,"1"
+HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96B-E325-11CE-BFC1-08002BE10318}","UpperFilters",0x00010000,"kbdclass"
 
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96F-E325-11CE-BFC1-08002BE10318}",,0x00000000,"Mouse"
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96F-E325-11CE-BFC1-08002BE10318}","Class",0x00000000,"Mouse"
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96F-E325-11CE-BFC1-08002BE10318}","Icon",0x00000000,"-2"
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96F-E325-11CE-BFC1-08002BE10318}","Installer32",0x00000000,"SysSetup.Dll,MouseClassInstaller"
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96F-E325-11CE-BFC1-08002BE10318}","NoInstallClass",0x00000000,"1"
+HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E96F-E325-11CE-BFC1-08002BE10318}","UpperFilters",0x00010000,"mouclass"
 
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E973-E325-11CE-BFC1-08002BE10318}",,0x00000000,"Network Client"
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E973-E325-11CE-BFC1-08002BE10318}","Class",0x00000000,"NetClient"
@@ -1398,18 +1418,276 @@ HKLM,"SYSTEM\CurrentControlSet\Control\GraphicsDrivers\UseNewKey",,0x00000012
 
 ; Group order, the first DWORD is the count of entries,
 ; the following dwords are the tag entries for the load order.
-HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Base", 0x00000001, \
-  0x02, 0x00, 0x00, 0x00, \
-  0x01, 0x00, 0x00, 0x00, \
-  0x02, 0x00, 0x00, 0x00
-HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Video Save", 0x00000001, \
-  0x02, 0x00, 0x00, 0x00, \
-  0x01, 0x00, 0x00, 0x00, \
-  0x02, 0x00, 0x00, 0x00
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Boot Bus Extender", 0x00000001, \
+05,00,00,00, \
+01,00,00,00, \
+02,00,00,00, \
+03,00,00,00, \
+04,00,00,00, \
+05,00,00,00, \
+; ACPI
+; PCI
+; isapnp
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","System Bus Extender", 0x00000001, \
+12,00,00,00, \
+06,00,00,00, \
+03,00,00,00, \
+04,00,00,00, \
+01,00,00,00, \
+08,00,00,00, \
+09,00,00,00, \
+0a,00,00,00, \
+0b,00,00,00, \
+0c,00,00,00, \
+0d,00,00,00, \
+0e,00,00,00, \
+02,00,00,00, \
+05,00,00,00, \
+07,00,00,00, \
+0f,00,00,00, \
+10,00,00,00, \
+11,00,00,00, \
+12,00,00,00
+; compbatt
+; pcmcia
+; pciide
+; aliIde, cmdide, intelide, toside, viaide
+; mountmgr
+; ftdisk
+; dmload
+; dmio
+; partmgr
+; fdc
+; volsnap
+
 HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","SCSI Miniport", 0x00000001, \
-  0x02, 0x00, 0x00, 0x00, \
-  0x10, 0x00, 0x00, 0x00, \
-  0x20, 0x00, 0x00, 0x00
+40,00,00,00, \
+00,01,00,00, \
+01,01,00,00, \
+19,00,00,00, \ 
+01,00,00,00, \
+02,00,00,00, \
+03,00,00,00, \
+04,00,00,00, \
+05,00,00,00, \
+06,00,00,00, \
+07,00,00,00, \
+08,00,00,00, \
+09,00,00,00, \
+0a,00,00,00, \
+0b,00,00,00, \
+0c,00,00,00, \
+0d,00,00,00, \
+0e,00,00,00, \
+0f,00,00,00, \
+10,00,00,00, \
+11,00,00,00, \
+12,00,00,00, \
+13,00,00,00, \
+14,00,00,00, \
+15,00,00,00, \
+16,00,00,00, \
+17,00,00,00, \
+1a,00,00,00, \
+18,00,00,00, \
+1b,00,00,00, \
+1c,00,00,00, \
+1d,00,00,00, \
+1e,00,00,00, \
+1f,00,00,00, \
+20,00,00,00, \
+23,00,00,00, \
+24,00,00,00, \
+25,00,00,00, \
+26,00,00,00, \
+27,00,00,00, \
+28,00,00,00, \
+29,00,00,00, \
+2a,00,00,00, \
+2b,00,00,00, \
+2c,00,00,00, \
+2d,00,00,00, \
+2e,00,00,00, \
+2f,00,00,00, \
+30,00,00,00, \
+31,00,00,00, \
+32,00,00,00, \
+33,00,00,00, \
+34,00,00,00, \
+35,00,00,00, \
+36,00,00,00, \
+37,00,00,00, \
+38,00,00,00, \
+39,00,00,00, \
+3a,00,00,00, \
+3b,00,00,00, \
+3c,00,00,00, \
+3d,00,00,00, \
+3e,00,00,00, \
+3f,00,00,00, \
+21,00,00,00
+;atapi
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Primary Disk", 0x00000001, \
+05,00,00,00, \
+01,00,00,00, \
+02,00,00,00, \
+03,00,00,00, \
+04,00,00,00, \
+05,00,00,00
+; ramdisk
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","SCSI Class", 0x00000001, \
+04,00,00,00, \
+01,00,00,00, \
+02,00,00,00, \
+03,00,00,00, \
+04,00,00,00
+; disk
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","SCSI CDROM Class", 0x00000001, \
+03,00,00,00, \
+01,00,00,00, \
+02,00,00,00, \
+03,00,00,00
+; cdrom
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Base", 0x00000001, \
+15,00,00,00, \
+0e,00,00,00, \
+01,00,00,00, \
+02,00,00,00, \
+03,00,00,00, \
+04,00,00,00, \
+05,00,00,00, \
+06,00,00,00, \
+07,00,00,00, \
+08,00,00,00, \
+09,00,00,00, \
+0a,00,00,00, \
+0b,00,00,00, \
+0c,00,00,00, \
+0d,00,00,00, \
+0f,00,00,00, \
+10,00,00,00, \
+11,00,00,00, \
+12,00,00,00, \
+13,00,00,00, \
+14,00,00,00, \
+15,00,00,00
+; KSecDD Null scsiscan 
+; Beep
+; usbehci
+; usbohci usbuhci
+; usbhub
+; USBSTOR
+; usbccgp
+
+;=== FIXME ===================================================================
+09 "FSFilter Infrastructure", \
+10 "FSFilter System", \
+11 "FSFilter Bottom", \
+12 "FSFilter Copy Protection", \
+13 "FSFilter Security Enhancer", \
+14 "FSFilter Open File", \
+15 "FSFilter Physical Quota Management", \
+16 "FSFilter Encryption", \
+17 "FSFilter Compression", \
+18 "FSFilter HSM", \
+19 "FSFilter Cluster File System", \
+20 "FSFilter System Recovery", \
+21 "FSFilter Quota Management", \
+22 "FSFilter Content Screener", \
+23 "FSFilter Continuous Backup", \
+24 "FSFilter Replication", \
+25 "FSFilter Anti-Virus", \
+26 "FSFilter Undelete", \
+27 "FSFilter Activity Monitor", \
+28 "FSFilter Top", \
+29 "Filter", \
+;=== FIXME ===================================================================
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Pointer Port", 0x00000001, \
+04,00,00,00, \
+01,00,00,00, \
+02,00,00,00, \
+03,00,00,00, \
+04,00,00,00
+; mouhid
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Keyboard Port", 0x00000001, \
+06,00,00,00, \
+01,00,00,00, \
+02,00,00,00, \
+03,00,00,00, \
+04,00,00,00, \
+05,00,00,00, \
+06,00,00,00
+; i8042prt
+; kbdhid
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Pointer Class", 0x00000001, \
+02,00,00,00, \
+01,00,00,00, \
+02,00,00,00
+; mouclass
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Keyboard Class", 0x00000001, \
+01,00,00,00, \
+02,00,00,00, \
+02,00,00,00
+; kbdclass
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Video Init", 0x00000001, \
+01,00,00,00, \
+01,00,00,00
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Video", 0x00000001, \
+01,00,00,00, \
+01,00,00,00
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Video Save", 0x00000001, \
+01,00,00,00, \
+01,00,00,00
+; VgaSave
+; RDPCDD 
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Streams Drivers", 0x00000001, \
+01,00,00,00, \
+01,00,00,00
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","PNP_TDI", 0x00000001, \
+0d,00,00,00, \
+05,00,00,00, \
+01,00,00,00, \
+02,00,00,00, \
+03,00,00,00, \
+04,00,00,00, \
+06,00,00,00, \
+07,00,00,00, \
+08,00,00,00, \
+09,00,00,00, \
+0a,00,00,00, \
+0b,00,00,00, \
+0c,00,00,00, \
+0d,00,00,00
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","NetBIOSGroup", 0x00000001, \
+01,00,00,00, \
+02,00,00,00, \
+02,00,00,00
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","SpoolerGroup", 0x00000001, \
+01,00,00,00, \
+02,00,00,00, \
+02,00,00,00
+
+HKLM,"SYSTEM\CurrentControlSet\Control\GroupOrderList","Parallel arbitrator", 0x00000001, \
+01,00,00,00, \
+01,00,00,00
+
 
 ; Session Manager stuff
 HKLM,"SYSTEM\CurrentControlSet\Control\Session Manager","BootExecute", 0x00010000, \
@@ -1648,6 +1926,33 @@ HKLM,"SYSTEM\CurrentControlSet\Services\Packet","ImagePath",0x00020000,"system32
 HKLM,"SYSTEM\CurrentControlSet\Services\Packet","Start",0x00010001,0x00000004
 HKLM,"SYSTEM\CurrentControlSet\Services\Packet","Type",0x00010001,0x00000001
 
+; i8042prt driver
+HKLM,"SYSTEM\CurrentControlSet\Services\i8042prt","ErrorControl",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\i8042prt","Group",0x00000000,"Keyboard Port"
+HKLM,"SYSTEM\CurrentControlSet\Services\i8042prt","ImagePath",0x00020000,"system32\drivers\i8042prt.sys"
+HKLM,"SYSTEM\CurrentControlSet\Services\i8042prt","Start",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\i8042prt","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\i8042prt","Tag",0x00010001,0x00000004
+HKLM,"SYSTEM\CurrentControlSet\Services\i8042prt","DisplayName",0x00000000,"Driver i8042-keyboard and mouse for PS/2 port"
+
+; Keyboard class driver
+HKLM,"SYSTEM\CurrentControlSet\Services\kbdclass","ErrorControl",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\kbdclass","Group",0x00000000,"Keyboard Class"
+HKLM,"SYSTEM\CurrentControlSet\Services\kbdclass","ImagePath",0x00020000,"system32\drivers\kbdclass.sys"
+HKLM,"SYSTEM\CurrentControlSet\Services\kbdclass","Start",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\kbdclass","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\i8042prt","Tag",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\kbdclass\Parameters","ConnectMultiplePorts",0x00010001,1
+
+; Mouse class driver
+HKLM,"SYSTEM\CurrentControlSet\Services\mouclass","ErrorControl",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\mouclass","Group",0x00000000,"Pointer Class"
+HKLM,"SYSTEM\CurrentControlSet\Services\mouclass","ImagePath",0x00020000,"system32\drivers\mouclass.sys"
+HKLM,"SYSTEM\CurrentControlSet\Services\mouclass","Start",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\mouclass","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\i8042prt","Tag",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\mouclass\Parameters","ConnectMultiplePorts",0x00010001,1
+
 ; USB HID driver
 HKLM,"SYSTEM\CurrentControlSet\Services\hidusb","ErrorControl",0x00010001,0x00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\hidusb","Group",0x00000000,"Extended Base"
@@ -1671,45 +1976,96 @@ HKLM,"SYSTEM\CurrentControlSet\Services\mouhid","Type",0x00010001,0x00000001
 
 ; USB hub driver
 HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","ErrorControl",0x00010001,0x00000001
-HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","Group",0x00000000,"Boot Bus Extender"
+HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","Group",0x00000000,"Base"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","ImagePath",0x00020000,"system32\drivers\usbhub.sys"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","Start",0x00010001,0x00000000
 HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","Tag",0x00010001,00000013
+HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","DisplayName",0x00000000,"USB2 Enabled Hub"
+HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","Description",0x00000000,"USB HUB Driver"
 
 ; EHCI controller driver
 HKLM,"SYSTEM\CurrentControlSet\Services\usbehci","ErrorControl",0x00010001,0x00000001
-HKLM,"SYSTEM\CurrentControlSet\Services\usbehci","Group",0x00000000,"Boot Bus Extender"
+HKLM,"SYSTEM\CurrentControlSet\Services\usbehci","Group",0x00000000,"Base"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbehci","ImagePath",0x00020000,"system32\drivers\usbehci.sys"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbehci","Start",0x00010001,0x00000000
 HKLM,"SYSTEM\CurrentControlSet\Services\usbehci","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\usbehci","Tag",0x00010001,00000011
+HKLM,"SYSTEM\CurrentControlSet\Services\usbehci","DisplayName",0x00000000,"USB 2.0 Enhanced Host Controller Miniport Driver"
+HKLM,"SYSTEM\CurrentControlSet\Services\usbehci","Description",0x00000000,"USB 2.0 Bus Driver"
 
 ; OHCI controller driver
 HKLM,"SYSTEM\CurrentControlSet\Services\usbohci","ErrorControl",0x00010001,0x00000001
-HKLM,"SYSTEM\CurrentControlSet\Services\usbohci","Group",0x00000000,"Boot Bus Extender"
+HKLM,"SYSTEM\CurrentControlSet\Services\usbohci","Group",0x00000000,"Base"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbohci","ImagePath",0x00020000,"system32\drivers\usbohci.sys"
-HKLM,"SYSTEM\CurrentControlSet\Services\usbohci","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\usbohci","Start",0x00010001,00000003
 HKLM,"SYSTEM\CurrentControlSet\Services\usbohci","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\usbohci","Tag",0x00010001,00000012
+HKLM,"SYSTEM\CurrentControlSet\Services\usbohci","DisplayName",0x00000000,"USB Open Host Controller Miniport Driver"
 
 ; UHCI controller driver
 HKLM,"SYSTEM\CurrentControlSet\Services\usbuhci","ErrorControl",0x00010001,0x00000001
-HKLM,"SYSTEM\CurrentControlSet\Services\usbuhci","Group",0x00000000,"Boot Bus Extender"
+HKLM,"SYSTEM\CurrentControlSet\Services\usbuhci","Group",0x00000000,"Base"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbuhci","ImagePath",0x00020000,"system32\drivers\usbuhci.sys"
-HKLM,"SYSTEM\CurrentControlSet\Services\usbuhci","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\usbuhci","Start",0x00010001,00000003
 HKLM,"SYSTEM\CurrentControlSet\Services\usbuhci","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\usbuhci","Tag",0x00010001,00000012
+HKLM,"SYSTEM\CurrentControlSet\Services\usbuhci","DisplayName",0x00000000,"USB Universal Host Controller Miniport Driver"
 
 ; USB storage driver
 HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","ErrorControl",0x00010001,0x00000001
-HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","Group",0x00000000,"Primary Disk"
+HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","Group",0x00000000,"Base"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","ImagePath",0x00020000,"system32\drivers\usbstor.sys"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","Start",0x00010001,0x00000000
 HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","Tag",0x00010001,00000014
+HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","DisplayName",0x00000000,"USB Mass Storage Driver"
+HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","Description",0x00000000,"USB Boot Mass Storage Driver"
 
 ; USB composite generic parent
 HKLM,"SYSTEM\CurrentControlSet\Services\usbccgp","ErrorControl",0x00010001,0x00000001
-HKLM,"SYSTEM\CurrentControlSet\Services\usbccgp","Group",0x00000000,"Boot Bus Extender"
+HKLM,"SYSTEM\CurrentControlSet\Services\usbccgp","Group",0x00000000,"Base"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbccgp","ImagePath",0x00020000,"system32\drivers\usbccgp.sys"
-HKLM,"SYSTEM\CurrentControlSet\Services\usbccgp","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\usbccgp","Start",0x00010001,00000003
 HKLM,"SYSTEM\CurrentControlSet\Services\usbccgp","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\usbccgp","Tag",0x00010001,00000015
+HKLM,"SYSTEM\CurrentControlSet\Services\usbccgp","DisplayName",0x00000000,"Microsoft USB Generic Parent Driver"
+
+; Disk driver
+HKLM,"SYSTEM\CurrentControlSet\Services\disk","ErrorControl",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\disk","Group",0x00000000,"SCSI Class"
+HKLM,"SYSTEM\CurrentControlSet\Services\disk","ImagePath",0x00020000,"system32\drivers\disk.sys"
+HKLM,"SYSTEM\CurrentControlSet\Services\disk","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\disk","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\disk","Tag",0x00010001,00000004
+HKLM,"SYSTEM\CurrentControlSet\Services\disk","DisplayName",0x00000000,"Disk Driver"
+
+; Cdrom driver
+HKLM,"SYSTEM\CurrentControlSet\Services\cdrom","ErrorControl",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\cdrom","Group",0x00000000,"SCSI CDROM Class"
+HKLM,"SYSTEM\CurrentControlSet\Services\cdrom","ImagePath",0x00020000,"system32\drivers\cdrom.sys"
+HKLM,"SYSTEM\CurrentControlSet\Services\cdrom","Start",0x00010001,00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\cdrom","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\cdrom","Tag",0x00010001,00000003
+HKLM,"SYSTEM\CurrentControlSet\Services\cdrom","DisplayName",0x00000000,"CD-ROM Driver"
+HKLM,"SYSTEM\CurrentControlSet\Services\cdrom","AutoRun",0x00010001,00000001
+
+; Atapi driver
+HKLM,"SYSTEM\CurrentControlSet\Services\atapi","ErrorControl",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\atapi","Group",0x00000000,"SCSI Miniport"
+HKLM,"SYSTEM\CurrentControlSet\Services\atapi","ImagePath",0x00020000,"system32\drivers\atapi.sys"
+HKLM,"SYSTEM\CurrentControlSet\Services\atapi","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\atapi","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\atapi","Tag",0x00010001,00000021
+HKLM,"SYSTEM\CurrentControlSet\Services\atapi","DisplayName",0x00000000,"Standard IDE/ESDI Hard Disk Controller"
+
+; PCIIde miniport driver
+HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","ErrorControl",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","Group",0x00000000,"System Bus Extender"
+HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","ImagePath",0x00020000,"system32\drivers\pciide.sys"
+HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","Tag",0x00010001,0x00000007
 
 ; MountMgr driver
 HKLM,"SYSTEM\CurrentControlSet\Services\MountMgr","ErrorControl",0x00010001,0x00000001
@@ -1726,6 +2082,17 @@ HKLM,"SYSTEM\CurrentControlSet\Services\acpi","ImagePath",0x00020000,"system32\d
 HKLM,"SYSTEM\CurrentControlSet\Services\acpi","Start",0x00010001,0x00000000
 HKLM,"SYSTEM\CurrentControlSet\Services\acpi","Tag",0x00010001,0x00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\acpi","Type",0x00010001,0x00000001
+
+; isapnp driver
+HKLM,"SYSTEM\CurrentControlSet\Services\isapnp","ErrorControl",0x00010001,0x00000003
+HKLM,"SYSTEM\CurrentControlSet\Services\isapnp","Group",0x00000000,"Boot Bus Extender"
+HKLM,"SYSTEM\CurrentControlSet\Services\isapnp","ImagePath",0x00020000,"system32\drivers\isapnp.sys"
+HKLM,"SYSTEM\CurrentControlSet\Services\isapnp","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\isapnp","Tag",0x00010001,0x00000003
+HKLM,"SYSTEM\CurrentControlSet\Services\isapnp","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\isapnp","HasBootConfig",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\isapnp","DisplayName",0x00000000,"ִנאיגונ PnP ISA/EISA רטםû"
+;HKLM,"SYSTEM\CurrentControlSet\Services\isapnp\Parameters", FIXME
 
 ; PCI Bus driver
 HKLM,"SYSTEM\CurrentControlSet\Services\Pci","ErrorControl",0x00010001,0x00000001
@@ -2059,10 +2426,13 @@ HKLM,"SYSTEM\CurrentControlSet\Services\fastfat","Type",0x00010001,0x00000002
 
 ; RAM Disk class driver
 HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","ErrorControl",0x00010001,0x00000000
-HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Group",0x00000000,"Boot File System"
+HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Group",0x00000000,"Primary disk"
 HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","ImagePath",0x00020000,"system32\drivers\ramdisk.sys"
-HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Start",0x00010001,00000003
 HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Type",0x00010001,0x00000002
+HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Tag",0x00010001,00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Description",0x00000000,"RAM Disk Driver"
+HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","DisplayName",0x00000000,"RAM Disk Driver"
 
 ; EXT2 Filesystem driver
 HKLM,"SYSTEM\CurrentControlSet\Services\Ext2fs","ErrorControl",0x00010001,0x00000000
