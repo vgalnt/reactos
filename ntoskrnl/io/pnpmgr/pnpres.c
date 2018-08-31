@@ -1524,6 +1524,88 @@ IopWriteResourceList(
     return Status;
 }
 
+NTSTATUS NTAPI
+IopAssignResourcesToDevices(
+    _In_ ULONG DeviceCount,
+    _In_ PPNP_RESOURCE_REQUEST ResContext,
+    _In_ BOOLEAN Config,
+    _Out_ BOOLEAN * OutIsAssigned)
+{
+    KEY_VALUE_PARTIAL_INFORMATION KeyValueInformation;
+    PDEVICE_NODE DeviceNode;
+    ULONG DeviceReported;
+    UNICODE_STRING ValueName;
+    ULONG ResultLength;
+    HANDLE KeyHandle;
+    ULONG Idx;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopAssignResourcesToDevices: ResContext - %p, DeviceCount - %X\n",
+           ResContext, DeviceCount);
+
+    ASSERT(DeviceCount);
+
+    for (Idx = 0; Idx < DeviceCount; Idx++)
+    {
+        ResContext[Idx].Flags = 0;
+        ResContext[Idx].AllocationType = ArbiterRequestPnpEnumerated;
+        ResContext[Idx].ResourceAssignment = NULL;
+        ResContext[Idx].Status = STATUS_SUCCESS;
+
+        DeviceNode = IopGetDeviceNode(ResContext[Idx].PhysicalDevice);
+
+        DPRINT("IopAssignResourcesToDevices: Idx - %X, DeviceNode - %p, Flags - %X\n",
+               Idx, DeviceNode, DeviceNode->Flags);
+
+        if (!(DeviceNode->Flags & DNF_MADEUP))
+        {
+            goto Next;
+        }
+
+        DeviceReported = 0;
+
+        Status = PnpDeviceObjectToDeviceInstance(ResContext[Idx].PhysicalDevice,
+                                                 &KeyHandle,
+                                                 KEY_READ);
+        if (!NT_SUCCESS(Status))
+        {
+            goto Next;
+        }
+
+        ResultLength = 0;
+        RtlInitUnicodeString(&ValueName, L"DeviceReported");
+
+        Status = ZwQueryValueKey(KeyHandle,
+                                 &ValueName,
+                                 KeyValuePartialInformation,
+                                 &KeyValueInformation,
+                                 sizeof(KEY_VALUE_PARTIAL_INFORMATION) +
+                                   sizeof(DeviceReported),
+                                 &ResultLength);
+
+        if (NT_SUCCESS(Status))
+        {
+            DeviceReported = *(PULONG)&KeyValueInformation.Data[0];
+        }
+
+        ZwClose(KeyHandle);
+
+        if (DeviceReported != 0)
+        {
+            ASSERT(FALSE);
+            ResContext[Idx].AllocationType = ArbiterRequestLegacyReported;
+        }
+
+Next:
+        ResContext[Idx].ResourceRequirements = NULL;
+        PipDumpResRequest(&ResContext[Idx]);
+    }
+
+    ASSERT(FALSE);
+    return 0;//IopAllocateResources(&DeviceCount, &ResContext, FALSE, Config, OutIsAssigned);
+}
+
 NTSTATUS
 IopProcessAssignResourcesWorker(
     _In_ PDEVICE_NODE DeviceNode,
@@ -1575,7 +1657,7 @@ IopProcessAssignResources(
 {
     PPIP_ASSIGN_RESOURCES_CONTEXT AssignContext;
     DEVICETREE_TRAVERSE_CONTEXT Context;
-    PPIP_RESOURCE_REQUEST ResRequest;
+    PPNP_RESOURCE_REQUEST ResRequest;
     PDEVICE_NODE node;
     ULONG AssignContextSize;
     ULONG DeviceCount;
@@ -1614,7 +1696,7 @@ IopProcessAssignResources(
 
         IsRetry = FALSE;
 
-        AssignContextSize = sizeof(PIP_RESOURCE_REQUEST) +
+        AssignContextSize = sizeof(PNP_RESOURCE_REQUEST) +
                             IopNumberDeviceNodes * sizeof(PDEVICE_OBJECT);
 
         AssignContext = ExAllocatePoolWithTag(PagedPool, AssignContextSize, 'ddpP');
@@ -1646,7 +1728,7 @@ IopProcessAssignResources(
 
         DPRINT("IopProcessAssignResources: DeviceCount - %x\n", DeviceCount);
         ResRequest = ExAllocatePoolWithTag(PagedPool,
-                                           DeviceCount * sizeof(PIP_RESOURCE_REQUEST),
+                                           DeviceCount * sizeof(PNP_RESOURCE_REQUEST),
                                            'ddpP');
         if (!ResRequest)
         {
@@ -1670,9 +1752,7 @@ IopProcessAssignResources(
             IsAssignBootConfig = TRUE;
         }
 
-        DPRINT("IopProcessAssignResources: IsAssignBootConfig - %X\n", IsAssignBootConfig);
-        ASSERT(FALSE);
-        //IopAssignResourcesToDevices(DeviceCount, ResRequest, IsAssignBootConfig, OutIsAssigned);
+        IopAssignResourcesToDevices(DeviceCount, ResRequest, IsAssignBootConfig, OutIsAssigned);
 
         for (ix = 0; ix < DeviceCount; ix++)
         {
