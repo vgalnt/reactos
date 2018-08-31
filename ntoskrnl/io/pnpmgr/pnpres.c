@@ -1524,7 +1524,8 @@ IopWriteResourceList(
     return Status;
 }
 
-NTSTATUS NTAPI
+NTSTATUS
+NTAPI
 IopAssignResourcesToDevices(
     _In_ ULONG DeviceCount,
     _In_ PPNP_RESOURCE_REQUEST ResContext,
@@ -1602,8 +1603,12 @@ Next:
         PipDumpResRequest(&ResContext[Idx]);
     }
 
-    ASSERT(FALSE);
-    return 0;//IopAllocateResources(&DeviceCount, &ResContext, FALSE, Config, OutIsAssigned);
+    Status = IopAllocateResources(&DeviceCount,
+                                  &ResContext,
+                                  FALSE,
+                                  Config,
+                                  OutIsAssigned);
+    return Status;
 }
 
 NTSTATUS
@@ -2161,7 +2166,7 @@ Exit:
 NTSTATUS
 NTAPI
 IopAllocateBootResourcesInternal(
-    _In_ ULONG AllocationType,
+    _In_ ARBITER_REQUEST_SOURCE AllocationType,
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResource)
 {
@@ -2175,7 +2180,7 @@ IopAllocateBootResourcesInternal(
 NTSTATUS
 NTAPI
 IopAllocateBootResources(
-    _In_ ULONG AllocationType,
+    _In_ ARBITER_REQUEST_SOURCE AllocationType,
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResource)
 {
@@ -2206,7 +2211,7 @@ IopAllocateBootResources(
 NTSTATUS
 NTAPI
 IopReportBootResources(
-    _In_ ULONG AllocationType,
+    _In_ ARBITER_REQUEST_SOURCE AllocationType,
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResource)
 {

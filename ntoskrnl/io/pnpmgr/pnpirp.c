@@ -356,7 +356,7 @@ PpIrpQueryResources(
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("IopQueryDeviceResources0: DeviceObject %p\n", DeviceObject);
+    DPRINT("PpIrpQueryResources: DeviceObject %p\n", DeviceObject);
 
     *OutResourceList = NULL;
     *OutSize = 0;
@@ -367,7 +367,7 @@ PpIrpQueryResources(
 
     if (DeviceNode->Flags & DNF_MADEUP)
     {
-        DPRINT("IopQueryDeviceResources0: DeviceNode->Flags & DNF_MADEUP\n");
+        DPRINT("PpIrpQueryResources: DeviceNode->Flags & DNF_MADEUP\n");
 
         Status = IopGetDeviceResourcesFromRegistry(DeviceObject,
                                                    FALSE, // PCM_RESOURCE_LIST
@@ -390,15 +390,15 @@ PpIrpQueryResources(
 
     if (Status == STATUS_NOT_SUPPORTED)
     {
-        DPRINT("IopQueryDeviceResources0: Status == STATUS_NOT_SUPPORTED\n");
-        *OutResourceList = 0;
+        DPRINT("PpIrpQueryResources: Status == STATUS_NOT_SUPPORTED\n");
+        *OutResourceList = NULL;
         Status = STATUS_SUCCESS;
     }
 
     if (NT_SUCCESS(Status))
     {
         *OutSize = PnpDetermineResourceListSize(*OutResourceList);
-         DPRINT("IopQueryDeviceResources0: OutSize %X\n", *OutSize);
+         DPRINT("PpIrpQueryResources: OutSize %X\n", *OutSize);
     }
 
     return Status;

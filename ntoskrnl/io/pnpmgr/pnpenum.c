@@ -1602,7 +1602,7 @@ PiQueryAndAllocateBootResources(
         return Status;
     }
 
-    Status = IopAllocateBootResourcesRoutine(4,
+    Status = IopAllocateBootResourcesRoutine(ArbiterRequestPnpEnumerated,
                                              DeviceNode->PhysicalDeviceObject,
                                              CmResource);
 

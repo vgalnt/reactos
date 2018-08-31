@@ -569,7 +569,7 @@ IopInitializeDeviceInstanceKey(
                                                &ServiceType);
     if (NT_SUCCESS(Status) && CmResouce)
     {
-        Status = IopAllocateBootResourcesRoutine(4,
+        Status = IopAllocateBootResourcesRoutine(ArbiterRequestPnpEnumerated,
                                                  DeviceNode->PhysicalDeviceObject,
                                                  CmResouce);
         if (NT_SUCCESS(Status))
