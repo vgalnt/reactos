@@ -47,6 +47,9 @@ typedef struct _PDO_EXTENSION
     PDO_TYPE PdoType;
     PDESCRIPTION_HEADER WdTable;
     LONG InterfaceReferenceCount;
+    PBUS_HANDLER BusHandler;
+    ULONG MaxBusNumber;
+    ULONG PdoNumber;
 } PDO_EXTENSION, *PPDO_EXTENSION;
 
 /* GLOBALS ********************************************************************/
@@ -452,6 +455,9 @@ HalpAddDevice(IN PDRIVER_OBJECT DriverObject,
         PdoExtension->PhysicalDeviceObject = Pdo;
         PdoExtension->ParentFdoExtension = FdoExtension;
         PdoExtension->PdoType = PciPdo;
+        PdoExtension->BusHandler = BusHandler;
+        PdoExtension->MaxBusNumber = 255;
+        PdoExtension->PdoNumber = ix;
 
         /* Add the PDO to the head of the list */
         PdoExtension->Next = FdoExtension->ChildPdoList;
@@ -506,6 +512,9 @@ HalpAddDevice(IN PDRIVER_OBJECT DriverObject,
         PdoExtension->PhysicalDeviceObject = Pdo;
         PdoExtension->ParentFdoExtension = FdoExtension;
         PdoExtension->PdoType = PdoType;
+        PdoExtension->BusHandler = BusHandler;
+        PdoExtension->MaxBusNumber = 0;
+        PdoExtension->PdoNumber = 0;
 
         /* Add the PDO to the head of the list */
         FdoExtension->ChildPdoList = PdoExtension;
@@ -805,29 +814,166 @@ HalpQueryResources(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
-HalpQueryResourceRequirements(IN PDEVICE_OBJECT DeviceObject,
-                              OUT PIO_RESOURCE_REQUIREMENTS_LIST *Requirements)
+HalpQueryResourceRequirements(
+    IN PDEVICE_OBJECT DeviceObject,
+    OUT PIO_RESOURCE_REQUIREMENTS_LIST * OutIoResource)
 {
-    PPDO_EXTENSION DeviceExtension = DeviceObject->DeviceExtension;
-    PAGED_CODE();
+    PPDO_EXTENSION DeviceExtension;
+    PSUPPORTED_RANGES BusAddresses;
+    PSUPPORTED_RANGE Io;
+    PSUPPORTED_RANGE IoBusAddr;
+    PSUPPORTED_RANGE Memory;
+    PSUPPORTED_RANGE MemoryBusAddr;
+    PSUPPORTED_RANGE PrfMemory;
+    PSUPPORTED_RANGE PrefetchMemoryBusAddr;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResource;
+    PIO_RESOURCE_DESCRIPTOR Descriptor;
+    ULONG ListSize;
+    ULONG Count = 0;
 
-    /* Only the ACPI PDO has requirements */
-    if (DeviceExtension->PdoType == HalPdo)
+    DeviceExtension = DeviceObject->DeviceExtension;
+
+    if (DeviceExtension->PdoType != PciPdo)
     {
-        /* Query ACPI requirements */
-//        return HalpQueryAcpiResourceRequirements(Requirements);
+        ASSERT(FALSE);
+        *OutIoResource = NULL;
         return STATUS_SUCCESS;
     }
-    else if (DeviceExtension->PdoType == PciPdo)
+
+    BusAddresses = DeviceExtension->BusHandler->BusAddresses;
+
+    for (Io = &BusAddresses->IO;
+         Io;
+         Io = Io->Next)
     {
-        /* Watchdog doesn't */
-        return STATUS_NOT_SUPPORTED;
+        DPRINT("HalpQueryResourceRequirements: Count - %X, Io->Limit - %X\n",
+               Count, Io->Limit);
+
+        if (Io->Limit)
+        {
+            Count++;
+        }
     }
-    else
+
+    for (Memory = &BusAddresses->Memory;
+         Memory;
+         Memory = Memory->Next)
     {
-        /* This shouldn't happen */
-        return STATUS_UNSUCCESSFUL;
+        DPRINT("HalpQueryResourceRequirements: Count - %X, Memory->Limit - %X\n",
+               Count, Memory->Limit);
+
+        if (Memory->Limit)
+        {
+            Count++;
+        }
     }
+
+    for (PrfMemory = &BusAddresses->PrefetchMemory;
+         PrfMemory;
+         PrfMemory = PrfMemory->Next)
+    {
+        DPRINT("HalpQueryResourceRequirements: Count - %X, PrfMemory->Limit - %X\n",
+               Count, PrfMemory->Limit);
+
+        if (PrfMemory->Limit)
+        {
+            Count++;
+        }
+    }
+
+    DPRINT("HalpQueryResourceRequirements: Count - %X\n", Count);
+
+    ListSize = sizeof(IO_RESOURCE_REQUIREMENTS_LIST) +
+               (Count - 1) * sizeof(IO_RESOURCE_DESCRIPTOR);
+
+    IoResource = ExAllocatePoolWithTag(PagedPool, ListSize, ' laH');
+
+    if (!IoResource)
+    {
+        ASSERT(FALSE);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlZeroMemory(IoResource, ListSize);
+
+    IoResource->ListSize = ListSize;
+    IoResource->InterfaceType = PNPBus;
+    IoResource->BusNumber = -1;
+    IoResource->AlternativeLists = 1;
+
+    IoResource->List[0].Version = 1;
+    IoResource->List[0].Revision = 1;
+    IoResource->List[0].Count = Count;
+
+    Descriptor = IoResource->List[0].Descriptors;
+
+    for (IoBusAddr = &BusAddresses->IO;
+         IoBusAddr;
+         IoBusAddr = IoBusAddr->Next)
+    {
+        if (IoBusAddr->Limit == 0)
+        {
+            continue;
+        }
+
+        Descriptor->Type = CmResourceTypePort;
+        Descriptor->ShareDisposition = CmResourceShareShared;
+        Descriptor->Flags = CM_RESOURCE_PORT_IO;
+
+        Descriptor->u.Port.Alignment = 1;
+        Descriptor->u.Port.Length = IoBusAddr->Limit - IoBusAddr->Base + 1;
+        Descriptor->u.Port.MinimumAddress.QuadPart = IoBusAddr->Base;
+        Descriptor->u.Port.MaximumAddress.QuadPart = IoBusAddr->Limit;
+
+        Descriptor++;
+    }
+
+    for (MemoryBusAddr = &BusAddresses->Memory;
+         MemoryBusAddr;
+         MemoryBusAddr = MemoryBusAddr->Next)
+    {
+        if (MemoryBusAddr->Limit == 0)
+        {
+            continue;
+        }
+
+        Descriptor->Type = CmResourceTypeMemory;
+        Descriptor->ShareDisposition = CmResourceShareShared;
+        Descriptor->Flags = CM_RESOURCE_MEMORY_READ_WRITE;
+
+        Descriptor->u.Memory.Alignment = 1;
+        Descriptor->u.Memory.Length = MemoryBusAddr->Limit - MemoryBusAddr->Base + 1;
+        Descriptor->u.Memory.MinimumAddress.LowPart = MemoryBusAddr->Base;
+        Descriptor->u.Memory.MaximumAddress.LowPart = MemoryBusAddr->Limit;
+
+        Descriptor++;
+    }
+
+    for (PrefetchMemoryBusAddr = &BusAddresses->PrefetchMemory;
+         PrefetchMemoryBusAddr;
+         PrefetchMemoryBusAddr = PrefetchMemoryBusAddr->Next)
+    {
+        if (PrefetchMemoryBusAddr->Limit == 0)
+        {
+            continue;
+        }
+
+        Descriptor->Type = CmResourceTypeMemory;
+        Descriptor->ShareDisposition = CmResourceShareShared;
+        Descriptor->Flags = CM_RESOURCE_MEMORY_READ_WRITE +
+                            CM_RESOURCE_MEMORY_PREFETCHABLE;
+
+        Descriptor->u.Memory.Alignment = 1;
+        Descriptor->u.Memory.Length = MemoryBusAddr->Limit - MemoryBusAddr->Base + 1;
+        Descriptor->u.Memory.MinimumAddress.LowPart = MemoryBusAddr->Base;
+        Descriptor->u.Memory.MaximumAddress.LowPart = MemoryBusAddr->Limit;
+
+        Descriptor++;
+    }
+
+    *OutIoResource = IoResource;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
