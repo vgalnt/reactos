@@ -721,6 +721,357 @@ IopInitializeAttributesAndCreateObject(
 
 NTSTATUS
 NTAPI
+PipCreateMadeupNode(
+    _In_ PUNICODE_STRING ServiceKeyName,
+    _Out_ PHANDLE OutInstanceHandle,
+    _Out_ PUNICODE_STRING OutMadeupPath,
+    _In_ BOOLEAN IsLocked)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    UNICODE_STRING EnumRootKeyName = RTL_CONSTANT_STRING(
+        L"\\REGISTRY\\MACHINE\\SYSTEM\\CurrentControlSet\\Enum\\Root");
+    UNICODE_STRING LegacyPrefix = RTL_CONSTANT_STRING(L"LEGACY_");
+    UNICODE_STRING MadeupName;
+    UNICODE_STRING ValueName;
+    UNICODE_STRING InstanceName;
+    UNICODE_STRING RootName;
+    UNICODE_STRING TmpString;
+    HANDLE EnumRootHandle;
+    HANDLE MadeupHandle;
+    HANDLE InstanceHandle;
+    HANDLE ControlHandle;
+    HANDLE ServiceHandle;
+    PWSTR ServiceName;
+    ULONG Disposition  = 0;
+    ULONG Data;
+    BOOLEAN IsInternalLocked = FALSE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PipCreateMadeupNode: ServiceKeyName - %wZ, IsLocked - %X\n",
+           ServiceKeyName, IsLocked);
+
+    if (!IsLocked)
+    {
+        KeEnterCriticalRegion();
+        ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+        IsInternalLocked = TRUE;
+    }
+
+    Status = IopOpenRegistryKeyEx(&EnumRootHandle,
+                                  NULL,
+                                  &EnumRootKeyName,
+                                  KEY_ALL_ACCESS);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+        ASSERT(FALSE);
+        goto ErrorExit;
+    }
+
+    MadeupName.Length = 0;
+    MadeupName.MaximumLength = LegacyPrefix.Length +
+                               ServiceKeyName->Length +
+                               sizeof(WCHAR);
+
+    MadeupName.Buffer = ExAllocatePoolWithTag(PagedPool,
+                                              MadeupName.MaximumLength,
+                                              'uspP');
+    if (!MadeupName.Buffer)
+    {
+        DPRINT("PipCreateMadeupNode: STATUS_INSUFFICIENT_RESOURCES\n");
+        ZwClose(EnumRootHandle);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+
+    RtlAppendUnicodeStringToString(&MadeupName, &LegacyPrefix);
+    RtlAppendUnicodeStringToString(&MadeupName, ServiceKeyName);
+    DPRINT("PipCreateMadeupNode: &MadeupName - %wZ\n", &MadeupName);
+
+    Status = IopCreateRegistryKeyEx(&MadeupHandle,
+                                    EnumRootHandle,
+                                    &MadeupName,
+                                    KEY_ALL_ACCESS,
+                                    REG_OPTION_NON_VOLATILE,
+                                    NULL);
+    ZwClose(EnumRootHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+        ASSERT(FALSE);
+        RtlFreeUnicodeString(&MadeupName);
+        goto ErrorExit;
+    }
+
+    Data = 1;
+    RtlInitUnicodeString(&ValueName, L"NextInstance");
+    ZwSetValueKey(MadeupHandle,
+                  &ValueName,
+                  0,
+                  REG_DWORD,
+                  &Data,
+                  sizeof(Data));
+
+    RtlInitUnicodeString(&InstanceName, L"0000");
+    Status = IopCreateRegistryKeyEx(&InstanceHandle,
+                                    MadeupHandle,
+                                    &InstanceName,
+                                    KEY_ALL_ACCESS,
+                                    REG_OPTION_NON_VOLATILE,
+                                    &Disposition);
+    ZwClose(MadeupHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+        ASSERT(FALSE);
+        RtlFreeUnicodeString(&MadeupName);
+        goto ErrorExit;
+    }
+
+    RtlInitUnicodeString(&RootName, L"Root\\");
+
+    Status = PnpConcatenateUnicodeStrings(&TmpString,
+                                          &RootName,
+                                          &MadeupName);
+    RtlFreeUnicodeString(&MadeupName);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+        ASSERT(FALSE);
+        goto ErrorExit;
+    }
+
+    RtlInitUnicodeString(&InstanceName, L"\\0000");
+
+    Status = PnpConcatenateUnicodeStrings(OutMadeupPath,
+                                          &TmpString,
+                                          &InstanceName);
+    RtlFreeUnicodeString(&TmpString);
+
+    DPRINT("PipCreateMadeupNode: OutMadeupPath - %wZ, Status - %X\n",
+           OutMadeupPath, Status);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+        ASSERT(FALSE);
+        goto ErrorExit;
+    }
+
+    if (Disposition != REG_CREATED_NEW_KEY)
+    {
+        DPRINT("PipCreateMadeupNode: Disposition  - %X\n", Disposition);
+        goto Exit;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"Control");
+
+    Status = IopCreateRegistryKeyEx(&ControlHandle,
+                                    InstanceHandle,
+                                    &ValueName,
+                                    KEY_ALL_ACCESS,
+                                    REG_OPTION_VOLATILE,
+                                    NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+        ASSERT(FALSE);
+    }
+    else
+    {
+        Data = 0;
+        RtlInitUnicodeString(&ValueName, L"NewlyCreated");
+
+        ZwSetValueKey(ControlHandle,
+                      &ValueName,
+                      0,
+                      REG_DWORD,
+                      &Data,
+                      sizeof(Data));
+
+        ZwClose(ControlHandle);
+    }
+
+    *OutInstanceHandle = InstanceHandle;
+
+    ServiceName = ExAllocatePoolWithTag(PagedPool,
+                                        ServiceKeyName->Length + sizeof(WCHAR),
+                                        'uspP');
+
+    if (!ServiceName)
+    {
+        DPRINT("PipCreateMadeupNode: STATUS_INSUFFICIENT_RESOURCES\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        RtlInitUnicodeString(&ValueName, L"Service");
+        RtlCopyMemory(ServiceName,
+                      ServiceKeyName->Buffer,
+                      ServiceKeyName->Length);
+
+        ServiceName[ServiceKeyName->Length / sizeof(WCHAR)] = UNICODE_NULL;
+
+        ZwSetValueKey(InstanceHandle,
+                      &ValueName,
+                      0,
+                      REG_SZ,
+                      ServiceName,
+                      ServiceKeyName->Length + sizeof(WCHAR));
+    }
+
+    Data = 1;
+    RtlInitUnicodeString(&ValueName, L"Legacy");
+
+    ZwSetValueKey(InstanceHandle,
+                  &ValueName,
+                  0,
+                  REG_DWORD,
+                  &Data,
+                  sizeof(Data));
+
+    Data = 0;
+    RtlInitUnicodeString(&ValueName, L"ConfigFlags");
+
+    ZwSetValueKey(InstanceHandle,
+                  &ValueName,
+                  0,
+                  REG_DWORD,
+                  &Data,
+                  sizeof(Data));
+
+    RtlInitUnicodeString(&ValueName, L"Class");
+
+    ZwSetValueKey(InstanceHandle,
+                  &ValueName,
+                  0,
+                  REG_SZ,
+                  L"LegacyDriver",
+                  sizeof(L"LegacyDriver"));
+
+    RtlInitUnicodeString(&ValueName, L"ClassGUID");
+
+    ZwSetValueKey(InstanceHandle,
+                  &ValueName,
+                  0,
+                  REG_SZ,
+                  L"{8ECC055D-047F-11D1-A537-0000F8753ED1}",
+                  sizeof(L"{8ECC055D-047F-11D1-A537-0000F8753ED1}"));
+
+    Status = PipOpenServiceEnumKeys(ServiceKeyName,
+                                    KEY_READ,
+                                    &ServiceHandle,
+                                    NULL,
+                                    FALSE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+        ASSERT(FALSE);
+
+        if (ServiceName)
+        {
+            ExFreePoolWithTag(ServiceName, 'uspP');
+        }
+
+        goto Exit;
+    }
+
+    ValueInfo = NULL;
+    TmpString.Length = 0;
+
+    Status = IopGetRegistryValue(ServiceHandle,
+                                 L"DisplayName",
+                                 &ValueInfo);
+
+    if (NT_SUCCESS(Status) && ValueInfo->Type == REG_SZ)
+    {
+        DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+
+        if (ValueInfo->DataLength > sizeof(WCHAR))
+        {
+            USHORT length;
+
+            PnpRegSzToString((PWCHAR)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset),
+                             ValueInfo->DataLength,
+                             &length);
+
+            TmpString.Length = length;
+            TmpString.MaximumLength = ValueInfo->DataLength;
+
+            TmpString.Buffer = (PWSTR)((ULONG_PTR)ValueInfo +
+                                       ValueInfo->DataOffset);
+        }
+    }
+    else
+    {
+        if (NT_SUCCESS(Status))
+        {
+            DPRINT("PipCreateMadeupNode: Not valid Type - %X\n",
+                   ValueInfo->Type);
+        }
+        else
+        {
+            DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+        }
+    }
+
+    ZwClose(ServiceHandle);
+
+    if (ValueInfo)
+    {
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+    }
+
+    if (ServiceName)
+    {
+        ExFreePoolWithTag(ServiceName, 'uspP');
+    }
+
+Exit:
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+    IsInternalLocked = FALSE;
+
+    ASSERT(FALSE);
+    Status = 0;//PpDeviceRegistration(OutMadeupPath, TRUE, NULL);
+
+    if (IsLocked)
+    {
+        KeEnterCriticalRegion();
+        ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+    }
+
+    //RtlFreeUnicodeString(&TmpString);
+
+    if (NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    DPRINT("PipCreateMadeupNode: Status - %X\n", Status);
+
+    ZwClose(*OutInstanceHandle);
+    RtlFreeUnicodeString(OutMadeupPath);
+
+ErrorExit:
+
+    if (IsInternalLocked)
+    {
+        ExReleaseResourceLite(&PpRegistryDeviceResource);
+        KeLeaveCriticalRegion();
+    }
+
+    return Status;
+}
+
+
+NTSTATUS
+NTAPI
 IopInitializeBuiltinDriver(
     _In_ PUNICODE_STRING DriverName,
     _In_ PUNICODE_STRING RegistryPath,
@@ -937,11 +1288,10 @@ IopInitializeBuiltinDriver(
             goto Exit;
         }
 
-        ASSERT(FALSE);
-        Status = 0;//IopPrepareDriverLoading(&DriverExtension->ServiceKeyName,
-                   //                      KeyHandle,
-                   //                      ImageBase,
-                   //                      IsFilter);
+        Status = IopPrepareDriverLoading(&DriverExtension->ServiceKeyName,
+                                         KeyHandle,
+                                         ImageBase,
+                                         IsFilter);
         NtClose(KeyHandle);
 
         if (!NT_SUCCESS(Status))
