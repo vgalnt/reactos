@@ -4790,7 +4790,6 @@ Start:
 
                     case PipEnumBootDevices:
                         DPRINT("PipEnumerationWorker: PipEnumBootDevices\n");
-                        ASSERT(FALSE);
                         IsBootProcess = TRUE;
                         Request = NULL;
                         goto Start;
@@ -4898,12 +4897,10 @@ RestartDevice:
         }
         else if (IsAssignResources || IsBootProcess)
         {
-            //SERVICE_LOAD_TYPE DriverLoadType = DemandLoad;
+            SERVICE_LOAD_TYPE DriverLoadType = DemandLoad;
 
             ObReferenceObject(IopRootDeviceNode->PhysicalDeviceObject);
 
-            ASSERT(FALSE);
-/*
             PipProcessDevNodeTree(IopRootDeviceNode,
                                   PnPBootDriversInitialized,
                                   IsAssignResources,
@@ -4912,7 +4909,7 @@ RestartDevice:
                                   FALSE,
                                   &DriverLoadType,
                                   NULL);
-*/
+
             IsAssignResources = FALSE;
             IsBootProcess = FALSE;
         }
