@@ -1037,8 +1037,7 @@ Exit:
     KeLeaveCriticalRegion();
     IsInternalLocked = FALSE;
 
-    ASSERT(FALSE);
-    Status = 0;//PpDeviceRegistration(OutMadeupPath, TRUE, NULL);
+    Status = PpDeviceRegistration(OutMadeupPath, TRUE, NULL);
 
     if (IsLocked)
     {
@@ -1069,6 +1068,172 @@ ErrorExit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopPrepareDriverLoading(
+    _In_ PUNICODE_STRING ServiceKeyName,
+    _In_ HANDLE ServiceKeyHandle,
+    _In_ PVOID ImageBase,
+    _In_ BOOLEAN IsFilter)
+{
+    PIMAGE_NT_HEADERS NtHeader;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    UNICODE_STRING EnumKeyString;
+    UNICODE_STRING InstancePath;
+    UNICODE_STRING ValueName;
+    HANDLE Handle;
+    HANDLE KeyHandle;
+    HANDLE EnumHandle = NULL;
+    ULONG Count;
+    NTSTATUS Status;
+    BOOLEAN IsPnpDrv = FALSE;
+    BOOLEAN IsAnyEnabled;
+
+    DPRINT("IopPrepareDriverLoading: ServiceKeyName - %wZ, ImageBase - %p\n",
+           ServiceKeyName, ImageBase);
+
+    NtHeader = RtlImageNtHeader(ImageBase);
+
+    if (NtHeader &&
+        (NtHeader->OptionalHeader.DllCharacteristics &
+         IMAGE_DLLCHARACTERISTICS_WDM_DRIVER))
+    {
+        IsPnpDrv = TRUE;
+    }
+    else
+    {
+        IsPnpDrv = FALSE;
+    }
+
+    IsAnyEnabled = IopIsAnyDeviceInstanceEnabled(ServiceKeyName,
+                                                 ServiceKeyHandle,
+                                                 IsPnpDrv == FALSE);
+    if (IsAnyEnabled)
+    {
+       DPRINT("IopPrepareDriverLoading: IsAnyEnabled - TRUE\n");
+       goto Exit;
+    }
+    if (IsPnpDrv)
+    {
+       DPRINT("IopPrepareDriverLoading: IsPnpDrv - TRUE\n");
+       goto Exit;
+    }
+
+    DPRINT("IopPrepareDriverLoading: IsAnyEnabled - FALSE && IsPnpDrv - FALSE\n");
+    //ASSERT(FALSE);
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+    RtlInitUnicodeString(&EnumKeyString, L"Enum");
+
+    Status = IopCreateRegistryKeyEx(&EnumHandle,
+                                    ServiceKeyHandle,
+                                    &EnumKeyString,
+                                    KEY_ALL_ACCESS,
+                                    REG_OPTION_VOLATILE,
+                                    NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopPrepareDriverLoading: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    Count = 0;
+
+    Status = IopGetRegistryValue(EnumHandle, L"Count", &ValueInfo);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (ValueInfo->Type == REG_DWORD &&
+            ValueInfo->DataLength >= sizeof(ULONG))
+        {
+            Count = *(PULONG)((ULONG_PTR)ValueInfo +
+                              ValueInfo->DataOffset);
+            DPRINT("IopPrepareDriverLoading: Count - %X\n", Count);
+        }
+
+        ExFreePoolWithTag(ValueInfo, 'uspP');
+    }
+    else if (Status != STATUS_OBJECT_PATH_NOT_FOUND &&
+             Status != STATUS_OBJECT_NAME_NOT_FOUND)
+    {
+        DPRINT("IopPrepareDriverLoading: Status - %X\n", Status);
+        ZwClose(EnumHandle);
+        goto ErrorExit;
+    }
+
+    if (Count)
+    {
+        DPRINT("IopPrepareDriverLoading: FIXME! Count - %X\n", Count);
+    ASSERT(FALSE);
+        Status = 0;//STATUS_PLUGPLAY_NO_DEVICE;
+        ZwClose(EnumHandle);
+        goto ErrorExit;
+    }
+
+    Status = PipCreateMadeupNode(ServiceKeyName, &Handle, &InstancePath, TRUE);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopPrepareDriverLoading: Status - %X\n", Status);
+        ZwClose(EnumHandle);
+        goto ErrorExit;
+    }
+
+    RtlFreeUnicodeString(&InstancePath);
+    RtlInitUnicodeString(&ValueName, L"Control");
+
+    Status = IopCreateRegistryKeyEx(&KeyHandle,
+                                    Handle,
+                                    &ValueName,
+                                    KEY_ALL_ACCESS,
+                                    REG_OPTION_VOLATILE,
+                                    NULL);
+    if (NT_SUCCESS(Status))
+    {
+        RtlInitUnicodeString(&ValueName, L"ActiveService");
+
+        ZwSetValueKey(KeyHandle,
+                      &ValueName,
+                      0,
+                      REG_SZ,
+                      ServiceKeyName->Buffer,
+                      ServiceKeyName->Length + sizeof(WCHAR));
+
+        ZwClose(KeyHandle);
+    }
+
+    Count++;
+
+    RtlInitUnicodeString(&ValueName, L"Count");
+    ZwSetValueKey(EnumHandle, &ValueName, 0, REG_DWORD, &Count, sizeof(Count));
+
+    RtlInitUnicodeString(&ValueName, L"NextInstance");
+    ZwSetValueKey(EnumHandle, &ValueName, 0, REG_DWORD, &Count, sizeof(Count));
+
+    Status = STATUS_SUCCESS;
+
+    ZwClose(Handle);
+    ZwClose(EnumHandle);
+
+ErrorExit:
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopPrepareDriverLoading: Status - %X\n", Status);
+        return Status;
+    }
+
+Exit:
+
+    DPRINT("IopPrepareDriverLoading: FIXME PpCheckInDriverDatabase()\n");
+    Status = STATUS_SUCCESS;
+    return Status;
+}
 
 NTSTATUS
 NTAPI
@@ -1675,7 +1840,7 @@ IopInitializeBootDrivers(
                                                               FALSE))
                             {
                                 DPRINT("IopInitializeBootDrivers: FIXME IopDeleteLegacyKey\n");
-                                ASSERT(FALSE);
+                                //ASSERT(FALSE);
                             }
                             else
                             {
@@ -1712,9 +1877,6 @@ IopInitializeBootDrivers(
 Next:
             if (!DriverInfo->Failed)
             {
-                DPRINT("IopInitializeBootDrivers: FIXME PipAddDevicesToBootDriver\n");
-                ASSERT(FALSE);
-
                 PipRequestDeviceAction(NULL,
                                        PipEnumBootDevices,
                                        0,
