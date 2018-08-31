@@ -519,4 +519,32 @@ devnode(
     PipDumpDeviceNodes(DeviceNode, 0, Flags);
 }
 
+VOID
+NTAPI
+PipDumpResRequest(
+    _In_ PPNP_RESOURCE_REQUEST ResRequest)
+{
+    PAGED_CODE();
+    DPRINT("PipDumpResRequest: ResRequest - %p\n", ResRequest);
+
+    DPRINT("PhysicalDevice               - %p\n", ResRequest->PhysicalDevice);
+    DPRINT("Flags                        - %X\n", ResRequest->Flags);
+    DPRINT("AllocationType               - %X\n", ResRequest->AllocationType);
+    DPRINT("Priority                     - %X\n", ResRequest->Priority);
+    DPRINT("Position                     - %X\n", ResRequest->Position);
+    DPRINT("ResourceRequirements         - %p\n", ResRequest->ResourceRequirements);
+    DPRINT("ReqList                      - %p\n", ResRequest->ReqList);
+    DPRINT("ResourceAssignment           - %p\n", ResRequest->ResourceAssignment);
+    DPRINT("TranslatedResourceAssignment - %p\n", ResRequest->TranslatedResourceAssignment);
+    DPRINT("Status                       - %X\n", ResRequest->Status);
+    DPRINT("PipDumpResRequest: ===========================\n");
+
+    if (!ResRequest->ReqList)
+    {
+        return;
+    }
+
+    DPRINT("PipDumpResRequest: FIXME Dump ReqList\n");
+}
+
 /* EOF */
