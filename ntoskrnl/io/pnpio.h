@@ -99,7 +99,7 @@ typedef BOOLEAN
 typedef
 NTSTATUS
 (NTAPI *PNP_ALLOCATE_RESOURCES_ROUTINE)(
-    _In_ ULONG AllocationType,
+    _In_ ARBITER_REQUEST_SOURCE AllocationType,
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResource
 );
@@ -526,7 +526,7 @@ IopGetDeviceResourcesFromRegistry(
 NTSTATUS
 NTAPI
 IopAllocateBootResources(
-    _In_ ULONG AllocationType,
+    _In_ ARBITER_REQUEST_SOURCE AllocationType,
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResource
 );
@@ -534,7 +534,7 @@ IopAllocateBootResources(
 NTSTATUS
 NTAPI
 IopReportBootResources(
-    _In_ ULONG AllocationType,
+    _In_ ARBITER_REQUEST_SOURCE AllocationType,
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResource
 );
