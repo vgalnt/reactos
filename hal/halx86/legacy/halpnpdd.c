@@ -720,103 +720,183 @@ HalpQueryCapabilities(IN PDEVICE_OBJECT DeviceObject,
 NTSTATUS
 NTAPI
 HalpQueryResources(IN PDEVICE_OBJECT DeviceObject,
-                   OUT PCM_RESOURCE_LIST *Resources)
+                   OUT PCM_RESOURCE_LIST * OutCmResource)
 {
     PPDO_EXTENSION DeviceExtension = DeviceObject->DeviceExtension;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor0;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor;
+    PCM_RESOURCE_LIST CmResource;
+    PSUPPORTED_RANGES BusAddresses;
+    PSUPPORTED_RANGE Io;
+    PSUPPORTED_RANGE MemoryAddresses;
+    PSUPPORTED_RANGE PrfMemoryAddresses;
+    ULONG ListSize;
+    ULONG Count = 1; // one add. BusNumber descriptor
     NTSTATUS Status;
-    PCM_RESOURCE_LIST ResourceList;
-//    PIO_RESOURCE_REQUIREMENTS_LIST RequirementsList;
-//    PIO_RESOURCE_DESCRIPTOR Descriptor;
-//    PCM_PARTIAL_RESOURCE_DESCRIPTOR PartialDesc;
-//    ULONG i;
+
     PAGED_CODE();
+    DPRINT("HalpQueryResources: PdoType - %X\n", DeviceExtension->PdoType);
 
-    /* Only the ACPI PDO has requirements */
-    if (DeviceExtension->PdoType == HalPdo)
+    if (DeviceExtension->PdoType != PciPdo)
     {
-#if 0
-        /* Query ACPI requirements */
-        Status = HalpQueryAcpiResourceRequirements(&RequirementsList);
-        if (!NT_SUCCESS(Status)) return Status;
-
-        ASSERT(RequirementsList->AlternativeLists == 1);
-#endif
-
-        /* Allocate the resourcel ist */
-        ResourceList = ExAllocatePoolWithTag(PagedPool,
-                                             sizeof(CM_RESOURCE_LIST),
-                                             TAG_HAL);
-        if (!ResourceList )
-        {
-            /* Fail, no memory */
-            Status = STATUS_INSUFFICIENT_RESOURCES;
-//            ExFreePoolWithTag(RequirementsList, TAG_HAL);
-            return Status;
-        }
-
-        /* Initialize it */
-        RtlZeroMemory(ResourceList, sizeof(CM_RESOURCE_LIST));
-        ResourceList->Count = 1;
-
-        /* Setup the list fields */
-        ResourceList->List[0].BusNumber = 0;
-        ResourceList->List[0].InterfaceType = PCIBus;
-        ResourceList->List[0].PartialResourceList.Version = 1;
-        ResourceList->List[0].PartialResourceList.Revision = 1;
-        ResourceList->List[0].PartialResourceList.Count = 0;
-
-        /* Setup the first descriptor */
-        //PartialDesc = ResourceList->List[0].PartialResourceList.PartialDescriptors;
-
-        /* Find the requirement descriptor for the SCI */
-#if 0
-        for (i = 0; i < RequirementsList->List[0].Count; i++)
-        {
-            /* Get this descriptor */
-            Descriptor = &RequirementsList->List[0].Descriptors[i];
-            if (Descriptor->Type == CmResourceTypeInterrupt)
-            {
-                /* Copy requirements descriptor into resource descriptor */
-                PartialDesc->Type = CmResourceTypeInterrupt;
-                PartialDesc->ShareDisposition = Descriptor->ShareDisposition;
-                PartialDesc->Flags = Descriptor->Flags;
-                ASSERT(Descriptor->u.Interrupt.MinimumVector ==
-                       Descriptor->u.Interrupt.MaximumVector);
-                PartialDesc->u.Interrupt.Vector = Descriptor->u.Interrupt.MinimumVector;
-                PartialDesc->u.Interrupt.Level = Descriptor->u.Interrupt.MinimumVector;
-                PartialDesc->u.Interrupt.Affinity = 0xFFFFFFFF;
-
-                ResourceList->List[0].PartialResourceList.Count++;
-
-                break;
-            }
-        }
-#endif
-
-        /* Return resources and success */
-        *Resources = ResourceList;
-
-//        ExFreePoolWithTag(RequirementsList, TAG_HAL);
-
+        ASSERT(FALSE);
+        *OutCmResource = NULL;
         return STATUS_SUCCESS;
     }
-    else if (DeviceExtension->PdoType == PciPdo)
+
+    BusAddresses = DeviceExtension->BusHandler->BusAddresses;
+
+    for (Io = &BusAddresses->IO;
+         Io;
+         Io = Io->Next)
     {
-        /* Watchdog doesn't */
-        return STATUS_NOT_SUPPORTED;
+        DPRINT("HalpQueryResources: Count - %X, Io->Limit - %X\n",
+               Count, Io->Limit);
+
+        if (Io->Limit)
+        {
+            Count++;
+        }
     }
-    else
+
+    for (MemoryAddresses = &BusAddresses->Memory;
+         MemoryAddresses;
+         MemoryAddresses = MemoryAddresses->Next)
     {
-        /* This shouldn't happen */
-        return STATUS_UNSUCCESSFUL;
+        DPRINT("HalpQueryResources: Count - %X, MemoryAddresses->Limit - %X\n",
+               Count, MemoryAddresses->Limit);
+
+        if (MemoryAddresses->Limit)
+        {
+            Count++;
+        }
     }
+
+    for (PrfMemoryAddresses = &BusAddresses->PrefetchMemory;
+         PrfMemoryAddresses;
+         PrfMemoryAddresses = PrfMemoryAddresses->Next)
+    {
+        DPRINT("HalpQueryResources: Count - %X, PrfMemoryAddresses->Limit - %X\n",
+               Count, PrfMemoryAddresses->Limit);
+
+        if (PrfMemoryAddresses->Limit)
+        {
+            Count++;
+        }
+    }
+
+    DPRINT("HalpQueryResources: Count - %X\n", Count);
+
+    ListSize = sizeof(CM_RESOURCE_LIST) +
+               (Count - 1) * sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR);
+
+    /* Allocate the resourcel ist */
+    CmResource = ExAllocatePoolWithTag(PagedPool, ListSize, TAG_HAL);
+
+    if (!CmResource)
+    {
+        /* Fail, no memory */
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        return Status;
+    }
+
+    /* Initialize it */
+    RtlZeroMemory(CmResource, ListSize);
+
+    /* Setup the list fields */
+    CmResource->Count = 1;
+
+    CmResource->List[0].BusNumber = -1;
+    CmResource->List[0].InterfaceType = PNPBus;
+    CmResource->List[0].PartialResourceList.Version = 1;
+    CmResource->List[0].PartialResourceList.Revision = 1;
+    CmResource->List[0].PartialResourceList.Count = Count;
+
+    Descriptor0 = &CmResource->List[0].PartialResourceList.PartialDescriptors[0];
+
+    Descriptor0->Type = CmResourceTypeBusNumber;
+    Descriptor0->ShareDisposition = CmResourceShareShared;
+
+    Descriptor0->u.BusNumber.Start = DeviceExtension->PdoNumber;
+    Descriptor0->u.BusNumber.Length = DeviceExtension->MaxBusNumber -
+                                      DeviceExtension->PdoNumber + 1;
+
+    Descriptor = &CmResource->List[0].PartialResourceList.PartialDescriptors[1];
+
+    for (Io = &BusAddresses->IO;
+         Io;
+         Io = Io->Next)
+    {
+        if (Io->Limit)
+        {
+            Descriptor->Type = CmResourceTypePort;
+            Descriptor->ShareDisposition = CmResourceShareShared;
+            Descriptor->Flags = CM_RESOURCE_PORT_IO;
+
+            Descriptor->u.Port.Length = (ULONG)(Io->Limit - Io->Base + 1);
+            Descriptor->u.Port.Start.QuadPart = Io->Base;
+
+            DPRINT("HalpQueryResources: (Io) Limit - %I64X, Base -  %I64X, Length - %X\n",
+                   Io->Limit, Io->Base, Descriptor->u.Port.Length);
+
+            Descriptor++;
+        }
+    }
+
+    for (MemoryAddresses = &BusAddresses->Memory;
+         MemoryAddresses;
+         MemoryAddresses = MemoryAddresses->Next)
+    {
+        if (MemoryAddresses->Limit)
+        {
+            Descriptor->Type = CmResourceTypeMemory;
+            Descriptor->ShareDisposition = CmResourceShareShared;
+            Descriptor->Flags = CM_RESOURCE_MEMORY_READ_WRITE;
+
+            Descriptor->u.Memory.Length = (ULONG)(MemoryAddresses->Limit -
+                                                  MemoryAddresses->Base + 1);
+
+            Descriptor->u.Memory.Start.QuadPart = MemoryAddresses->Base;
+
+            DPRINT("HalpQueryResources: (Memory) Limit - %I64X, Base -  %I64X, Length - %X\n",
+                   MemoryAddresses->Limit, MemoryAddresses->Base, Descriptor->u.Memory.Length);
+
+            Descriptor++;
+        }
+    }
+
+    for (PrfMemoryAddresses = &BusAddresses->PrefetchMemory;
+         PrfMemoryAddresses;
+         PrfMemoryAddresses = PrfMemoryAddresses->Next)
+    {
+        if (PrfMemoryAddresses->Limit)
+        {
+            Descriptor->Type = CmResourceTypeMemory;
+            Descriptor->ShareDisposition = CmResourceShareShared;
+            Descriptor->Flags = CM_RESOURCE_MEMORY_READ_WRITE +
+                                CM_RESOURCE_MEMORY_PREFETCHABLE;
+
+            Descriptor->u.Memory.Length = (ULONG)(PrfMemoryAddresses->Limit -
+                                                  PrfMemoryAddresses->Base + 1);
+
+            Descriptor->u.Memory.Start.QuadPart = PrfMemoryAddresses->Base;
+
+            DPRINT("HalpQueryResources: (PrfMemory) Limit - %I64X, Base -  %I64X, Length - %X\n",
+                   PrfMemoryAddresses->Limit, PrfMemoryAddresses->Base, Descriptor->u.Memory.Length);
+
+            Descriptor++;
+        }
+    }
+
+    *OutCmResource = CmResource;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
 NTAPI
-HalpQueryResourceRequirements(
-    IN PDEVICE_OBJECT DeviceObject,
-    OUT PIO_RESOURCE_REQUIREMENTS_LIST * OutIoResource)
+HalpQueryResourceRequirements(IN PDEVICE_OBJECT DeviceObject,
+                              OUT PIO_RESOURCE_REQUIREMENTS_LIST * OutIoResource)
 {
     PPDO_EXTENSION DeviceExtension;
     PSUPPORTED_RANGES BusAddresses;
