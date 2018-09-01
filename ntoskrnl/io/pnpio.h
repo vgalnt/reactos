@@ -644,4 +644,12 @@ IopIsAnyDeviceInstanceEnabled(
     _In_ BOOLEAN IsLegacyDriver
 );
 
+PIO_RESOURCE_REQUIREMENTS_LIST
+NTAPI
+IopCmResourcesToIoResources(
+    _In_ ULONG Slot,
+    _In_ PCM_RESOURCE_LIST CmResource,
+    _In_ ULONG Priority
+);
+
 #endif  /* _PNPIO_H */

@@ -1505,4 +1505,200 @@ IopIsAnyDeviceInstanceEnabled(
     return Result;
 }
 
+PIO_RESOURCE_REQUIREMENTS_LIST
+NTAPI
+IopCmResourcesToIoResources(
+    _In_ ULONG Slot,
+    _In_ PCM_RESOURCE_LIST CmResource,
+    _In_ ULONG Priority)
+{
+    PCM_FULL_RESOURCE_DESCRIPTOR CmFullList;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResource;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor0;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    INTERFACE_TYPE InterfaceType;
+    ULONG PartialCount = 0;
+    ULONG IoResourceSize;
+    ULONG IoCount;
+    ULONG ix;
+    ULONG jx;
+
+    PAGED_CODE();
+    DPRINT("IopCmResourcesToIoResources: Slot - %X, CmResource - %p, CmResourceCount - %X, Priority - %X\n",
+           Slot, CmResource, CmResource->Count, Priority);
+
+    if (CmResource->Count <= 0)
+    {
+        ASSERT(FALSE);
+        return NULL;
+    }
+
+    CmFullList = &CmResource->List[0];
+
+    for (ix = 0; ix < CmResource->Count; ix++)
+    {
+        CmDescriptor = CmFullList->PartialResourceList.PartialDescriptors;
+
+        for (jx = 0; jx < CmFullList->PartialResourceList.Count; jx++)
+        {
+            PartialCount++;
+            CmDescriptor = IopGetNextCmPartialDescriptor(CmDescriptor);
+        }
+
+        CmFullList = (PCM_FULL_RESOURCE_DESCRIPTOR)CmDescriptor;
+    }
+
+    if (!PartialCount)
+    {
+        IopDumpCmResourceList(CmResource);
+        ASSERT(FALSE);
+        return NULL;
+    }
+
+    IoCount = CmResource->Count + PartialCount;
+
+    IoResourceSize = sizeof(IO_RESOURCE_REQUIREMENTS_LIST) +
+                     IoCount * sizeof(IO_RESOURCE_DESCRIPTOR);
+
+    IoResource = ExAllocatePoolWithTag(PagedPool, IoResourceSize, 'uspP');
+
+    if (!IoResource)
+    {
+        DPRINT1("IopCmResourcesToIoResources: Allocate failed!\n");
+        ASSERT(FALSE);
+        return NULL;
+    }
+
+    DPRINT("IopCmResourcesToIoResources: [%p] IoCount - %X, IoResourceSize - %X\n",
+           IoResource, IoCount, IoResourceSize);
+
+    CmFullList = CmResource->List;
+
+    IoResource->InterfaceType = CmResource->List[0].InterfaceType;
+    IoResource->BusNumber = CmResource->List[0].BusNumber;
+    IoResource->SlotNumber = Slot;
+    IoResource->AlternativeLists = 1;
+
+    IoResource->List[0].Version = 1;
+    IoResource->List[0].Revision = 1;
+    IoResource->List[0].Count = IoCount;
+
+    IoResource->Reserved[0] = 0;
+    IoResource->Reserved[1] = 0;
+    IoResource->Reserved[2] = 0;
+
+    IoDescriptor0 = &IoResource->List[0].Descriptors[0];
+
+    IoDescriptor0->Option = IO_RESOURCE_PREFERRED;
+    IoDescriptor0->Type = CmResourceTypeConfigData;
+    IoDescriptor0->ShareDisposition = CmResourceShareShared;
+    IoDescriptor0->Flags = 0;
+    IoDescriptor0->Spare1 = 0;
+    IoDescriptor0->Spare2 = 0;
+    IoDescriptor0->u.ConfigData.Priority = Priority;
+
+    IoDescriptor = &IoResource->List[0].Descriptors[1];
+
+    for (ix = 0; ix < CmResource->Count; ix++)
+    {
+        if (ix > 0)
+        {
+            IoDescriptor->Option = IO_RESOURCE_PREFERRED;
+            IoDescriptor->Type = 0xF0;
+            IoDescriptor->ShareDisposition = CmResourceShareUndetermined;
+            IoDescriptor->Flags = 0;
+            IoDescriptor->Spare1 = 0;
+            IoDescriptor->Spare2 = 0;
+
+            if (CmFullList->InterfaceType == InterfaceTypeUndefined)
+            {
+                InterfaceType = PnpDefaultInterfaceType;
+            }
+            else
+            {
+                InterfaceType = CmFullList->InterfaceType;
+            }
+
+            IoDescriptor->u.Port.Length = InterfaceType;
+            IoDescriptor->u.Port.Alignment = CmFullList->BusNumber;
+            IoDescriptor->u.Port.MinimumAddress.LowPart = 0;
+
+            IoDescriptor++;
+        }
+
+        CmDescriptor = CmFullList->PartialResourceList.PartialDescriptors;
+
+        if (CmFullList->PartialResourceList.Count > 0)
+        {
+            for (jx = 0; jx < CmFullList->PartialResourceList.Count; jx++)
+            {
+                IoDescriptor->Option = IO_RESOURCE_PREFERRED;
+                IoDescriptor->Type = CmDescriptor->Type;
+                IoDescriptor->ShareDisposition = CmDescriptor->ShareDisposition;
+                IoDescriptor->Flags = CmDescriptor->Flags;
+                IoDescriptor->Spare1 = 0;
+                IoDescriptor->Spare2 = 0;
+
+                if (CmDescriptor->Type == CmResourceTypeDeviceSpecific)
+                {
+                    /* Not used within IO_RESOURCE_DESCRIPTOR */
+
+                    CmDescriptor = (PCM_PARTIAL_RESOURCE_DESCRIPTOR)
+                                    ((ULONG_PTR)CmDescriptor +
+                                     sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR) +
+                                     CmDescriptor->u.DeviceSpecificData.DataSize);
+                    continue;
+                }
+
+                switch (CmDescriptor->Type)
+                {
+                    case 1:
+                    case 3:
+                        IoDescriptor->u.Generic.Length = CmDescriptor->u.Generic.Length;
+                        IoDescriptor->u.Generic.Alignment = 1;
+                        IoDescriptor->u.Generic.MinimumAddress.QuadPart = CmDescriptor->u.Generic.Start.QuadPart;
+                        IoDescriptor->u.Generic.MaximumAddress.QuadPart = CmDescriptor->u.Generic.Start.QuadPart +
+                                                                          (ULONG)(CmDescriptor->u.Generic.Length - 1);
+                        break;
+                    case 2:
+                        IoDescriptor->u.Interrupt.MinimumVector = CmDescriptor->u.Interrupt.Vector;
+                        IoDescriptor->u.Interrupt.MaximumVector = CmDescriptor->u.Interrupt.Vector;
+                        break;
+                    case 4:
+                        IoDescriptor->u.Dma.MinimumChannel = CmDescriptor->u.Dma.Channel;
+                        IoDescriptor->u.Dma.MaximumChannel = CmDescriptor->u.Dma.Channel;
+                        break;
+                    case 6:
+                        IoDescriptor->u.BusNumber.Length = CmDescriptor->u.BusNumber.Length;
+                        IoDescriptor->u.BusNumber.MinBusNumber = CmDescriptor->u.BusNumber.Start;
+                        IoDescriptor->u.BusNumber.MaxBusNumber = CmDescriptor->u.BusNumber.Start +
+                                                                 CmDescriptor->u.BusNumber.Length - 1;
+                        break;
+                    default:
+                        IoDescriptor->u.DevicePrivate.Data[0] = CmDescriptor->u.DevicePrivate.Data[0];
+                        IoDescriptor->u.DevicePrivate.Data[1] = CmDescriptor->u.DevicePrivate.Data[1];
+                        IoDescriptor->u.DevicePrivate.Data[2] = CmDescriptor->u.DevicePrivate.Data[2];
+                        break;
+                }
+
+                IoDescriptor++;
+
+                CmDescriptor = (PCM_PARTIAL_RESOURCE_DESCRIPTOR)
+                                ((ULONG_PTR)CmDescriptor +
+                                 sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR));
+            }
+        }
+
+        CmFullList = (PCM_FULL_RESOURCE_DESCRIPTOR)CmDescriptor;
+    }
+
+    IoResource->ListSize = (ULONG_PTR)IoDescriptor - (ULONG_PTR)IoResource;
+
+    DPRINT("IopCmResourcesToIoResources: AlternativeLists - %X, ListSize - %X\n",
+           IoResource->AlternativeLists, IoResource->ListSize);
+
+    return IoResource;
+}
+
 /* EOF */
