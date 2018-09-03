@@ -81,6 +81,67 @@ C_ASSERT(sizeof(PNP_RESOURCE_REQUEST) == 0x40);
 C_ASSERT(sizeof(PNP_RESOURCE_REQUEST) == 0x28);
 #endif
 
+typedef struct _PNP_REQ_RESOURCE_ENTRY
+{
+    LIST_ENTRY Link; // Link to (PPI_RESOURCE_ARBITER_ENTRY)->ResourceList
+    ULONG Count;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    PDEVICE_OBJECT PhysicalDevice;
+    ARBITER_REQUEST_SOURCE AllocationType;
+    ULONG Reserved1;
+    ULONG Reserved2;
+    INTERFACE_TYPE InterfaceType;
+    ULONG SlotNumber;
+    ULONG BusNumber;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR pCmDescriptor;
+    ULONG Reserved3;
+    ULONG Reserved4;
+    CM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+} PNP_REQ_RESOURCE_ENTRY, *PPNP_REQ_RESOURCE_ENTRY; 
+
+typedef struct _PNP_REQ_ALT_LIST *PPNP_REQ_ALT_LIST; 
+
+typedef struct _PNP_REQ_DESCRIPTOR
+{
+    INTERFACE_TYPE InterfaceType;
+    ULONG BusNumber;
+    BOOLEAN IsArbitrated;
+    UCHAR Padded0[3];
+    PPNP_REQ_ALT_LIST AltList;
+    ULONG DescNumber;
+    struct _PNP_REQ_DESCRIPTOR * TranslatedReqDesc;
+    PNP_REQ_RESOURCE_ENTRY ReqEntry;
+    ULONG Reserved[18];
+    ULONG DescriptorsCount;
+    PIO_RESOURCE_DESCRIPTOR DevicePrivateIoDesc; // CmResourceTypeDevicePrivate
+    union
+    {
+        struct _PI_RESOURCE_ARBITER_ENTRY * ArbiterEntry;
+        struct _PI_RESOURCE_TRANSLATOR_ENTRY * TranslatorEntry;
+    };
+} PNP_REQ_DESCRIPTOR, *PPNP_REQ_DESCRIPTOR; 
+
+typedef struct _PNP_REQ_ALT_LIST
+{
+    ULONG ConfigPriority;
+    ULONG Priority;
+    PPNP_REQ_LIST ReqList;
+    ULONG ListNumber;
+    ULONG CountDescriptors;
+    PPNP_REQ_DESCRIPTOR ReqDescriptors[1]; // array pointers to descriptors
+} PNP_REQ_ALT_LIST, *PPNP_REQ_ALT_LIST; 
+
+typedef struct _PNP_REQ_LIST
+{ 
+    INTERFACE_TYPE InterfaceType;
+    ULONG BusNumber;
+    PPNP_RESOURCE_REQUEST ResRequest;
+    PPNP_REQ_ALT_LIST AltList1;
+    PPNP_REQ_ALT_LIST AltList2;
+    ULONG Count;
+    PPNP_REQ_ALT_LIST AltLists[1]; // array pointers to alternative lists
+} PNP_REQ_LIST, *PPNP_REQ_LIST; 
+
 typedef struct _PIP_ASSIGN_RESOURCES_CONTEXT
 {
     ULONG DeviceCount;
