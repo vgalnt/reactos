@@ -1524,7 +1524,8 @@ IopWriteResourceList(
     return Status;
 }
 
-NTSTATUS NTAPI
+NTSTATUS
+NTAPI
 IopResourceRequirementsListToReqList(
     _In_ PPNP_RESOURCE_REQUEST ResRequest,
     _Out_ PPNP_REQ_LIST * OutReqList)
@@ -2587,11 +2588,114 @@ IopAllocateBootResourcesInternal(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResource)
 {
+    PDEVICE_NODE DeviceNode = NULL;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    NTSTATUS Status;
+    SIZE_T ListSize;
+    PCM_RESOURCE_LIST NewList;
+    PNP_RESOURCE_REQUEST ResRequest;
+    PPNP_REQ_LIST ReqList;
+
     PAGED_CODE();
     DPRINT("IopAllocateBootResourcesInternal: AllocationType - %X, DeviceObject - %p\n",
            AllocationType, DeviceObject);
+
+    IoResources = IopCmResourcesToIoResources(0, CmResource, LCPRI_BOOTCONFIG);
+
+    if (!IoResources)
+    {
+        ASSERT(FALSE);
+        DPRINT("IopAllocateBootResourcesInternal: STATUS_UNSUCCESSFUL\n");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    DPRINT("IopAllocateBootResourcesInternal: IoResources->AlternativeLists - %X, DeviceNode->BootResources - %p\n",
+           IoResources->AlternativeLists, DeviceNode->BootResources);
+
+    DPRINT("\n");
+    DPRINT("=== BootResourceRequirementsList =======================\n");
+    IopDumpResourceRequirementsList(IoResources);
+    DPRINT("=== BootResourceRequirementsList end ===================\n");
+
+    ResRequest.AllocationType = AllocationType;
+    ResRequest.ResourceRequirements = IoResources;
+    ResRequest.PhysicalDevice = DeviceObject;
+
+    DPRINT("\n");
+    DPRINT("==IopResourceRequirementsListToReqList()=================================\n");
+    Status = IopResourceRequirementsListToReqList(&ResRequest, &ReqList);
+    DPRINT("==IopResourceRequirementsListToReqList() end=============================\n");
+    DPRINT("\n");
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopAllocateBootResourcesInternal: Status - %X\n", Status);
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    if (!ReqList)
+    {
+        ASSERT(FALSE);
+        Status = STATUS_UNSUCCESSFUL;
+        goto Exit;
+    }
+
     ASSERT(FALSE);
-    return STATUS_SUCCESS;
+    Status = 0;//IopBootAllocation(ReqList);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+        //IopFreeReqList(ReqList);
+        goto Exit;
+    }
+
+    if (!DeviceNode)
+    {
+        ASSERT(FALSE);
+        //IopFreeReqList(ReqList);
+        goto Exit;
+    }
+
+    DeviceNode->Flags |= DNF_BOOT_CONFIG_RESERVED;
+
+    if (DeviceNode->BootResources)
+    {
+        ASSERT(FALSE);
+        //IopFreeReqList(ReqList);
+        goto Exit;
+    }
+
+    ListSize = PnpDetermineResourceListSize(CmResource);
+
+    NewList = ExAllocatePoolWithTag(PagedPool, ListSize, 'erpP');
+    DeviceNode->BootResources = NewList;
+
+    if (!NewList)
+    {
+        DPRINT1("IopAllocateBootResourcesInternal: STATUS_INSUFFICIENT_RESOURCES\n");
+        ASSERT(FALSE);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlCopyMemory(NewList, CmResource, ListSize);
+
+    ASSERT(FALSE);
+    //IopFreeReqList(ReqList);
+
+Exit:
+
+    ExFreePoolWithTag(IoResources, 'uspP');
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopAllocateBootResourcesInternal: Status %X\n", Status);
+    }
+
+    return Status;
 }
 
 NTSTATUS

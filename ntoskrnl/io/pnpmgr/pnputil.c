@@ -1621,9 +1621,9 @@ IopCmResourcesToIoResources(
                 InterfaceType = CmFullList->InterfaceType;
             }
 
-            IoDescriptor->u.Port.Length = InterfaceType;
-            IoDescriptor->u.Port.Alignment = CmFullList->BusNumber;
-            IoDescriptor->u.Port.MinimumAddress.LowPart = 0;
+            IoDescriptor->u.DevicePrivate.Data[0] = InterfaceType;
+            IoDescriptor->u.DevicePrivate.Data[1] = CmFullList->BusNumber;
+            IoDescriptor->u.DevicePrivate.Data[2] = 0;
 
             IoDescriptor++;
         }
@@ -1654,23 +1654,23 @@ IopCmResourcesToIoResources(
 
                 switch (CmDescriptor->Type)
                 {
-                    case 1:
-                    case 3:
+                    case CmResourceTypePort:
+                    case CmResourceTypeMemory:
                         IoDescriptor->u.Generic.Length = CmDescriptor->u.Generic.Length;
                         IoDescriptor->u.Generic.Alignment = 1;
                         IoDescriptor->u.Generic.MinimumAddress.QuadPart = CmDescriptor->u.Generic.Start.QuadPart;
                         IoDescriptor->u.Generic.MaximumAddress.QuadPart = CmDescriptor->u.Generic.Start.QuadPart +
                                                                           (ULONG)(CmDescriptor->u.Generic.Length - 1);
                         break;
-                    case 2:
+                    case CmResourceTypeInterrupt:
                         IoDescriptor->u.Interrupt.MinimumVector = CmDescriptor->u.Interrupt.Vector;
                         IoDescriptor->u.Interrupt.MaximumVector = CmDescriptor->u.Interrupt.Vector;
                         break;
-                    case 4:
+                    case CmResourceTypeDma:
                         IoDescriptor->u.Dma.MinimumChannel = CmDescriptor->u.Dma.Channel;
                         IoDescriptor->u.Dma.MaximumChannel = CmDescriptor->u.Dma.Channel;
                         break;
-                    case 6:
+                    case CmResourceTypeBusNumber:
                         IoDescriptor->u.BusNumber.Length = CmDescriptor->u.BusNumber.Length;
                         IoDescriptor->u.BusNumber.MinBusNumber = CmDescriptor->u.BusNumber.Start;
                         IoDescriptor->u.BusNumber.MaxBusNumber = CmDescriptor->u.BusNumber.Start +
