@@ -1524,6 +1524,422 @@ IopWriteResourceList(
     return Status;
 }
 
+NTSTATUS NTAPI
+IopResourceRequirementsListToReqList(
+    _In_ PPNP_RESOURCE_REQUEST ResRequest,
+    _Out_ PPNP_REQ_LIST * OutReqList)
+{
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    ULONG_PTR IoResourcesEnd;
+    PIO_RESOURCE_LIST IoList;
+    ULONG ListsCount;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptorEnd;
+    PIO_RESOURCE_DESCRIPTOR FirstIoDescriptor;
+    ULONG IoDescCount;
+    ULONG AltIoDescCount;
+    ULONG PrefIoDescCount;
+    ULONG ListPoolSize;
+    PPNP_REQ_ALT_LIST AltListsPool;
+    ULONG AltListsPoolSize;
+    PPNP_REQ_DESCRIPTOR ReqDescsPool;
+    ULONG ReqDescsPoolSize;
+    PPNP_REQ_LIST ReqList;
+    ULONG ReqListSize;
+    PPNP_REQ_ALT_LIST * pAltLists; // pointer to array AlternativeLists pointers
+    PPNP_REQ_ALT_LIST CurrentAltList;
+    PPNP_REQ_DESCRIPTOR * pReqDescs; // pointer to array ReqDescriptors pointers
+    PPNP_REQ_DESCRIPTOR ReqDesc;
+    PPNP_REQ_RESOURCE_ENTRY ReqEntry;
+    PPNP_REQ_DESCRIPTOR CurrentReqDesc;
+    ULONG_PTR EndPtr;
+    ULONG BusNumber;
+    ULONG CountAlts;
+    INTERFACE_TYPE InterfaceType;
+    ULONG IoDescriptorsCount;
+    ULONG ix;
+    ULONG jx;
+    ULONG kx;
+    NTSTATUS Status;
+    BOOLEAN NoDefaultOrPreferredDescs;
+    UCHAR Type;
+
+    PAGED_CODE();
+
+    *OutReqList = NULL;
+    IoResources = ResRequest->ResourceRequirements;
+
+    DPRINT("IopResourceRequirementsListToReqList: ResRequest - %p, AlternativeLists - %X\n",
+           ResRequest, IoResources->AlternativeLists);
+
+    if (!IoResources->AlternativeLists)
+    {
+        DPRINT("IopResourceRequirementsListToReqList: AlternativeLists == 0\n");
+        return STATUS_SUCCESS;
+    }
+
+    IoResourcesEnd = (ULONG_PTR)IoResources + IoResources->ListSize;
+    IoList = &IoResources->List[0];
+
+    IoDescCount = 0;
+    AltIoDescCount = 0;
+
+    for (ix = 0; ix < IoResources->AlternativeLists; ix++)
+    {
+        if (IoList->Count == 0)
+        {
+            DPRINT("IopResourceRequirementsListToReqList: IoList->Count == 0\n");
+            return STATUS_SUCCESS;
+        }
+
+        IoDescriptor = &IoList->Descriptors[0];
+
+        IoDescriptorEnd = (PIO_RESOURCE_DESCRIPTOR)
+                          ((ULONG_PTR)IoList + sizeof(IO_RESOURCE_LIST) +
+                           (IoList->Count - 1) * sizeof(IO_RESOURCE_DESCRIPTOR));
+
+        if (IoDescriptor > IoDescriptorEnd ||
+            (ULONG_PTR)IoDescriptor > IoResourcesEnd ||
+            (ULONG_PTR)IoDescriptorEnd > IoResourcesEnd)
+        {
+            DPRINT("IopResourceRequirementsListToReqList: Invalid ResReqList\n");
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        /* ConfigData descriptors are per-LogConf
+           and should be at the beginning of an AlternativeList */
+
+        if (IoDescriptor->Type == CmResourceTypeConfigData)
+        {
+            DPRINT("IopResourceRequirementsListToReqList: ConfigData descriptor\n");
+            IoDescriptor++;
+        }
+
+        FirstIoDescriptor = IoDescriptor;
+
+        NoDefaultOrPreferredDescs = TRUE;
+
+        while (IoDescriptor < IoDescriptorEnd)
+        {
+            Type = IoDescriptor->Type;
+
+            if (Type == CmResourceTypeConfigData)
+            {
+                DPRINT("IopResourceRequirementsListToReqList: Invalid ResReq list!\n");
+                return STATUS_INVALID_PARAMETER;
+            }
+
+            if ( Type == CmResourceTypeDevicePrivate )
+            {
+                while (IoDescriptor < IoDescriptorEnd &&
+                       IoDescriptor->Type == CmResourceTypeDevicePrivate)
+                {
+                    if ( IoDescriptor == FirstIoDescriptor )
+                    {
+                        DPRINT("IopResourceRequirementsListToReqList: FirstIoDescriptor can not be a DevicePrivate descriptor.\n");
+                        return STATUS_INVALID_PARAMETER;
+                    }
+
+                    IoDescCount++;
+                    IoDescriptor++;
+                }
+
+                NoDefaultOrPreferredDescs = TRUE;
+                continue;
+            }
+
+            IoDescCount++;
+
+            if (Type & CmResourceTypeConfigData || Type == CmResourceTypeNull)
+            {
+                if (Type == 0xF0)
+                {
+                    DPRINT("IopResourceRequirementsListToReqList: Type == 0xF0\n");
+                    IoDescCount--;
+                }
+
+                IoDescriptor->Option = IO_RESOURCE_PREFERRED;
+                IoDescriptor++;
+
+                NoDefaultOrPreferredDescs = TRUE;
+                continue;
+            }
+
+            if (IoDescriptor->Option & IO_RESOURCE_ALTERNATIVE)
+            {
+                if (NoDefaultOrPreferredDescs)
+                {
+                    DPRINT("IopResourceRequirementsListToReqList: Alternative without Default or Preferred!\n");
+                    return STATUS_INVALID_PARAMETER;
+                }
+
+                AltIoDescCount++;
+                DPRINT("IopResourceRequirementsListToReqList: AltIoDescCount - %X\n",
+                       AltIoDescCount);
+            }
+            else
+            {
+                NoDefaultOrPreferredDescs = FALSE;
+            }
+
+            IoDescriptor++;
+        }
+
+        ASSERT(IoDescriptor == IoDescriptorEnd);
+        IoList = (PIO_RESOURCE_LIST)IoDescriptorEnd;
+    }
+
+    Status = STATUS_UNSUCCESSFUL;
+
+    ListsCount = IoResources->AlternativeLists;
+    PrefIoDescCount = IoDescCount - AltIoDescCount;
+
+    ListPoolSize = FIELD_OFFSET(PNP_REQ_LIST, AltLists) +
+                   ListsCount * sizeof(PPNP_REQ_ALT_LIST);
+    DPRINT("IopResourceRequirementsListToReqList: ListsCount - %X, ListPoolSize - %X\n",
+           ListsCount, ListPoolSize);
+
+    AltListsPoolSize = ListsCount * (FIELD_OFFSET(PNP_REQ_ALT_LIST, ReqDescriptors) +
+                       PrefIoDescCount * sizeof(PPNP_REQ_DESCRIPTOR));
+    DPRINT("IopResourceRequirementsListToReqList: AltListsPoolSize  - %X\n",
+           AltListsPoolSize);
+
+    ReqDescsPoolSize = PrefIoDescCount * sizeof(PNP_REQ_DESCRIPTOR);
+    DPRINT("IopResourceRequirementsListToReqList: PrefIoDescCount - %X, ReqDescsPoolSize - %X\n",
+           PrefIoDescCount, ReqDescsPoolSize);
+
+    ReqListSize = ListPoolSize + AltListsPoolSize + ReqDescsPoolSize;
+
+    ReqList = ExAllocatePoolWithTag((POOL_TYPE)257, ReqListSize, 'erpP');
+
+    if (!ReqList)
+    {
+        ASSERT(FALSE);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlZeroMemory(ReqList, ReqListSize);
+    DPRINT("IopResourceRequirementsListToReqList: ReqList - %X, ReqListSize - %X\n",
+           ReqList, ReqListSize);
+
+    pAltLists = &ReqList->AltLists[0];
+    DPRINT("IopResourceRequirementsListToReqList: pAltLists - %X, ListsCount - %X\n",
+           pAltLists, ListsCount);
+
+    AltListsPool = (PPNP_REQ_ALT_LIST)((ULONG_PTR)ReqList + ListPoolSize);
+    DPRINT("IopResourceRequirementsListToReqList: AltListsPool - %X, AltListsPoolSize - %X\n",
+           AltListsPool, AltListsPoolSize);
+
+    ReqDescsPool = (PPNP_REQ_DESCRIPTOR)((ULONG_PTR)AltListsPool + AltListsPoolSize);
+    DPRINT("IopResourceRequirementsListToReqList: ReqDescsPool - %X, ReqDescsPoolSize - %X\n",
+           ReqDescsPool, ReqDescsPoolSize);
+
+    InterfaceType = IoResources->InterfaceType;
+
+    if (InterfaceType == InterfaceTypeUndefined)
+    {
+        InterfaceType = PnpDefaultInterfaceType;
+    }
+
+    ReqList->InterfaceType = InterfaceType;
+    ReqList->BusNumber = IoResources->BusNumber;
+    ReqList->ResRequest = ResRequest;
+    ReqList->AltList1 = NULL;
+    ReqList->Count = ListsCount;
+
+    IoList = &IoResources->List[0];
+
+    InterfaceType = IoResources->InterfaceType;
+    BusNumber = IoResources->BusNumber;
+
+    CountAlts = 0;
+    CurrentReqDesc = ReqDescsPool;
+
+    EndPtr = (ULONG_PTR)AltListsPool;
+
+    for (ix = 0; ix < ListsCount; ix++)
+    {
+        DPRINT("IopResourceRequirementsListToReqList: ix - %X\n", ix);
+
+        IoDescriptorsCount = IoList->Count;
+        IoDescriptor = &IoList->Descriptors[0];
+        IoDescriptorEnd = &IoDescriptor[IoDescriptorsCount];
+
+        CurrentAltList = (PPNP_REQ_ALT_LIST)EndPtr;
+        *pAltLists = CurrentAltList;
+        pAltLists++;
+
+        CurrentAltList->ListNumber = CountAlts++;
+        CurrentAltList->CountDescriptors = 0;
+        CurrentAltList->ReqList = ReqList;
+
+        if (IoDescriptor->Type == CmResourceTypeConfigData)
+        {
+            CurrentAltList->ConfigPriority = IoDescriptor->u.ConfigData.Priority;
+            IoDescriptor++;
+        }
+        else
+        {
+            CurrentAltList->ConfigPriority = LCPRI_NORMAL;
+        }
+
+        pReqDescs = &CurrentAltList->ReqDescriptors[0];
+        EndPtr = (ULONG_PTR)pReqDescs;
+
+        if (IoDescriptor >= IoDescriptorEnd)
+        {
+            goto NextList;
+        }
+
+        for (jx = 0; IoDescriptor < IoDescriptorEnd; jx++)
+        {
+            if (IoDescriptor->Type == 0xF0)
+            {
+                // IoDescriptor->Type == 0xF0
+                InterfaceType = IoDescriptor->u.DevicePrivate.Data[0];
+                if (InterfaceType == -1)
+                {
+                    InterfaceType = PnpDefaultInterfaceType;
+                }
+                BusNumber = IoDescriptor->u.DevicePrivate.Data[1];
+                IoDescriptor++;
+                continue;
+            }
+
+            DPRINT("IopResourceRequirementsListToReqList: jx - %X\n", jx);
+
+            ReqDesc = CurrentReqDesc;
+            ReqDesc->IsArbitrated = (IoDescriptor->Type != 0);
+            ReqDesc->AltList = CurrentAltList;
+            ReqDesc->InterfaceType = InterfaceType;
+            ReqDesc->TranslatedReqDesc = ReqDesc;
+            ReqDesc->BusNumber = BusNumber;
+            ReqDesc->DescriptorsCount = 0;
+            ReqDesc->DevicePrivateIoDesc = NULL;
+            ReqDesc->DescNumber = jx;
+
+            ReqEntry = &ReqDesc->ReqEntry;
+            ReqEntry->InterfaceType = InterfaceType;
+            ReqEntry->SlotNumber = IoResources->SlotNumber;
+            ReqEntry->BusNumber = IoResources->BusNumber;
+            ReqEntry->PhysicalDevice = ResRequest->PhysicalDevice;
+            ReqEntry->AllocationType = ResRequest->AllocationType;
+            ReqEntry->IoDescriptor = IoDescriptor;
+            ReqEntry->pCmDescriptor = &ReqDesc->ReqEntry.CmDescriptor;
+            ReqEntry->Count = 0;
+            ReqEntry->Reserved1 = CurrentAltList->ConfigPriority == LCPRI_BOOTCONFIG; // 1
+            ReqEntry->Reserved2 = 0;
+            ReqEntry->Reserved4 = -1;
+
+            InitializeListHead(&ReqEntry->Link);
+
+            CurrentAltList->CountDescriptors++;
+            *pReqDescs = ReqDesc;
+            pReqDescs++;
+            CurrentReqDesc++;
+            EndPtr = (ULONG_PTR)pReqDescs;
+
+            if (ReqDesc->IsArbitrated)
+            {
+                NTSTATUS status;
+
+                ASSERT(!(IoDescriptor->Option & IO_RESOURCE_ALTERNATIVE));
+
+                ReqDesc->ReqEntry.CmDescriptor.Type = 7;
+                ReqDesc->ReqEntry.Count++;
+
+                for (kx = ReqDesc->ReqEntry.Count; ; kx++)
+                {
+                    IoDescriptor++;
+
+                    if (IoDescriptor >= IoDescriptorEnd)
+                    {
+                        break;
+                    }
+
+                    if (IoDescriptor->Type == CmResourceTypeDevicePrivate)
+                    {
+                        DPRINT("IopResourceRequirementsListToReqList: kx - %X\n", kx);
+                        ReqDesc->DevicePrivateIoDesc = IoDescriptor;
+
+                        while (IoDescriptor < IoDescriptorEnd &&
+                               IoDescriptor->Type == CmResourceTypeDevicePrivate)
+                        {
+                            ReqDesc->DescriptorsCount++;
+                            IoDescriptor++;
+                        }
+
+                        break;
+                    }
+
+                    if (!(IoDescriptor->Option & IO_RESOURCE_ALTERNATIVE))
+                    {
+                        break;
+                    }
+
+                    ReqDesc->ReqEntry.Count = kx;
+                }
+
+                //IopDumpReqDescriptor(ReqDesc, jx+1);
+                ASSERT(FALSE);
+                status = 0;//IopSetupArbiterAndTranslators(ReqDesc);
+                //IopDumpReqDescriptor(ReqDesc, jx+1);
+
+                if (!NT_SUCCESS(status))
+                {
+                    DPRINT("IopResourceRequirementsListToReqList: Unable to setup Arbiter and Translators\n");
+
+                    CountAlts--;
+                    pAltLists--;
+                    ReqList->Count--;
+
+                    ASSERT(FALSE);
+                    //IopFreeReqAlternative(CurrentAltList);
+
+                    Status = status;
+                    break;
+                }
+            }
+            else
+            {
+                PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+
+                CmDescriptor = &ReqDesc->ReqEntry.CmDescriptor;
+                CmDescriptor->Type = IoDescriptor->Type;
+                CmDescriptor->ShareDisposition = IoDescriptor->ShareDisposition;
+                CmDescriptor->Flags = IoDescriptor->Flags;
+
+                CmDescriptor->u.DevicePrivate.Data[0] = IoDescriptor->u.DevicePrivate.Data[0];
+                CmDescriptor->u.DevicePrivate.Data[1] = IoDescriptor->u.DevicePrivate.Data[1];
+                CmDescriptor->u.DevicePrivate.Data[2] = IoDescriptor->u.DevicePrivate.Data[2];
+
+                IoDescriptor++;
+            }
+        }
+
+NextList:
+        IoList = (PIO_RESOURCE_LIST)IoDescriptorEnd;
+    }
+
+    if (CountAlts != 0)
+    {
+        *OutReqList = ReqList;
+        return STATUS_SUCCESS;
+    }
+
+    ASSERT(FALSE);
+    //IopFreeReqList(ReqList);
+
+    if (Status != STATUS_SUCCESS)
+    {
+        return Status;
+    }
+
+    *OutReqList = ReqList;
+
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS
 NTAPI
 IopAssignResourcesToDevices(
@@ -1603,11 +2019,12 @@ Next:
         PipDumpResRequest(&ResContext[Idx]);
     }
 
-    Status = IopAllocateResources(&DeviceCount,
-                                  &ResContext,
-                                  FALSE,
-                                  Config,
-                                  OutIsAssigned);
+ ASSERT(FALSE);
+    Status = 0;//IopAllocateResources(&DeviceCount,
+               //                   &ResContext,
+               //                   FALSE,
+               //                   Config,
+               //                   OutIsAssigned);
     return Status;
 }
 

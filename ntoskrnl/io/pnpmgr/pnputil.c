@@ -18,6 +18,7 @@
 
 extern RTL_AVL_TABLE PpDeviceReferenceTable;
 extern KGUARDED_MUTEX PpDeviceReferenceTableLock;
+extern INTERFACE_TYPE PnpDefaultInterfaceType;
 
 /* FUNCTIONS ******************************************************************/
 
