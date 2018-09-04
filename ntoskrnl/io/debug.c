@@ -557,7 +557,7 @@ IopDumpReqDescriptor(
     DPRINT("ReqEntry.CmDesc.StartHi      - %X\n", Descriptor->ReqEntry.CmDescriptor.u.Generic.Start.HighPart);
     DPRINT("ReqEntry.CmDesc.Length       - %X\n", Descriptor->ReqEntry.CmDescriptor.u.Generic.Length);
     DPRINT("-------------------------------------\n");
-    DPRINT("DescriptorsCount             - %p\n", Descriptor->DescriptorsCount);
+    DPRINT("DescriptorsCount             - %X\n", Descriptor->DescriptorsCount);
     DPRINT("DevicePrivateIoDesc          - %p\n", Descriptor->DevicePrivateIoDesc);
     DPRINT("(Arbiter|Translator)Entry    - %p\n", Descriptor->ArbiterEntry);
     DPRINT("=== IopDumpReqDescriptor end ===========\n");

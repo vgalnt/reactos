@@ -1843,11 +1843,11 @@ IopSetupArbiterAndTranslators(
                 {
                     ASSERT(FALSE);
 
-                    Status = IopCallArbiter(ResArbiterEntry,
-                                            ArbiterActionQueryArbitrate,
-                                            ReqDescriptor->TranslatedReqDesc,
-                                            NULL,
-                                            NULL);
+                    Status = 0;//IopCallArbiter(ResArbiterEntry,
+                               //             ArbiterActionQueryArbitrate,
+                               //             ReqDescriptor->TranslatedReqDesc,
+                               //             NULL,
+                               //             NULL);
 
                     if (!NT_SUCCESS(Status))
                     {
@@ -2397,7 +2397,7 @@ IopResourceRequirementsListToReqList(
                 }
 
                 IopDumpReqDescriptor(ReqDesc, jx+1);
-                IopSetupArbiterAndTranslators(ReqDesc);
+                status = IopSetupArbiterAndTranslators(ReqDesc);
                 IopDumpReqDescriptor(ReqDesc, jx+1);
 
                 if (!NT_SUCCESS(status))
