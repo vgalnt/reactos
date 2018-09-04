@@ -19,6 +19,7 @@ extern PPNP_RESERVED_RESOURCES_CONTEXT IopInitReservedResourceList;
 extern KSEMAPHORE PpRegistrySemaphore;
 extern INTERFACE_TYPE PnpDefaultInterfaceType;
 extern BOOLEAN IopBootConfigsReserved;
+extern LIST_ENTRY IopLegacyBusInformationTable[MaximumInterfaceType];
 
 /* DATA **********************************************************************/
 
@@ -1522,6 +1523,75 @@ IopWriteResourceList(
     ZwClose(DescriptionHandle);
 
     return Status;
+}
+
+PDEVICE_NODE
+NTAPI
+IopFindLegacyBusDeviceNode(
+    _In_ INTERFACE_TYPE InterfaceType,
+    _In_ ULONG LegacyBusNumber)
+{
+    PDEVICE_NODE DeviceNode;
+    PLIST_ENTRY Header;
+    PLIST_ENTRY Entry;
+    ULONG BusNumber;
+
+    PAGED_CODE();
+    DPRINT("IopFindLegacyBusDeviceNode: InterfaceType - %X\n", InterfaceType);
+
+    DeviceNode = IopRootDeviceNode;
+
+    if (InterfaceType >= MaximumInterfaceType ||
+        InterfaceType < InterfaceTypeUndefined ||
+        InterfaceType == PNPBus)
+    {
+        DPRINT("IopFindLegacyBusDeviceNode: return IopRootDeviceNode\n");
+        return DeviceNode;
+    }
+
+    if (InterfaceType == Eisa)
+    {
+        Header = &IopLegacyBusInformationTable[Isa];
+    }
+    else
+    {
+        Header = &IopLegacyBusInformationTable[InterfaceType];
+        DPRINT("IopFindLegacyBusDeviceNode: Header - %p\n", Header);
+    }
+
+    for (Entry = Header->Flink;
+         Entry != Header;
+         Entry = Entry->Flink)
+    {
+        BusNumber = CONTAINING_RECORD(Entry,
+                                      DEVICE_NODE,
+                                      LegacyBusListEntry)->BusNumber;
+
+        if (BusNumber == LegacyBusNumber)
+        {
+            DeviceNode = CONTAINING_RECORD(Entry,
+                                           DEVICE_NODE,
+                                           LegacyBusListEntry);
+            break;
+        }
+
+        if (BusNumber > LegacyBusNumber)
+        {
+            break;
+        }
+    }
+
+    if (DeviceNode == IopRootDeviceNode)
+    {
+        DPRINT("IopFindLegacyBusDeviceNode: return IopRootDeviceNode\n");
+    }
+    else
+    {
+        DPRINT("IopFindLegacyBusDeviceNode: Found - %wZ, Interface - %X, Bus - %X\n",
+               &DeviceNode->InstancePath, InterfaceType, LegacyBusNumber);
+    }
+
+    return DeviceNode;
 }
 
 BOOLEAN
