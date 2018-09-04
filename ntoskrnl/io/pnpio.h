@@ -7,6 +7,11 @@
 #define PIP_REENUM_TYPE_SINGLE      1
 #define PIP_REENUM_TYPE_SUBTREE     2
 
+#define IOP_RES_HANDLER_TYPE_TRANSLATOR 1
+#define IOP_RES_HANDLER_TYPE_ARBITER    2
+#define IOP_RES_HANDLER_TYPE_LEGACY     3
+#define IOP_MAX_MAIN_RESOURCE_TYPE      15
+
 typedef struct _PNP_DEVICE_INSTANCE_CONTEXT
 {
     PDEVICE_OBJECT DeviceObject;
@@ -55,6 +60,15 @@ C_ASSERT(sizeof(PIP_ENUM_REQUEST) == 0x38);
 #else
 C_ASSERT(sizeof(PIP_ENUM_REQUEST) == 0x20);
 #endif
+
+typedef struct _PI_RESOURCE_TRANSLATOR_ENTRY
+{
+    LIST_ENTRY DeviceTranslatorList; // Link to DeviceNode->DeviceTranslatorList
+    UCHAR ResourceType;
+    UCHAR Padding[3];
+    PTRANSLATOR_INTERFACE TranslatorInterface;
+    PDEVICE_NODE DeviceNode;
+} PI_RESOURCE_TRANSLATOR_ENTRY, *PPI_RESOURCE_TRANSLATOR_ENTRY;
 
 typedef struct _PNP_REQ_LIST PNP_REQ_LIST, *PPNP_REQ_LIST;
 
