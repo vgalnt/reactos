@@ -446,6 +446,15 @@ IopQueryLegacyBusInformation(
     _Out_ PULONG OutBusNumber
 );
 
+NTSTATUS
+NTAPI
+IopQueryResourceHandlerInterface(
+    _In_ ULONG InterfaceType,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ UCHAR InterfaceSpecificData,
+    _Out_ PVOID * OutInterface
+);
+
 //
 // pnpmap.c
 //

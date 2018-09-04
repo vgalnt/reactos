@@ -483,4 +483,180 @@ IopQueryLegacyBusInformation(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopQueryResourceHandlerInterface(
+    _In_ ULONG InterfaceType,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ UCHAR InterfaceSpecificData,
+    _Out_ PVOID * OutInterface)
+{
+    PLEGACY_DEVICE_DETECTION_INTERFACE LegacyInterface;
+    PTRANSLATOR_INTERFACE TranslatorInterface;
+    PARBITER_INTERFACE ArbiterInterface;
+    PDEVICE_NODE DeviceNode;
+    IO_STACK_LOCATION IoStack;
+    PINTERFACE Interface;
+    NTSTATUS Status;
+    USHORT InterfaceSize;
+
+    PAGED_CODE();
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+    DPRINT("IopQueryResourceHandlerInterface: InterfaceType - %X, DeviceNode - %p, InterfaceSpecificData - %X\n",
+           InterfaceType, DeviceNode, InterfaceSpecificData);
+
+    if (DeviceNode->DuplicatePDO == (PDEVICE_OBJECT)DeviceObject->DriverObject) // Yes, see IopFindLegacyDeviceNode()
+    {
+        ASSERT(FALSE);
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    if (!(DeviceObject->Flags & DO_BUS_ENUMERATED_DEVICE))
+    {
+        ASSERT(FALSE);
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    switch (InterfaceType)
+    {
+        case IOP_RES_HANDLER_TYPE_TRANSLATOR:
+            InterfaceSize = sizeof(TRANSLATOR_INTERFACE);
+            break;
+
+        case IOP_RES_HANDLER_TYPE_ARBITER:
+            InterfaceSize = sizeof(ARBITER_INTERFACE);
+            break;
+
+        case IOP_RES_HANDLER_TYPE_LEGACY:
+            InterfaceSize = sizeof(LEGACY_DEVICE_DETECTION_INTERFACE);
+            break;
+
+        default:
+            ASSERT(FALSE);
+            return STATUS_INVALID_PARAMETER;
+    }
+
+    Interface = ExAllocatePoolWithTag(PagedPool, InterfaceSize, '  pP');
+
+    if (!Interface)
+    {
+        ASSERT(FALSE);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlZeroMemory(Interface, InterfaceSize);
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+    Interface->Version = 0;
+    Interface->Size = InterfaceSize;
+
+    switch (InterfaceType)
+    {
+        case IOP_RES_HANDLER_TYPE_TRANSLATOR:
+            DPRINT("IopQueryResourceHandlerInterface: GUID_TRANSLATOR_INTERFACE_STANDARD\n");
+            IoStack.Parameters.QueryInterface.InterfaceType =
+                                    &GUID_TRANSLATOR_INTERFACE_STANDARD;
+            break;
+
+        case IOP_RES_HANDLER_TYPE_ARBITER:
+            DPRINT("IopQueryResourceHandlerInterface: GUID_ARBITER_INTERFACE_STANDARD\n");
+            IoStack.Parameters.QueryInterface.InterfaceType =
+                                    &GUID_ARBITER_INTERFACE_STANDARD;
+            break;
+
+        case IOP_RES_HANDLER_TYPE_LEGACY:
+            DPRINT("IopQueryResourceHandlerInterface: GUID_LEGACY_DEVICE_DETECTION_STANDARD\n");
+            IoStack.Parameters.QueryInterface.InterfaceType =
+                                    &GUID_LEGACY_DEVICE_DETECTION_STANDARD;
+            break;
+
+        default:
+            ASSERT(FALSE);
+            return STATUS_INVALID_PARAMETER;
+    }
+
+    IoStack.Parameters.QueryInterface.Size = InterfaceSize;
+    IoStack.Parameters.QueryInterface.Version = 0;
+    IoStack.Parameters.QueryInterface.Interface = Interface;
+    IoStack.Parameters.QueryInterface.InterfaceSpecificData =
+                                      ULongToPtr((ULONG)InterfaceSpecificData);
+
+    Status = IopSynchronousCall(DeviceObject, &IoStack, NULL);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopQueryResourceHandlerInterface: Status - %X\n", Status);
+        goto ErrorExit;
+    }
+
+    switch (InterfaceType)
+    {
+        case IOP_RES_HANDLER_TYPE_TRANSLATOR:
+        {
+            TranslatorInterface = (PTRANSLATOR_INTERFACE)Interface;
+
+            if (!TranslatorInterface->TranslateResources ||
+                !TranslatorInterface->TranslateResourceRequirements)
+            {
+                DPRINT("IopQueryResourceHandlerInterface: TranslateResources - %p, TranslateResourceRequirements - %p\n",
+                       TranslatorInterface->TranslateResources,
+                       TranslatorInterface->TranslateResourceRequirements);
+
+                ASSERT(!NT_SUCCESS(Status));
+                Status = STATUS_UNSUCCESSFUL;
+            }
+
+            break;
+        }
+        case IOP_RES_HANDLER_TYPE_ARBITER:
+        {
+            ArbiterInterface = (PARBITER_INTERFACE)Interface;
+
+            if (!ArbiterInterface->ArbiterHandler)
+            {
+                DPRINT("IopQueryResourceHandlerInterface: ArbiterHandler == NULL\n");
+
+                ASSERT(!NT_SUCCESS(Status));
+                Status = STATUS_UNSUCCESSFUL;
+            }
+
+            break;
+        }
+        case IOP_RES_HANDLER_TYPE_LEGACY:
+        {
+            LegacyInterface = (PLEGACY_DEVICE_DETECTION_INTERFACE)Interface;
+
+            if (!LegacyInterface->LegacyDeviceDetection)
+            {
+                DPRINT("IopQueryResourceHandlerInterface: LegacyDeviceDetection == NULL\n");
+                ASSERT(!NT_SUCCESS(Status));
+                Status = STATUS_UNSUCCESSFUL;
+            }
+
+            break;
+        }
+        default:
+        {
+            DPRINT("IopQueryResourceHandlerInterface: Unknown InterfaceType - %X\n", InterfaceType);
+            ASSERT(FALSE);
+            Status = STATUS_INVALID_PARAMETER;
+            goto ErrorExit;
+        }
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        *OutInterface = Interface;
+        return Status;
+    }
+
+ErrorExit:
+
+    ExFreePoolWithTag(Interface, '  pP');
+    return Status;
+}
+
 /* EOF */
