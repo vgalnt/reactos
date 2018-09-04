@@ -312,7 +312,14 @@ devnode(
 
 VOID
 NTAPI
-PipDumpResRequest(
+IopDumpReqDescriptor(
+    _In_ PPNP_REQ_DESCRIPTOR Descriptor,
+    _In_ ULONG Idx
+);
+
+VOID
+NTAPI
+IopDumpResRequest(
     _In_ PPNP_RESOURCE_REQUEST ResRequest
 );
 
