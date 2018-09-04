@@ -1524,6 +1524,114 @@ IopWriteResourceList(
     return Status;
 }
 
+BOOLEAN
+NTAPI
+IopFindResourceHandlerInfo(
+    _In_ ULONG Type,
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ UCHAR IoDescriptorType,
+    _In_ PVOID * OutArbEntry)
+{
+    PPI_RESOURCE_ARBITER_ENTRY ArbEntry;
+    PLIST_ENTRY Head;
+    PLIST_ENTRY Entry;
+    USHORT NoBitMask;
+    USHORT QueryBitMask;
+    USHORT TypesBitMask;
+    BOOLEAN Result;
+
+    DPRINT("IopFindResourceHandlerInfo: Type - %X, DeviceNode - %p, IoDescriptorType - %X\n",
+           Type, DeviceNode, IoDescriptorType);
+
+    *OutArbEntry = NULL;
+
+    if (Type == IOP_RES_HANDLER_TYPE_TRANSLATOR)
+    {
+        NoBitMask = DeviceNode->NoTranslatorMask;
+        QueryBitMask = DeviceNode->QueryTranslatorMask;
+        Head = &DeviceNode->DeviceTranslatorList;
+    }
+    else if (Type == IOP_RES_HANDLER_TYPE_ARBITER)
+    {
+        NoBitMask = DeviceNode->NoArbiterMask;
+        QueryBitMask = DeviceNode->QueryArbiterMask;
+        Head = &DeviceNode->DeviceArbiterList;
+    }
+    else
+    {
+        DPRINT("IopFindResourceHandlerInfo: Unknown Type - %X\n", Type);
+        ASSERT(FALSE);
+        return FALSE;
+    }
+
+    TypesBitMask = 1 << IoDescriptorType;
+
+    DPRINT("IopFindResourceHandlerInfo: TypesBitMask - %04X, NoBitMask - %04X\n",
+           TypesBitMask, NoBitMask);
+
+    if (NoBitMask & TypesBitMask)
+    {
+        DPRINT("IopFindResourceHandlerInfo: return TRUE\n");
+        Result = TRUE;
+    }
+    else if (QueryBitMask & TypesBitMask)
+    {
+        for (Entry = Head->Flink;
+             Entry != Head;
+             Entry = Entry->Flink)
+        {
+            ArbEntry = CONTAINING_RECORD(Entry,
+                                         PI_RESOURCE_ARBITER_ENTRY,
+                                         DeviceArbiterList);
+
+            if (ArbEntry->ResourceType == IoDescriptorType)
+            {
+                break;
+            }
+        }
+
+        ASSERT(Entry != Head);
+        *OutArbEntry = ArbEntry;
+
+        DPRINT("IopFindResourceHandlerInfo: return TRUE\n");
+        Result = TRUE;
+    }
+    else
+    {
+        if (IoDescriptorType > IOP_MAX_MAIN_RESOURCE_TYPE)
+        {
+            for (Entry = Head->Flink;
+                 Entry != Head;
+                 Entry = Entry->Flink)
+            {
+                ArbEntry = CONTAINING_RECORD(Entry,
+                                             PI_RESOURCE_ARBITER_ENTRY,
+                                             DeviceArbiterList);
+
+                if (ArbEntry->ResourceType == IoDescriptorType)
+                {
+                    break;
+                }
+            }
+
+            if (ArbEntry->ArbiterInterface)
+            {
+                *OutArbEntry = ArbEntry;
+            }
+
+            DPRINT("IopFindResourceHandlerInfo: return TRUE\n");
+            Result = TRUE;
+        }
+        else
+        {
+            DPRINT("IopFindResourceHandlerInfo: return FALSE\n");
+            Result = FALSE;
+        }
+    }
+
+    return Result;
+}
+
 NTSTATUS
 NTAPI
 IopSetupArbiterAndTranslators(
@@ -1535,7 +1643,7 @@ IopSetupArbiterAndTranslators(
     PPI_RESOURCE_ARBITER_ENTRY ResArbiterEntry;
     PPI_RESOURCE_TRANSLATOR_ENTRY TranslatorEntry;
     PPNP_REQ_DESCRIPTOR TranslatedReqDesc;
-    ULONG TypesBitMask;
+    USHORT TypesBitMask;
     PVOID Interface;
     NTSTATUS Status;
     UCHAR IoDescriptorType;
