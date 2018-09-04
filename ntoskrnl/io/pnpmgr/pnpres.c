@@ -2461,7 +2461,7 @@ IopAssignResourcesToDevices(
 
 Next:
         ResContext[Idx].ResourceRequirements = NULL;
-        PipDumpResRequest(&ResContext[Idx]);
+        IopDumpResRequest(&ResContext[Idx]);
     }
 
  ASSERT(FALSE);
