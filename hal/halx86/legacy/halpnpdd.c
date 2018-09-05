@@ -577,7 +577,7 @@ HalPnpTranslateBusAddress(
     _Out_ PPHYSICAL_ADDRESS TranslatedAddress)
 {
     PDEVICE_OBJECT DeviceObject;
-    PPDO_EXTENSION PdoExtension; // PLEGACY_HAL_PDO
+    PPDO_EXTENSION PdoExtension;
 
     PAGED_CODE();
     DeviceObject = Context;
@@ -596,6 +596,30 @@ HalPnpTranslateBusAddress(
                                  BusAddress,
                                  AddressSpace,
                                  TranslatedAddress);
+}
+
+PDMA_ADAPTER
+NTAPI
+HalPnpGetDmaAdapter(
+    _In_ PVOID Context,
+    _In_ PDEVICE_DESCRIPTION DeviceDescription,
+    _Inout_ PULONG NumberOfMapRegisters)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PPDO_EXTENSION PdoExtension;
+
+    PAGED_CODE();
+
+    DeviceObject = Context;
+    PdoExtension = DeviceObject->DeviceExtension;
+
+    DPRINT("HalPnpGetDmaAdapter: DeviceObject - %p, DeviceDescription - %p, *NumberOfMapRegisters - %X\n",
+           DeviceObject, DeviceDescription, *NumberOfMapRegisters);
+
+    ASSERT(PdoExtension->ExtensionType == PdoExtensionType);
+    DeviceDescription->BusNumber = PdoExtension->BusHandler->BusNumber;
+
+    return (PDMA_ADAPTER)HalGetAdapter(DeviceDescription, NumberOfMapRegisters);
 }
 
 NTSTATUS
