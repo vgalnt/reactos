@@ -539,10 +539,106 @@ HalpQueryInterface(IN PDEVICE_OBJECT DeviceObject,
                    IN PVOID Interface,
                    OUT PULONG_PTR OutInformation)
 {
-    DPRINT("HalpQueryInterface: DeviceObject - %p, BufferSize - %X, SpecificData - %X, Version - %X, Interface - %X\n", DeviceObject, InterfaceBufferSize, InterfaceSpecificData, Version, Interface);
-    UNIMPLEMENTED;
-    ASSERT(FALSE);
-    return 0;
+    PBUS_INTERFACE_STANDARD BusInterface = Interface;
+    PPCI_BUS_INTERFACE_STANDARD PciInterface = Interface;
+    PPDO_EXTENSION PdoExtension;
+    UNICODE_STRING  GuidString;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    Status = RtlStringFromGUID(InterfaceType, &GuidString);
+    ASSERT(NT_SUCCESS(Status));
+
+    DPRINT("HalpQueryInterface: DeviceObject - %p, GuidString - %wZ, BufferSize - %X, SpecificData - %X, Version - %X, Interface - %X\n",
+           DeviceObject,
+           &GuidString,
+           InterfaceBufferSize,
+           InterfaceSpecificData,
+           Version,
+           Interface);
+
+    PdoExtension = DeviceObject->DeviceExtension;
+    ASSERT(PdoExtension->ExtensionType == PdoExtensionType);
+
+    if (RtlCompareMemory(&GUID_BUS_INTERFACE_STANDARD, InterfaceType, sizeof(GUID)) == sizeof(GUID))
+    {
+        DPRINT("HalpQueryInterface: GUID_BUS_INTERFACE_STANDARD\n");
+
+        *OutInformation = sizeof(BUS_INTERFACE_STANDARD);
+
+        if (InterfaceBufferSize < sizeof(BUS_INTERFACE_STANDARD))
+        {
+            DPRINT("HalpQueryInterface: exit STATUS_BUFFER_TOO_SMALL\n");
+            ASSERT(FALSE);
+            return STATUS_BUFFER_TOO_SMALL;
+        }
+
+        BusInterface = Interface;
+
+        BusInterface->Size = sizeof(BUS_INTERFACE_STANDARD);
+        BusInterface->Version = 1;
+        BusInterface->Context = DeviceObject;
+
+        BusInterface->InterfaceReference = HalPnpInterfaceReference;
+        BusInterface->InterfaceDereference = HalPnpInterfaceDereference;
+        BusInterface->TranslateBusAddress = HalPnpTranslateBusAddress;
+        BusInterface->GetDmaAdapter = HalPnpGetDmaAdapter;
+
+        BusInterface->SetBusData = NULL;
+        BusInterface->GetBusData = NULL;
+
+        InterlockedIncrement(&PdoExtension->InterfaceReferenceCount);
+
+        DPRINT("HalpQueryInterface: exit STATUS_SUCCESS\n");
+        return STATUS_SUCCESS;
+    }
+
+    if (RtlCompareMemory(&GUID_PCI_BUS_INTERFACE_STANDARD, InterfaceType, sizeof(GUID)) == sizeof(GUID) &&
+        PdoExtension->PdoType == PciPdo)
+    {
+        DPRINT("HalpQueryInterface: GUID_PCI_BUS_INTERFACE_STANDARD\n");
+
+        *OutInformation = sizeof(PCI_BUS_INTERFACE_STANDARD);
+
+        if (InterfaceBufferSize < sizeof(PCI_BUS_INTERFACE_STANDARD))
+        {
+            DPRINT("HalpQueryInterface: exit STATUS_BUFFER_TOO_SMALL\n");
+            return STATUS_BUFFER_TOO_SMALL;
+        }
+
+        PciInterface->Size = sizeof(PCI_BUS_INTERFACE_STANDARD);
+        PciInterface->Version = 1;
+        PciInterface->Context = DeviceObject;
+
+        PciInterface->InterfaceReference = HalPnpInterfaceReference;
+        PciInterface->InterfaceDereference = HalPnpInterfaceDereference;
+        PciInterface->ReadConfig = HaliPciInterfaceReadConfig;
+        PciInterface->WriteConfig = HaliPciInterfaceWriteConfig;
+
+        PciInterface->PinToLine = NULL;
+        PciInterface->LineToPin = NULL;
+
+        InterlockedIncrement(&PdoExtension->InterfaceReferenceCount);
+
+        DPRINT("HalpQueryInterface: return STATUS_SUCCESS\n");
+        return STATUS_SUCCESS;
+    }
+    
+    if (RtlCompareMemory(&GUID_TRANSLATOR_INTERFACE_STANDARD, InterfaceType, sizeof(GUID)) == sizeof(GUID) &&
+        HalpPciIrqRoutingInfo.PciIrqRoutingTable &&
+        HalpPciIrqRoutingInfo.PciIrqRouteInterface &&
+        InterfaceSpecificData == ULongToPtr(CmResourceTypeInterrupt) &&
+        PdoExtension->PdoType == PciPdo)
+    {
+        DPRINT("HalpQueryInterface: Pci Irq Routing is enabled!\n");
+        ASSERT(FALSE);
+        /* Clear interface */
+        RtlZeroMemory(InterfaceType, sizeof(GUID));
+    }
+
+    DPRINT("HalpQueryInterface: exit STATUS_NOT_SUPPORTED\n");
+    return STATUS_NOT_SUPPORTED;
 }
 
 NTSTATUS
