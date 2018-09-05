@@ -31,7 +31,12 @@ function(add_hal _halname)
         target_link_libraries(${_halname} ${_haldata_LIBS})
     endif()
 
-    target_link_libraries(${_halname} libcntpr)
+    if (${_halname} STREQUAL "hal")
+        target_link_libraries(${_halname} arblib libcntpr wdmguid)
+    else()
+        target_link_libraries(${_halname} libcntpr wdmguid)
+    endif()
+
     add_importlibs(${_halname} ntoskrnl)
     #add_pch(${_halname} include/hal.h)
     add_dependencies(${_halname} psdk asm)
@@ -52,20 +57,19 @@ include(apic.cmake)
 if(ARCH STREQUAL "i386")
     include(pcidata.cmake)
     include(legacy.cmake)
+    include(legacy_r.cmake)
     include(up.cmake)
     include(pic.cmake)
     add_subdirectory(minihal)
 
     # hal
-    add_hal(hal SOURCES up/halup.rc COMPONENTS generic legacy up pic)
+    add_hal(hal SOURCES up/halup.rc COMPONENTS generic legacy_r up pic)
     add_hal(halacpi SOURCES acpi/halacpi.rc COMPONENTS generic acpi up pic)
     add_hal(halapic SOURCES acpi/halacpi.rc COMPONENTS generic legacy up apic)
     add_hal(halaacpi SOURCES acpi/halacpi.rc COMPONENTS generic acpi up apic)
 
-    #add_hal(halmps SOURCES up/halup.rc COMPONENTS generic legacy smp pic)
-    #add_hal(halmacpi SOURCES acpi/halacpi.rc COMPONENTS generic acpi smp pic)
-    #add_hal(halmapic SOURCES acpi/halacpi.rc COMPONENTS generic legacy smp apic)
-    #add_hal(halmaacpi SOURCES acpi/halacpi.rc COMPONENTS generic acpi smp apic)
+    #add_hal(halmps SOURCES up/halup.rc COMPONENTS generic legacy smp apic)
+    #add_hal(halmacpi SOURCES acpi/halacpi.rc COMPONENTS generic acpi smp apic)
 
 elseif(ARCH STREQUAL "amd64")
 

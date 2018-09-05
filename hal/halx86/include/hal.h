@@ -36,6 +36,8 @@
 #include <ndk/kefuncs.h>
 #include <ndk/rtlfuncs.h>
 
+#include <wdmguid.h>
+
 /* Internal shared PCI and ACPI header */
 #include <drivers/pci/pci.h>
 #include <drivers/acpi/acpi.h>

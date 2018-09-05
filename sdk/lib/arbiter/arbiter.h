@@ -38,6 +38,8 @@ extern "C" {
 #include <pseh/pseh2.h>
 #endif
 
+#include <arc/arc.h>
+
 #define ARB_ORDERING_LIST_DEFAULT_COUNT  16
 #define ARB_ORDERING_LIST_ADD_COUNT      8
 
@@ -149,7 +151,7 @@ typedef struct _ARBITER_INSTANCE {
 #endif
     PKEVENT MutexEvent;
     PUSHORT Name;
-    ULONG ResourceType;
+    CM_RESOURCE_TYPE ResourceType;
 #if defined(_M_X64)
     ULONG Padding1;
 #endif
