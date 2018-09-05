@@ -529,6 +529,44 @@ HalpAddDevice(IN PDRIVER_OBJECT DriverObject,
     return Status;
 }
 
+VOID
+NTAPI
+HalPnpInterfaceReference(
+    IN PVOID Context)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PPDO_EXTENSION PdoExtension;
+
+    PAGED_CODE();
+
+    DeviceObject = Context;
+
+    PdoExtension = DeviceObject->DeviceExtension;
+    ASSERT(PdoExtension->ExtensionType == PdoExtensionType);
+
+    InterlockedIncrement(&PdoExtension->InterfaceReferenceCount);
+}
+
+VOID
+NTAPI
+HalPnpInterfaceDereference(
+    IN PVOID Context)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PPDO_EXTENSION PdoExtension;
+    LONG Result;
+
+    PAGED_CODE();
+
+    DeviceObject = Context;
+
+    PdoExtension = DeviceObject->DeviceExtension;
+    ASSERT(PdoExtension->ExtensionType == PdoExtensionType);
+
+    Result = InterlockedDecrement(&PdoExtension->InterfaceReferenceCount);
+    ASSERT(Result >= 0);
+}
+
 NTSTATUS
 NTAPI
 HalpQueryInterface(IN PDEVICE_OBJECT DeviceObject,
