@@ -1439,7 +1439,7 @@ HalpQueryInterfaceFdo(IN PDEVICE_OBJECT DeviceObject,
            Version,
            Interface);
 
-#if defined(HAL_LEGACY_R) //&& defined(HAL_PIC)
+#if defined(HAL_LEGACY_R)
 
     Status = QueryInterfaceFdo(DeviceObject,
                                InterfaceType,

@@ -29,6 +29,17 @@ HaliDereferenceBusHandler(
     IN PBUS_HANDLER Handler
 );
 
+ULONG
+NTAPI
+HaliPciInterfaceWriteConfig(
+    IN IN PVOID Context,
+    IN ULONG BusNumber,
+    IN ULONG SlotNumber,
+    IN PVOID Buffer,
+    IN ULONG Offset,
+    IN ULONG Length
+);
+
 extern PCI_INT_ROUTE_INTERFACE PciIrqRoutingInterface;
 extern HAL_PCI_IRQ_ROUTING_INFO HalpPciIrqRoutingInfo;
 extern ULONG HalpIrqMiniportInitialized;
