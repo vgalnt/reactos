@@ -567,6 +567,37 @@ HalPnpInterfaceDereference(
     ASSERT(Result >= 0);
 }
 
+BOOLEAN
+NTAPI
+HalPnpTranslateBusAddress(
+    _In_ PVOID Context,
+    _In_ PHYSICAL_ADDRESS BusAddress,
+    _In_ ULONG Length,
+    _Out_ PULONG AddressSpace,
+    _Out_ PPHYSICAL_ADDRESS TranslatedAddress)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PPDO_EXTENSION PdoExtension; // PLEGACY_HAL_PDO
+
+    PAGED_CODE();
+    DeviceObject = Context;
+
+    DPRINT("HalPnpTranslateBusAddress: DeviceObject - %p, BusAddress - %X, Length - %X, AddressSpace - %X, TranslatedAddress - %X\n",
+           DeviceObject, BusAddress, Length, AddressSpace, TranslatedAddress);
+
+    ASSERT(FALSE);
+
+    PdoExtension = DeviceObject->DeviceExtension;
+    ASSERT(PdoExtension->ExtensionType == PdoExtensionType);
+
+    return (PdoExtension->BusHandler->
+            TranslateBusAddress)(PdoExtension->BusHandler,
+                                 PdoExtension->BusHandler,
+                                 BusAddress,
+                                 AddressSpace,
+                                 TranslatedAddress);
+}
+
 NTSTATUS
 NTAPI
 HalpQueryInterface(IN PDEVICE_OBJECT DeviceObject,
