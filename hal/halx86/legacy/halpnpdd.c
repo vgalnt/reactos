@@ -11,6 +11,7 @@
 #include <hal.h>
 #include "legacy.h"
 #include "ranges.h"
+#include "irq/irqarb.h"
 
 //#define NDEBUG
 #include <debug.h>
@@ -531,15 +532,17 @@ HalpAddDevice(IN PDRIVER_OBJECT DriverObject,
 NTSTATUS
 NTAPI
 HalpQueryInterface(IN PDEVICE_OBJECT DeviceObject,
-                   IN CONST GUID* InterfaceType,
-                   IN USHORT Version,
-                   IN PVOID InterfaceSpecificData,
+                   IN GUID * InterfaceType,
                    IN ULONG InterfaceBufferSize,
-                   IN PINTERFACE Interface,
-                   OUT PULONG Length)
+                   IN PVOID InterfaceSpecificData,
+                   IN USHORT Version,
+                   IN PVOID Interface,
+                   OUT PULONG_PTR OutInformation)
 {
+    DPRINT("HalpQueryInterface: DeviceObject - %p, BufferSize - %X, SpecificData - %X, Version - %X, Interface - %X\n", DeviceObject, InterfaceBufferSize, InterfaceSpecificData, Version, Interface);
     UNIMPLEMENTED;
-    return STATUS_NOT_SUPPORTED;
+    ASSERT(FALSE);
+    return 0;
 }
 
 NTSTATUS
@@ -1223,6 +1226,53 @@ HalpQueryIdFdo(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
+HalpQueryInterfaceFdo(IN PDEVICE_OBJECT DeviceObject,
+                      IN CONST GUID* InterfaceType,
+                      IN ULONG InterfaceBufferSize,
+                      IN PVOID InterfaceSpecificData,
+                      IN USHORT Version,
+                      IN PVOID Interface,
+                      OUT PULONG_PTR OutInformation)
+{
+    UNICODE_STRING  GuidString;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    Status = RtlStringFromGUID(InterfaceType, &GuidString);
+    ASSERT(NT_SUCCESS(Status));
+
+    DPRINT("HalpQueryInterfaceFdo: DeviceObject - %p, GuidString - %wZ, BufferSize - %X, SpecificData - %X, Version - %X, Interface - %X\n",
+           DeviceObject,
+           &GuidString,
+           InterfaceBufferSize,
+           InterfaceSpecificData,
+           Version,
+           Interface);
+
+#if defined(HAL_LEGACY_R) //&& defined(HAL_PIC)
+
+    Status = QueryInterfaceFdo(DeviceObject,
+                               InterfaceType,
+                               InterfaceBufferSize,
+                               InterfaceSpecificData,
+                               Version,
+                               Interface,
+                               OutInformation);
+
+    DPRINT("HalpQueryInterfaceFdo: QueryInterfaceFdo return Status - %X\n",
+           Status);
+#else
+    DPRINT("HalpQueryInterfaceFdo: return STATUS_SUCCESS\n");
+    ASSERT(FALSE);
+    Status = STATUS_SUCCESS;
+#endif
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 HalpDispatchPnp(IN PDEVICE_OBJECT DeviceObject,
                 IN PIRP Irp)
 {
@@ -1256,13 +1306,13 @@ HalpDispatchPnp(IN PDEVICE_OBJECT DeviceObject,
 
                 /* Call the worker */
                 DPRINT("Querying interface for FDO\n");
-                Status = HalpQueryInterface(DeviceObject,
-                                            IoStackLocation->Parameters.QueryInterface.InterfaceType,
-                                            IoStackLocation->Parameters.QueryInterface.Size,
-                                            IoStackLocation->Parameters.QueryInterface.InterfaceSpecificData,
-                                            IoStackLocation->Parameters.QueryInterface.Version,
-                                            IoStackLocation->Parameters.QueryInterface.Interface,
-                                            (PVOID)&Irp->IoStatus.Information);
+                Status = HalpQueryInterfaceFdo(DeviceObject,
+                                               IoStackLocation->Parameters.QueryInterface.InterfaceType,
+                                               IoStackLocation->Parameters.QueryInterface.Size,
+                                               IoStackLocation->Parameters.QueryInterface.InterfaceSpecificData,
+                                               IoStackLocation->Parameters.QueryInterface.Version,
+                                               IoStackLocation->Parameters.QueryInterface.Interface,
+                                               (PVOID)&Irp->IoStatus.Information);
                 break;
 
             case IRP_MN_QUERY_ID:
@@ -1307,7 +1357,8 @@ HalpDispatchPnp(IN PDEVICE_OBJECT DeviceObject,
             case IRP_MN_START_DEVICE:
 
                 /* We only care about a PCI PDO */
-                DPRINT("Start device received\n");
+                DPRINT("HalpDispatchPnp: Start device (%p) received\n", DeviceObject);
+                ASSERT(FALSE);
                 /* Complete the IRP normally */
                 break;
 
@@ -1341,7 +1392,7 @@ HalpDispatchPnp(IN PDEVICE_OBJECT DeviceObject,
                 /* Call the worker */
                 DPRINT("Querying interface for PDO\n");
                 Status = HalpQueryInterface(DeviceObject,
-                                            IoStackLocation->Parameters.QueryInterface.InterfaceType,
+                                            (GUID *)IoStackLocation->Parameters.QueryInterface.InterfaceType,
                                             IoStackLocation->Parameters.QueryInterface.Size,
                                             IoStackLocation->Parameters.QueryInterface.InterfaceSpecificData,
                                             IoStackLocation->Parameters.QueryInterface.Version,

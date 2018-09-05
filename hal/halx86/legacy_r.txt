@@ -1,0 +1,10 @@
+
+legacy_r.cmake need ONLY for hal.dll - ("Standard PC," Non-ACPI PIC HAL)
+
+For halapic.dll - ("MPS Uniprocessor PC," Non-ACPI APIC UP HAL) and
+    halmps.dll  - ("MPS Multiprocessor PC," Non-ACPI APIC MP HAL)
+used legacy.cmake
+
+Differents:
+Added lib "arblib" (..\sdk\lib\arbiter\);
+Added "irqarb" and "pciirqmp" modules.

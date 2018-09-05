@@ -42,6 +42,7 @@ if(KDBG)
 endif()
 
 add_subdirectory(rtl)
+add_subdirectory(arbiter)
 add_subdirectory(scrnsave)
 add_subdirectory(skiplist)
 add_subdirectory(strmiids)
