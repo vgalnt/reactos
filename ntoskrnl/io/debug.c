@@ -397,10 +397,16 @@ PipDumpDeviceNodes(
     PDEVICE_NODE ChildDeviceNode;
     PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
     PARBITER_INSTANCE Arbiter;
+    PDEVICE_OBJECT PDO;
+    PDEVICE_OBJECT AttachedDO;
     PLIST_ENTRY ArbiterListHead;
     PLIST_ENTRY Entry;
 
-    DPRINT("Level - %X DevNode - %p for PDO - %p\n", Level, DeviceNode, DeviceNode->PhysicalDeviceObject);
+    ASSERT(DeviceNode);
+    PDO = DeviceNode->PhysicalDeviceObject;
+    AttachedDO = PDO ? PDO->AttachedDevice : NULL;
+
+    DPRINT("Level - %X DevNode - %p for PDO - %p, AttachedDO - %p\n", Level, DeviceNode, PDO, AttachedDO);
     DPRINT("InstancePath    - %wZ\n", &DeviceNode->InstancePath);
     if (DeviceNode->ServiceName.Length)
     {
