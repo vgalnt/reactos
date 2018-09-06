@@ -1562,7 +1562,7 @@ IopInitializeBootDrivers(
 
 #if DBG
     DPRINT("Dumping Nodes:\n");
-    devnode(NULL, 1+2+4+8, NULL);
+    IopDumpDeviceNode(NULL, 1+2+4+8, NULL);
     DPRINT("\n");
     ASSERT(FALSE);
 #endif
@@ -1930,7 +1930,7 @@ Next:
 
 #if DBG
     DPRINT("Dumping Nodes:\n");
-    devnode(NULL, 1+2+4+8, NULL);
+    IopDumpDeviceNode(NULL, 1+2+4+8, NULL);
     DPRINT("\n");
     ASSERT(FALSE);
 #endif

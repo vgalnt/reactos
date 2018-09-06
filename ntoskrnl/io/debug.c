@@ -489,25 +489,25 @@ PipDumpDeviceNodes(
 
 VOID
 NTAPI
-devnode(
+IopDumpDeviceNode(
     _In_ PDEVICE_NODE DeviceNode,
     _In_ ULONG Flags,
     _In_ PUNICODE_STRING ServiceName)
 {
-    DPRINT("devnode: DeviceNode - %X, Flags - %X, ServiceName - %X\n",
+    DPRINT("IopDumpDeviceNode: DeviceNode - %X, Flags - %X, ServiceName - %X\n",
            DeviceNode, Flags, ServiceName);
 
     if (DeviceNode == ULongToPtr(1) ||
         DeviceNode == ULongToPtr(2))
     {
-        DPRINT("devnode: FIXME [pending removals] and [pending ejects] NOT IMPLEMENTED\n");
+        DPRINT("IopDumpDeviceNode: FIXME [pending removals] and [pending ejects] NOT IMPLEMENTED\n");
         ASSERT(FALSE);
         return;
     }
 
     if (ServiceName)
     {
-        DPRINT("devnode: FIXME [ServiceName] - %zW NOT IMPLEMENTED\n", ServiceName);
+        DPRINT("IopDumpDeviceNode: FIXME [ServiceName] - %zW NOT IMPLEMENTED\n", ServiceName);
         ASSERT(FALSE);
     }
 
