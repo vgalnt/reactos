@@ -23,6 +23,7 @@ extern ULONG IopMaxDeviceNodeLevel;
 extern KSEMAPHORE PpRegistrySemaphore;
 extern LIST_ENTRY IopLegacyBusInformationTable[MaximumInterfaceType];
 extern PDEVICE_NODE IopRootDeviceNode;
+extern PDEVICE_NODE IopInitHalDeviceNode;
 
 /* DATA **********************************************************************/
 
@@ -74,6 +75,9 @@ PipAllocateDeviceNode(IN PDEVICE_OBJECT PhysicalDeviceObject)
         ((PEXTENDED_DEVOBJ_EXTENSION)PhysicalDeviceObject->DeviceObjectExtension)->DeviceNode = DeviceNode;
         PhysicalDeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
     }
+
+    DPRINT("PipAllocateDeviceNode: DeviceNode - %p, PDO - %p, IopNumberDeviceNodes - %X\n",
+           DeviceNode, PhysicalDeviceObject, IopNumberDeviceNodes);
 
     /* Return the node */
     return DeviceNode;
@@ -535,7 +539,7 @@ IopMarkHalDeviceNode(VOID)
              DeviceNode->State == DeviceNodeStartPostWork) &&
             !(DeviceNode->Flags & DNF_LEGACY_DRIVER))
         {
-            IopRootDeviceNode = DeviceNode;
+            IopInitHalDeviceNode = DeviceNode;
             DeviceNode->Flags |= DNF_HAL_NODE;
             return;
         }

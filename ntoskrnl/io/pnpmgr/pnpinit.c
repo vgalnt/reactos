@@ -28,6 +28,7 @@ PUNICODE_STRING PiInitGroupOrderTable;
 
 INTERFACE_TYPE PnpDefaultInterfaceType;
 
+PDEVICE_NODE IopInitHalDeviceNode;
 PCM_RESOURCE_LIST IopInitHalResources;
 
 extern PPHYSICAL_MEMORY_DESCRIPTOR MmPhysicalMemoryBlock;
