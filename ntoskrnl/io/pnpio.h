@@ -304,7 +304,7 @@ IopGetBusName(
 
 VOID
 NTAPI
-devnode(
+IopDumpDeviceNode(
     _In_ PDEVICE_NODE DeviceNode,
     _In_ ULONG Flags,
     _In_ PUNICODE_STRING ServiceName
