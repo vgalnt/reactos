@@ -169,7 +169,7 @@ PpIrpQueryID(
         Status = STATUS_NOT_SUPPORTED;
     }
 
-    DPRINT("PpIrpQueryID: DeviceNode - %X, IdType - %XPiFailQueryID\n");
+    DPRINT("PpIrpQueryID: DeviceNode - %X, IdType - %X\n");
 
     return Status;
 }
