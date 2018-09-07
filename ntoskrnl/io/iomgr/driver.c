@@ -1504,16 +1504,7 @@ try_again:
     RtlZeroMemory(DriverObject, ObjectSize);
     DriverObject->Type = IO_TYPE_DRIVER;
     DriverObject->Size = sizeof(DRIVER_OBJECT);
-
-    /*
-     * Check whether RegistryPath and ModuleObject are both NULL because
-     * IoCreateDriver() was called to initialize a built-in driver.
-     */
-    if ((RegistryPath != NULL) || (ModuleObject != NULL))
-        DriverObject->Flags = DRVO_LEGACY_DRIVER;
-    else
-        DriverObject->Flags = DRVO_BUILTIN_DRIVER;
-
+    DriverObject->Flags = DRVO_BUILTIN_DRIVER;
     DriverObject->DriverExtension = (PDRIVER_EXTENSION)(DriverObject + 1);
     DriverObject->DriverExtension->DriverObject = DriverObject;
     DriverObject->DriverInit = InitializationFunction;
@@ -1621,7 +1612,6 @@ try_again:
 
     /* We're going to say if we don't have any DOs from DriverEntry, then we're not legacy.
      * Other parts of the I/O manager depend on this behavior */
-    if (!DriverObject->DeviceObject) DriverObject->Flags &= ~DRVO_LEGACY_DRIVER;
 
     /* Loop all Major Functions */
     for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; i++)
