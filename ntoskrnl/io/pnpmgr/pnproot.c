@@ -1063,6 +1063,44 @@ PdoQueryBusInformation(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopTranslatorHandlerCm(
+    _Inout_opt_ PVOID Context,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Source,
+    _In_ RESOURCE_TRANSLATION_DIRECTION Direction,
+    _In_opt_ ULONG AlternativesCount,
+    _In_reads_opt_(AlternativesCount) PIO_RESOURCE_DESCRIPTOR Alternatives,
+    _In_ PDEVICE_OBJECT PhysicalDeviceObject,
+    _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Target)
+{
+    PAGED_CODE();
+    DPRINT("IopTranslatorHandlerCm(Source - %p, Target - %p)\n", Source, Target);
+
+    Target->Type = Source->Type;
+    Target->ShareDisposition = Source->ShareDisposition;
+    Target->Flags = Source->Flags;
+
+    Target->u.Generic.Start.QuadPart = Source->u.Generic.Start.QuadPart;
+    Target->u.Generic.Length = Source->u.Generic.Length;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+IopTranslatorHandlerIo(
+    _Inout_opt_ PVOID Context,
+    _In_ PIO_RESOURCE_DESCRIPTOR Source,
+    _In_ PDEVICE_OBJECT PhysicalDeviceObject,
+    _Out_ PULONG TargetCount,
+    _Out_writes_(*TargetCount) PIO_RESOURCE_DESCRIPTOR *Target)
+{
+    DPRINT("IopTranslatorHandlerIo: ... \n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
 /*
  * FUNCTION: Handle Plug and Play IRPs for Root device
  * ARGUMENTS:
