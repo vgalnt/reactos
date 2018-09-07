@@ -629,8 +629,7 @@ HalpQueryInterface(IN PDEVICE_OBJECT DeviceObject,
                    IN ULONG InterfaceBufferSize,
                    IN PVOID InterfaceSpecificData,
                    IN USHORT Version,
-                   IN PVOID Interface,
-                   OUT PULONG_PTR OutInformation)
+                   IN PVOID Interface)
 {
     PBUS_INTERFACE_STANDARD BusInterface = Interface;
     PPCI_BUS_INTERFACE_STANDARD PciInterface = Interface;
@@ -657,8 +656,6 @@ HalpQueryInterface(IN PDEVICE_OBJECT DeviceObject,
     if (RtlCompareMemory(&GUID_BUS_INTERFACE_STANDARD, InterfaceType, sizeof(GUID)) == sizeof(GUID))
     {
         DPRINT("HalpQueryInterface: GUID_BUS_INTERFACE_STANDARD\n");
-
-        *OutInformation = sizeof(BUS_INTERFACE_STANDARD);
 
         if (InterfaceBufferSize < sizeof(BUS_INTERFACE_STANDARD))
         {
@@ -691,8 +688,6 @@ HalpQueryInterface(IN PDEVICE_OBJECT DeviceObject,
         PdoExtension->PdoType == PciPdo)
     {
         DPRINT("HalpQueryInterface: GUID_PCI_BUS_INTERFACE_STANDARD\n");
-
-        *OutInformation = sizeof(PCI_BUS_INTERFACE_STANDARD);
 
         if (InterfaceBufferSize < sizeof(PCI_BUS_INTERFACE_STANDARD))
         {
@@ -1420,8 +1415,7 @@ HalpQueryInterfaceFdo(IN PDEVICE_OBJECT DeviceObject,
                       IN ULONG InterfaceBufferSize,
                       IN PVOID InterfaceSpecificData,
                       IN USHORT Version,
-                      IN PVOID Interface,
-                      OUT PULONG_PTR OutInformation)
+                      IN PVOID Interface)
 {
     UNICODE_STRING  GuidString;
     NTSTATUS Status;
@@ -1446,8 +1440,7 @@ HalpQueryInterfaceFdo(IN PDEVICE_OBJECT DeviceObject,
                                InterfaceBufferSize,
                                InterfaceSpecificData,
                                Version,
-                               Interface,
-                               OutInformation);
+                               Interface);
 
     DPRINT("HalpQueryInterfaceFdo: QueryInterfaceFdo return Status - %X\n",
            Status);
@@ -1500,8 +1493,7 @@ HalpDispatchPnp(IN PDEVICE_OBJECT DeviceObject,
                                                IoStackLocation->Parameters.QueryInterface.Size,
                                                IoStackLocation->Parameters.QueryInterface.InterfaceSpecificData,
                                                IoStackLocation->Parameters.QueryInterface.Version,
-                                               IoStackLocation->Parameters.QueryInterface.Interface,
-                                               (PVOID)&Irp->IoStatus.Information);
+                                               IoStackLocation->Parameters.QueryInterface.Interface);
                 break;
 
             case IRP_MN_QUERY_ID:
@@ -1585,8 +1577,7 @@ HalpDispatchPnp(IN PDEVICE_OBJECT DeviceObject,
                                             IoStackLocation->Parameters.QueryInterface.Size,
                                             IoStackLocation->Parameters.QueryInterface.InterfaceSpecificData,
                                             IoStackLocation->Parameters.QueryInterface.Version,
-                                            IoStackLocation->Parameters.QueryInterface.Interface,
-                                            (PVOID)&Irp->IoStatus.Information);
+                                            IoStackLocation->Parameters.QueryInterface.Interface);
                 break;
 
             case IRP_MN_QUERY_CAPABILITIES:
