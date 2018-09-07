@@ -23,6 +23,12 @@ extern ERESOURCE PpRegistryDeviceResource;
 
 extern PNP_ALLOCATE_RESOURCES_ROUTINE IopAllocateBootResourcesRoutine;
 
+extern ARBITER_INSTANCE IopRootBusNumberArbiter;
+extern ARBITER_INSTANCE IopRootIrqArbiter;
+extern ARBITER_INSTANCE IopRootDmaArbiter;
+extern ARBITER_INSTANCE IopRootMemArbiter;
+extern ARBITER_INSTANCE IopRootPortArbiter;
+
 /* DATA **********************************************************************/
 
 typedef struct _PNPROOT_DEVICE
@@ -1156,6 +1162,75 @@ PnpRootPnpControl(
             Status = PdoQueryBusInformation(DeviceObject, Irp, IrpSp);
             break;
 
+        case IRP_MN_QUERY_INTERFACE:
+        {
+            const GUID * InterfaceType;
+
+            DPRINT("IopPnPDispatch: IRP_MJ_PNP / IRP_MN_QUERY_INTERFACE\n");
+
+            Status = Irp->IoStatus.Status;
+
+            if (IopGetDeviceNode(DeviceObject) != IopRootDeviceNode)
+            {
+                DPRINT("IopPnPDispatch: DevNode(%p) != IopRootDeviceNode (%p)\n",
+                       IopGetDeviceNode(DeviceObject), IopRootDeviceNode);
+                break;
+            }
+
+            InterfaceType = IrpSp->Parameters.QueryInterface.InterfaceType;
+
+            if (InterfaceType == &GUID_ARBITER_INTERFACE_STANDARD ||
+                (RtlCompareMemory(InterfaceType, &GUID_ARBITER_INTERFACE_STANDARD, sizeof(GUID)) == sizeof(GUID)))
+            {
+                PARBITER_INTERFACE ArbiterInterface;
+                Status = STATUS_SUCCESS;
+
+                ArbiterInterface = (PARBITER_INTERFACE)IrpSp->Parameters.QueryInterface.Interface;
+                ArbiterInterface->ArbiterHandler = ArbArbiterHandler;
+
+                switch ((ULONG)IrpSp->Parameters.QueryInterface.InterfaceSpecificData)
+                {
+                    case CmResourceTypePort:
+                        ArbiterInterface->Context = &IopRootPortArbiter;
+                        break;
+
+                    case CmResourceTypeInterrupt:
+                        ArbiterInterface->Context = &IopRootIrqArbiter;
+                        break;
+
+                    case CmResourceTypeMemory:
+                        ArbiterInterface->Context = &IopRootMemArbiter;
+                        break;
+
+                    case CmResourceTypeDma:
+                        ArbiterInterface->Context = &IopRootDmaArbiter;
+                        break;
+
+                    case CmResourceTypeBusNumber:
+                        ArbiterInterface->Context = &IopRootBusNumberArbiter;
+                        break;
+
+                    default:
+                        ASSERT(FALSE);
+                        Status = STATUS_INVALID_PARAMETER;
+                        break;
+                }
+            }
+            else if (InterfaceType == &GUID_TRANSLATOR_INTERFACE_STANDARD ||
+                     (RtlCompareMemory(InterfaceType, &GUID_TRANSLATOR_INTERFACE_STANDARD, sizeof(GUID)) == sizeof(GUID)))
+            {
+                PTRANSLATOR_INTERFACE TranslatorInterface;
+
+                TranslatorInterface = (PTRANSLATOR_INTERFACE)IrpSp->Parameters.QueryInterface.Interface;
+                TranslatorInterface->TranslateResources = IopTranslatorHandlerCm;
+                TranslatorInterface->TranslateResourceRequirements = IopTranslatorHandlerIo;
+
+                Status = STATUS_SUCCESS;
+                break;
+            }
+
+            break;
+        }
         default:
             DPRINT1("IRP_MJ_PNP / Unknown minor function 0x%lx\n", IrpSp->MinorFunction);
             break;
