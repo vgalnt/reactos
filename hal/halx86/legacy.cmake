@@ -14,7 +14,6 @@ list(APPEND HAL_LEGACY_SOURCE
     legacy/bussupp.c
     legacy/halpnpdd.c
     legacy/halpcat.c
-    legacy/irq/irqarb.c
     legacy/ranges.c)
 
 add_object_library(lib_hal_legacy ${HAL_LEGACY_SOURCE})
