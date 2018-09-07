@@ -225,6 +225,14 @@ ArbInitializeArbiterInstance(
     _In_ PARB_TRANSLATE_ORDERING TranslateOrderingFunction
 );
 
+NTSTATUS
+NTAPI
+ArbArbiterHandler(
+    _In_ PVOID Context,
+    _In_ ARBITER_ACTION Action,
+    _Out_ PARBITER_PARAMETERS Params
+);
+
 #ifdef __cplusplus
 }
 #endif
