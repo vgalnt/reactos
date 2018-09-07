@@ -15,7 +15,127 @@
 
 /* GLOBALS ********************************************************************/
 
+/* DATA **********************************************************************/
+
+static PCHAR ArbpActionStrings[] =
+{
+    "ArbiterActionTestAllocation",
+    "ArbiterActionRetestAllocation",
+    "ArbiterActionCommitAllocation",
+    "ArbiterActionRollbackAllocation",
+    "ArbiterActionQueryAllocatedResources",
+    "ArbiterActionWriteReservedResources",
+    "ArbiterActionQueryConflict",
+    "ArbiterActionQueryArbitrate",
+    "ArbiterActionAddReserved",
+    "ArbiterActionBootAllocation"
+};
+
 /* FUNCTIONS ******************************************************************/
+
+NTSTATUS
+NTAPI
+ArbArbiterHandler(
+    _In_ PVOID Context,
+    _In_ ARBITER_ACTION Action,
+    _Out_ PARBITER_PARAMETERS Params)
+{
+    PARBITER_INSTANCE Arbiter = Context;
+    NTSTATUS Status=0;
+
+    //PAGED_CODE();
+    DPRINT("ArbArbiterHandler: Context %p, Action %X\n", Context, Action);
+
+    ASSERT(Context);
+    ASSERT(Arbiter->Signature == 'sbrA');
+
+    ASSERT(Action >= ArbiterActionTestAllocation &&
+           Action <= ArbiterActionBootAllocation);
+
+    KeWaitForSingleObject(Arbiter->MutexEvent,
+                          Executive,
+                          KernelMode,
+                          FALSE,
+                          NULL);
+
+    DPRINT("ArbArbiterHandler: %s %S\n",
+           ArbpActionStrings[Action], Arbiter->Name);
+
+    if (Action &&
+        Action != ArbiterActionRetestAllocation &&
+        Action != ArbiterActionBootAllocation)
+    {
+        if ((Action == ArbiterActionCommitAllocation ||
+             Action == ArbiterActionRollbackAllocation))
+        {
+            ASSERT(Arbiter->TransactionInProgress);
+        }
+    }
+    else if (Arbiter->TransactionInProgress)
+    {
+        ASSERT(!Arbiter->TransactionInProgress);
+    }
+
+    switch (Action)
+    {
+        case ArbiterActionTestAllocation:
+            ASSERT(FALSE);
+            break;
+        case ArbiterActionRetestAllocation:
+            ASSERT(FALSE);
+            break;
+        case ArbiterActionCommitAllocation:
+            ASSERT(FALSE);
+            break;
+        case ArbiterActionRollbackAllocation:
+            ASSERT(FALSE);
+            break;
+        case ArbiterActionBootAllocation:
+            ASSERT(FALSE);
+            break;
+        case ArbiterActionQueryConflict:
+            ASSERT(FALSE);
+            break;
+        case ArbiterActionQueryAllocatedResources:
+        case ArbiterActionWriteReservedResources:
+        case ArbiterActionQueryArbitrate:
+        case ArbiterActionAddReserved:
+            ASSERT(FALSE);
+            Status = STATUS_NOT_IMPLEMENTED;
+            return STATUS_NOT_IMPLEMENTED;
+        default:
+            ASSERT(FALSE);
+            Status = STATUS_INVALID_PARAMETER;
+            return Status;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("ArbArbiterHandler: %s for %S failed. Status - %X\n",
+               ArbpActionStrings[Action], Arbiter->Name, Status);
+
+        ASSERT(FALSE);
+        return Status;
+    }
+
+    if (Action && Action != ArbiterActionRetestAllocation)
+    {
+        if (Action == ArbiterActionCommitAllocation ||
+            Action == ArbiterActionRollbackAllocation)
+        {
+          Arbiter->TransactionInProgress = FALSE;
+        }
+    }
+    else
+    {
+        Arbiter->TransactionInProgress = TRUE;
+    }
+
+    KeSetEvent(Arbiter->MutexEvent, IO_NO_INCREMENT, FALSE);
+
+    return Status;
+}
+
 
 NTSTATUS
 NTAPI
