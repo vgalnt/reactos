@@ -1750,7 +1750,7 @@ IopSetupArbiterAndTranslators(
         DeviceNode = IopRootDeviceNode;
     }
 
-    for (; DeviceNode; DeviceNode = DeviceNode->Parent)
+    while (DeviceNode)
     {
         if (DeviceNode == IopRootDeviceNode &&
             !IsTranslatorFound &&
@@ -1870,6 +1870,7 @@ FindTranslator:
 
         if (!IsFindTranslator)
         {
+            DeviceNode = DeviceNode->Parent;
             continue;
         }
 
@@ -1966,6 +1967,8 @@ FindTranslator:
                 IsFindTranslator = FALSE;
             }
         }
+
+        DeviceNode = DeviceNode->Parent;
     }
 
     if (IsArbiterFound)
