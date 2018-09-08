@@ -241,6 +241,15 @@ ArbArbiterHandler(
     _Out_ PARBITER_PARAMETERS Params
 );
 
+// lib "rtl" FIXME!
+NTSTATUS
+NTAPI
+RtlCopyRangeList(OUT PRTL_RANGE_LIST CopyRangeList,
+                 IN PRTL_RANGE_LIST RangeList
+);
+
+// end lib "rtl"
+
 #ifdef __cplusplus
 }
 #endif
