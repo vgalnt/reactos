@@ -220,13 +220,14 @@ ArbFindSuitableRange()
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
+VOID
 NTAPI
-ArbAddAllocation()
+ArbAddAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    DPRINT("ArbAddAllocation: ...\n");
+    DPRINT("ArbAddAllocation: Arbiter - %p\n", Arbiter);
     ASSERT(FALSE);
-    return STATUS_SUCCESS;
 }
 
 NTSTATUS

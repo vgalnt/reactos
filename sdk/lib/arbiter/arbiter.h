@@ -150,6 +150,18 @@ typedef NTSTATUS
     _In_ PLIST_ENTRY ArbitrationList
 );
 
+typedef NTSTATUS
+(NTAPI * PARB_PREPROCESS_ENTRY)(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
+);
+
+typedef VOID
+(NTAPI * PARB_ADD_ALLOCATION)(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
+);
+
 //typedef struct _RTL_RANGE_LIST RTL_RANGE_LIST, *PRTL_RANGE_LIST;
 
 typedef struct _ARBITER_INSTANCE {
@@ -191,11 +203,11 @@ typedef struct _ARBITER_INSTANCE {
     PVOID QueryConflict; // PARB_QUERY_CONFLICT
     PVOID AddReserved; // PARB_ADD_RESERVED
     PVOID StartArbiter; // PARB_START_ARBITER
-    PVOID PreprocessEntry; // PARB_PREPROCESS_ENTRY
+    PARB_PREPROCESS_ENTRY PreprocessEntry;
     PVOID AllocateEntry; // PARB_ALLOCATE_ENTRY
     PVOID GetNextAllocationRange; // PARB_GET_NEXT_ALLOCATION_RANGE
     PVOID FindSuitableRange; // PARB_FIND_SUITABLE_RANGE
-    PVOID AddAllocation; // PARB_ADD_ALLOCATION
+    PARB_ADD_ALLOCATION AddAllocation;
     PVOID BacktrackAllocation; // PARB_BACKTRACK_ALLOCATION
     PVOID OverrideConflict; // PARB_OVERRIDE_CONFLICT
     BOOLEAN TransactionInProgress;

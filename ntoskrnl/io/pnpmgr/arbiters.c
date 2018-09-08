@@ -624,7 +624,7 @@ IopPortGetNextAlias(
     return 0;
 }
 
-NTSTATUS
+VOID
 NTAPI
 IopPortAddAllocation(
     _In_ PARBITER_INSTANCE Arbiter,
@@ -633,7 +633,6 @@ IopPortAddAllocation(
     PAGED_CODE();
     DPRINT("IopPortAddAllocation: ...\n");
     ASSERT(FALSE);
-    return 0;
 }
 
 NTSTATUS
