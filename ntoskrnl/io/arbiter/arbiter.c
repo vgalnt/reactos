@@ -249,10 +249,91 @@ ArbOverrideConflict()
 
 NTSTATUS
 NTAPI
-ArbBootAllocation()
+ArbBootAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PLIST_ENTRY ArbitrationList)
 {
-    DPRINT("ArbBootAllocation: ...\n");
-    ASSERT(FALSE);
+    PRTL_RANGE_LIST OldAllocation;
+    PARBITER_LIST_ENTRY Current;
+    ARBITER_ALTERNATIVE Alternative;
+    ARBITER_ALLOCATION_STATE ArbState;
+    NTSTATUS Status;
+
+    //PAGED_CODE();
+    DPRINT("ArbBootAllocation: Arbiter - %p, ArbitrationList - %p\n",
+           Arbiter, ArbitrationList);
+
+    RtlZeroMemory(&ArbState, sizeof(ArbState));
+
+    ArbState.AlternativeCount = 1;
+    ArbState.Alternatives = &Alternative;
+    ArbState.CurrentAlternative = &Alternative;
+    ArbState.Flags = 2;
+    ArbState.RangeAttributes = 1;
+
+    RtlCopyRangeList(Arbiter->PossibleAllocation, Arbiter->Allocation);
+
+    RtlZeroMemory(&Alternative, sizeof(Alternative));
+
+    for (Current = CONTAINING_RECORD(ArbitrationList->Flink, ARBITER_LIST_ENTRY, ListEntry);
+         &Current->ListEntry != ArbitrationList;
+         Current = CONTAINING_RECORD(Current->ListEntry.Flink, ARBITER_LIST_ENTRY, ListEntry))
+    {
+        ASSERT(Current->AlternativeCount == 1);
+        ASSERT(Current->PhysicalDeviceObject);
+
+        ArbState.Entry = Current;
+
+        Status = ArbpBuildAlternative(Arbiter, Current->Alternatives, &Alternative);
+        ASSERT(NT_SUCCESS(Status));
+
+        ASSERT(Alternative.Flags & (2|4)); // (ARBITER_ALTERNATIVE_FLAG_FIXED | ARBITER_ALTERNATIVE_FLAG_INVALID)
+
+        ArbState.WorkSpace = 0;
+        ArbState.Start = Alternative.Minimum;
+        ArbState.End = Alternative.Maximum;
+        ArbState.RangeAvailableAttributes = 0;
+
+        if (Alternative.Length == 0||
+            Alternative.Alignment == 0||
+            Alternative.Maximum < Alternative.Minimum ||
+            Alternative.Minimum % Alternative.Alignment ||
+            (Alternative.Maximum - Alternative.Minimum + 1 != Alternative.Length))
+        {
+            DPRINT("ArbBootAllocation: Skipping invalid boot allocation [%I64X-%I64X], L - %X, A - %X, for PDO - %p\n",
+                   Alternative.Minimum, Alternative.Maximum, Alternative.Length, Alternative.Alignment, Current->PhysicalDeviceObject);
+
+            continue;
+        }
+        else
+        {
+            DPRINT("ArbBootAllocation: Boot allocation [%I64X-%I64X], L - %X, A - %X, for PDO - %p\n",
+                   Alternative.Minimum, Alternative.Maximum, Alternative.Length, Alternative.Alignment, Current->PhysicalDeviceObject);
+        }
+
+        DPRINT("ArbBootAllocation: ArbState - %p, ArbState.Entry->PhysicalDeviceObject - %p\n",
+               &ArbState, ArbState.Entry->PhysicalDeviceObject);
+
+        Status = Arbiter->PreprocessEntry(Arbiter, &ArbState);
+
+        if (!NT_SUCCESS(Status))
+        {
+            ASSERT(FALSE);
+            RtlFreeRangeList(Arbiter->PossibleAllocation);
+            return Status;
+        }
+
+        Arbiter->AddAllocation(Arbiter, &ArbState);
+
+    }
+
+    OldAllocation = Arbiter->Allocation;
+
+    RtlFreeRangeList(Arbiter->Allocation);
+
+    Arbiter->Allocation = Arbiter->PossibleAllocation;
+    Arbiter->PossibleAllocation = OldAllocation;
+
     return STATUS_SUCCESS;
 }
 
