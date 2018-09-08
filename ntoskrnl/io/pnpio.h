@@ -150,7 +150,7 @@ typedef struct _PNP_REQ_LIST
     INTERFACE_TYPE InterfaceType;
     ULONG BusNumber;
     PPNP_RESOURCE_REQUEST ResRequest;
-    PPNP_REQ_ALT_LIST AltList1;
+    PPNP_REQ_ALT_LIST * AltList1;
     PPNP_REQ_ALT_LIST AltList2;
     ULONG Count;
     PPNP_REQ_ALT_LIST AltLists[1]; // array pointers to alternative lists

@@ -3100,6 +3100,76 @@ Exit:
 
 NTSTATUS
 NTAPI
+IopBootAllocation(
+    _In_ PPNP_REQ_LIST ReqList)
+{
+    PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
+    PPNP_REQ_RESOURCE_ENTRY ReqResDesc;
+    ARBITER_PARAMETERS ArbiterParams;
+    PLIST_ENTRY Entry;
+    LIST_ENTRY List;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    PAGED_CODE();
+    DPRINT("IopBootAllocation: ReqList - %p\n", ReqList);
+
+    InitializeListHead(&List);
+
+    ReqList->AltList1 = ReqList->AltLists;
+
+    IopAddRemoveReqDescs(ReqList->AltLists[0]->ReqDescriptors,
+                         ReqList->AltLists[0]->CountDescriptors,
+                         &List,
+                         TRUE);
+
+    for (Entry = List.Flink; Entry != &List; Entry = Entry->Flink)
+    {
+        ArbiterEntry = CONTAINING_RECORD(Entry,
+                                         PI_RESOURCE_ARBITER_ENTRY,
+                                         ActiveArbiterList);
+
+        if (ArbiterEntry->ResourcesChanged)
+        {
+            ASSERT(IsListEmpty(&ArbiterEntry->ResourceList) == FALSE);
+
+            ArbiterParams.Parameters.BootAllocation.ArbitrationList =
+                                     &ArbiterEntry->ResourceList;
+
+            Status = ArbiterEntry->ArbiterInterface->
+                     ArbiterHandler(ArbiterEntry->ArbiterInterface->Context,
+                                    ArbiterActionBootAllocation,
+                                    &ArbiterParams);
+
+            if (!NT_SUCCESS(Status))
+            {
+                ReqResDesc = CONTAINING_RECORD(ArbiterEntry,
+                                               PNP_REQ_RESOURCE_ENTRY,
+                                               Link);
+                DPRINT("IopBootAllocation: Failed. Count - %X, PDO - %X\n",
+                       ReqResDesc->Count, ReqResDesc->PhysicalDevice);
+
+                ASSERT(FALSE);
+                IopDumpIoResourceDescriptor("    ", ReqResDesc->IoDescriptor);
+            }
+
+            ArbiterEntry->ResourcesChanged = 0; // FIXME UCHAR ==>> BOOLEAN
+            ArbiterEntry->State = 0;
+
+            InitializeListHead(&ArbiterEntry->ActiveArbiterList);
+            InitializeListHead(&ArbiterEntry->BestConfig);
+            InitializeListHead(&ArbiterEntry->ResourceList);
+            InitializeListHead(&ArbiterEntry->BestResourceList);
+        }
+    }
+
+    ASSERT(FALSE);
+    //IopCheckDataStructures(IopRootDeviceNode);
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IopAllocateBootResourcesInternal(
     _In_ ARBITER_REQUEST_SOURCE AllocationType,
     _In_ PDEVICE_OBJECT DeviceObject,
@@ -3160,8 +3230,7 @@ IopAllocateBootResourcesInternal(
         goto Exit;
     }
 
-    ASSERT(FALSE);
-    Status = 0;//IopBootAllocation(ReqList);
+    Status = IopBootAllocation(ReqList);
 
     if (!NT_SUCCESS(Status))
     {
