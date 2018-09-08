@@ -19,16 +19,16 @@
 
 static PCHAR ArbpActionStrings[] =
 {
-    "ArbiterActionTestAllocation",
-    "ArbiterActionRetestAllocation",
-    "ArbiterActionCommitAllocation",
-    "ArbiterActionRollbackAllocation",
-    "ArbiterActionQueryAllocatedResources",
-    "ArbiterActionWriteReservedResources",
-    "ArbiterActionQueryConflict",
-    "ArbiterActionQueryArbitrate",
-    "ArbiterActionAddReserved",
-    "ArbiterActionBootAllocation"
+    "Arbiter Action TestAllocation",
+    "Arbiter Action RetestAllocation",
+    "Arbiter Action CommitAllocation",
+    "Arbiter Action RollbackAllocation",
+    "Arbiter Action QueryAllocatedResources",
+    "Arbiter Action WriteReservedResources",
+    "Arbiter Action QueryConflict",
+    "Arbiter Action QueryArbitrate",
+    "Arbiter Action AddReserved",
+    "Arbiter Action BootAllocation"
 };
 
 /* FUNCTIONS ******************************************************************/
@@ -91,7 +91,9 @@ ArbArbiterHandler(
             ASSERT(FALSE);
             break;
         case ArbiterActionBootAllocation:
-            ASSERT(FALSE);
+            Status = Arbiter->BootAllocation(
+                              Arbiter,
+                              Params->Parameters.BootAllocation.ArbitrationList);
             break;
         case ArbiterActionQueryConflict:
             ASSERT(FALSE);
