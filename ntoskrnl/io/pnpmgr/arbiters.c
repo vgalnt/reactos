@@ -630,9 +630,64 @@ IopPortAddAllocation(
     _In_ PARBITER_INSTANCE Arbiter,
     _In_ PARBITER_ALLOCATION_STATE ArbState)
 {
+    ULONGLONG Start;
+    ULONG Flags;
+    NTSTATUS Status;
+    UCHAR Result;
+
     PAGED_CODE();
-    DPRINT("IopPortAddAllocation: ...\n");
-    ASSERT(FALSE);
+    DPRINT("IopPortAddAllocation: Arbiter - %p\n", Arbiter);
+
+    ASSERT(Arbiter);
+    ASSERT(ArbState);
+
+    Flags = RTL_RANGE_LIST_ADD_IF_CONFLICT;
+
+    if (ArbState->CurrentAlternative->Flags & 1)
+    {
+        Flags |= RTL_RANGE_LIST_ADD_SHARED;
+    }
+
+    Status = RtlAddRange(Arbiter->PossibleAllocation,
+                         ArbState->Start,
+                         ArbState->End,
+                         ArbState->RangeAttributes,
+                         Flags,
+                         NULL,
+                         ArbState->Entry->PhysicalDeviceObject);
+
+    ASSERT(NT_SUCCESS(Status));
+
+    Start = ArbState->Start;
+
+    while (TRUE)
+    {
+        Result = IopPortGetNextAlias(ArbState->CurrentAlternative->Descriptor->Flags,
+                                     Start,
+                                     &Start);
+
+        if (!Result)
+        {
+            break;
+        }
+
+        Flags = RTL_RANGE_LIST_ADD_IF_CONFLICT;
+
+        if (ArbState->CurrentAlternative->Flags & 1)
+        {
+            Flags |= RTL_RANGE_LIST_ADD_SHARED;
+        }
+
+        Status = RtlAddRange(Arbiter->PossibleAllocation,
+                             Start,
+                             Start + ArbState->CurrentAlternative->Length - 1,
+                             ArbState->RangeAttributes | 0x10,
+                             Flags,
+                             NULL,
+                             ArbState->Entry->PhysicalDeviceObject);
+
+        ASSERT(NT_SUCCESS(Status));
+    }
 }
 
 NTSTATUS
