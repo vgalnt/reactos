@@ -227,8 +227,28 @@ ArbAddAllocation(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    DPRINT("ArbAddAllocation: Arbiter - %p\n", Arbiter);
-    ASSERT(FALSE);
+    ULONG Flags;
+    NTSTATUS Status;
+
+    //PAGED_CODE();
+    DPRINT("ArbAddAllocation: Arbiter - %p, ArbState - %p\n", Arbiter, ArbState);
+
+    Flags = RTL_RANGE_LIST_ADD_IF_CONFLICT;
+
+    if (ArbState->CurrentAlternative->Flags & 1) //?
+    {
+        Flags |= RTL_RANGE_LIST_ADD_SHARED;
+    }
+
+    Status = RtlAddRange(Arbiter->PossibleAllocation,
+                         ArbState->Start,
+                         ArbState->End,
+                         ArbState->RangeAttributes,
+                         Flags,
+                         NULL,
+                         ArbState->Entry->PhysicalDeviceObject);
+
+    ASSERT(NT_SUCCESS(Status));
 }
 
 NTSTATUS
