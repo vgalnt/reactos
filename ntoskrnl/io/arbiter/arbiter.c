@@ -186,10 +186,11 @@ ArbAddReserved()
 
 NTSTATUS
 NTAPI
-ArbPreprocessEntry()
+ArbPreprocessEntry(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    DPRINT("ArbPreprocessEntry: ...\n");
-    ASSERT(FALSE);
+    //PAGED_CODE();
     return STATUS_SUCCESS;
 }
 
