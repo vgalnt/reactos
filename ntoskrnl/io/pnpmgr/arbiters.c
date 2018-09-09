@@ -616,12 +616,39 @@ NTAPI
 IopPortGetNextAlias(
     _In_ UCHAR Flags,
     _In_ ULONGLONG Start,
-    _Out_ PULONGLONG pStart)
+    _Out_ PULONGLONG OutNextStart)
 {
+    LARGE_INTEGER start;
+    ULONG NextStart;
+    UCHAR CarryFlag;
+
     PAGED_CODE();
-    DPRINT("IopPortGetNextAlias: ...\n");
-    ASSERT(FALSE);
-    return 0;
+    DPRINT("IopPortGetNextAlias: Start - %I64X\n", Start);
+
+    start.QuadPart = Start;
+
+    if (Flags & CM_RESOURCE_PORT_10_BIT_DECODE)
+    {
+        CarryFlag = start.LowPart > start.LowPart + (1 << 10);
+        NextStart = start.LowPart + (1 << 10);
+    }
+    else if (Flags & CM_RESOURCE_PORT_12_BIT_DECODE)
+    {
+        CarryFlag = start.LowPart > start.LowPart + (1 << 12);
+        NextStart = start.LowPart + (1 << 12);
+    }
+    else
+    {
+        return FALSE;
+    }
+
+    if (!(CarryFlag + start.HighPart) && NextStart <= MAXUSHORT)
+    {
+        *OutNextStart = NextStart;
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 VOID
