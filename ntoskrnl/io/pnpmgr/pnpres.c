@@ -1808,7 +1808,7 @@ IopSetupArbiterAndTranslators(
                 }
 
                 ResArbiterEntry = ExAllocatePoolWithTag(PagedPool,
-                                                        sizeof(PPI_RESOURCE_ARBITER_ENTRY),
+                                                        sizeof(PI_RESOURCE_ARBITER_ENTRY),
                                                         'erpP');
                 if (!ResArbiterEntry)
                 {
