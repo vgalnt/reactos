@@ -43,7 +43,15 @@ IopBusNumberUnpackRequirement(
             IoDescriptor->u.BusNumber.MaxBusNumber,
             IoDescriptor->u.BusNumber.Length);
 
-    ASSERT(FALSE);
+    ASSERT(IoDescriptor);
+    ASSERT(IoDescriptor->Type == CmResourceTypeBusNumber);
+
+    *OutMinimumAddress = IoDescriptor->u.BusNumber.MinBusNumber;
+    *OutMaximumAddress = IoDescriptor->u.BusNumber.MaxBusNumber;
+
+    *OutLength = IoDescriptor->u.Generic.Length;
+    *OutAlignment = 1;
+
     return STATUS_SUCCESS;
 }
 
