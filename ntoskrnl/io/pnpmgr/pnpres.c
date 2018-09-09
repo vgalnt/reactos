@@ -1986,6 +1986,52 @@ FindTranslator:
 
 VOID
 NTAPI
+IopFreeReqAlternative(
+    _In_ PPNP_REQ_ALT_LIST AltList)
+{
+    PPNP_REQ_DESCRIPTOR * ReqDescriptors;
+    PPNP_REQ_DESCRIPTOR Current;
+    PPNP_REQ_DESCRIPTOR reqDesc;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("IopFreeReqAlternative: AltList - %p\n", AltList);
+
+    if (!AltList)
+    {
+        return;
+    }
+
+    ReqDescriptors = AltList->ReqDescriptors;
+
+    for (ix = 0; ix < AltList->CountDescriptors; ix++)
+    {
+        Current = (*ReqDescriptors)->TranslatedReqDesc;
+
+        while (Current && !Current->AltList)
+        {
+            IoDescriptor = Current->ReqEntry.IoDescriptor;
+
+            if (IoDescriptor)
+            {
+                DPRINT("IopFreeReqAlternative: Free IoDescriptor - %p\n", IoDescriptor);
+                ExFreePool(IoDescriptor);
+            }
+
+            reqDesc = Current;
+            Current = Current->TranslatedReqDesc;
+
+            DPRINT("IopFreeReqAlternative: Free reqDesc - %p\n", reqDesc);
+            ExFreePool(reqDesc);
+        }
+
+        ReqDescriptors++;
+    }
+}
+
+VOID
+NTAPI
 IopFreeReqList(
     _In_ PPNP_REQ_LIST ReqList)
 {
