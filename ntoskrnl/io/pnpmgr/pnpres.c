@@ -1984,6 +1984,34 @@ FindTranslator:
     return STATUS_RESOURCE_TYPE_NOT_FOUND;
 }
 
+VOID
+NTAPI
+IopFreeReqList(
+    _In_ PPNP_REQ_LIST ReqList)
+{
+    PPNP_REQ_ALT_LIST * AltList;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("IopFreeReqList: ReqList - %p\n", ReqList);
+
+    if (!ReqList)
+    {
+        return;
+    }
+
+    AltList = ReqList->AltLists;
+
+    for (ix = 0; ix < ReqList->Count; ix++)
+    {
+        IopFreeReqAlternative(*AltList);
+        AltList++;
+    }
+
+    DPRINT("IopFreeReqList: Free ReqList - %p\n", ReqList);
+    ExFreePoolWithTag(ReqList, 'erpP');
+}
+
 /*
 PPNP_REQ_LIST ReqList:
 |=====================================================================
@@ -2445,8 +2473,7 @@ NextList:
         return STATUS_SUCCESS;
     }
 
-    ASSERT(FALSE);
-    //IopFreeReqList(ReqList);
+    IopFreeReqList(ReqList);
 
     if (Status != STATUS_SUCCESS)
     {
@@ -3419,15 +3446,13 @@ IopAllocateBootResourcesInternal(
 
     if (!NT_SUCCESS(Status))
     {
-        ASSERT(FALSE);
-        //IopFreeReqList(ReqList);
+        IopFreeReqList(ReqList);
         goto Exit;
     }
 
     if (!DeviceNode)
     {
-        ASSERT(FALSE);
-        //IopFreeReqList(ReqList);
+        IopFreeReqList(ReqList);
         goto Exit;
     }
 
@@ -3435,8 +3460,7 @@ IopAllocateBootResourcesInternal(
 
     if (DeviceNode->BootResources)
     {
-        ASSERT(FALSE);
-        //IopFreeReqList(ReqList);
+        IopFreeReqList(ReqList);
         goto Exit;
     }
 
@@ -3454,8 +3478,7 @@ IopAllocateBootResourcesInternal(
 
     RtlCopyMemory(NewList, CmResource, ListSize);
 
-    ASSERT(FALSE);
-    //IopFreeReqList(ReqList);
+    IopFreeReqList(ReqList);
 
 Exit:
 
