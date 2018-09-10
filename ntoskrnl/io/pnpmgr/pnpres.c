@@ -2533,6 +2533,18 @@ NextList:
 
 NTSTATUS
 NTAPI
+IopGetResourceRequirementsForAssignTable(
+    _In_ PPNP_RESOURCE_REQUEST RequestTable,
+    _In_ PPNP_RESOURCE_REQUEST RequestTableEnd,
+    _Out_ PULONG OutDeviceCount)
+{
+    DPRINT("IopGetResourceRequirementsForAssignTable: RequestTable - %p, RequestTableEnd - %p\n", RequestTable, RequestTableEnd);
+    ASSERT(FALSE);
+    return STATUS_UNSUCCESSFUL;
+}
+
+NTSTATUS
+NTAPI
 IopAllocateResources(
     _Inout_ PULONG OutDeviceCount,
     _In_ PPNP_RESOURCE_REQUEST * ResContext,
