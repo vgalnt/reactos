@@ -2538,9 +2538,192 @@ IopGetResourceRequirementsForAssignTable(
     _In_ PPNP_RESOURCE_REQUEST RequestTableEnd,
     _Out_ PULONG OutDeviceCount)
 {
-    DPRINT("IopGetResourceRequirementsForAssignTable: RequestTable - %p, RequestTableEnd - %p\n", RequestTable, RequestTableEnd);
-    ASSERT(FALSE);
-    return STATUS_UNSUCCESSFUL;
+    PPNP_RESOURCE_REQUEST ResRequest;
+    PDEVICE_OBJECT PhysicalDevice;
+    PDEVICE_NODE DeviceNode;
+    PPNP_REQ_LIST ReqList;
+    ULONG ListSize;
+    ULONG Count;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    *OutDeviceCount = 0;
+
+    if (RequestTable >= RequestTableEnd)
+    {
+        ASSERT(FALSE);
+
+        if (*OutDeviceCount != 0)
+        {
+            return STATUS_SUCCESS;
+        }
+
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    Count = ((ULONG_PTR)RequestTableEnd - (ULONG_PTR)RequestTable - 1) /
+            sizeof(PNP_RESOURCE_REQUEST) + 1;
+
+    DPRINT("IopGetResourceRequirementsForAssignTable: RequestTable - %p, RequestTableEnd - %p, Count - %X\n",
+           RequestTable, RequestTableEnd, Count);
+
+    for (ix = 0; ix < Count; ix++)
+    {
+        ResRequest = &RequestTable[ix];
+
+        DPRINT("IopGetResourceRequirementsForAssignTable: [%X] ResRequest - %p\n",
+               ix, ResRequest);
+
+        DeviceNode = NULL;
+        ResRequest->ReqList = NULL;
+
+        if ((ResRequest->Flags & 0x20) == 0)
+        {
+              PhysicalDevice = ResRequest->PhysicalDevice;
+              ASSERT(PhysicalDevice);
+
+              ResRequest->ResourceAssignment = NULL;
+              ResRequest->TranslatedResourceAssignment = NULL;
+
+              DeviceNode = IopGetDeviceNode(PhysicalDevice);
+              ASSERT(DeviceNode);
+
+              if (DeviceNode->Flags & DNF_RESOURCE_REQUIREMENTS_CHANGED)
+              {
+                  if (DeviceNode->ResourceRequirements)
+                  {
+                      ExFreePool(DeviceNode->ResourceRequirements);
+
+                      DeviceNode->ResourceRequirements = NULL;
+                      DeviceNode->Flags &= ~DNF_RESOURCE_REQUIREMENTS_NEED_FILTERED;
+
+                      ResRequest->Flags |= 0x400;
+                  }
+              }
+
+              if (!ResRequest->ResourceRequirements)
+              {
+                  if (!DeviceNode->ResourceRequirements ||
+                      (DeviceNode->Flags & DNF_RESOURCE_REQUIREMENTS_NEED_FILTERED))
+                  {
+                      DPRINT("IopGetResourceRequirementsForAssignTable: Query ResourceRequirements for %wZ\n",
+                             &DeviceNode->InstancePath);
+
+                      Status = IopQueryDeviceRequirements(ResRequest->PhysicalDevice,
+                                                          &ResRequest->ResourceRequirements,
+                                                          &ListSize);
+                      DPRINT("IopGetResourceRequirementsForAssignTable: List size - %X\n",
+                             ListSize);
+
+                      IopDumpResourceRequirementsList(ResRequest->ResourceRequirements);
+
+                      if (!NT_SUCCESS(Status) ||
+                          !ResRequest->ResourceRequirements)
+                      {
+                          DPRINT("IopGetResourceRequirementsForAssignTable: Status - %X\n",
+                                 Status);
+
+                          ResRequest->Status = Status;
+                          ResRequest->Flags |= 0x20;
+
+                          continue;
+                      }
+
+                      if (DeviceNode->ResourceRequirements)
+                      {
+                          ExFreePool(DeviceNode->ResourceRequirements);
+                          DeviceNode->Flags &= ~DNF_RESOURCE_REQUIREMENTS_NEED_FILTERED;
+                      }
+
+                      DeviceNode->ResourceRequirements = ResRequest->ResourceRequirements;
+                  }
+                  else
+                  {
+                      DPRINT("IopGetResourceRequirementsForAssignTable: ResourceRequirements already exists for %wZ\n",
+                             &DeviceNode->InstancePath);
+
+                      ResRequest->ResourceRequirements = DeviceNode->ResourceRequirements;
+                      ResRequest->AllocationType = ArbiterRequestPnpEnumerated;
+                  }
+              }
+
+              if (ResRequest->Flags & 0x200)
+              {
+                  ASSERT(DeviceNode->ResourceRequirements == ResRequest->ResourceRequirements);
+
+                  DPRINT("IopGetResourceRequirementsForAssignTable: FIXME IopFilterResourceRequirementsList()\n");
+                  ASSERT(FALSE);
+              }
+
+              Status = IopResourceRequirementsListToReqList(ResRequest,
+                                                            &ResRequest->ReqList);
+              if (!NT_SUCCESS(Status))
+              {
+                  ASSERT(FALSE);
+
+                  ResRequest->Status = Status;
+                  ResRequest->Flags |= 0x20;
+
+                  continue;
+              }
+
+              ReqList = ResRequest->ReqList;
+
+              if (!ReqList)
+              {
+                  ASSERT(FALSE);
+
+                  ResRequest->Status = Status;
+                  ResRequest->Flags |= 0x20;
+
+                  continue;
+              }
+
+              DPRINT("IopGetResourceRequirementsForAssignTable: FIXME IopRearrangeReqList()\n");
+              ASSERT(FALSE);
+              //IopRearrangeReqList(ReqList);
+
+              if (!ReqList->AltList2)
+              {
+                  DPRINT("IopGetResourceRequirementsForAssignTable: FIXME IopFreeResourceRequirementsForAssignTable()\n");
+                  ASSERT(FALSE);
+                  //IopFreeResourceRequirementsForAssignTable(ResRequest, &ResRequest[1]);
+
+                  Status = STATUS_DEVICE_CONFIGURATION_ERROR;
+                  ResRequest->Status = Status;
+                  ResRequest->Flags |= 0x20;
+
+                  continue;
+              }
+
+              if (ReqList->Count >= 3)
+              {
+                  ResRequest->Priority = ReqList->Count;
+              }
+              else
+              {
+                  ResRequest->Priority = 0;
+              }
+
+              ResRequest->Status = Status;
+
+              (*OutDeviceCount)++;
+        }
+    }
+
+    if (*OutDeviceCount != 0)
+    {
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        DPRINT("IopGetResourceRequirementsForAssignTable: return STATUS_UNSUCCESSFUL\n");
+        Status = STATUS_UNSUCCESSFUL;
+    }
+
+    return Status;
 }
 
 NTSTATUS
