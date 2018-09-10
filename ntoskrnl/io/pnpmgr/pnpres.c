@@ -2877,15 +2877,15 @@ PipReadDeviceConfiguration(
     *OutCmResource = NULL;
     *OutSize = 0;
 
-    if (ConfigType == 1)
+    if (ConfigType == PIP_CONFIG_TYPE_ALLOC)
     {
         ValueName = L"AllocConfig";
     }
-    else if (ConfigType == 2)
+    else if (ConfigType == PIP_CONFIG_TYPE_FORCED)
     {
         ValueName = L"ForcedConfig";
     }
-    else if (ConfigType == 4)
+    else if (ConfigType == PIP_CONFIG_TYPE_BOOT)
     {
         ValueName = L"BootConfig";
     }
@@ -2970,7 +2970,7 @@ NTAPI
 IopGetDeviceResourcesFromRegistry(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ BOOLEAN ResourcesType,
-    _In_ ULONG Flags,
+    _In_ ULONG ConfigTypes,
     _Out_ PVOID * OutResource,
     _Out_ SIZE_T * OutSize)
 {
@@ -2983,8 +2983,8 @@ IopGetDeviceResourcesFromRegistry(
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("IopGetDeviceResourcesFromRegistry: DeviceObject - %p, Res.Type - %X, Flags - %X\n",
-           DeviceObject, ResourcesType, Flags);
+    DPRINT("IopGetDeviceResourcesFromRegistry: DeviceObject - %p, Res.Type - %X, ConfigTypes - %X\n",
+           DeviceObject, ResourcesType, ConfigTypes);
 
     *OutResource = NULL;
     *OutSize = 0;
@@ -3016,11 +3016,11 @@ IopGetDeviceResourcesFromRegistry(
             return Status;
         }
 
-        if (Flags & 1)
+        if (ConfigTypes & PIP_CONFIG_TYPE_ALLOC)
         {
             ConfigVectorName = L"OverrideConfigVector";
         }
-        else if (Flags & 2)
+        else if (ConfigTypes & PIP_CONFIG_TYPE_FORCED)
         {
             ConfigVectorName = L"BasicConfigVector";
         }
@@ -3075,7 +3075,7 @@ IopGetDeviceResourcesFromRegistry(
 
     /* ResourcesType == FALSE (PCM_RESOURCE_LIST) */
 
-    if (Flags & 1)
+    if (ConfigTypes & PIP_CONFIG_TYPE_ALLOC)
     {
         RtlInitUnicodeString(&ValueName, L"Control");
 
@@ -3086,7 +3086,7 @@ IopGetDeviceResourcesFromRegistry(
         if (NT_SUCCESS(Status))
         {
             Status = PipReadDeviceConfiguration(KeyHandle,
-                                                1,
+                                                PIP_CONFIG_TYPE_ALLOC,
                                                 (PCM_RESOURCE_LIST *)OutResource,
                                                 OutSize);
             ZwClose(KeyHandle);
@@ -3106,7 +3106,7 @@ IopGetDeviceResourcesFromRegistry(
 
     KeyHandle = NULL;
 
-    if (Flags & 2)
+    if (ConfigTypes & PIP_CONFIG_TYPE_FORCED)
     {
         RtlInitUnicodeString(&ValueName, L"LogConf");
 
@@ -3122,7 +3122,7 @@ IopGetDeviceResourcesFromRegistry(
         }
 
         Status = PipReadDeviceConfiguration(KeyHandle,
-                                            2,
+                                            PIP_CONFIG_TYPE_FORCED,
                                             (PCM_RESOURCE_LIST *)OutResource,
                                             OutSize);
         if (NT_SUCCESS(Status))
@@ -3133,7 +3133,7 @@ IopGetDeviceResourcesFromRegistry(
         DPRINT("IopGetDeviceResourcesFromRegistry: Status - %X\n", Status);
     }
 
-    if (Flags & 4)
+    if (ConfigTypes & PIP_CONFIG_TYPE_BOOT)
     {
         if (!KeyHandle)
         {
@@ -3151,7 +3151,7 @@ IopGetDeviceResourcesFromRegistry(
         }
 
         Status = PipReadDeviceConfiguration(KeyHandle,
-                                            4,
+                                            PIP_CONFIG_TYPE_BOOT,
                                             (PCM_RESOURCE_LIST *)OutResource,
                                             OutSize);
     }
