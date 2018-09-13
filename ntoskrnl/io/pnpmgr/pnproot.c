@@ -570,7 +570,7 @@ IopInitializeDeviceInstanceKey(
 
     Status = IopGetDeviceResourcesFromRegistry(DeviceObject,
                                                FALSE,
-                                               4,
+                                               PIP_CONFIG_TYPE_BOOT,
                                                (PVOID *)&CmResouce,
                                                &ServiceType);
     if (NT_SUCCESS(Status) && CmResouce)

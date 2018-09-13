@@ -12,9 +12,15 @@
 #define IOP_RES_HANDLER_TYPE_LEGACY     3
 #define IOP_MAX_MAIN_RESOURCE_TYPE      15
 
+/* For Resource Lists */
 #define PIP_CONFIG_TYPE_ALLOC   1
 #define PIP_CONFIG_TYPE_FORCED  2
 #define PIP_CONFIG_TYPE_BOOT    4
+
+/* For Resource Requirements Lists */
+#define PIP_CONFIG_TYPE_BASIC     1
+#define PIP_CONFIG_TYPE_FILTERED  2
+#define PIP_CONFIG_TYPE_OVERRIDE  4
 
 typedef struct _PNP_DEVICE_INSTANCE_CONTEXT
 {

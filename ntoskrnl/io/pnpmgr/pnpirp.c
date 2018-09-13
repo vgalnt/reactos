@@ -353,6 +353,7 @@ PpIrpQueryResources(
 {
     IO_STACK_LOCATION IoStack;
     PDEVICE_NODE DeviceNode;
+    ULONG ConfigTypes;
     NTSTATUS Status;
 
     PAGED_CODE();
@@ -369,9 +370,13 @@ PpIrpQueryResources(
     {
         DPRINT("PpIrpQueryResources: DeviceNode->Flags & DNF_MADEUP\n");
 
+        ConfigTypes = PIP_CONFIG_TYPE_BOOT +
+                      PIP_CONFIG_TYPE_FORCED +
+                      PIP_CONFIG_TYPE_ALLOC;
+
         Status = IopGetDeviceResourcesFromRegistry(DeviceObject,
                                                    FALSE, // PCM_RESOURCE_LIST
-                                                   0x7, // FIXME
+                                                   ConfigTypes,
                                                    (PVOID *)OutResourceList,
                                                    OutSize);
 
