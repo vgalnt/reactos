@@ -1525,6 +1525,593 @@ IopWriteResourceList(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopFilterResourceRequirementsList(
+    _In_ PIO_RESOURCE_REQUIREMENTS_LIST InIoResources,
+    _In_ PCM_RESOURCE_LIST CmResources,
+    _Out_ PIO_RESOURCE_REQUIREMENTS_LIST * OutIoResources,
+    _Out_ BOOLEAN * OutIsNoFiltered)
+{
+    PCM_FULL_RESOURCE_DESCRIPTOR CmFullList;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    PIO_RESOURCE_REQUIREMENTS_LIST NewIoResources;
+    PIO_RESOURCE_LIST IoList;
+    PIO_RESOURCE_LIST NewIoList;
+    PIO_RESOURCE_LIST CurrentIoList = NULL;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptorsEnd;
+    PIO_RESOURCE_DESCRIPTOR CurrentIoDesc;
+    ULONGLONG IoMinimumValue;
+    ULONGLONG IoMaximumValue;
+    ULONGLONG CmMinimumValue;
+    ULONGLONG CmMaximumValue;
+    ULONG CmLength;
+    ULONG IoLength;
+    ULONG IoAlignment;
+    ULONG IoAltListsCount;
+    ULONG CmDescCount = 0;
+    ULONG IoDescCount;
+    ULONG NewIoDescCount = 0;
+    ULONG DataSize;
+    ULONG ListSise;
+    ULONG ix;
+    ULONG jx;
+    ULONG kx;
+    ULONG mx;
+    NTSTATUS Status;
+    USHORT Version;
+    UCHAR IoShareDisposition;
+    UCHAR CmShareDisposition;
+    BOOLEAN IsNoFiltered;
+
+    PAGED_CODE();
+    DPRINT("IopFilterResourceRequirementsList: InIoResources - %p, CmResources - %p\n",
+           InIoResources, CmResources);
+
+    *OutIoResources = NULL;
+    *OutIsNoFiltered = FALSE;
+
+    if (!InIoResources || !InIoResources->AlternativeLists)
+    {
+        if (CmResources && CmResources->Count)
+        {
+            *OutIoResources = IopCmResourcesToIoResources(0,
+                                                          CmResources,
+                                                          LCPRI_BOOTCONFIG);
+        }
+        else
+        {
+            ASSERT(FALSE);
+        }
+
+        return STATUS_SUCCESS;
+    }
+
+    IoResources = ExAllocatePoolWithTag(PagedPool,
+                                        InIoResources->ListSize,
+                                        'uspP');
+    if (!IoResources)
+    {
+        ASSERT(FALSE);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlCopyMemory(IoResources, InIoResources, InIoResources->ListSize);
+
+    if (!CmResources || !CmResources->Count)
+    {
+        ASSERT(FALSE);
+        *OutIoResources = IoResources;
+        return STATUS_SUCCESS;
+    }
+
+    CmFullList = &CmResources->List[0];
+    for (ix = 0; ix < CmResources->Count; ix++)
+    {
+        PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+
+        CmDescCount += CmFullList->PartialResourceList.Count;
+        CmDescriptor = CmFullList->PartialResourceList.PartialDescriptors;
+
+        for (jx = 0; jx < CmFullList->PartialResourceList.Count; jx++)
+        {
+            if (CmDescriptor->Type == CmResourceTypeNull ||
+                CmDescriptor->Type >= CmResourceTypeMaximum)
+            {
+                DPRINT("IopFilterResourceRequirementsList: CmDescriptor->Type - %X\n",
+                       CmDescriptor->Type);
+
+                CmDescCount--;
+            }
+
+            CmDescriptor = IopGetNextCmPartialDescriptor(CmDescriptor);
+        }
+
+        CmFullList = (PCM_FULL_RESOURCE_DESCRIPTOR)CmDescriptor;
+    }
+
+    if (!CmDescCount)
+    {
+        ASSERT(FALSE);
+        *OutIoResources = IoResources;
+        return STATUS_SUCCESS;
+    }
+
+    IoList = &IoResources->List[0];
+    for (ix = 0; ix < IoResources->AlternativeLists; ix++)
+    {
+        for (jx = 0; jx < IoList->Count; jx++)
+        {
+            IoDescriptor = &IoList->Descriptors[jx];
+            IoDescriptor->Spare1 = 0;
+        }
+
+        IoList = (PIO_RESOURCE_LIST)(IoList->Descriptors + IoList->Count);
+    }
+
+    IoList = &IoResources->List[0];
+    IoAltListsCount = IoResources->AlternativeLists;
+
+    for (ix = 0; ix < IoResources->AlternativeLists; ix++)
+    {
+        DPRINT("IopFilterResourceRequirementsList: ix- %X, IoAltListsCount - %X\n",
+               ix, IoAltListsCount);
+
+        if (IoList->Version == -1)
+        {
+            Version = 1;
+        }
+        else
+        {
+            Version = IoList->Version;
+        }
+
+        IoDescCount = IoList->Count;
+        IoDescriptorsEnd = &IoList->Descriptors[IoDescCount];
+
+        if (IoList->Descriptors == IoDescriptorsEnd)
+        {
+            IoList->Version = -1;
+            IoResources->AlternativeLists--;
+            continue;
+        }
+        else
+        {
+            IoList->Version = 0;
+        }
+
+        IsNoFiltered = TRUE;
+        CmFullList = CmResources->List;
+
+        for (jx = 0; jx < CmResources->Count; jx++)
+        {
+            CmDescriptor = CmFullList->PartialResourceList.PartialDescriptors;
+
+            for (kx = 0; kx < CmFullList->PartialResourceList.Count; kx++)
+            {
+                if (CmDescriptor->Type == CmResourceTypeDeviceSpecific)
+                {
+                    DataSize = CmDescriptor->u.Generic.Start.LowPart;
+                    goto NextCmDescriptor;
+                }
+                else
+                {
+                    DataSize = 0;
+                }
+
+                if (CmDescriptor->Type == CmResourceTypeNull ||
+                    CmDescriptor->Type >= CmResourceTypeMaximum)
+                {
+                    goto NextCmDescriptor;
+                }
+
+                for (mx = 0; mx < 2; mx++)
+                {
+                    for (IoDescriptor = IoList->Descriptors;
+                         IoDescriptor < IoDescriptorsEnd;
+                         IoDescriptor++)
+                    {
+                        if (IoDescriptor->Type == CmDescriptor->Type && IoDescriptor->Spare1)
+                        {
+                            CmLength = 1;
+                            IoLength = 1;
+
+                            if (CmDescriptor->ShareDisposition == CmResourceShareDeviceExclusive ||
+                                CmDescriptor->ShareDisposition == CmResourceShareDriverExclusive ||
+                                CmDescriptor->ShareDisposition == CmResourceShareShared)
+                            {
+                                CmShareDisposition = CmDescriptor->ShareDisposition;
+                            }
+                            else
+                            {
+                                CmShareDisposition = IoDescriptor->ShareDisposition;
+                            }
+
+                            if (IoDescriptor->ShareDisposition == CmResourceShareDeviceExclusive ||
+                                IoDescriptor->ShareDisposition == CmResourceShareDriverExclusive ||
+                                IoDescriptor->ShareDisposition == CmResourceShareShared)
+                            {
+                                IoShareDisposition = IoDescriptor->ShareDisposition;
+                            }
+                            else
+                            {
+                                IoShareDisposition = CmShareDisposition;
+                            }
+
+                            IoAlignment = 1;
+
+                            switch (CmDescriptor->Type)
+                            {
+                                case CmResourceTypePort:
+                                case CmResourceTypeMemory:
+                                {
+                                    CmMinimumValue = CmDescriptor->u.Generic.Start.QuadPart;
+                                    CmMaximumValue = CmDescriptor->u.Generic.Start.QuadPart +
+                                                     CmDescriptor->u.Generic.Length - 1;
+                                    CmLength = CmDescriptor->u.Generic.Length;
+
+                                    IoMinimumValue = IoDescriptor->u.Generic.MinimumAddress.QuadPart;
+                                    IoMaximumValue = IoDescriptor->u.Generic.MaximumAddress.QuadPart;
+                                    IoAlignment = IoDescriptor->u.Generic.Alignment;
+                                    IoLength = IoDescriptor->u.Generic.Length;
+
+                                    break;
+                                }
+                                case CmResourceTypeInterrupt:
+                                {
+                                    CmMinimumValue = CmDescriptor->u.Interrupt.Vector;
+                                    CmMaximumValue = CmDescriptor->u.Interrupt.Vector;
+
+                                    IoMinimumValue = IoDescriptor->u.Interrupt.MinimumVector;
+                                    IoMaximumValue = IoDescriptor->u.Interrupt.MaximumVector;
+
+                                    break;
+                                }
+                                case CmResourceTypeDma:
+                                {
+                                    CmMaximumValue = CmDescriptor->u.Dma.Channel;
+                                    CmMinimumValue = CmDescriptor->u.Dma.Channel;
+
+                                    IoMinimumValue = IoDescriptor->u.Port.Length;
+                                    IoMaximumValue = IoDescriptor->u.Dma.MaximumChannel;
+
+                                    break;
+                                }
+                                case CmResourceTypeBusNumber:
+                                {
+                                    CmMinimumValue = CmDescriptor->u.BusNumber.Start;
+                                    CmMaximumValue = CmMinimumValue +
+                                                     CmDescriptor->u.BusNumber.Length - 1;
+                                    CmLength = CmDescriptor->u.BusNumber.Length;
+
+                                    IoMinimumValue = IoDescriptor->u.BusNumber.MinBusNumber;
+                                    IoMaximumValue = IoDescriptor->u.BusNumber.MaxBusNumber;
+                                    IoLength = IoDescriptor->u.BusNumber.Length;
+
+                                    break;
+                                }
+                                default:
+                                {
+                                    ASSERT(FALSE);
+
+                                    CmMinimumValue = 0;
+                                    CmMaximumValue = 0;
+
+                                    IoMinimumValue = 0;
+                                    IoMaximumValue = 0;
+
+                                    break;
+                                }
+                            }
+
+                            if (mx != 0)
+                            {
+                                IsNoFiltered = FALSE;
+
+                                if (IoMinimumValue <= CmMinimumValue &&
+                                    IoMaximumValue >= CmMaximumValue &&
+                                    IoLength >= CmLength &&
+                                    ((ULONG)CmMinimumValue & (IoAlignment - 1)) == 0 &&
+                                    IoShareDisposition == CmShareDisposition)
+                                {
+                                    switch (CmDescriptor->Type)
+                                    {
+                                        case CmResourceTypePort:
+                                        case CmResourceTypeMemory:
+                                            IoDescriptor->u.Generic.MinimumAddress.QuadPart = CmMinimumValue;
+                                            IoDescriptor->u.Generic.MaximumAddress.QuadPart = CmMinimumValue + IoLength - 1;
+                                            break;
+
+                                        case CmResourceTypeInterrupt:
+                                            IoDescriptor->u.Interrupt.MinimumVector = CmMinimumValue;
+                                            IoDescriptor->u.Interrupt.MaximumVector = CmMaximumValue;
+                                            break;
+
+                                        case CmResourceTypeDma:
+                                            IoDescriptor->u.Dma.MinimumChannel = CmMinimumValue;
+                                            IoDescriptor->u.Dma.MaximumChannel = CmMaximumValue;
+                                            break;
+
+                                        case CmResourceTypeBusNumber:
+                                            IoDescriptor->u.BusNumber.MinBusNumber = CmMinimumValue;
+                                            IoDescriptor->u.BusNumber.MaxBusNumber = CmMinimumValue + IoLength - 1;
+                                            break;
+
+                                        default:
+                                            ASSERT(FALSE);
+                                            break;
+                                    }
+
+                                    IoList->Version++;
+
+                                    IoDescriptor->Spare1 = 0x80;
+                                    IoDescriptor->Flags = CmDescriptor->Flags;
+
+                                    if (IoDescriptor->Option & IO_RESOURCE_ALTERNATIVE)
+                                    {
+                                        PIO_RESOURCE_DESCRIPTOR descriptor;
+
+                                        for (descriptor = IoDescriptor - 1;
+                                             descriptor >= IoList->Descriptors;
+                                             descriptor--)
+                                        {
+                                            descriptor->Type = CmResourceTypeNull;
+                                            IoList->Count--;
+                                        }
+                                    }
+
+                                    IoDescriptor->Option = IO_RESOURCE_PREFERRED;
+
+                                    while (TRUE)
+                                    {
+                                        IoDescriptor++;
+
+                                        if (IoDescriptor >= IoDescriptorsEnd ||
+                                            !(IoDescriptor->Option & IO_RESOURCE_ALTERNATIVE))
+                                        {
+                                            break;
+                                        }
+
+                                        IoDescriptor->Type = CmResourceTypeNull;
+                                        IoList->Count--;
+                                    }
+                                    break;
+                                }
+                                continue;
+                            }
+
+                            /* mx == 0*/
+                            if (IoMinimumValue == CmMinimumValue &&
+                                IoMaximumValue >= CmMaximumValue &&
+                                IoLength >= CmLength &&
+                                IoShareDisposition == CmShareDisposition)
+                            {
+                                if (IoMaximumValue != CmMaximumValue)
+                                {
+                                    IsNoFiltered = FALSE;
+                                }
+
+                                IoList->Version++;
+                                IoDescriptor->Spare1 = 0x80;
+
+                                if (IoDescriptor->Option & IO_RESOURCE_ALTERNATIVE)
+                                {
+                                    PIO_RESOURCE_DESCRIPTOR descriptor;
+
+                                    for (descriptor = IoDescriptor - 1;
+                                         descriptor >= IoList->Descriptors;
+                                         descriptor--)
+                                    {
+                                        IoList->Count--;
+                                        descriptor->Type = CmResourceTypeNull;
+
+                                        if (descriptor->Option == IO_RESOURCE_ALTERNATIVE)
+                                        {
+                                            continue;
+                                        }
+                                    }
+                                }
+
+                                IoDescriptor->Option = IO_RESOURCE_PREFERRED;
+                                IoDescriptor->Flags = CmDescriptor->Flags;
+
+                                switch (CmDescriptor->Type)
+                                {
+                                    case CmResourceTypePort:
+                                    case CmResourceTypeMemory:
+                                        IoDescriptor->u.Generic.MinimumAddress.QuadPart = CmMinimumValue;
+                                        IoDescriptor->u.Generic.MaximumAddress.QuadPart = CmMinimumValue + IoLength - 1;
+                                        IoDescriptor->u.Generic.Alignment = 1;
+                                        break;
+
+                                    case CmResourceTypeBusNumber:
+                                        IoDescriptor->u.BusNumber.MinBusNumber = CmMinimumValue;
+                                        IoDescriptor->u.BusNumber.MaxBusNumber = CmMinimumValue + IoLength - 1;
+                                        break;
+
+                                    default:
+                                        break;
+                                }
+
+                                CurrentIoDesc = IoDescriptor + 1;
+
+                                while (CurrentIoDesc < IoDescriptorsEnd &&
+                                       CurrentIoDesc->Option & IO_RESOURCE_ALTERNATIVE)
+                                {
+                                    CurrentIoDesc->Type = CmResourceTypeNull;
+                                    CurrentIoDesc++;
+                                    IoList->Count--;
+                                }
+
+                                mx = 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+NextCmDescriptor:
+                /* Next Cm partial descriptor */
+                CmDescriptor = (PCM_PARTIAL_RESOURCE_DESCRIPTOR)
+                               ((ULONG_PTR)CmDescriptor +
+                               sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR) + DataSize);
+            }
+
+            /* Next Cm full descriptor */
+            CmFullList = (PCM_FULL_RESOURCE_DESCRIPTOR)CmDescriptor;
+        }
+
+        if (IoList->Version == (USHORT)CmDescCount)
+        {
+            if (IoList->Count == CmDescCount ||
+                (IoList->Count == (CmDescCount + 1) &&
+                 IoList->Descriptors[0].Type == CmResourceTypeConfigData))
+            {
+                if (CurrentIoList == NULL)
+                {
+                    CurrentIoList = IoList;
+                    IoList->Version = Version;
+                    NewIoDescCount += IoList->Count;
+
+                    if (IsNoFiltered)
+                    {
+                        *OutIsNoFiltered = TRUE;
+                    }
+                }
+                else
+                {
+                    IoList->Version = -1;
+                    IoResources->AlternativeLists--;
+                }
+
+            }
+            else
+            {
+                NewIoDescCount += IoList->Count;
+                IoList->Version = Version;
+            }
+        }
+        else
+        {
+            IoList->Version = -1;
+            IoResources->AlternativeLists--;
+        }
+
+        IoList->Count = IoDescCount;
+
+        /* Next Alternative list */
+        IoList = (PIO_RESOURCE_LIST)IoDescriptorsEnd;
+    }
+
+    if (!IoResources->AlternativeLists)
+    {
+        *OutIoResources = IopCmResourcesToIoResources(0,
+                                                      CmResources,
+                                                      LCPRI_BOOTCONFIG);
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    ListSise = sizeof(IO_RESOURCE_REQUIREMENTS_LIST) +
+               (IoResources->AlternativeLists - 1) * sizeof(IO_RESOURCE_LIST) +
+               NewIoDescCount * sizeof(IO_RESOURCE_DESCRIPTOR);
+
+    NewIoResources = ExAllocatePoolWithTag(PagedPool, ListSise, 'uspP');
+
+    if (!NewIoResources)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    NewIoResources->ListSize = ListSise;
+
+    NewIoResources->InterfaceType = CmResources->List[0].InterfaceType;
+    NewIoResources->BusNumber = CmResources->List[0].BusNumber;
+    NewIoResources->SlotNumber = IoResources->SlotNumber;
+
+    if (IoResources->AlternativeLists > 1)
+    {
+        *OutIsNoFiltered = FALSE;
+    }
+
+    NewIoResources->AlternativeLists = IoResources->AlternativeLists;
+
+    IoList = IoResources->List;
+    NewIoList = NewIoResources->List;
+
+    for (ix = 0; ix < IoAltListsCount; ix++)
+    {
+        IoDescriptor = IoList->Descriptors;
+        IoDescriptorsEnd = &IoList->Descriptors[IoList->Count];
+
+        if (IoList->Version != -1)
+        {
+            PIO_RESOURCE_DESCRIPTOR newIoDescriptor;
+            PIO_RESOURCE_DESCRIPTOR newConfigIoDescriptor;
+
+            NewIoList->Version = IoList->Version;
+            NewIoList->Revision = IoList->Revision;
+
+            newIoDescriptor = &NewIoList->Descriptors[0];
+
+            if (IoList->Descriptors[0].Type == CmResourceTypeConfigData)
+            {
+                NewIoResources->ListSize -= sizeof(IO_RESOURCE_DESCRIPTOR);
+                newConfigIoDescriptor = newIoDescriptor;
+            }
+            else
+            {
+                /* First descriptor is config descriptor */
+                newIoDescriptor->Option = IO_RESOURCE_PREFERRED;
+                newIoDescriptor->Type = CmResourceTypeConfigData;
+                newIoDescriptor->ShareDisposition = CmResourceShareShared;
+                newIoDescriptor->Spare1 = 0;
+                newIoDescriptor->Flags = 0;
+                newIoDescriptor->Spare2 = 0;
+
+                newIoDescriptor->u.ConfigData.Priority = LCPRI_BOOTCONFIG;
+
+                newConfigIoDescriptor = newIoDescriptor;
+                newIoDescriptor++;
+            }
+
+            for (; IoDescriptor < IoDescriptorsEnd; IoDescriptor++)
+            {
+                if (IoDescriptor->Type)
+                {
+                    RtlCopyMemory(newIoDescriptor,
+                                  IoDescriptor,
+                                  sizeof(IO_RESOURCE_DESCRIPTOR));
+
+                    newIoDescriptor++;
+                }
+            }
+
+            NewIoList->Count = (ULONG)(newIoDescriptor - NewIoList->Descriptors);
+
+            newConfigIoDescriptor->u.ConfigData.Priority = LCPRI_BOOTCONFIG;
+
+            NewIoList = (PIO_RESOURCE_LIST)newIoDescriptor;
+        }
+
+        IoList = (PIO_RESOURCE_LIST)IoDescriptorsEnd;
+    }
+
+    ASSERT((ULONG_PTR)NewIoList == (ULONG_PTR)NewIoResources +
+                                              NewIoResources->ListSize);
+
+    *OutIoResources = NewIoResources;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    ExFreePoolWithTag(IoResources, 'uspP');
+    return Status;
+}
+
 PDEVICE_NODE
 NTAPI
 IopFindLegacyBusDeviceNode(
