@@ -2725,6 +2725,38 @@ IopFreeReqList(
     ExFreePoolWithTag(ReqList, 'erpP');
 }
 
+VOID
+NTAPI
+IopFreeResourceRequirementsForAssignTable(
+    _In_ PPNP_RESOURCE_REQUEST requestTable,
+    _In_ PPNP_RESOURCE_REQUEST requestTableEnd)
+{
+    ULONG Count;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("IopFreeResourceRequirementsForAssignTable: requestTable - %p, requestTableEnd - %p\n",
+           requestTable, requestTableEnd);
+
+    Count = ((ULONG_PTR)requestTableEnd - (ULONG_PTR)requestTable - 1) /
+            sizeof(PNP_RESOURCE_REQUEST) + 1;
+
+    for (ix = 0; ix < Count; ix++)
+    {
+        IopFreeReqList(requestTable[ix].ReqList);
+        requestTable[ix].ReqList = NULL;
+
+        if (requestTable[ix].Flags & 2)
+        {
+            if (requestTable[ix].ResourceRequirements)
+            {
+                ExFreePool(requestTable[ix].ResourceRequirements);
+                requestTable[ix].ResourceRequirements = NULL;
+            }
+        }
+    }
+}
+
 /*
 PPNP_REQ_LIST ReqList:
 |=====================================================================
