@@ -664,4 +664,85 @@ ErrorExit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopFilterResourceRequirementsCall(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIO_RESOURCE_REQUIREMENTS_LIST IoResources,
+    _Out_ PIO_RESOURCE_REQUIREMENTS_LIST * OutRequirementsList)
+{
+    PDEVICE_OBJECT TopDeviceObject;
+    PIO_STACK_LOCATION IoStack;
+    IO_STATUS_BLOCK IoSb;
+    KEVENT Event;
+    PIRP Irp;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopFilterResourceRequirementsCall: DeviceObject - %p, IoResources - %p\n",
+           DeviceObject, IoResources);
+
+    TopDeviceObject = IoGetAttachedDeviceReference(DeviceObject);
+
+    Irp = IoAllocateIrp(TopDeviceObject->StackSize, FALSE);
+
+    if (!Irp)
+    {
+        DPRINT1("IopFilterResourceRequirementsCall: STATUS_INSUFFICIENT_RESOURCES\n");
+        ObDereferenceObject(TopDeviceObject);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    if (IoResources)
+    {
+        IoSb.Status = STATUS_SUCCESS;
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+
+        IoSb.Information = (ULONG_PTR)IoResources;
+        Irp->IoStatus.Information = (ULONG_PTR)IoResources;
+    }
+    else
+    {
+        IoSb.Status = STATUS_NOT_SUPPORTED;
+        Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+    }
+
+    KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+    Irp->UserIosb = &IoSb;
+    Irp->UserEvent = &Event;
+
+    Irp->Tail.Overlay.Thread = PsGetCurrentThread();
+
+    KeEnterCriticalRegion();
+    IoQueueThreadIrp(Irp);
+    KeLeaveCriticalRegion();
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->Parameters.FilterResourceRequirements.IoResourceRequirementList = IoResources;
+
+    IoStack->MajorFunction = IRP_MJ_PNP;
+    IoStack->MinorFunction = IRP_MN_FILTER_RESOURCE_REQUIREMENTS;
+
+    Status = IoCallDriver(TopDeviceObject, Irp);
+
+    if (!NT_SUCCESS(Status) || Status == STATUS_PENDING)
+    {
+        DPRINT("IopFilterResourceRequirementsCall: IRP_MN_FILTER_RESOURCE_REQUIREMENTS. Driver %wZ return Status - %X\n",
+               &TopDeviceObject->DriverObject->DriverName, Status);
+
+        if (Status == STATUS_PENDING)
+        {
+            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+            Status = IoSb.Status;
+        }
+    }
+
+    *OutRequirementsList = (PIO_RESOURCE_REQUIREMENTS_LIST)IoSb.Information;
+
+    ObDereferenceObject(TopDeviceObject);
+
+    return Status;
+}
+
 /* EOF */

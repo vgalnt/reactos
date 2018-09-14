@@ -470,6 +470,14 @@ IopQueryResourceHandlerInterface(
     _Out_ PVOID * OutInterface
 );
 
+NTSTATUS
+NTAPI
+IopFilterResourceRequirementsCall(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIO_RESOURCE_REQUIREMENTS_LIST IoResources,
+    _Out_ PIO_RESOURCE_REQUIREMENTS_LIST * OutRequirementsList
+);
+
 //
 // pnpmap.c
 //
