@@ -3230,6 +3230,58 @@ NextList:
     return STATUS_SUCCESS;
 }
 
+int
+__cdecl 
+IopCompareReqAlternativePriority(
+    const void * x,
+    const void * y)
+{
+    PPNP_REQ_ALT_LIST * pAltList1;
+    PPNP_REQ_ALT_LIST * pAltList2;
+    int Result;
+
+    pAltList1 = (PPNP_REQ_ALT_LIST *)x;
+    pAltList2 = (PPNP_REQ_ALT_LIST *)y;
+
+    PAGED_CODE();
+    DPRINT("IopCompareReqAlternativePriority: x - %p, y - %p\n", x, y);
+
+    if ((*pAltList2)->ConfigPriority != (*pAltList1)->ConfigPriority)
+    {
+        if ((*pAltList2)->ConfigPriority < (*pAltList1)->ConfigPriority)
+        {
+            return 1;
+        }
+        else
+        {
+            return -1;
+        }
+    }
+
+    if ((*pAltList1)->Priority > (*pAltList2)->Priority)
+    {
+        return 1;
+    }
+
+    if ((*pAltList1)->Priority < (*pAltList2)->Priority)
+    {
+        return -1;
+    }
+
+    ASSERT(FALSE);
+
+    if ((*pAltList1) < (*pAltList2))
+    {
+        Result = -1;
+    }
+    else
+    {
+        Result = 1;
+    }
+
+    return Result;
+}
+
 VOID
 NTAPI
 IopRearrangeReqList(
