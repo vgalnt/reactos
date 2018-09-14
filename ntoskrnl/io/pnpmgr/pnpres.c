@@ -3230,6 +3230,68 @@ NextList:
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+IopRearrangeReqList(
+    _Inout_ PPNP_REQ_LIST ReqList)
+{
+    PPNP_REQ_ALT_LIST * AltLists;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_NODE DeviceNode;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("IopRearrangeReqList: ReqList - %p, ReqList->Count - %X\n",
+           ReqList, ReqList->Count);
+
+    if (ReqList->Count > 1)
+    {
+        AltLists = ReqList->AltLists;
+
+        for (ix = 0; ix < ReqList->Count; ix++, AltLists++)
+        {
+            (*AltLists)->Priority = ix;
+        }
+
+        qsort(ReqList->AltLists,
+              ReqList->Count,
+              sizeof(PPNP_REQ_ALT_LIST),
+              IopCompareReqAlternativePriority);
+    }
+
+    for (AltLists = ReqList->AltLists;
+         AltLists < &ReqList->AltLists[ReqList->Count];
+         AltLists++)
+    {
+        if ((*AltLists)->ConfigPriority > LCPRI_LASTSOFTCONFIG)
+        {
+            break;
+        }
+    }
+
+    DeviceObject = ReqList->ResRequest->PhysicalDevice;
+    ASSERT(DeviceObject);
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    if (AltLists == ReqList->AltLists)
+    {
+        DPRINT("IopRearrangeReqList: Invalid priorities for %wZ\n",
+               &DeviceNode->InstancePath);
+
+        ReqList->AltList2 = NULL;
+
+        DPRINT("IopRearrangeReqList: DeviceNode - %p, DeviceNode->BootResources - %p, AltList2 - NULL\n",
+               DeviceNode, DeviceNode->BootResources);
+    }
+    else
+    {
+        ReqList->AltList2 = AltLists;
+
+        DPRINT("IopRearrangeReqList: DeviceNode - %p, DeviceNode->BootResources - %p, AltList2 - %p\n",
+               DeviceNode, DeviceNode->BootResources, ReqList->AltList2);
+    }
+}
+
 NTSTATUS
 NTAPI
 IopGetResourceRequirementsForAssignTable(
@@ -3380,15 +3442,11 @@ IopGetResourceRequirementsForAssignTable(
                   continue;
               }
 
-              DPRINT("IopGetResourceRequirementsForAssignTable: FIXME IopRearrangeReqList()\n");
-              ASSERT(FALSE);
-              //IopRearrangeReqList(ReqList);
+              IopRearrangeReqList(ReqList);
 
               if (!ReqList->AltList2)
               {
-                  DPRINT("IopGetResourceRequirementsForAssignTable: FIXME IopFreeResourceRequirementsForAssignTable()\n");
-                  ASSERT(FALSE);
-                  //IopFreeResourceRequirementsForAssignTable(ResRequest, &ResRequest[1]);
+                  IopFreeResourceRequirementsForAssignTable(ResRequest, &ResRequest[1]);
 
                   Status = STATUS_DEVICE_CONFIGURATION_ERROR;
                   ResRequest->Status = Status;
@@ -3512,8 +3570,7 @@ IopAllocateResources(
                    DeviceNode, DeviceNode->BootResources);
         }
 
-        ASSERT(FALSE);
-        //IopFreeResourceRequirementsForAssignTable(RequestTable, RequestTableEnd);
+        IopFreeResourceRequirementsForAssignTable(RequestTable, RequestTableEnd);
         goto Exit;
     }
 
@@ -3567,7 +3624,7 @@ IopAllocateResources(
     {
         ASSERT(FALSE);
         Status = STATUS_UNSUCCESSFUL;
-        //IopFreeResourceRequirementsForAssignTable(RequestTable, RequestTableEnd);
+        IopFreeResourceRequirementsForAssignTable(RequestTable, RequestTableEnd);
         goto Exit;
     }
 
@@ -3701,8 +3758,7 @@ IopAllocateResources(
 
     if (RequestTable >= RequestTableEnd)
     {
-        ASSERT(FALSE);
-        //IopFreeResourceRequirementsForAssignTable(RequestTable, RequestTableEnd);
+        IopFreeResourceRequirementsForAssignTable(RequestTable, RequestTableEnd);
         goto Exit;
     }
 
@@ -3735,8 +3791,7 @@ IopAllocateResources(
         }
     }
 
-    ASSERT(FALSE);
-    //IopFreeResourceRequirementsForAssignTable(RequestTable, RequestTableEnd);
+    IopFreeResourceRequirementsForAssignTable(RequestTable, RequestTableEnd);
 
 Exit:
 
