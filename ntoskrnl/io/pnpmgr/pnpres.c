@@ -3801,6 +3801,63 @@ IopGetResourceRequirementsForAssignTable(
 
 NTSTATUS
 NTAPI
+IopFindBestConfiguration(
+    _In_ PPNP_RESOURCE_REQUEST ResRequest,
+    _In_ ULONG DeviceCount,
+    _In_ PLIST_ENTRY ConfigurationList)
+{
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopFindBestConfiguration: ResRequest - %p, DeviceCount - %X, ConfigurationList - %X, \n",
+           ResRequest, DeviceCount, ConfigurationList);
+  
+    InitializeListHead(ConfigurationList);
+
+    IopSelectFirstConfiguration(ResRequest, DeviceCount, ConfigurationList);
+
+    while (TRUE)
+    {
+        Status = IopTestConfiguration(ConfigurationList);
+
+        if (NT_SUCCESS(Status))
+        {
+            if (DeviceCount == 1)
+            {
+                break;
+            }
+            else
+            {
+                DPRINT("IopFindBestConfiguration: FIXME IopComputeConfigurationPriority()\n");
+                ASSERT(FALSE);
+            }
+        }
+
+        DPRINT("IopFindBestConfiguration: FIXME IopSelectNextConfiguration()\n");
+        ASSERT(FALSE);
+        break;
+    }
+
+    if (IsListEmpty(ConfigurationList))
+    {
+        DPRINT("IopFindBestConfiguration: STATUS_UNSUCCESSFUL\n");
+        ASSERT(FALSE);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (DeviceCount == 1)
+    {
+        DPRINT("IopFindBestConfiguration: STATUS_SUCCESS\n");
+        return STATUS_SUCCESS;
+    }
+
+    DPRINT("IopFindBestConfiguration: FIXME IopSaveRestoreConfiguration()\n");
+    ASSERT(FALSE);
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IopAllocateResources(
     _Inout_ PULONG OutDeviceCount,
     _In_ PPNP_RESOURCE_REQUEST * ResContext,
@@ -4022,6 +4079,7 @@ IopAllocateResources(
                 ASSERT(FALSE);
                 Current->Status = STATUS_CONFLICTING_ADDRESSES;
             }
+
             break;
         }
         else if (Status == STATUS_INSUFFICIENT_RESOURCES)
