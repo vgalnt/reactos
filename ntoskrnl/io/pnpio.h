@@ -161,7 +161,7 @@ typedef struct _PNP_REQ_LIST
     ULONG BusNumber;
     PPNP_RESOURCE_REQUEST ResRequest;
     PPNP_REQ_ALT_LIST * AltList1;
-    PPNP_REQ_ALT_LIST AltList2;
+    PPNP_REQ_ALT_LIST * AltList2;
     ULONG Count;
     PPNP_REQ_ALT_LIST AltLists[1]; // array pointers to alternative lists
 } PNP_REQ_LIST, *PPNP_REQ_LIST; 
