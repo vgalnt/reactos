@@ -2192,6 +2192,270 @@ IopMergeFilteredResourceRequirementsList(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+IopQueryDeviceRequirements(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PIO_RESOURCE_REQUIREMENTS_LIST * OutResourceList,
+    _Out_ PULONG OutSize)
+{
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    PIO_RESOURCE_REQUIREMENTS_LIST NewIoResources;
+    PIO_RESOURCE_REQUIREMENTS_LIST FilteredIoResource = NULL;
+    PIO_RESOURCE_REQUIREMENTS_LIST newIoResources;
+    PIO_RESOURCE_REQUIREMENTS_LIST MergedIoResources;
+    PCM_RESOURCE_LIST CmResource;
+    UNICODE_STRING ValueName;
+    PDEVICE_NODE DeviceNode;
+    HANDLE Handle;
+    HANDLE KeyHandle;
+    PCM_RESOURCE_LIST CmResources;
+    SIZE_T ResourcesSize;
+    NTSTATUS Status;
+    BOOLEAN IsNoFiltered;
+  
+    PAGED_CODE();
+    DPRINT("IopQueryDeviceRequirements: DeviceObject - %p, *OutResourceList - %X\n",
+           DeviceObject, *OutResourceList);
+
+    *OutResourceList = NULL;
+    *OutSize = 0;
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    Status = IopGetDeviceResourcesFromRegistry(DeviceObject,
+                                               FALSE,
+                                               PIP_CONFIG_TYPE_FORCED,
+                                               (PVOID *)&CmResource,
+                                               &ResourcesSize);
+
+    if (Status != STATUS_OBJECT_NAME_NOT_FOUND)
+    {
+        //"ForcedConfig"
+
+        ASSERT(NT_SUCCESS(Status));
+        DPRINT("IopQueryDeviceRequirements: ForcedConfig. Status - %X\n", Status);
+
+        if (CmResource)
+        {
+            IoResources = IopCmResourcesToIoResources(0, CmResource, 0);
+            ExFreePoolWithTag(CmResource, 'uspP');
+
+            if (!IoResources)
+            {
+                *OutResourceList = NULL;
+                *OutSize = 0;
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+
+            *OutResourceList = IoResources;
+            *OutSize = IoResources->ListSize;
+        }
+        else
+        {
+            IoResources = NULL;
+        }
+
+        goto Exit;
+    }
+
+    DPRINT("IopQueryDeviceRequirements: IopGetDeviceResourcesFromRegistry return STATUS_OBJECT_NAME_NOT_FOUND DeviceObject %p\n", DeviceObject);
+
+    Status = IopGetDeviceResourcesFromRegistry(DeviceObject, TRUE, PIP_CONFIG_TYPE_OVERRIDE, (PVOID *)&IoResources, &ResourcesSize);
+    if (Status != STATUS_OBJECT_NAME_NOT_FOUND)
+    {
+        ASSERT(FALSE);
+    }
+    else if (DeviceNode->Flags & DNF_MADEUP)
+    {
+        //ASSERT(FALSE);
+        Status = IopGetDeviceResourcesFromRegistry(DeviceObject, TRUE, PIP_CONFIG_TYPE_BASIC, (PVOID *)&IoResources, &ResourcesSize);
+        if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
+        {
+            //ASSERT(FALSE);
+            IoResources = NULL;
+            Status = STATUS_SUCCESS;
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            ASSERT(FALSE);
+            return Status;
+        }
+    }
+    else if (!DeviceNode->ResourceRequirements)
+    {
+        Status = PpIrpQueryResourceRequirements(DeviceObject, &IoResources);
+        if (Status == STATUS_NOT_SUPPORTED)
+        {
+            DPRINT("IopQueryDeviceRequirements: PpIrpQueryResourceRequirements return STATUS_NOT_SUPPORTED\n");
+            ASSERT(IoResources == NULL);
+            IoResources = NULL;
+            Status = STATUS_SUCCESS;
+        }
+        else if (!NT_SUCCESS(Status))
+        {
+            ASSERT(FALSE);
+            return Status;
+        }
+        else
+        {
+            DPRINT("IopQueryDeviceRequirements: IopDumpResourceRequirementsList\n");
+            IopDumpResourceRequirementsList(IoResources);
+        }
+    }
+    else
+    {
+        ASSERT(DeviceNode->Flags & DNF_RESOURCE_REQUIREMENTS_NEED_FILTERED);
+
+        IoResources = ExAllocatePoolWithTag(PagedPool, DeviceNode->ResourceRequirements->ListSize, '  pP');
+        if (!IoResources)
+        {
+            ASSERT(FALSE);
+            return STATUS_NO_MEMORY;
+        }
+
+        DPRINT("IopQueryDeviceRequirements: IopDumpResourceRequirementsList. IoResources - %p, Size - %X\n", DeviceNode->ResourceRequirements, DeviceNode->ResourceRequirements->ListSize);
+        IopDumpResourceRequirementsList(DeviceNode->ResourceRequirements);
+        RtlCopyMemory(IoResources, DeviceNode->ResourceRequirements, DeviceNode->ResourceRequirements->ListSize);
+    }
+
+    Status = IopGetDeviceResourcesFromRegistry(DeviceObject, FALSE, PIP_CONFIG_TYPE_BOOT, (PVOID *)&CmResources, &ResourcesSize);
+    if (!NT_SUCCESS(Status) ||
+        (CmResources && CmResources->Count && CmResources->List[0].InterfaceType == PCIBus))
+    {
+        goto Exit;
+    }
+
+    Status = IopFilterResourceRequirementsList(IoResources,
+                                               CmResources,
+                                               &NewIoResources,
+                                               &IsNoFiltered);
+    if (CmResources)
+    {
+        ExFreePoolWithTag(CmResources, 'uspP');
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(FALSE);
+        if (IoResources)
+        {
+            ExFreePoolWithTag(IoResources, '  pP');
+        }
+        return Status;
+    }
+
+    //if (DeviceNode->Flags & 1 || IsNoFiltered && IoResources->AlternativeLists <= 1)
+    if ((DeviceNode->Flags & DNF_MADEUP) ||
+        (IsNoFiltered && (IoResources->AlternativeLists <= 1)))
+    {
+        if (IoResources)
+        {
+            ExFreePoolWithTag(IoResources, '  pP');
+        }
+
+        IoResources = NewIoResources;
+    }
+    else
+    {
+        Status = IopMergeFilteredResourceRequirementsList(NewIoResources, IoResources, &MergedIoResources);
+
+        if (IoResources)
+        {
+            ExFreePoolWithTag(IoResources, '  pP');
+        }
+
+        if (NewIoResources)
+        {
+            ExFreePoolWithTag(NewIoResources, 'uspP');
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            ASSERT(FALSE);
+            return Status;
+        }
+
+        IoResources = MergedIoResources;
+    }
+
+Exit:
+
+    Status = IopFilterResourceRequirementsCall(DeviceObject, IoResources, &FilteredIoResource);
+    DPRINT("IopQueryDeviceRequirements: Status - %X, FilteredIoResource - %p\n", Status, FilteredIoResource);
+
+    if (!NT_SUCCESS(Status))
+    {
+        ASSERT(Status == STATUS_NOT_SUPPORTED);
+
+        *OutResourceList = IoResources;
+
+        if (IoResources == NULL)
+        {
+            *OutSize = 0;
+        }
+        else
+        {
+            *OutSize = IoResources->ListSize;
+        }
+
+        return STATUS_SUCCESS;
+    }
+
+    if (!FilteredIoResource)
+    {
+        if (IoResources)
+        {
+            DPRINT("IopQueryDeviceRequirements: IoResources filtered to NULL! IoResources - %p, ListSize - %X\n",
+                    IoResources, IoResources->ListSize);
+        }
+
+        *OutSize = 0;
+        *OutResourceList = NULL;
+    }
+    else
+    {
+        *OutSize = FilteredIoResource->ListSize;
+        ASSERT(*OutSize);
+
+        newIoResources = ExAllocatePoolWithTag(PagedPool, *OutSize, '  pP');
+        *OutResourceList = newIoResources;
+
+        if (!newIoResources)
+        {
+            ExFreePool(FilteredIoResource);
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        RtlCopyMemory(newIoResources, FilteredIoResource, *OutSize);
+
+        ExFreePool(FilteredIoResource);
+    }
+
+    Status = PnpDeviceObjectToDeviceInstance(DeviceObject, &Handle, KEY_ALL_ACCESS);
+    if (!NT_SUCCESS(Status))
+    {
+        return STATUS_SUCCESS;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"Control");
+
+    Status = IopOpenRegistryKeyEx(&KeyHandle, Handle, &ValueName, KEY_READ);
+    if (!NT_SUCCESS(Status))
+    {
+        return STATUS_SUCCESS;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"FilteredConfigVector");
+    ZwSetValueKey(KeyHandle, &ValueName, 0, REG_RESOURCE_REQUIREMENTS_LIST, *OutResourceList, *OutSize);
+
+    ZwClose(KeyHandle);
+    ZwClose(Handle);
+
+    return STATUS_SUCCESS;
+}
+
 PDEVICE_NODE
 NTAPI
 IopFindLegacyBusDeviceNode(
@@ -3582,7 +3846,6 @@ IopAllocateResources(
     if (!DeviceCount)
     {
         DPRINT("IopAllocateResources: DeviceCount - 0\n");
-        //ASSERT(FALSE);
         goto Exit;
     }
 
@@ -3595,7 +3858,7 @@ IopAllocateResources(
         IsMultiAlloc = TRUE;
     }
 
-    if (!IsBootConfig)
+    if (IsBootConfig == FALSE)
     {
         for (Current = RequestTable; Current < RequestTableEnd; Current++)
         {
@@ -3628,7 +3891,6 @@ IopAllocateResources(
 
     if (!IopBootConfigsReserved)
     {
-
         for (Current = RequestTable; Current < RequestTableEnd; Current++)
         {
             PDEVICE_NODE DeviceNode;
@@ -3638,6 +3900,7 @@ IopAllocateResources(
 
             DPRINT("IopAllocateResources: IopBootConfigsReserved == NULL. Device - %wZ\n",
                    &DeviceNode->InstancePath);
+
             DPRINT("IopAllocateResources: DeviceNode - %p, DeviceNode->BootResources - %p\n",
                    DeviceNode, DeviceNode->BootResources);
 
@@ -3662,6 +3925,7 @@ IopAllocateResources(
                 {
                     DPRINT("IopAllocateResources: Delaying non BOOT config device %wZ\n",
                            &DeviceNode->InstancePath);
+
                     ASSERT(FALSE);
 
                     Current->Flags |= 0x20;
@@ -3713,9 +3977,12 @@ IopAllocateResources(
 
     Count = (ULONG)(RequestTableEnd - RequestTable);
     ASSERT(Count == DeviceCount);
-    DPRINT("IopAllocateResources: FIXME IopRearrangeAssignTable. Count - %X\n", Count);
 
-    //IopRearrangeAssignTable(RequestTable, DeviceCount);
+    if (DeviceCount > 1)
+    {
+        DPRINT("IopAllocateResources: FIXME IopRearrangeAssignTable. Count - %X\n", Count);
+        //IopRearrangeAssignTable(RequestTable, DeviceCount);
+    }
 
     for (Current = RequestTable; Current < RequestTableEnd; Current++)
     {
@@ -3726,29 +3993,27 @@ IopAllocateResources(
 
         DPRINT("IopAllocateResources: Trying to allocate resources for %S\n",
                DeviceNode->InstancePath.Buffer);
+
         DPRINT("IopAllocateResources: DeviceNode - %p, DeviceNode->BootResources - %p\n",
                DeviceNode, DeviceNode->BootResources);
-        DPRINT("\n");
 
+        DPRINT("\n");
         IopDumpResourceRequirementsList(DeviceNode->ResourceRequirements);
         DPRINT("\n");
-
         IopDumpCmResourceList(DeviceNode->BootResources);
         DPRINT("\n");
 
-        ASSERT(FALSE); DPRINT("IopAllocateResources: List.Flink - %X\n", List.Flink);
-        Status = 0;//IopFindBestConfiguration(Current, 1, &List);
+        Status = IopFindBestConfiguration(Current, 1, &List);
         DPRINT("IopAllocateResources: Status - %X\n", Status);
     
         if (NT_SUCCESS(Status))
         {
-            ASSERT(FALSE);
-            Status = 0;//IopCommitConfiguration(&List);
+            Status = IopCommitConfiguration(&List);
 
             if (NT_SUCCESS(Status))
             {
-                ASSERT(FALSE);
-                //IopBuildCmResourceLists(Current, &Current[1]);
+                IopBuildCmResourceLists(Current, &Current[1]);
+
                 DPRINT("IopAllocateResources: DeviceNode - %p, DeviceNode->BootResources - %p\n",
                        DeviceNode, DeviceNode->BootResources);
             }
@@ -3761,13 +4026,12 @@ IopAllocateResources(
         }
         else if (Status == STATUS_INSUFFICIENT_RESOURCES)
         {
-            ASSERT(FALSE);
             DPRINT("IopAllocateResources: Failed to allocate Pool.\n");
+            ASSERT(FALSE);
             break;
         }
         else if (IsMultiAlloc)
         {
-            DPRINT("IopAllocateResources: Initiating REBALANCE...\n");
             DeviceNode->Flags |= DNF_NEEDS_REBALANCE;
 
             DPRINT("IopAllocateResources: FIXME IopRebalance\n");
@@ -3798,6 +4062,7 @@ IopAllocateResources(
 
         if (Status == STATUS_INSUFFICIENT_RESOURCES)
         {
+            DPRINT("IopAllocateResources: STATUS_INSUFFICIENT_RESOURCES\n");
             ASSERT(FALSE);
             Current->Status = STATUS_INSUFFICIENT_RESOURCES;
         }
