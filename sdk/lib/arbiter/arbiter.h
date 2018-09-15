@@ -156,6 +156,12 @@ typedef NTSTATUS
     _Inout_ PARBITER_ALLOCATION_STATE ArbState
 );
 
+typedef NTSTATUS
+(NTAPI * PARB_ALLOCATE_ENTRY)(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
+);
+
 typedef VOID
 (NTAPI * PARB_ADD_ALLOCATION)(
     _In_ PARBITER_INSTANCE Arbiter,
@@ -204,7 +210,7 @@ typedef struct _ARBITER_INSTANCE {
     PVOID AddReserved; // PARB_ADD_RESERVED
     PVOID StartArbiter; // PARB_START_ARBITER
     PARB_PREPROCESS_ENTRY PreprocessEntry;
-    PVOID AllocateEntry; // PARB_ALLOCATE_ENTRY
+    PARB_ALLOCATE_ENTRY AllocateEntry;
     PVOID GetNextAllocationRange; // PARB_GET_NEXT_ALLOCATION_RANGE
     PVOID FindSuitableRange; // PARB_FIND_SUITABLE_RANGE
     PARB_ADD_ALLOCATION AddAllocation;
