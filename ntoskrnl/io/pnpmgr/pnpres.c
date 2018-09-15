@@ -4065,6 +4065,58 @@ IopFindBestConfiguration(
 
 NTSTATUS
 NTAPI
+IopCommitConfiguration(
+    _In_ PLIST_ENTRY ConfigurationList)
+{
+    PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
+    PLIST_ENTRY Entry;
+    NTSTATUS commitStatus;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopCommitConfiguration: ConfigurationList - %p\n", ConfigurationList);
+
+    Status = STATUS_SUCCESS;
+
+    for (Entry = ConfigurationList->Flink;
+         Entry != ConfigurationList;
+         )
+    {
+        ArbiterEntry = CONTAINING_RECORD(Entry,
+                                         PI_RESOURCE_ARBITER_ENTRY,
+                                         ActiveArbiterList);
+        Entry = Entry->Flink;
+
+        ASSERT(!IsListEmpty(&ArbiterEntry->ResourceList));
+
+        commitStatus = ArbiterEntry->ArbiterInterface->
+                       ArbiterHandler)(ArbiterEntry->ArbiterInterface->Context,
+                                       ArbiterActionCommitAllocation,
+                                       NULL);
+
+        ArbiterEntry->ResourcesChanged = 0;
+        ArbiterEntry->State = 0;
+
+        Status = commitStatus;
+
+        InitializeListHead(&ArbiterEntry->ResourceList);
+        InitializeListHead(&ArbiterEntry->BestResourceList);
+        InitializeListHead(&ArbiterEntry->BestConfig);
+        InitializeListHead(&ArbiterEntry->ActiveArbiterList);
+
+        if (!NT_SUCCESS(commitStatus))
+        {
+            ASSERT(NT_SUCCESS(commitStatus));
+            break;
+        }
+    }
+
+    IopCheckDataStructures(IopRootDeviceNode);
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IopAllocateResources(
     _Inout_ PULONG OutDeviceCount,
     _In_ PPNP_RESOURCE_REQUEST * ResContext,
