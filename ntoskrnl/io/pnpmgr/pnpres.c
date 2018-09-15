@@ -3943,6 +3943,71 @@ IopSelectFirstConfiguration(
 
 NTSTATUS
 NTAPI
+IopTestConfiguration(
+    _In_ PLIST_ENTRY ConfigurationList)
+{
+    PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
+    PARBITER_INTERFACE ArbInterface;
+    ARBITER_PARAMETERS Params;
+    PLIST_ENTRY Entry;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopTestConfiguration: ConfigurationList - %p\n", ConfigurationList);
+
+    Status = STATUS_SUCCESS;
+
+    for (Entry = ConfigurationList->Flink;
+         Entry != ConfigurationList;
+         Entry = Entry->Flink)
+    {
+        ArbiterEntry = CONTAINING_RECORD(Entry,
+                                         PI_RESOURCE_ARBITER_ENTRY,
+                                         ActiveArbiterList);
+
+        ASSERT(IsListEmpty(&ArbiterEntry->ResourceList) == FALSE);
+
+        if (!ArbiterEntry->ResourcesChanged)
+        {
+            if (ArbiterEntry->State & 2)
+            {
+                ASSERT(FALSE);
+                Status = STATUS_UNSUCCESSFUL;
+                break;
+            }
+            else
+            {
+                continue;
+            }
+        }
+
+        ArbInterface = ArbiterEntry->ArbiterInterface;
+        ASSERT(ArbInterface);
+
+        Params.Parameters.TestAllocation.ArbitrationList = &ArbiterEntry->ResourceList;
+        Params.Parameters.TestAllocation.AllocateFromCount = 0;
+        Params.Parameters.TestAllocation.AllocateFrom = NULL;
+
+        Status = ArbInterface->ArbiterHandler(ArbInterface->Context,
+                                              0,
+                                              &Params);
+        if (!NT_SUCCESS(Status))
+        {
+            ArbiterEntry->State |= 2u;
+            break;
+        }
+
+        ArbiterEntry->State = (ArbiterEntry->State & ~2) | 1;
+        ArbiterEntry->ResourcesChanged = 0;
+
+        break;
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IopFindBestConfiguration(
     _In_ PPNP_RESOURCE_REQUEST ResRequest,
     _In_ ULONG DeviceCount,
