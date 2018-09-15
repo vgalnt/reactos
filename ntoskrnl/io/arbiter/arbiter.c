@@ -140,6 +140,60 @@ ArbArbiterHandler(
 
 NTSTATUS
 NTAPI
+ArbpBuildAlternative(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
+    _Out_ PARBITER_ALTERNATIVE Alternative)
+{
+    NTSTATUS Status;
+
+    //PAGED_CODE();
+    DPRINT("ArbpBuildAlternative: Arbiter - %p, IoDescriptor - %p, Alternative - %p\n",
+           Arbiter, IoDescriptor, Alternative);
+
+    ASSERT(Alternative && IoDescriptor);
+
+    Alternative->Descriptor = IoDescriptor;
+
+    Status = Arbiter->UnpackRequirement(IoDescriptor,
+                                        &Alternative->Minimum,
+                                        &Alternative->Maximum,
+                                        &Alternative->Length,
+                                        &Alternative->Alignment);
+
+    DPRINT("ArbpBuildAlternative: Alt->Minimum - %I64X, Alt->Maximum - %I64X, Alt->Length - %X, Alt->Alignment - %X\n",
+           Alternative->Minimum, Alternative->Maximum, Alternative->Length, Alternative->Alignment);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("ArbpBuildAlternative: Alternative->Flags - %X, Status - %X\n",
+               Alternative->Flags, Status);
+
+        return Status;
+    }
+
+    Alternative->Flags = 0;
+
+    if (IoDescriptor->ShareDisposition == CmResourceShareShared)
+    {
+        Alternative->Flags = 1;
+    }
+
+    if (Alternative->Maximum - Alternative->Minimum + 1 == Alternative->Length)
+    {
+        Alternative->Flags |= 2;
+    }
+
+    if (Alternative->Maximum < Alternative->Minimum)
+    {
+        Alternative->Flags |= 4;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 ArbpBuildAllocationStack(
      _In_ PARBITER_INSTANCE Arbiter,
      _In_ PLIST_ENTRY ArbitrationList,
@@ -472,60 +526,6 @@ ArbOverrideConflict()
 {
     DPRINT("ArbOverrideConflict: ...\n");
     ASSERT(FALSE);
-    return STATUS_SUCCESS;
-}
-
-NTSTATUS
-NTAPI
-ArbpBuildAlternative(
-    _In_ PARBITER_INSTANCE Arbiter,
-    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
-    _Out_ PARBITER_ALTERNATIVE Alternative)
-{
-    NTSTATUS Status;
-
-    //PAGED_CODE();
-    DPRINT("ArbpBuildAlternative: Arbiter - %p, IoDescriptor - %p, Alternative - %p\n",
-           Arbiter, IoDescriptor, Alternative);
-
-    ASSERT(Alternative && IoDescriptor);
-
-    Alternative->Descriptor = IoDescriptor;
-
-    Status = Arbiter->UnpackRequirement(IoDescriptor,
-                                        &Alternative->Minimum,
-                                        &Alternative->Maximum,
-                                        &Alternative->Length,
-                                        &Alternative->Alignment);
-
-    DPRINT("ArbpBuildAlternative: Alt->Minimum - %I64X, Alt->Maximum - %I64X, Alt->Length - %X, Alt->Alignment - %X\n",
-           Alternative->Minimum, Alternative->Maximum, Alternative->Length, Alternative->Alignment);
-
-    if (!NT_SUCCESS(Status))
-    {
-        DPRINT("ArbpBuildAlternative: Alternative->Flags - %X, Status - %X\n",
-               Alternative->Flags, Status);
-
-        return Status;
-    }
-
-    Alternative->Flags = 0;
-
-    if (IoDescriptor->ShareDisposition == CmResourceShareShared)
-    {
-        Alternative->Flags = 1;
-    }
-
-    if (Alternative->Maximum - Alternative->Minimum + 1 == Alternative->Length)
-    {
-        Alternative->Flags |= 2;
-    }
-
-    if (Alternative->Maximum < Alternative->Minimum)
-    {
-        Alternative->Flags |= 4;
-    }
-
     return STATUS_SUCCESS;
 }
 
