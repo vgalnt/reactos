@@ -266,6 +266,13 @@ RtlCopyRangeList(OUT PRTL_RANGE_LIST CopyRangeList,
                  IN PRTL_RANGE_LIST RangeList
 );
 
+NTSTATUS
+NTAPI
+RtlDeleteOwnersRanges(
+    _In_ PRTL_RANGE_LIST RangeList,
+    _In_ PVOID Owner
+);
+
 // end lib "rtl"
 
 #ifdef __cplusplus
