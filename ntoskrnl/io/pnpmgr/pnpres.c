@@ -4063,6 +4063,59 @@ IopFindBestConfiguration(
     return Status;
 }
 
+VOID
+NTAPI
+IopCheckDataStructuresWorker(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
+    PLIST_ENTRY Entry;
+
+    PAGED_CODE();
+
+    for (Entry = DeviceNode->DeviceArbiterList.Flink;
+         Entry != &DeviceNode->DeviceArbiterList;
+         Entry = Entry->Flink)
+    {
+        ArbiterEntry = CONTAINING_RECORD(Entry,
+                                         PI_RESOURCE_ARBITER_ENTRY,
+                                         DeviceArbiterList);
+
+        if (ArbiterEntry->ArbiterInterface)
+        {
+            ASSERT(IsListEmpty(&ArbiterEntry->ResourceList));
+            ASSERT(IsListEmpty(&ArbiterEntry->ActiveArbiterList));
+        }
+    }
+}
+
+VOID
+NTAPI
+IopCheckDataStructures(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    PDEVICE_NODE deviceNode;
+
+    PAGED_CODE();
+
+    for (deviceNode = DeviceNode;
+         deviceNode;
+         deviceNode = deviceNode->Sibling)
+    {
+        IopCheckDataStructuresWorker(deviceNode);
+    }
+
+    for (deviceNode = DeviceNode;
+         deviceNode;
+         deviceNode = deviceNode->Sibling)
+    {
+        if (deviceNode->Child)
+        {
+            IopCheckDataStructures(deviceNode->Child);
+        }
+    }
+}
+
 NTSTATUS
 NTAPI
 IopCommitConfiguration(
@@ -5075,59 +5128,6 @@ Exit:
     }
 
     return Status;
-}
-
-VOID
-NTAPI
-IopCheckDataStructuresWorker(
-    _In_ PDEVICE_NODE DeviceNode)
-{
-    PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
-    PLIST_ENTRY Entry;
-
-    PAGED_CODE();
-
-    for (Entry = DeviceNode->DeviceArbiterList.Flink;
-         Entry != &DeviceNode->DeviceArbiterList;
-         Entry = Entry->Flink)
-    {
-        ArbiterEntry = CONTAINING_RECORD(Entry,
-                                         PI_RESOURCE_ARBITER_ENTRY,
-                                         DeviceArbiterList);
-
-        if (ArbiterEntry->ArbiterInterface)
-        {
-            ASSERT(IsListEmpty(&ArbiterEntry->ResourceList));
-            ASSERT(IsListEmpty(&ArbiterEntry->ActiveArbiterList));
-        }
-    }
-}
-
-VOID
-NTAPI
-IopCheckDataStructures(
-    _In_ PDEVICE_NODE DeviceNode)
-{
-    PDEVICE_NODE deviceNode;
-
-    PAGED_CODE();
-
-    for (deviceNode = DeviceNode;
-         deviceNode;
-         deviceNode = deviceNode->Sibling)
-    {
-        IopCheckDataStructuresWorker(deviceNode);
-    }
-
-    for (deviceNode = DeviceNode;
-         deviceNode;
-         deviceNode = deviceNode->Sibling)
-    {
-        if (deviceNode->Child)
-        {
-            IopCheckDataStructures(deviceNode->Child);
-        }
-    }
 }
 
 NTSTATUS
