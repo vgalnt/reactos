@@ -3801,6 +3801,122 @@ IopGetResourceRequirementsForAssignTable(
 
 VOID
 NTAPI
+IopAddRemoveReqDescs(
+    _In_ PPNP_REQ_DESCRIPTOR * ResDescriptor,
+    _In_ ULONG Count,
+    _Out_ PLIST_ENTRY ConfigurationList,
+    _In_ BOOLEAN AddOrRemove)
+{
+    PPNP_REQ_LIST ResList;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_NODE DeviceNode;
+    PPNP_REQ_DESCRIPTOR Descriptor;
+    PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
+    PLIST_ENTRY Entry;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("IopAddRemoveReqDescs: ResDescriptor - %p, Count - %X, AddOrRemove - %X\n",
+           ResDescriptor, Count, AddOrRemove);
+
+    if (!Count)
+    {
+        ASSERT(FALSE);
+        return;
+    }
+
+    ResList = (*ResDescriptor)->AltList->ReqList;
+
+    DeviceObject = ResList->ResRequest->PhysicalDevice;
+    ASSERT(DeviceObject);
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    if (AddOrRemove)
+    {
+        DPRINT("IopAddRemoveReqDescs: Adding %X/%X req alt to the arbiters for %wZ\n",
+               ResList->AltList1[0]->ListNumber + 1,
+               ResList->Count,
+               &DeviceNode->InstancePath);
+    }
+    else
+    {
+        DPRINT("IopAddRemoveReqDescs: Removing %X/%X req alt from the arbiters for %wZ\n",
+               ResList->AltList1[0]->ListNumber + 1,
+               ResList->Count,
+               &DeviceNode->InstancePath);
+    }
+
+    for (ix = 0; ix < Count; ix++)
+    {
+        DPRINT("IopAddRemoveReqDescs: ix - %X\n", ix);
+        Descriptor = ResDescriptor[ix];
+        //PipDumpDescriptors(Descriptor, ix);
+
+        if (!Descriptor->IsArbitrated)
+        {
+            DPRINT("IopAddRemoveReqDescs: ix - %X\n", ix);
+            continue;
+        }
+
+        ArbiterEntry = Descriptor->ArbiterEntry;
+        ASSERT(ArbiterEntry);
+
+        if (ArbiterEntry->State & 1)
+        {
+            ArbiterEntry->State &= ~1;
+            ASSERT(FALSE);
+            ArbiterEntry->ArbiterInterface->
+                ArbiterHandler(ArbiterEntry->ArbiterInterface->Context,
+                               ArbiterActionRollbackAllocation,
+                               NULL);
+        }
+
+        ArbiterEntry->ResourcesChanged = 1;
+
+        if (AddOrRemove == 1)
+        {
+            InitializeListHead(&Descriptor->TranslatedReqDesc->ReqEntry.Link);
+            InsertTailList(&ArbiterEntry->ResourceList,
+                           &Descriptor->TranslatedReqDesc->ReqEntry.Link);
+
+            if (IsListEmpty(&ArbiterEntry->ActiveArbiterList))
+            {
+                PPI_RESOURCE_ARBITER_ENTRY arbEntry;
+
+                for (Entry = ConfigurationList->Flink;
+                     Entry != ConfigurationList;
+                     Entry = Entry->Flink)
+                {
+                    arbEntry = CONTAINING_RECORD(Entry, PI_RESOURCE_ARBITER_ENTRY, ActiveArbiterList);
+                    if (arbEntry->Level >= ArbiterEntry->Level)
+                    {
+                        break;
+                    }
+                }
+
+                InsertTailList(Entry, &ArbiterEntry->ActiveArbiterList);
+            }
+        }
+        else
+        {
+            ASSERT(FALSE);
+            ASSERT(!IsListEmpty(&ArbiterEntry->ResourceList));
+
+            RemoveEntryList(&Descriptor->TranslatedReqDesc->ReqEntry.Link);
+            InitializeListHead(&Descriptor->TranslatedReqDesc->ReqEntry.Link);
+
+            if (IsListEmpty(&ArbiterEntry->ResourceList))
+            {
+                RemoveEntryList(&ArbiterEntry->ActiveArbiterList);
+                InitializeListHead(&ArbiterEntry->ActiveArbiterList);
+            }
+        }
+    }
+}
+
+VOID
+NTAPI
 IopSelectFirstConfiguration(
     _In_ PPNP_RESOURCE_REQUEST ResRequest,
     _In_ ULONG DeviceCount,
@@ -4842,132 +4958,6 @@ Exit:
     }
 
     return Status;
-}
-
-VOID
-NTAPI
-IopAddRemoveReqDescs(
-    _In_ PPNP_REQ_DESCRIPTOR * ResDescriptor,
-    _In_ ULONG Count,
-    _In_ PLIST_ENTRY List,
-    _In_ BOOLEAN AddOrRemove)
-{
-    PPNP_REQ_LIST ResList;
-    PDEVICE_OBJECT DeviceObject;
-    PDEVICE_NODE DeviceNode;
-    PPNP_REQ_DESCRIPTOR Descriptor;
-    PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
-    ULONG ix;
-
-    PAGED_CODE();
-    DPRINT("IopAddRemoveReqDescs: ResDescriptor - %p, Count - %X, AddOrRemove - %X\n",
-           ResDescriptor, Count, AddOrRemove);
-
-    if (!Count)
-    {
-        ASSERT(FALSE);
-        return;
-    }
-
-    ResList = (*ResDescriptor)->AltList->ReqList;
-
-    DeviceObject = ResList->ResRequest->PhysicalDevice;
-    ASSERT(DeviceObject);
-
-    DeviceNode = IopGetDeviceNode(DeviceObject);
-
-    if (AddOrRemove)
-    {
-        DPRINT("IopAddRemoveReqDescs: Adding %X/%X req alt list to the arbiters for %wZ\n",
-               ResList->AltList1[0]->ListNumber + 1,
-               ResList->Count,
-               &DeviceNode->InstancePath);
-    }
-    else
-    {
-        DPRINT("IopAddRemoveReqDescs: Removing %X/%X req alt list from the arbiters for %wZ\n",
-               ResList->AltList1[0]->ListNumber + 1,
-               ResList->Count,
-               &DeviceNode->InstancePath);
-    }
-
-    for (ix = 0; ix < Count; ix++)
-    {
-        Descriptor = ResDescriptor[ix];
-
-        if (Descriptor->IsArbitrated)
-        {
-            DPRINT("IopAddRemoveReqDescs: Descriptor - %p, ix - %X\n", Descriptor, ix);
-        }
-        else
-        {
-            DPRINT("IopAddRemoveReqDescs: Continue, ix - %X\n", ix);
-            continue;
-        }
-
-        ArbiterEntry = Descriptor->ArbiterEntry;
-        ASSERT(ArbiterEntry);
-
-        if (ArbiterEntry->State & 1) // ?
-        {
-            ASSERT(FALSE);
-            ArbiterEntry->State &= ~1;
-
-            ArbiterEntry->ArbiterInterface->
-                ArbiterHandler(ArbiterEntry->ArbiterInterface->Context,
-                               ArbiterActionRollbackAllocation,
-                               NULL);
-        }
-
-        ArbiterEntry->ResourcesChanged = 1;
-
-        if (AddOrRemove == 1)
-        {
-            InitializeListHead(&Descriptor->TranslatedReqDesc->ReqEntry.Link);
-
-            InsertTailList(&ArbiterEntry->ResourceList,
-                           &Descriptor->TranslatedReqDesc->ReqEntry.Link);
-
-            if (IsListEmpty(&ArbiterEntry->ActiveArbiterList))
-            {
-                PLIST_ENTRY entry;
-                PPI_RESOURCE_ARBITER_ENTRY arbEntry;
-
-                DPRINT("IopAddRemoveReqDescs: entry - %p, ArbiterEntry - %p\n",
-                       entry, ArbiterEntry);
-
-                for (entry = List->Flink;
-                     entry != List;
-                     entry = entry->Flink)
-                {
-                    arbEntry = CONTAINING_RECORD(entry,
-                                                 PI_RESOURCE_ARBITER_ENTRY,
-                                                 ActiveArbiterList);
-
-                    if (arbEntry->Level >= ArbiterEntry->Level)
-                    {
-                        break;
-                    }
-                }
-
-                InsertTailList(entry, &ArbiterEntry->ActiveArbiterList);
-            }
-        }
-        else
-        {
-            ASSERT(FALSE);
-            ASSERT(!IsListEmpty(&ArbiterEntry->ResourceList));
-
-            RemoveEntryList(&Descriptor->TranslatedReqDesc->ReqEntry.Link);
-            InitializeListHead(&Descriptor->TranslatedReqDesc->ReqEntry.Link);
-
-            if (IsListEmpty(&ArbiterEntry->ResourceList))
-            {
-                RemoveEntryList(&ArbiterEntry->ActiveArbiterList);
-                InitializeListHead(&ArbiterEntry->ActiveArbiterList);
-            }
-        }
-    }
 }
 
 VOID
