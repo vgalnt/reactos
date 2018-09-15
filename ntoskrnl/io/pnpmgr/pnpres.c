@@ -3799,6 +3799,32 @@ IopGetResourceRequirementsForAssignTable(
     return Status;
 }
 
+VOID
+NTAPI
+IopSelectFirstConfiguration(
+    _In_ PPNP_RESOURCE_REQUEST ResRequest,
+    _In_ ULONG DeviceCount,
+    _In_ PLIST_ENTRY ConfigurationList)
+{
+    PPNP_REQ_LIST ReqList;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("IopSelectFirstConfiguration: ResRequest - %p, DeviceCount - %X, ConfigurationList - %p\n",
+           ResRequest, DeviceCount, ConfigurationList);
+
+    for (ix = 0; ix < DeviceCount; ix++)
+    {
+        ReqList = ResRequest[ix].ReqList;
+        ReqList->AltList1 = ReqList->AltLists;
+
+        IopAddRemoveReqDescs(ReqList->AltLists[0]->ReqDescriptors,
+                             ReqList->AltLists[0]->CountDescriptors,
+                             ConfigurationList,
+                             TRUE);
+    }
+}
+
 NTSTATUS
 NTAPI
 IopFindBestConfiguration(
