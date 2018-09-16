@@ -79,7 +79,9 @@ ArbArbiterHandler(
     switch (Action)
     {
         case ArbiterActionTestAllocation:
-            ASSERT(FALSE);
+            ASSERT(Params->Parameters.TestAllocation.AllocateFromCount == 0);
+            ASSERT(Params->Parameters.TestAllocation.AllocateFrom == NULL);
+            Status = Arbiter->TestAllocation(Arbiter, Params->Parameters.TestAllocation.ArbitrationList);
             break;
         case ArbiterActionRetestAllocation:
             ASSERT(FALSE);
