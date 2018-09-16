@@ -282,7 +282,7 @@ ArbpBuildAllocationStack(
         ASSERT(CurrentState->End == 0);
 
         for (CurrentIoDesc = &ArbEntry->Alternatives[0];
-             CurrentIoDesc > &ArbEntry->Alternatives[ArbEntry->AlternativeCount];
+             CurrentIoDesc < &ArbEntry->Alternatives[ArbEntry->AlternativeCount];
              CurrentIoDesc++)
         {
             Status = ArbpBuildAlternative(Arbiter, CurrentIoDesc, Alternative);
