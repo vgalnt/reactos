@@ -145,6 +145,12 @@ typedef LONG
 );
 
 typedef NTSTATUS
+(NTAPI * PARB_TEST_ALLOCATION)(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PLIST_ENTRY ArbitrationList
+);
+
+typedef NTSTATUS
 (NTAPI * PARB_BOOT_ALLOCATION)(
     _In_ PARBITER_INSTANCE Arbiter,
     _In_ PLIST_ENTRY ArbitrationList
@@ -200,7 +206,7 @@ typedef struct _ARBITER_INSTANCE {
     PARB_UNPACK_RESOURCE UnpackResource;
     PARB_SCORE_REQUIREMENT ScoreRequirement;
     // FIXME next funcs
-    PVOID TestAllocation; // PARB_TEST_ALLOCATION
+    PARB_TEST_ALLOCATION TestAllocation;
     PVOID RetestAllocation; // PARB_RETEST_ALLOCATION
     PVOID CommitAllocation; // PARB_COMMIT_ALLOCATION
     PVOID RollbackAllocation; // PARB_ROLLBACK_ALLOCATION
