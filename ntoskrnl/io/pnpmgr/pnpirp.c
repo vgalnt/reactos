@@ -502,6 +502,7 @@ IopQueryResourceHandlerInterface(
     PDEVICE_NODE DeviceNode;
     IO_STACK_LOCATION IoStack;
     PINTERFACE Interface;
+    GUID GuidInterfaceType;
     NTSTATUS Status;
     USHORT InterfaceSize;
 
@@ -561,27 +562,26 @@ IopQueryResourceHandlerInterface(
     switch (InterfaceType)
     {
         case IOP_RES_HANDLER_TYPE_TRANSLATOR:
+            RtlCopyMemory(&GuidInterfaceType, &GUID_TRANSLATOR_INTERFACE_STANDARD, sizeof(GUID));
             DPRINT("IopQueryResourceHandlerInterface: GUID_TRANSLATOR_INTERFACE_STANDARD\n");
-            IoStack.Parameters.QueryInterface.InterfaceType =
-                                    &GUID_TRANSLATOR_INTERFACE_STANDARD;
             break;
 
         case IOP_RES_HANDLER_TYPE_ARBITER:
+            RtlCopyMemory(&GuidInterfaceType, &GUID_ARBITER_INTERFACE_STANDARD, sizeof(GUID));
             DPRINT("IopQueryResourceHandlerInterface: GUID_ARBITER_INTERFACE_STANDARD\n");
-            IoStack.Parameters.QueryInterface.InterfaceType =
-                                    &GUID_ARBITER_INTERFACE_STANDARD;
             break;
 
         case IOP_RES_HANDLER_TYPE_LEGACY:
+            RtlCopyMemory(&GuidInterfaceType, &GUID_LEGACY_DEVICE_DETECTION_STANDARD, sizeof(GUID));
             DPRINT("IopQueryResourceHandlerInterface: GUID_LEGACY_DEVICE_DETECTION_STANDARD\n");
-            IoStack.Parameters.QueryInterface.InterfaceType =
-                                    &GUID_LEGACY_DEVICE_DETECTION_STANDARD;
             break;
 
         default:
             ASSERT(FALSE);
             return STATUS_INVALID_PARAMETER;
     }
+
+    IoStack.Parameters.QueryInterface.InterfaceType = &GuidInterfaceType;
 
     IoStack.Parameters.QueryInterface.Size = InterfaceSize;
     IoStack.Parameters.QueryInterface.Version = 0;
