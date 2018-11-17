@@ -185,6 +185,8 @@ HidUsb_AbortPipe(
     NTSTATUS Status;
     PUSBD_PIPE_INFORMATION PipeInformation;
 
+    DPRINT("HidUsb_AbortPipe: ... \n");
+
     //
     // get device extension
     //
@@ -339,6 +341,7 @@ HidUsb_ResetWorkerRoutine(
     ULONG PortStatus;
     PHID_USB_RESET_CONTEXT ResetContext;
     PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
 
     DPRINT("[HIDUSB] ResetWorkerRoutine\n");
 
@@ -351,58 +354,65 @@ HidUsb_ResetWorkerRoutine(
     // get device extension
     //
     DeviceExtension = ResetContext->DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
+
+    //FIXME RemoveLock support
 
     //
     // get port status
     //
     Status = HidUsb_GetPortStatus(ResetContext->DeviceObject, &PortStatus);
     DPRINT("[HIDUSB] ResetWorkerRoutine GetPortStatus %x PortStatus %x\n", Status, PortStatus);
+
     if (NT_SUCCESS(Status))
     {
-        if (!(PortStatus & USB_PORT_STATUS_ENABLE))
+        if (!(PortStatus & USBD_PORT_CONNECTED))
         {
             //
-            // port is disabled
+            // port is not connected
             //
-            Status = HidUsb_ResetInterruptPipe(ResetContext->DeviceObject);
-            DPRINT1("[HIDUSB] ResetWorkerRoutine ResetPipe %x\n", Status);
-        }
-        else
-        {
-            //
-            // abort pipe
-            //
-            Status = HidUsb_AbortPipe(ResetContext->DeviceObject);
-            DPRINT1("[HIDUSB] ResetWorkerRoutine AbortPipe %x\n", Status);
+
+ResetPipe:
             if (NT_SUCCESS(Status))
             {
                 //
-                // reset port
-                //
-                Status = HidUsb_ResetPort(ResetContext->DeviceObject);
-                DPRINT1("[HIDUSB] ResetPort %x\n", Status);
-                if (Status == STATUS_DEVICE_DATA_ERROR)
-                {
-                    //
-                    // invalidate device state
-                    //
-                    IoInvalidateDeviceState(DeviceExtension->PhysicalDeviceObject);
-                }
-
-                //
                 // reset interrupt pipe
                 //
-                if (NT_SUCCESS(Status))
-                {
-                    //
-                    // reset pipe
-                    //
-                    Status = HidUsb_ResetInterruptPipe(ResetContext->DeviceObject);
-                    DPRINT1("[HIDUSB] ResetWorkerRoutine ResetPipe %x\n", Status);
-                }
+                Status = HidUsb_ResetInterruptPipe(ResetContext->DeviceObject);
+                DPRINT1("[HIDUSB] ResetWorkerRoutine ResetPipe %x\n", Status);
             }
+
+            goto Exit;
+        }
+
+        //
+        // port is connected - abort pending requests
+        //
+        Status = HidUsb_AbortPipe(ResetContext->DeviceObject);
+        DPRINT1("[HIDUSB] ResetWorkerRoutine AbortPipe %x\n", Status);
+
+        if (NT_SUCCESS(Status))
+        {
+            //
+            // reset parent port
+            //
+            Status = HidUsb_ResetPort(ResetContext->DeviceObject);
+            DPRINT1("[HIDUSB] ResetPort %x\n", Status);
+
+            if (Status == STATUS_DEVICE_DATA_ERROR)
+            {
+                //
+                // invalidate device state
+                //
+                HidDeviceExtension->HidState = HIDUSB_STATE_FAILED;
+                IoInvalidateDeviceState(DeviceExtension->PhysicalDeviceObject);
+            }
+
+            goto ResetPipe;
         }
     }
+
+Exit:
 
     //
     // cleanup
@@ -413,7 +423,6 @@ HidUsb_ResetWorkerRoutine(
     ExFreePoolWithTag(ResetContext, HIDUSB_TAG);
 }
 
-
 NTSTATUS
 NTAPI
 HidUsb_ReadReportCompletion(
@@ -423,6 +432,7 @@ HidUsb_ReadReportCompletion(
 {
     PURB Urb;
     PHID_USB_RESET_CONTEXT ResetContext;
+    NTSTATUS Status = STATUS_SUCCESS;
 
     //
     // get urb
@@ -430,41 +440,54 @@ HidUsb_ReadReportCompletion(
     Urb = Context;
     ASSERT(Urb);
 
-    DPRINT("[HIDUSB] HidUsb_ReadReportCompletion %p Status %x Urb Status %x\n", Irp, Irp->IoStatus, Urb->UrbHeader.Status);
-
-    if (Irp->PendingReturned)
-    {
-        //
-        // mark irp pending
-        //
-        IoMarkIrpPending(Irp);
-    }
+    DPRINT("[HIDUSB] HidUsb_ReadReportCompletion %p Status %x Urb Status %x\n",
+           Irp,
+           Irp->IoStatus.Status,
+           Urb->UrbHeader.Status);
 
     //
-    // did the reading report succeed / cancelled
+    // did the reading report succeed
     //
-    if (NT_SUCCESS(Irp->IoStatus.Status) || Irp->IoStatus.Status == STATUS_CANCELLED || Irp->IoStatus.Status == STATUS_DEVICE_NOT_CONNECTED)
+    if (NT_SUCCESS(Irp->IoStatus.Status))
     {
         //
         // store result length
         //
         Irp->IoStatus.Information = Urb->UrbBulkOrInterruptTransfer.TransferBufferLength;
-
-        //
-        // FIXME handle error
-        //
-        ASSERT(Urb->UrbHeader.Status == USBD_STATUS_SUCCESS);
-
-        //
-        // free the urb
-        //
-        ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
-
-        //
-        // finish completion
-        //
-        return STATUS_CONTINUE_COMPLETION;
+        goto Exit;
     }
+
+    //
+    // did the reading report cancelled
+    //
+    if (Irp->IoStatus.Status == STATUS_CANCELLED)
+    {
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion Irp %p - STATUS_CANCELLED\n",
+                Irp);
+
+        ASSERT(!Irp->CancelRoutine);
+        goto Exit;
+    }
+
+    //
+    // did the reading report no device
+    //
+    if (Irp->IoStatus.Status == STATUS_DEVICE_NOT_CONNECTED)
+    {
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion Irp %p - STATUS_DEVICE_NOT_CONNECTED\n",
+                Irp);
+
+        goto Exit;
+    }
+
+    DPRINT1("[HIDUSB] Read IRP %p failed with Status %x. Need reset.\n",
+            Irp,
+            Irp->IoStatus.Status);
+
+    //
+    // did the not active state
+    // FIXME RemoveLock support
+    //
 
     //
     // allocate reset context
@@ -489,33 +512,40 @@ HidUsb_ReadReportCompletion(
             //
             IoQueueWorkItem(ResetContext->WorkItem, HidUsb_ResetWorkerRoutine, DelayedWorkQueue, ResetContext);
 
-            //
-            // free urb
-            //
-            ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
-
-            //
-            // defer completion
-            //
-            return STATUS_MORE_PROCESSING_REQUIRED;
+            Status = STATUS_MORE_PROCESSING_REQUIRED;
+            goto Exit;
         }
+
         //
-        // free context
+        // free reset context
         //
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: IoAllocateWorkItem failed\n");
         ExFreePoolWithTag(ResetContext, HIDUSB_TAG);
     }
+    else
+    {
+        DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion: ExAllocatePoolWithTag failed\n");
+    }
+
+Exit:
 
     //
     // free urb
     //
     ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
 
-    //
-    // complete request
-    //
-    return STATUS_CONTINUE_COMPLETION;
-}
+    //FIXME RemoveLock support
 
+    if (Irp->PendingReturned)
+    {
+        //
+        // mark irp pending
+        //
+        IoMarkIrpPending(Irp);
+    }
+
+    return Status;
+}
 
 NTSTATUS
 NTAPI
@@ -528,6 +558,7 @@ HidUsb_ReadReport(
     PIO_STACK_LOCATION IoStack;
     PURB Urb;
     PUSBD_PIPE_INFORMATION PipeInformation;
+    NTSTATUS Status;
 
     //
     // get device extension
@@ -609,18 +640,16 @@ HidUsb_ReadReport(
     IoStack->Parameters.DeviceIoControl.Type3InputBuffer = NULL;
     IoStack->Parameters.Others.Argument1 = Urb;
 
-
     //
     // set completion routine
     //
     IoSetCompletionRoutine(Irp, HidUsb_ReadReportCompletion, Urb, TRUE, TRUE, TRUE);
 
-    //
-    // call driver
-    //
-    return IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-}
+    //FIXME RemoveLock support
 
+    Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
+    return Status;
+}
 
 NTSTATUS
 NTAPI
@@ -756,6 +785,7 @@ HidInternalDeviceControl(
                 IoCompleteRequest(Irp, IO_NO_INCREMENT);
                 return STATUS_INVALID_BUFFER_SIZE;
             }
+
             //
             // store result
             //
@@ -799,7 +829,9 @@ HidInternalDeviceControl(
             Irp->IoStatus.Information = HidDeviceExtension->HidDescriptor->bLength;
             Irp->IoStatus.Status = STATUS_SUCCESS;
 
-            /* complete request */
+            //
+            // complete request
+            //
             IoCompleteRequest(Irp, IO_NO_INCREMENT);
             return STATUS_SUCCESS;
         }
@@ -820,7 +852,6 @@ HidInternalDeviceControl(
         case IOCTL_HID_WRITE_REPORT:
         {
             DPRINT1("[HIDUSB] IOCTL_HID_WRITE_REPORT not implemented \n");
-            ASSERT(FALSE);
             Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
             IoCompleteRequest(Irp, IO_NO_INCREMENT);
             return STATUS_NOT_IMPLEMENTED;
@@ -946,13 +977,23 @@ Hid_PnpCompletion(
     IN PVOID Context)
 {
     //
-    // signal event
+    // set event to signaled state
     //
-    KeSetEvent(Context, 0, FALSE);
+    KeSetEvent((PRKEVENT)Context, EVENT_INCREMENT, FALSE);
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
 
+NTSTATUS
+NTAPI
+HidDispatchUrbComplete(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp,
+    IN PVOID Context)
+{
     //
-    // done
+    // set event to signaled state
     //
+    KeSetEvent((PRKEVENT)Context, IO_NO_INCREMENT, FALSE);
     return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
@@ -1011,7 +1052,7 @@ Hid_DispatchUrb(
     //
     // set completion routine
     //
-    IoSetCompletionRoutine(Irp, Hid_PnpCompletion, &Event, TRUE, TRUE, TRUE);
+    IoSetCompletionRoutine(Irp, HidDispatchUrbComplete, &Event, TRUE, TRUE, TRUE);
 
     //
     // call driver
@@ -1040,7 +1081,6 @@ Hid_DispatchUrb(
     }
 
     DPRINT("[HIDUSB] DispatchUrb %x\n", Status);
-
 
     //
     // done
@@ -1191,6 +1231,8 @@ Hid_SelectConfiguration(
     PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
     PHID_DEVICE_EXTENSION DeviceExtension;
 
+    DPRINT("Hid_SelectConfiguration: DeviceObject - %p\n", DeviceObject);
+
     //
     // get device extension
     //
@@ -1277,7 +1319,7 @@ Hid_SelectConfiguration(
 }
 
 NTSTATUS
-Hid_DisableConfiguration(
+Hid_CloseConfiguration(
     IN PDEVICE_OBJECT DeviceObject)
 {
     PHID_DEVICE_EXTENSION DeviceExtension;
@@ -1297,12 +1339,14 @@ Hid_DisableConfiguration(
     Urb = ExAllocatePoolWithTag(NonPagedPool,
                                 sizeof(struct _URB_SELECT_CONFIGURATION),
                                 HIDUSB_URB_TAG);
+
     if (!Urb)
     {
         //
         // no memory
         //
-        return STATUS_INSUFFICIENT_RESOURCES;
+        HidDeviceExtension->HidState = HIDUSB_STATE_STOPPED;
+        return STATUS_UNSUCCESSFUL;
     }
 
     //
@@ -1319,6 +1363,7 @@ Hid_DisableConfiguration(
     if (!NT_SUCCESS(Status))
     {
         DPRINT1("[HIDUSB] Dispatching unconfigure URB failed with %lx\n", Status);
+        HidDeviceExtension->HidState = HIDUSB_STATE_STOPPED;
     }
     else if (!USBD_SUCCESS(Urb->UrbHeader.Status))
     {
@@ -1330,9 +1375,19 @@ Hid_DisableConfiguration(
     //
     ExFreePoolWithTag(Urb, HIDUSB_URB_TAG);
 
-    //
-    // free resources
-    //
+    return Status;
+}
+
+NTSTATUS
+NTAPI
+Hid_Cleanup(PDEVICE_OBJECT DeviceObject)
+{
+    PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
+
     HidDeviceExtension->ConfigurationHandle = NULL;
 
     if (HidDeviceExtension->InterfaceInfo)
@@ -1354,9 +1409,34 @@ Hid_DisableConfiguration(
         HidDeviceExtension->DeviceDescriptor = NULL;
     }
 
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+Hid_StopDevice(
+    IN PDEVICE_OBJECT DeviceObject)
+{
+    PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
+    NTSTATUS Status;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
+
+    HidDeviceExtension->HidState = HIDUSB_STATE_STOPPING;
+
     //
-    // done
+    // abort pending requests
     //
+    HidUsb_AbortPipe(DeviceObject);
+
+    //FIXME RemoveLock support
+
+    //
+    // select configuration with NULL pointer for ConfigurationDescriptor
+    //
+    Status = Hid_CloseConfiguration(DeviceObject);
+
     return Status;
 }
 
@@ -1503,7 +1583,36 @@ Hid_GetProtocol(
 }
 
 NTSTATUS
-Hid_PnpStart(
+NTAPI
+Hid_Init(PDEVICE_OBJECT DeviceObject)
+{
+    ULONG OldState;
+    PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
+
+    OldState = HidDeviceExtension->HidState;
+    HidDeviceExtension->HidState = HIDUSB_STATE_STARTING;
+
+    if (OldState == HIDUSB_STATE_STOPPING ||
+        OldState == HIDUSB_STATE_STOPPED ||
+        OldState == HIDUSB_STATE_REMOVED)
+    {
+        //
+        // start after stop
+        //
+        DPRINT("[HIDUSB] FIXME RemoveLock support\n");
+    }
+
+    HidDeviceExtension->InterfaceInfo = NULL;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+Hid_StartDevice(
     IN PDEVICE_OBJECT DeviceObject)
 {
     PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
@@ -1555,9 +1664,9 @@ Hid_PnpStart(
     if (!NT_SUCCESS(Status))
     {
         //
-        // failed to obtain device descriptor
+        // failed to obtain configuration descriptor
         //
-        DPRINT1("[HIDUSB] failed to get device descriptor %x\n", Status);
+        DPRINT1("[HIDUSB] failed to get configuration descriptor %x\n", Status);
         return Status;
     }
 
@@ -1565,8 +1674,14 @@ Hid_PnpStart(
     // sanity check
     //
     ASSERT(DescriptorLength);
+    ASSERT(DescriptorLength >= sizeof(USB_CONFIGURATION_DESCRIPTOR));
     ASSERT(HidDeviceExtension->ConfigurationDescriptor);
-    ASSERT(HidDeviceExtension->ConfigurationDescriptor->bLength);
+
+    if (HidDeviceExtension->ConfigurationDescriptor->bLength == 0)
+    {
+        DPRINT1("[HIDUSB] ConfigurationDescriptor->bLength == 0\n");
+        return STATUS_DEVICE_DATA_ERROR;
+    }
 
     //
     // store full length
@@ -1593,10 +1708,23 @@ Hid_PnpStart(
     if (!NT_SUCCESS(Status))
     {
         //
-        // failed to obtain device descriptor
+        // failed to obtain full configuration descriptor
         //
-        DPRINT1("[HIDUSB] failed to get device descriptor %x\n", Status);
+        DPRINT1("[HIDUSB] failed to get full configuration descriptor %x\n", Status);
         return Status;
+    }
+
+    DescriptorLength = HidDeviceExtension->ConfigurationDescriptor->bLength;
+
+    //
+    // sanity check
+    //
+    ASSERT(DescriptorLength >= sizeof(USB_CONFIGURATION_DESCRIPTOR));
+
+    if (DescriptorLength < sizeof(USB_CONFIGURATION_DESCRIPTOR))
+    {
+        DPRINT1("[HIDUSB] bad ConfigurationDescriptor->bLength\n");
+        DescriptorLength = sizeof(USB_CONFIGURATION_DESCRIPTOR);
     }
 
     //
@@ -1618,18 +1746,33 @@ Hid_PnpStart(
         return STATUS_UNSUCCESSFUL;
     }
 
+    if (InterfaceDescriptor->bInterfaceClass != USB_DEVICE_CLASS_HUMAN_INTERFACE)
+    {
+        DPRINT1("[HIDUSB] bad InterfaceDescriptor->bInterfaceClass \n");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (InterfaceDescriptor->bLength < sizeof(USB_INTERFACE_DESCRIPTOR))
+    {
+        DPRINT1("[HIDUSB] InterfaceDescriptor->bLength is invalid");
+        return STATUS_UNSUCCESSFUL;
+    }
+
     //
     // sanity check
     //
-    ASSERT(InterfaceDescriptor->bInterfaceClass == USB_DEVICE_CLASS_HUMAN_INTERFACE);
     ASSERT(InterfaceDescriptor->bDescriptorType == USB_INTERFACE_DESCRIPTOR_TYPE);
-    ASSERT(InterfaceDescriptor->bLength == sizeof(USB_INTERFACE_DESCRIPTOR));
 
     //
     // move to next descriptor
     //
     HidDescriptor = (PHID_DESCRIPTOR)((ULONG_PTR)InterfaceDescriptor + InterfaceDescriptor->bLength);
-    ASSERT(HidDescriptor->bLength >= 2);
+
+    if (HidDescriptor->bLength < 2)
+    {
+        DPRINT1("[HIDUSB] HidDescriptor->bLength is invalid");
+        return STATUS_UNSUCCESSFUL;
+    }
 
     //
     // check if this is the hid descriptor
@@ -1679,6 +1822,65 @@ Hid_PnpStart(
     return Status;
 }
 
+NTSTATUS
+NTAPI 
+Hid_RemoveDevice(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp)
+{
+    ULONG OldDeviceState;
+    NTSTATUS Status;
+    PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
+
+    //
+    // get device extension
+    //
+    DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
+
+    //
+    // save current state and set HIDUSB_STATE_REMOVED
+    //
+    OldDeviceState = HidDeviceExtension->HidState;
+    HidDeviceExtension->HidState = HIDUSB_STATE_REMOVED;
+
+    DPRINT("[HIDUSB] Hid_RemoveDevice: OldDeviceState - %x\n", OldDeviceState);
+
+    if (OldDeviceState != HIDUSB_STATE_STOPPING &&
+        OldDeviceState != HIDUSB_STATE_STOPPED)
+    {
+        DPRINT("[HIDUSB] FIXME RemoveLock support\n");
+    }
+
+    //
+    // abort pending requests if state was "running"
+    //
+    if (OldDeviceState == HIDUSB_STATE_RUNNING)
+    {
+        HidUsb_AbortPipe(DeviceObject);
+    }
+
+    DPRINT("[HIDUSB] Hid_RemoveDevice: State - %x\n", HidDeviceExtension->HidState);
+
+    //
+    // prepare request
+    //
+    IoSkipCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+
+    //
+    // send request to driver for lower device
+    //
+    Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
+
+    //
+    // free resources
+    //
+    Hid_Cleanup(DeviceObject);
+
+    return Status;
+}
 
 NTSTATUS
 NTAPI
@@ -1689,12 +1891,14 @@ HidPnp(
     NTSTATUS Status;
     PIO_STACK_LOCATION IoStack;
     PHID_DEVICE_EXTENSION DeviceExtension;
+    PHID_USB_DEVICE_EXTENSION HidDeviceExtension;
     KEVENT Event;
 
     //
     // get device extension
     //
     DeviceExtension = DeviceObject->DeviceExtension;
+    HidDeviceExtension = DeviceExtension->MiniDeviceExtension;
 
     //
     // get current stack location
@@ -1703,183 +1907,131 @@ HidPnp(
     DPRINT("[HIDUSB] Pnp %x\n", IoStack->MinorFunction);
 
     //
-    // handle requests based on request type
+    // handle request before sending to lower device
     //
     switch (IoStack->MinorFunction)
     {
-        case IRP_MN_REMOVE_DEVICE:
-        {
-            //
-            // unconfigure device
-            // FIXME: Call this on IRP_MN_SURPRISE_REMOVAL, but don't send URBs
-            // FIXME: Don't call this after we've already seen a surprise removal or stop
-            //
-            Hid_DisableConfiguration(DeviceObject);
-
-            //
-            // pass request onto lower driver
-            //
-            IoSkipCurrentIrpStackLocation(Irp);
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-
-            return Status;
-        }
-        case IRP_MN_QUERY_PNP_DEVICE_STATE:
-        {
-            //
-            // device can not be disabled
-            //
-            Irp->IoStatus.Information |= PNP_DEVICE_NOT_DISABLEABLE;
-
-            //
-            // pass request to next request
-            //
-            IoSkipCurrentIrpStackLocation(Irp);
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-
-            //
-            // done
-            //
-            return Status;
-        }
-        case IRP_MN_QUERY_STOP_DEVICE:
-        case IRP_MN_QUERY_REMOVE_DEVICE:
-        {
-            //
-            // we're fine with it
-            //
-            Irp->IoStatus.Status = STATUS_SUCCESS;
-
-            //
-            // pass request to next driver
-            //
-            IoSkipCurrentIrpStackLocation(Irp);
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-
-            //
-            // done
-            //
-            return Status;
-        }
-        case IRP_MN_STOP_DEVICE:
-        {
-            //
-            // unconfigure device
-            //
-            Hid_DisableConfiguration(DeviceObject);
-
-            //
-            // prepare irp
-            //
-            KeInitializeEvent(&Event, NotificationEvent, FALSE);
-            IoCopyCurrentIrpStackLocationToNext(Irp);
-            IoSetCompletionRoutine(Irp, Hid_PnpCompletion, &Event, TRUE, TRUE, TRUE);
-
-            //
-            // send irp and wait for completion
-            //
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-            if (Status == STATUS_PENDING)
-            {
-                KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
-                Status = Irp->IoStatus.Status;
-            }
-
-            //
-            // done
-            //
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return Status;
-        }
-        case IRP_MN_QUERY_CAPABILITIES:
-        {
-            //
-            // prepare irp
-            //
-            KeInitializeEvent(&Event, NotificationEvent, FALSE);
-            IoCopyCurrentIrpStackLocationToNext(Irp);
-            IoSetCompletionRoutine(Irp, Hid_PnpCompletion, &Event, TRUE, TRUE, TRUE);
-
-            //
-            // send irp and wait for completion
-            //
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-            if (Status == STATUS_PENDING)
-            {
-                KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
-                Status = Irp->IoStatus.Status;
-            }
-
-            if (NT_SUCCESS(Status) && IoStack->Parameters.DeviceCapabilities.Capabilities != NULL)
-            {
-                //
-                // don't need to safely remove
-                //
-                IoStack->Parameters.DeviceCapabilities.Capabilities->SurpriseRemovalOK = TRUE;
-            }
-
-            //
-            // done
-            //
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return Status;
-        }
         case IRP_MN_START_DEVICE:
-        {
-            //
-            // prepare irp
-            //
-            KeInitializeEvent(&Event, NotificationEvent, FALSE);
-            IoCopyCurrentIrpStackLocationToNext(Irp);
-            IoSetCompletionRoutine(Irp, Hid_PnpCompletion, &Event, TRUE, TRUE, TRUE);
+            Status = Hid_Init(DeviceObject);
 
-            //
-            // send irp and wait for completion
-            //
-            Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
-            if (Status == STATUS_PENDING)
-            {
-                KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
-                Status = Irp->IoStatus.Status;
-            }
-
-            //
-            // did the device successfully start
-            //
             if (!NT_SUCCESS(Status))
             {
-                //
-                // failed
-                //
-                DPRINT1("HIDUSB: IRP_MN_START_DEVICE failed with %x\n", Status);
+                Irp->IoStatus.Status = Status;
                 IoCompleteRequest(Irp, IO_NO_INCREMENT);
                 return Status;
             }
+            break;
 
-            //
-            // start device
-            //
-            Status = Hid_PnpStart(DeviceObject);
+        case IRP_MN_STOP_DEVICE:
+            if (HidDeviceExtension->HidState == HIDUSB_STATE_STARTING)
+            {
+                Status = Hid_StopDevice(DeviceObject);
 
-            //
-            // complete request
-            //
-            Irp->IoStatus.Status = Status;
-            DPRINT("[HIDUSB] IRP_MN_START_DEVICE Status %x\n", Status);
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            return Status;
-        }
+                if (!NT_SUCCESS(Status))
+                {
+                    Irp->IoStatus.Status = Status;
+                    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+                    return Status;
+                }
+            }
+            break;
+
+        case IRP_MN_REMOVE_DEVICE:
+            return Hid_RemoveDevice(DeviceObject, Irp);
+
+        case IRP_MN_QUERY_PNP_DEVICE_STATE:
+            DPRINT("[HIDUSB] IRP_MN_QUERY_PNP_DEVICE_STATE. HidState - %x\n",
+                   HidDeviceExtension->HidState);
+
+            if (HidDeviceExtension->HidState == HIDUSB_STATE_FAILED)
+            {
+                DPRINT1("[HIDUSB] PNP_DEVICE_FAILED!\n");
+                DPRINT1("[FIXME: PnP manager have bag (IoInvalidateDeviceState())!\n");
+                //
+                // HACK: due problem disconnecting from PC USB port CORE-9070).
+                // W2003 not call this code in it case.
+                //
+
+                //Irp->IoStatus.Information |= PNP_DEVICE_FAILED;
+            }
+            break;
+
         default:
+            break;
+    }
+
+    //
+    // prepare request
+    //
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    IoSetCompletionRoutine(Irp,
+                           Hid_PnpCompletion,
+                           &Event,
+                           TRUE,
+                           TRUE,
+                           TRUE);
+
+    //
+    // send request to driver for lower device and wait for completion
+    //
+    Status = IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
+
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event,
+                              Executive,
+                              KernelMode,
+                              0,
+                              NULL);
+    }
+
+    Status = Irp->IoStatus.Status;
+
+    //
+    // complete handle request
+    //
+    if (IoStack->MinorFunction != IRP_MN_START_DEVICE)
+    {
+        if (IoStack->MinorFunction == IRP_MN_STOP_DEVICE)
         {
-             //
-             // forward and forget request
-             //
-             IoSkipCurrentIrpStackLocation(Irp);
-             return IoCallDriver(DeviceExtension->NextDeviceObject, Irp);
+            HidDeviceExtension->HidState = HIDUSB_STATE_STOPPED;
+
+            //
+            // free resources
+            //
+            Hid_Cleanup(DeviceObject);
+        }
+        else if (IoStack->MinorFunction == IRP_MN_QUERY_CAPABILITIES &&
+                 NT_SUCCESS(Status))
+        {
+            IoStack->Parameters.DeviceCapabilities.Capabilities->SurpriseRemovalOK = TRUE;
         }
     }
-}
+    else if (!NT_SUCCESS(Status))
+    {
+        HidDeviceExtension->HidState = HIDUSB_STATE_FAILED;
+    }
+    else
+    {
+        //
+        // IRP_MN_START_DEVICE
+        //
+        HidDeviceExtension->HidState = HIDUSB_STATE_STARTING;
 
+        Status = Hid_StartDevice(DeviceObject);
+
+        if (!NT_SUCCESS(Status))
+        {
+            HidDeviceExtension->HidState = HIDUSB_STATE_FAILED;
+        }
+    }
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return Status;
+}
 NTSTATUS
 NTAPI
 HidAddDevice(
@@ -1901,8 +2053,10 @@ HidAddDevice(
     KeInitializeEvent(&HidDeviceExtension->Event, NotificationEvent, FALSE);
 
     //
-    // done
+    // set HidState as not initialized value
     //
+    HidDeviceExtension->HidState = 0;
+
     return STATUS_SUCCESS;
 }
 
