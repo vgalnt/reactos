@@ -707,6 +707,13 @@ USBCCGP_PDOSelectConfiguration(
     Urb = (PURB)IoStack->Parameters.Others.Argument1;
     ASSERT(Urb);
 
+    /* if ConfigurationDescriptor == NULL, then is closing configuration */
+    if ( !Urb->UrbSelectConfiguration.ConfigurationDescriptor )
+    {
+        DPRINT1("[USBCCGP] SelectConfiguration: closing configuration\n");
+        return STATUS_SUCCESS;
+    }
+
     //
     // is there already an configuration handle
     //
