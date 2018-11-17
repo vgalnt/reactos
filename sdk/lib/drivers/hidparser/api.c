@@ -539,7 +539,7 @@ HidParser_GetUsagesWithReport(
     return HIDPARSER_STATUS_SUCCESS;
 }
 
-ULONG
+BOOLEAN
 HidParser_UsesReportId(
     IN PVOID CollectionContext,
     IN UCHAR  ReportType)
@@ -563,6 +563,26 @@ HidParser_UsesReportId(
     //
     return (Report->ReportID != 0);
 
+}
+
+UCHAR
+HidParser_GetReportId(
+    IN PVOID CollectionContext,
+    IN UCHAR ReportType)
+{
+    PHID_REPORT Report;
+
+    /* get report */
+    Report = HidParser_GetReportInCollection(CollectionContext, ReportType);
+
+    if (!Report)
+    {
+        /* no such report */
+        return 0;
+    }
+
+    /* returns report id */
+    return Report->ReportID;
 }
 
 HIDPARSER_STATUS
