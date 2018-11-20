@@ -4651,6 +4651,7 @@ RunUSetup(VOID)
     NTSTATUS Status;
     BOOLEAN Old;
 
+    DPRINT("RunUSetup: ... \n");
     NtQuerySystemTime(&Time);
 
     /* Create the PnP thread in suspended state */
@@ -4704,11 +4705,23 @@ RunUSetup(VOID)
         {
             /* Start page */
             case START_PAGE:
+                DPRINT("RunUSetup: START_PAGE\n");
                 Page = SetupStartPage(&Ir);
+#if 1
+{
+    LARGE_INTEGER Timeout;
+    Timeout.QuadPart = 5000LL; // 5 sec
+    DPRINT("Waiting %lu milliseconds (START_PAGE)\n", Timeout.LowPart);
+    Timeout.QuadPart *= -10000LL;  // convert to 100 ns units (absolute)
+    NtDelayExecution(FALSE, &Timeout);
+    DPRINT("End Waiting (START_PAGE)\n");
+}
+#endif
                 break;
 
             /* Language page */
             case LANGUAGE_PAGE:
+                DPRINT("RunUSetup: LANGUAGE_PAGE\n");
                 Page = LanguagePage(&Ir);
                 break;
 
@@ -4868,6 +4881,19 @@ RunUSetup(VOID)
 VOID NTAPI
 NtProcessStartup(PPEB Peb)
 {
+    DPRINT("NtProcessStartup: \n");
+
+#if 1
+{
+    LARGE_INTEGER Timeout;
+    Timeout.QuadPart = 5000LL; // 5 sec
+    DPRINT("Waiting %lu milliseconds (NtProcessStartup)\n", Timeout.LowPart);
+    Timeout.QuadPart *= -10000LL;  // convert to 100 ns units (absolute)
+    NtDelayExecution(FALSE, &Timeout);
+    DPRINT("End Waiting (NtProcessStartup)\n");
+}
+#endif
+
     RtlNormalizeProcessParams(Peb->ProcessParameters);
 
     ProcessHeap = Peb->ProcessHeap;
