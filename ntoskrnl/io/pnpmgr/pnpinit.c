@@ -9,6 +9,8 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "../pnpio.h"
+
 #define NDEBUG
 #include <debug.h>
 
@@ -23,6 +25,13 @@ typedef struct _IOPNP_DEVICE_EXTENSION
 PUNICODE_STRING PiInitGroupOrderTable;
 USHORT PiInitGroupOrderTableCount;
 INTERFACE_TYPE PnpDefaultInterfaceType;
+
+KSPIN_LOCK IopPnPSpinLock;
+LIST_ENTRY IopPnpEnumerationRequestList;
+KEVENT PiEnumerationLock;
+
+ERESOURCE PiEngineLock;
+ERESOURCE PiDeviceTreeLock;
 
 /* FUNCTIONS ******************************************************************/
 
@@ -398,9 +407,13 @@ IopInitializePlugPlayServices(VOID)
     PDEVICE_OBJECT Pdo;
 
     /* Initialize locks and such */
+    KeInitializeSpinLock(&IopPnPSpinLock);
     KeInitializeSpinLock(&IopDeviceTreeLock);
     KeInitializeSpinLock(&IopDeviceActionLock);
-    InitializeListHead(&IopDeviceActionRequestList);
+    InitializeListHead(&IopPnpEnumerationRequestList);
+    KeInitializeEvent(&PiEnumerationLock, NotificationEvent, TRUE);
+    ExInitializeResourceLite(&PiEngineLock);
+    ExInitializeResourceLite(&PiDeviceTreeLock);
 
     /* Get the default interface */
     PnpDefaultInterfaceType = IopDetermineDefaultInterfaceType();

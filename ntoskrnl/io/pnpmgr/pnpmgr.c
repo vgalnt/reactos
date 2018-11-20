@@ -34,19 +34,12 @@ extern BOOLEAN PnpSystemInit;
 
 PDRIVER_OBJECT IopRootDriverObject;
 PIO_BUS_TYPE_GUID_LIST PnpBusTypeGuidList = NULL;
-LIST_ENTRY IopDeviceActionRequestList;
 WORK_QUEUE_ITEM IopDeviceActionWorkItem;
 BOOLEAN IopDeviceActionInProgress;
 KSPIN_LOCK IopDeviceActionLock;
 
-typedef struct _DEVICE_ACTION_DATA
-{
-    LIST_ENTRY RequestListEntry;
-    PDEVICE_OBJECT DeviceObject;
-    DEVICE_RELATION_TYPE Type;
-} DEVICE_ACTION_DATA, *PDEVICE_ACTION_DATA;
-
 /* FUNCTIONS *****************************************************************/
+
 NTSTATUS
 NTAPI
 IopCreateDeviceKeyPath(IN PCUNICODE_STRING RegistryPath,
@@ -745,7 +738,7 @@ IopStartAndEnumerateDevice(IN PDEVICE_NODE DeviceNode)
         (DeviceNode->Flags & DNF_NEED_ENUMERATION_ONLY))
     {
         /* Enumerate us */
-        IoSynchronousInvalidateDeviceRelations(DeviceObject, BusRelations);
+        IoInvalidateDeviceRelations(DeviceObject, BusRelations);
         Status = STATUS_SUCCESS;
     }
     else
@@ -904,36 +897,6 @@ IopQueryDeviceCapabilities(PDEVICE_NODE DeviceNode,
    }
 
    return Status;
-}
-
-static
-VOID
-NTAPI
-IopDeviceActionWorker(
-    _In_ PVOID Context)
-{
-    PLIST_ENTRY ListEntry;
-    PDEVICE_ACTION_DATA Data;
-    KIRQL OldIrql;
-
-    KeAcquireSpinLock(&IopDeviceActionLock, &OldIrql);
-    while (!IsListEmpty(&IopDeviceActionRequestList))
-    {
-        ListEntry = RemoveHeadList(&IopDeviceActionRequestList);
-        KeReleaseSpinLock(&IopDeviceActionLock, OldIrql);
-        Data = CONTAINING_RECORD(ListEntry,
-                                 DEVICE_ACTION_DATA,
-                                 RequestListEntry);
-
-        IoSynchronousInvalidateDeviceRelations(Data->DeviceObject,
-                                               Data->Type);
-
-        ObDereferenceObject(Data->DeviceObject);
-        ExFreePoolWithTag(Data, TAG_IO);
-        KeAcquireSpinLock(&IopDeviceActionLock, &OldIrql);
-    }
-    IopDeviceActionInProgress = FALSE;
-    KeReleaseSpinLock(&IopDeviceActionLock, OldIrql);
 }
 
 NTSTATUS
@@ -4881,73 +4844,6 @@ IoRequestDeviceEject(IN PDEVICE_OBJECT PhysicalDeviceObject)
 cleanup:
     IopQueueTargetDeviceEvent(&GUID_DEVICE_EJECT_VETOED,
                               &DeviceNode->InstancePath);
-}
-
-/*
- * @implemented
- */
-VOID
-NTAPI
-IoInvalidateDeviceRelations(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN DEVICE_RELATION_TYPE Type)
-{
-    PDEVICE_ACTION_DATA Data;
-    KIRQL OldIrql;
-
-    Data = ExAllocatePoolWithTag(NonPagedPool,
-                                 sizeof(DEVICE_ACTION_DATA),
-                                 TAG_IO);
-    if (!Data)
-        return;
-
-    ObReferenceObject(DeviceObject);
-    Data->DeviceObject = DeviceObject;
-    Data->Type = Type;
-
-    KeAcquireSpinLock(&IopDeviceActionLock, &OldIrql);
-    InsertTailList(&IopDeviceActionRequestList, &Data->RequestListEntry);
-    if (IopDeviceActionInProgress)
-    {
-        KeReleaseSpinLock(&IopDeviceActionLock, OldIrql);
-        return;
-    }
-    IopDeviceActionInProgress = TRUE;
-    KeReleaseSpinLock(&IopDeviceActionLock, OldIrql);
-
-    ExInitializeWorkItem(&IopDeviceActionWorkItem,
-                         IopDeviceActionWorker,
-                         NULL);
-    ExQueueWorkItem(&IopDeviceActionWorkItem,
-                    DelayedWorkQueue);
-}
-
-/*
- * @implemented
- */
-NTSTATUS
-NTAPI
-IoSynchronousInvalidateDeviceRelations(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN DEVICE_RELATION_TYPE Type)
-{
-    PAGED_CODE();
-
-    switch (Type)
-    {
-        case BusRelations:
-            /* Enumerate the device */
-            return IopEnumerateDevice(DeviceObject);
-        case PowerRelations:
-             /* Not handled yet */
-             return STATUS_NOT_IMPLEMENTED;
-        case TargetDeviceRelation:
-            /* Nothing to do */
-            return STATUS_SUCCESS;
-        default:
-            /* Ejection relations are not supported */
-            return STATUS_NOT_SUPPORTED;
-    }
 }
 
 /*
