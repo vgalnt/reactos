@@ -115,6 +115,7 @@ usbhub.sys   = 1,,,,,,x,4,,,,1,4
 usbuhci.sys  = 1,,,,,,x,4,,,,1,4
 usbohci.sys  = 1,,,,,,x,4,,,,1,4
 usbehci.sys  = 1,,,,,,x,4,,,,1,4
+usbport.sys  = 1,,,,,,,4,,,,1,4
 usbstor.sys  = 1,,,,,,x,4,,,,1,4
 kbdhid.sys   = 1,,,,,,,4,,,,1,4
 kbdclass.sys = 1,,,,,,x,4,,,,1,4
@@ -160,7 +161,7 @@ PCI\CC_0105 = uniata
 PCI\CC_0106 = uniata
 ;PCI\CC_0106 = storahci
 *PNP0600 = uniata
-;USB\CLASS_09 = usbhub
+USB\CLASS_09 = usbhub
 USB\ROOT_HUB = usbhub
 USB\ROOT_HUB20 = usbhub
 PCI\CC_0C0300 = usbuhci
@@ -168,11 +169,30 @@ PCI\CC_0C0310 = usbohci
 PCI\CC_0C0320 = usbehci
 USB\Class_08&SubClass_06&Prot_50 = usbstor
 HID_DEVICE_SYSTEM_KEYBOARD = kbdhid,{4D36E96B-E325-11CE-BFC1-08002BE10318}
+HID_DEVICE_SYSTEM_MOUSE = mouhid,{4D36E96F-E325-11CE-BFC1-08002BE10318}
 USB\COMPOSITE = usbccgp
 GenDisk = disk
 USB\Class_03 = hidusb
 GENERIC_HID_DEVICE = hidusb
+*PNP0300 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*PNP0301 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*PNP0302 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
 *PNP0303 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}
+*PNP0304 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*PNP0305 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*PNP0306 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*PNP0309 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*PNP030a = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*PNP030b = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*PNP0320 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*CPQA0D7 = i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+PS2_KEYBOARD= i8042prt,{4D36E96B-E325-11CE-BFC1-08002BE10318}    
+*PNP0F03 = i8042prt,{4D36E96F-E325-11CE-BFC1-08002BE10318}    
+*PNP0F0B = i8042prt,{4D36E96F-E325-11CE-BFC1-08002BE10318}    
+*PNP0F0E = i8042prt,{4D36E96F-E325-11CE-BFC1-08002BE10318}    
+*PNP0F12 = i8042prt,{4D36E96F-E325-11CE-BFC1-08002BE10318}    
+*PNP0F13 = i8042prt,{4D36E96F-E325-11CE-BFC1-08002BE10318}    
+PS2_MOUSE= i8042prt,{4D36E96F-E325-11CE-BFC1-08002BE10318}    
 ROOT\SWENUM = swenum
 
 [BootBusExtenders.Load]
@@ -181,9 +201,6 @@ pci = pci.sys
 isapnp = isapnp.sys
 
 [InputDevicesSupport.Load]
-usbehci = usbehci.sys
-usbohci = usbohci.sys
-usbuhci = usbuhci.sys
 usbhub = usbhub.sys
 usbccgp = usbccgp.sys
 hidusb = hidusb.sys
@@ -193,8 +210,15 @@ usbstor = usbstor.sys
 kbdhid = kbdhid.sys
 i8042prt = i8042prt.sys
 
+[MouseDrivers.Load]
+mouclass = mouclass.sys
+mouhid = mouhid.sys
+
 [BusExtenders.Load]
 pciide = pciide.sys
+usbehci = usbehci.sys
+usbohci = usbohci.sys
+usbuhci = usbuhci.sys
 
 [SCSI.Load]
 uniata = uniata.sys

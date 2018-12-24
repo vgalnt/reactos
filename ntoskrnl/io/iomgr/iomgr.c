@@ -584,9 +584,6 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
         return FALSE;
     }
 
-    /* No one should need loader block any longer */
-    IopLoaderBlock = NULL;
-
     /* Check if this was a ramdisk boot */
     if (!_strnicmp(LoaderBlock->ArcBootDeviceName, "ramdisk(0)", 10))
     {
@@ -630,6 +627,9 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 
     /* Initialize PnP root relations */
     IopEnumerateDevice(IopRootDeviceNode->PhysicalDeviceObject);
+
+    /* No one should need loader block any longer */
+    IopLoaderBlock = NULL;
 
 #ifndef _WINKD_
     /* Read KDB Data */

@@ -28,6 +28,7 @@
 
 DBG_DEFAULT_CHANNEL(WINDOWS);
 #define TAG_BOOT_OPTIONS 'pOtB'
+#define TAG_HARDWARE_ID 'dIwH'
 
 // TODO: Move to .h
 VOID AllocateAndInitLPB(PLOADER_PARAMETER_BLOCK *OutLoaderBlock);
@@ -133,6 +134,71 @@ SetupLdrScanBootDrivers(PLIST_ENTRY BootDriverListHead, HINF InfHandle, LPCSTR S
     } while (InfFindNextLine(&InfContext, &InfContext));
 }
 
+static VOID
+SetupLdrLoadHardwareIdsDatabase(PSETUP_LOADER_BLOCK SetupBlock, HINF InfHandle, LPCSTR SearchPath)
+{
+    INFCONTEXT InfContext;
+    LPCSTR Id;
+    LPCSTR DriverName;
+    SIZE_T Size;
+    PVOID Temp;
+    PPNP_HARDWARE_ID HardwareId;
+    PPNP_HARDWARE_ID HeadHardwareId;
+    PPNP_HARDWARE_ID LastHardwareId = NULL;
+
+    /* Open inf section */
+    if (!InfFindFirstLine(InfHandle, "HardwareIdsDatabase", NULL, &InfContext))
+        return;
+
+    /* Load all HardwareIds */
+    do
+    {
+        if (InfGetDataField(&InfContext, 0, &Id) &&
+            InfGetDataField(&InfContext, 1, &DriverName))
+        {
+            /* Allocate and initialize the new struct _PNP_HARDWARE_ID */
+            Size = sizeof(PNP_HARDWARE_ID);
+            HardwareId = FrLdrHeapAlloc(Size, TAG_HARDWARE_ID);
+            if (HardwareId == NULL)
+                return;
+
+            memset(HardwareId, 0, Size);
+
+            /* For link field */
+            if(LastHardwareId)
+               LastHardwareId->Next = (PPNP_HARDWARE_ID)((ULONG)HardwareId | 0x80000000);
+            else
+               HeadHardwareId = (PPNP_HARDWARE_ID)((ULONG)HardwareId | 0x80000000); //first record
+
+            /* DPRINT */
+            //ERR("SetupLdrLoadHardwareIdsDatabase: HardwareId - %p\n", HardwareId);
+
+            LastHardwareId = HardwareId;
+
+            /* Allocate and copy name Id */
+            Size = strlen(Id) + 1;
+            Temp = FrLdrHeapAlloc(Size, TAG_HARDWARE_ID);
+            if (Temp == NULL)
+                return;
+
+            memmove(Temp, Id, Size);
+
+            HardwareId->Id = (PCHAR)((ULONG)Temp | 0x80000000);
+
+            /* Allocate and copy driver name */
+            Size = strlen(DriverName) + 1;
+            Temp = FrLdrHeapAlloc(Size, TAG_HARDWARE_ID);
+            if (Temp == NULL)
+                return;
+
+            memmove(Temp, DriverName, Size);
+
+            HardwareId->DriverName = (PCHAR)((ULONG)Temp | 0x80000000);
+        }
+    } while (InfFindNextLine(&InfContext, &InfContext));
+
+    SetupBlock->HardwareIdDatabase = (PPNP_HARDWARE_ID)((ULONG)HeadHardwareId | 0x80000000);
+}
 
 /* SETUP STARTER **************************************************************/
 
@@ -342,6 +408,9 @@ LoadReactOSSetup(IN OperatingSystemItem* OperatingSystem,
 
     /* Get a list of boot drivers */
     SetupLdrScanBootDrivers(&LoaderBlock->BootDriverListHead, InfHandle, BootPath);
+
+    /* Load HardwareIds Database */
+    SetupLdrLoadHardwareIdsDatabase(SetupBlock, InfHandle, BootPath);
 
     /* Close the inf file */
     InfCloseFile(InfHandle);
