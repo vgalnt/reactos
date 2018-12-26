@@ -526,6 +526,7 @@ USBH_IsVidPidFromBlackList(IN USHORT IdVendor,
               case 0xb2b9: // Lenovo Integrated Camera UVC
               case 0xb2da: // thinkpad t430s camera
               case 0xb2ea: // Integrated Camera [ThinkPad]
+              case 0xb2f4: //  HP Webcam-50 // USB\VID_04F2&PID_B2F4&REV_111
               case 0xb330: // Asus 720p CMOS webcam
               case 0xb354: // UVC 1.00 device HD UVC WebCam
               case 0xb367: // webcamera // USB\Vid_04f2&Pid_b367&Rev_3114
@@ -572,12 +573,28 @@ USBH_IsVidPidFromBlackList(IN USHORT IdVendor,
             }
             break;
 
+        case 0x05ac: // Macbook
+            switch (IdProduct)
+            {
+              case 0x1112: // 
+              case 0x8509: // 
+              case 0x850a: // 
+              case 0x8510: // 
+              case 0x1000: // bluetooth
+                  Result = TRUE;
+                  break;
+              default:
+                  break;
+            }
+            break;
+
         case 0x05c8: // Cheng Uei Precision Industry Co., Ltd (Foxlink)
             switch (IdProduct)
             {
               case 0x0103: // FO13FF-65 PC-CAM
               case 0x010b: // Webcam (UVC)
               case 0x021a: // HP Webcam
+              case 0x022a: // HP Webcam
               case 0x0318: // Webcam
               case 0x0359: // Webcam // USB\Vid_05c8&Pid_0359
               case 0x0361: // SunplusIT INC. HP Truevision HD Webcam
@@ -673,7 +690,7 @@ USBH_IsVidPidFromBlackList(IN USHORT IdVendor,
               case 0x5730: // HP 2.0MP High Definition Webcam
               case 0x5751: // Integrated Webcam
               case 0x5775: // HP "Truevision HD" laptop camera
-              case 0x57b3: // Acer 640 × 480 laptop camera
+              case 0x57b3: // Acer 640 x 480 laptop camera
               case 0x57b5: // laptop camera // USB\VID_0BDA&PID_57B5&REV_0012
               case 0x57da: // Built-In Video Camera
               case 0x58c0: // Webcam
@@ -786,6 +803,7 @@ USBH_IsVidPidFromBlackList(IN USHORT IdVendor,
               case 0x63e0: // Sonix Integrated Webcam
               case 0x63f1: // Integrated Webcam
               case 0x63f8: // Sonix Integrated Webcam
+              case 0x6404: // Webcam // USB\Vid_0c45&Pid_6404
               case 0x6409: // Webcam // USB\Vid_0c45&Pid_6409
               case 0x6413: // Integrated Webcam
               case 0x6417: // Integrated Webcam
@@ -804,6 +822,17 @@ USBH_IsVidPidFromBlackList(IN USHORT IdVendor,
               case 0x6710: // Integrated Webcam
               case 0x8006: // Dual Mode Camera (8006 VGA)
               case 0x800a: // Vivitar Vivicam3350B
+                  Result = TRUE;
+                  break;
+              default:
+                  break;
+            }
+            break;
+
+        case 0x13d3: // 
+            switch (IdProduct)
+            {
+              case 0x5165: // 
                   Result = TRUE;
                   break;
               default:
