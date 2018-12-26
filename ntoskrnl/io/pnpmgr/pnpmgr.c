@@ -441,18 +441,20 @@ IopInitializeDevice(PDEVICE_NODE DeviceNode,
     if (!DriverObject)
     {
         /* Special case for bus driven devices */
-        DeviceNode->Flags |= DNF_ADDED;
+ASSERT(FALSE);
+        //DeviceNode->Flags |= DNF_ADDED;
         return STATUS_SUCCESS;
     }
 
     if (!DriverObject->DriverExtension->AddDevice)
     {
-        DeviceNode->Flags |= DNF_LEGACY_DRIVER;
+        //DeviceNode->Flags |= DNF_LEGACY_DRIVER;
     }
 
     if (DeviceNode->Flags & DNF_LEGACY_DRIVER)
     {
-        DeviceNode->Flags |= (DNF_ADDED | DNF_STARTED);
+ASSERT(FALSE);
+        //DeviceNode->Flags |= (DNF_ADDED | DNF_STARTED);
         return STATUS_SUCCESS;
     }
 
@@ -471,7 +473,8 @@ IopInitializeDevice(PDEVICE_NODE DeviceNode,
                 &DriverObject->DriverName,
                 &DeviceNode->InstancePath,
                 Status);
-        IopDeviceNodeSetFlag(DeviceNode, DNF_DISABLED);
+ASSERT(FALSE);
+        //IopDeviceNodeSetFlag(DeviceNode, DNF_DISABLED);
         DeviceNode->Problem = CM_PROB_FAILED_ADD;
         return Status;
     }
@@ -494,7 +497,8 @@ IopInitializeDevice(PDEVICE_NODE DeviceNode,
 
     ObDereferenceObject(Fdo);
 
-    IopDeviceNodeSetFlag(DeviceNode, DNF_ADDED);
+ASSERT(FALSE);
+    //IopDeviceNodeSetFlag(DeviceNode, DNF_ADDED);
 
     return STATUS_SUCCESS;
 }
@@ -587,6 +591,8 @@ VOID
 NTAPI
 IopSendRemoveDevice(IN PDEVICE_OBJECT DeviceObject)
 {
+ASSERT(FALSE);
+#if 0
     IO_STACK_LOCATION Stack;
     PVOID Dummy;
     PDEVICE_NODE DeviceNode = IopGetDeviceNode(DeviceObject);
@@ -607,6 +613,7 @@ IopSendRemoveDevice(IN PDEVICE_OBJECT DeviceObject)
                                   NULL,
                                   NULL);
     ObDereferenceObject(DeviceObject);
+#endif
 }
 
 static
@@ -660,7 +667,8 @@ IopStartDevice2(IN PDEVICE_OBJECT DeviceObject)
     /* Get the device node */
     DeviceNode = IopGetDeviceNode(DeviceObject);
 
-    ASSERT(!(DeviceNode->Flags & DNF_DISABLED));
+ASSERT(FALSE);
+    //ASSERT(!(DeviceNode->Flags & DNF_DISABLED));
 
     /* Build the I/O stack location */
     RtlZeroMemory(&Stack, sizeof(IO_STACK_LOCATION));
@@ -680,8 +688,9 @@ IopStartDevice2(IN PDEVICE_OBJECT DeviceObject)
         IopRemoveDevice(DeviceNode);
 
         /* Set the appropriate flag */
-        DeviceNode->Flags |= DNF_START_FAILED;
-        DeviceNode->Problem = CM_PROB_FAILED_START;
+ASSERT(FALSE);
+        //DeviceNode->Flags |= DNF_START_FAILED;
+        //DeviceNode->Problem = CM_PROB_FAILED_START;
 
         DPRINT1("Warning: PnP Start failed (%wZ) [Status: 0x%x]\n", &DeviceNode->InstancePath, Status);
         return;
@@ -699,11 +708,13 @@ IopStartDevice2(IN PDEVICE_OBJECT DeviceObject)
     IoInvalidateDeviceState(DeviceObject);
 
     /* Otherwise, mark us as started */
-    DeviceNode->Flags |= DNF_STARTED;
-    DeviceNode->Flags &= ~DNF_STOPPED;
+ASSERT(FALSE);
+    //DeviceNode->Flags |= DNF_STARTED;
+    //DeviceNode->Flags &= ~DNF_STOPPED;
 
     /* We now need enumeration */
-    DeviceNode->Flags |= DNF_NEED_ENUMERATION_ONLY;
+ASSERT(FALSE);
+    //DeviceNode->Flags |= DNF_NEED_ENUMERATION_ONLY;
 }
 
 NTSTATUS
@@ -715,16 +726,18 @@ IopStartAndEnumerateDevice(IN PDEVICE_NODE DeviceNode)
     PAGED_CODE();
 
     /* Sanity check */
-    ASSERT((DeviceNode->Flags & DNF_ADDED));
-    ASSERT((DeviceNode->Flags & (DNF_RESOURCE_ASSIGNED |
-                                 DNF_RESOURCE_REPORTED |
-                                 DNF_NO_RESOURCE_REQUIRED)));
+ASSERT(FALSE);
+    //ASSERT((DeviceNode->Flags & DNF_ADDED));
+    //ASSERT((DeviceNode->Flags & (DNF_RESOURCE_ASSIGNED |
+    //                             DNF_RESOURCE_REPORTED |
+    //                             DNF_NO_RESOURCE_REQUIRED)));
 
     /* Get the device object */
     DeviceObject = DeviceNode->PhysicalDeviceObject;
 
     /* Check if we're not started yet */
-    if (!(DeviceNode->Flags & DNF_STARTED))
+ASSERT(FALSE);
+    if (0)//!(DeviceNode->Flags & DNF_STARTED))
     {
         /* Start us */
         IopStartDevice2(DeviceObject);
@@ -741,8 +754,9 @@ IopStartAndEnumerateDevice(IN PDEVICE_NODE DeviceNode)
 #endif
 
     /* Make sure we're started, and check if we need enumeration */
-    if ((DeviceNode->Flags & DNF_STARTED) &&
-        (DeviceNode->Flags & DNF_NEED_ENUMERATION_ONLY))
+ASSERT(FALSE);
+    if (0)//(DeviceNode->Flags & DNF_STARTED) &&
+        //(DeviceNode->Flags & DNF_NEED_ENUMERATION_ONLY))
     {
         /* Enumerate us */
         IoSynchronousInvalidateDeviceRelations(DeviceObject, BusRelations);
@@ -771,8 +785,9 @@ IopStopDevice(
     {
         IopSendStopDevice(DeviceNode->PhysicalDeviceObject);
 
-        DeviceNode->Flags &= ~(DNF_STARTED | DNF_START_REQUEST_PENDING);
-        DeviceNode->Flags |= DNF_STOPPED;
+ASSERT(FALSE);
+        //DeviceNode->Flags &= ~(DNF_STARTED | DNF_START_REQUEST_PENDING);
+        //DeviceNode->Flags |= DNF_STOPPED;
 
         return STATUS_SUCCESS;
     }
@@ -784,7 +799,9 @@ NTSTATUS
 IopStartDevice(
    PDEVICE_NODE DeviceNode)
 {
-    NTSTATUS Status;
+ ASSERT(FALSE); return STATUS_UNSUCCESSFUL;
+#if 0
+   NTSTATUS Status;
     HANDLE InstanceHandle = NULL, ControlHandle = NULL;
     UNICODE_STRING KeyName, ValueString;
     OBJECT_ATTRIBUTES ObjectAttributes;
@@ -837,6 +854,7 @@ ByeBye:
         ZwClose(InstanceHandle);
 
     return Status;
+#endif
 }
 
 NTSTATUS
@@ -1169,9 +1187,10 @@ IopCreateDeviceNode(PDEVICE_NODE ParentNode,
         }
 
         IopDeviceNodeSetFlag(Node, DNF_LEGACY_DRIVER);
-        IopDeviceNodeSetFlag(Node, DNF_PROCESSED);
-        IopDeviceNodeSetFlag(Node, DNF_ADDED);
-        IopDeviceNodeSetFlag(Node, DNF_STARTED);
+ASSERT(FALSE);
+//      IopDeviceNodeSetFlag(Node, DNF_PROCESSED);
+//      IopDeviceNodeSetFlag(Node, DNF_ADDED);
+//      IopDeviceNodeSetFlag(Node, DNF_STARTED);
     }
 
     Node->PhysicalDeviceObject = PhysicalDeviceObject;
@@ -2011,13 +2030,15 @@ IopCreateDeviceInstancePath(
     if (DeviceCapabilities.HardwareDisabled)
     {
         /* FIXME: Cleanup device */
-        DeviceNode->Flags |= DNF_DISABLED;
+ASSERT(FALSE);
+        //DeviceNode->Flags |= DNF_DISABLED;
         RtlFreeUnicodeString(&DeviceId);
         return STATUS_PLUGPLAY_NO_DEVICE;
     }
     else
     {
-        DeviceNode->Flags &= ~DNF_DISABLED;
+ASSERT(FALSE);
+        //DeviceNode->Flags &= ~DNF_DISABLED;
     }
 
     if (!DeviceCapabilities.UniqueID)
@@ -2165,7 +2186,8 @@ IopActionInterrogateDeviceStack(PDEVICE_NODE DeviceNode,
     }
 
     /* Skip processing if it was already completed before */
-    if (DeviceNode->Flags & DNF_PROCESSED)
+ASSERT(FALSE);
+    if (0)//DeviceNode->Flags & DNF_PROCESSED)
     {
         /* Nothing to do */
         return STATUS_SUCCESS;
@@ -2378,7 +2400,8 @@ IopActionInterrogateDeviceStack(PDEVICE_NODE DeviceNode,
 
     ZwClose(InstanceKey);
 
-    IopDeviceNodeSetFlag(DeviceNode, DNF_PROCESSED);
+ASSERT(FALSE);
+    //IopDeviceNodeSetFlag(DeviceNode, DNF_PROCESSED);
 
     if (!IopDeviceNodeHasFlag(DeviceNode, DNF_LEGACY_DRIVER))
     {
@@ -2398,7 +2421,7 @@ IopHandleDeviceRemoval(
 {
     PDEVICE_NODE Child = DeviceNode->Child, NextChild;
     ULONG i;
-    BOOLEAN Found;
+    //BOOLEAN Found;
 
     if (DeviceNode == IopRootDeviceNode)
         return;
@@ -2406,18 +2429,19 @@ IopHandleDeviceRemoval(
     while (Child != NULL)
     {
         NextChild = Child->Sibling;
-        Found = FALSE;
+        //Found = FALSE;
 
         for (i = 0; DeviceRelations && i < DeviceRelations->Count; i++)
         {
             if (IopGetDeviceNode(DeviceRelations->Objects[i]) == Child)
             {
-                Found = TRUE;
+                //Found = TRUE;
                 break;
             }
         }
 
-        if (!Found && !(Child->Flags & DNF_WILL_BE_REMOVED))
+ASSERT(FALSE);
+        if (0)//!Found && !(Child->Flags & DNF_WILL_BE_REMOVED))
         {
             /* Send removal IRPs to all of its children */
             IopPrepareDeviceForRemoval(Child->PhysicalDeviceObject, TRUE);
@@ -2453,9 +2477,10 @@ IopEnumerateDevice(
 
     DPRINT("DeviceObject 0x%p\n", DeviceObject);
 
-    if (DeviceNode->Flags & DNF_NEED_ENUMERATION_ONLY)
+ASSERT(FALSE);
+    if (0)//DeviceNode->Flags & DNF_NEED_ENUMERATION_ONLY)
     {
-        DeviceNode->Flags &= ~DNF_NEED_ENUMERATION_ONLY;
+        //DeviceNode->Flags &= ~DNF_NEED_ENUMERATION_ONLY;
 
         DPRINT("Sending GUID_DEVICE_ARRIVAL\n");
         IopQueueTargetDeviceEvent(&GUID_DEVICE_ARRIVAL,
@@ -2635,13 +2660,15 @@ IopActionConfigureChildServices(PDEVICE_NODE DeviceNode,
       return STATUS_SUCCESS;
    }
 
-   if (!(DeviceNode->Flags & DNF_PROCESSED))
+ASSERT(FALSE);
+   if (0)//!(DeviceNode->Flags & DNF_PROCESSED))
    {
        DPRINT1("Child not ready to be configured\n");
        return STATUS_SUCCESS;
    }
 
-   if (!(DeviceNode->Flags & (DNF_DISABLED | DNF_STARTED | DNF_ADDED)))
+ASSERT(FALSE);
+   if (0)//!(DeviceNode->Flags & (DNF_DISABLED | DNF_STARTED | DNF_ADDED)))
    {
       WCHAR RegKeyBuffer[MAX_PATH];
       UNICODE_STRING RegKey;
@@ -2685,7 +2712,8 @@ IopActionConfigureChildServices(PDEVICE_NODE DeviceNode,
          /* FIXME: Log the error */
          DPRINT("Could not retrieve configuration for device %wZ (Status 0x%08x)\n",
             &DeviceNode->InstancePath, Status);
-         IopDeviceNodeSetFlag(DeviceNode, DNF_DISABLED);
+ASSERT(FALSE);
+         //IopDeviceNodeSetFlag(DeviceNode, DNF_DISABLED);
          return STATUS_SUCCESS;
       }
 
@@ -2703,12 +2731,14 @@ IopActionConfigureChildServices(PDEVICE_NODE DeviceNode,
              * Suppose it is using the NULL driver, so state the
              * device is started */
             DPRINT("%wZ is using NULL driver\n", &DeviceNode->InstancePath);
-            IopDeviceNodeSetFlag(DeviceNode, DNF_STARTED);
+ASSERT(FALSE);
+            //IopDeviceNodeSetFlag(DeviceNode, DNF_STARTED);
          }
          else
          {
             DeviceNode->Problem = CM_PROB_FAILED_INSTALL;
-            IopDeviceNodeSetFlag(DeviceNode, DNF_DISABLED);
+ASSERT(FALSE);
+            //IopDeviceNodeSetFlag(DeviceNode, DNF_DISABLED);
          }
          return STATUS_SUCCESS;
       }
@@ -2765,15 +2795,17 @@ IopActionInitChildServices(PDEVICE_NODE DeviceNode,
     * stage 0 limitations (ie can't load from disk yet).
     */
 
-   if (!(DeviceNode->Flags & DNF_PROCESSED))
+ASSERT(FALSE);
+   if (0)//!(DeviceNode->Flags & DNF_PROCESSED))
    {
        DPRINT1("Child not ready to be added\n");
        return STATUS_SUCCESS;
    }
 
-   if (IopDeviceNodeHasFlag(DeviceNode, DNF_STARTED) ||
-       IopDeviceNodeHasFlag(DeviceNode, DNF_ADDED) ||
-       IopDeviceNodeHasFlag(DeviceNode, DNF_DISABLED))
+ASSERT(FALSE);
+   if (0)//IopDeviceNodeHasFlag(DeviceNode, DNF_STARTED) ||
+       //IopDeviceNodeHasFlag(DeviceNode, DNF_ADDED) ||
+       //IopDeviceNodeHasFlag(DeviceNode, DNF_DISABLED))
        return STATUS_SUCCESS;
 
    if (DeviceNode->ServiceName.Buffer == NULL)
@@ -2848,7 +2880,8 @@ IopActionInitChildServices(PDEVICE_NODE DeviceNode,
           */
          if (!BootDrivers)
          {
-            IopDeviceNodeSetFlag(DeviceNode, DNF_DISABLED);
+ASSERT(FALSE);
+            //IopDeviceNodeSetFlag(DeviceNode, DNF_DISABLED);
          }
       }
    }
@@ -4288,8 +4321,9 @@ IoInvalidateDeviceState(IN PDEVICE_OBJECT PhysicalDeviceObject)
         {
             DPRINT1("Restart after resource rebalance failed\n");
 
-            DeviceNode->Flags &= ~(DNF_STARTED | DNF_START_REQUEST_PENDING);
-            DeviceNode->Flags |= DNF_START_FAILED;
+ASSERT(FALSE);
+            //DeviceNode->Flags &= ~(DNF_STARTED | DNF_START_REQUEST_PENDING);
+            //DeviceNode->Flags |= DNF_START_FAILED;
 
             IopRemoveDevice(DeviceNode);
         }
@@ -4820,7 +4854,8 @@ IoRequestDeviceEject(IN PDEVICE_OBJECT PhysicalDeviceObject)
     }
     else
     {
-        DeviceNode->Flags |= DNF_DISABLED;
+ASSERT(FALSE);
+        //DeviceNode->Flags |= DNF_DISABLED;
     }
 
     IopQueueTargetDeviceEvent(&GUID_DEVICE_EJECT,

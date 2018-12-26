@@ -140,7 +140,7 @@ PpIrpQueryID(
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("PpIrpQueryID: DeviceObject - %p, IdType - %X\n", DeviceObject, IdType);
+    DPRINT("PpIrpQueryID: FIXME PiFailQueryID\n");
 
     ASSERT(IdType == BusQueryDeviceID ||
            IdType == BusQueryInstanceID ||
