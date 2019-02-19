@@ -390,7 +390,7 @@ IopMapDeviceObjectToDeviceInstance(
                                     NULL);
     if (NT_SUCCESS(Status))
     {
-        ZwClose(InstancePath);
+        ZwClose(ControlHandle);
     }
 
     ZwClose(EnumHandle);
