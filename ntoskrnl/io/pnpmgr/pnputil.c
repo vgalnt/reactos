@@ -243,7 +243,7 @@ PnpRegSzToString(IN PWCHAR RegSzData,
     PWCHAR p, pp;
 
     /* Find the end */
-    pp = RegSzData + RegSzLength;
+    pp = RegSzData + (RegSzLength / 2);
     for (p = RegSzData; p < pp; p++) if (!*p) break;
 
     /* Return it */
