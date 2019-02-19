@@ -468,12 +468,14 @@ PipApplyFunctionToSubKeys(
                                       KEY_READ);
         if (!NT_SUCCESS(Status))
         {
-            DPRINT("PipApplyFunctionToSubKeys: error\n");
+            DPRINT("PipApplyFunctionToSubKeys: Error, return Status - %X\n", Status);
             return Status;
         }
 
         IsOpenedKey = TRUE;
     }
+
+    ASSERT(KeyHandle);
 
     Index = 0;
     KeyInfoLen = sizeof(KEY_BASIC_INFORMATION) + 20 * sizeof(WCHAR);
@@ -487,7 +489,7 @@ PipApplyFunctionToSubKeys(
                 KeyInfo = ExAllocatePoolWithTag(PagedPool, KeyInfoLen, 'uspP');
                 if (!KeyInfo)
                 {
-                    DPRINT("PipApplyFunctionToSubKeys: error\n");
+                    DPRINT("PipApplyFunctionToSubKeys: STATUS_INSUFFICIENT_RESOURCES\n");
                     Status = STATUS_INSUFFICIENT_RESOURCES;
                     goto Exit;
                 }
@@ -590,6 +592,7 @@ Exit:
         ZwClose(KeyHandle);
     }
 
+    DPRINT("PipApplyFunctionToSubKeys: return Status - %X\n", Status);
     return Status;
 }
 
