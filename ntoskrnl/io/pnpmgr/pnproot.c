@@ -978,57 +978,141 @@ PdoQueryDeviceText(
     return Status;
 }
 
-static NTSTATUS
+NTSTATUS
+NTAPI
 PdoQueryId(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN PIRP Irp,
-    IN PIO_STACK_LOCATION IrpSp)
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IrpSp)
 {
-    PPNPROOT_PDO_DEVICE_EXTENSION DeviceExtension;
     BUS_QUERY_ID_TYPE IdType;
-    NTSTATUS Status = Irp->IoStatus.Status;
+    NTSTATUS Status;
 
-    DeviceExtension = (PPNPROOT_PDO_DEVICE_EXTENSION)DeviceObject->DeviceExtension;
     IdType = IrpSp->Parameters.QueryId.IdType;
+
+    DPRINT("PdoQueryId: IRP_MJ_PNP / IRP_MN_QUERY_ID / IdType - %X\n", IdType);
 
     switch (IdType)
     {
         case BusQueryDeviceID:
-        {
-            UNICODE_STRING String;
-            DPRINT("IRP_MJ_PNP / IRP_MN_QUERY_ID / BusQueryDeviceID\n");
-
-            Status = RtlDuplicateUnicodeString(
-                RTL_DUPLICATE_UNICODE_STRING_NULL_TERMINATE,
-                &DeviceExtension->DeviceInfo->DeviceID,
-                &String);
-            Irp->IoStatus.Information = (ULONG_PTR)String.Buffer;
-            break;
-        }
-
-        case BusQueryHardwareIDs:
-        case BusQueryCompatibleIDs:
-        {
-            /* Optional, do nothing */
-            break;
-        }
-
         case BusQueryInstanceID:
         {
-            UNICODE_STRING String;
-            DPRINT("IRP_MJ_PNP / IRP_MN_QUERY_ID / BusQueryInstanceID\n");
+            PDEVICE_NODE DeviceNode;
+            PWCHAR Buffer;
+            PWCHAR PtrChar;
+            ULONG ix;
 
-            Status = RtlDuplicateUnicodeString(
-                RTL_DUPLICATE_UNICODE_STRING_NULL_TERMINATE,
-                &DeviceExtension->DeviceInfo->InstanceID,
-                &String);
-            Irp->IoStatus.Information = (ULONG_PTR)String.Buffer;
+            DeviceNode = IopGetDeviceNode(DeviceObject);
+
+            ASSERT(DeviceNode);
+            ASSERT(DeviceNode->InstancePath.Buffer);
+            ASSERT(DeviceNode->InstancePath.Length);
+
+            Buffer = ExAllocatePoolWithTag(PagedPool, DeviceNode->InstancePath.Length, 'ddpP');
+            if (!Buffer)
+            {
+                DPRINT("PdoQueryId: STATUS_INSUFFICIENT_RESOURCES\n");
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                break;
+            }
+
+            RtlZeroMemory(Buffer, DeviceNode->InstancePath.Length);
+
+            Irp->IoStatus.Information = (ULONG_PTR)Buffer;
+            Status = STATUS_SUCCESS;
+
+            PtrChar = DeviceNode->InstancePath.Buffer;
+
+            ix = 0;
+
+            if (IdType == BusQueryInstanceID)
+            {
+                if (*PtrChar)
+                {
+                    do
+                    {
+                        if (*PtrChar == '\\')
+                        {
+                            ix++;
+                            if (ix == 2)
+                                break;
+                        }
+
+                        PtrChar++;
+                    }
+                    while (*PtrChar);
+
+                    for (PtrChar += 1; *PtrChar; PtrChar++, Buffer++)
+                    {
+                        *Buffer = *PtrChar;
+                    }
+                }
+
+                DPRINT("PdoQueryId: Irp->IoStatus.Information - %p, Id - %S\n", Irp->IoStatus.Information, (PWSTR)Irp->IoStatus.Information);
+                break;
+            }
+
+            ASSERT(IrpSp->Parameters.QueryId.IdType == BusQueryDeviceID);
+
+            if (*PtrChar)
+            {
+                do
+                {
+                    if (*PtrChar == '\\')
+                    {
+                        ix++;
+                        if (ix == 2)
+                            break;
+                    }
+
+                    *Buffer = *PtrChar;
+                    Buffer++;
+
+                    PtrChar++;
+                }
+                while (*PtrChar);
+            }
+
+            DPRINT("PdoQueryId: Irp->IoStatus.Information - %p, Id - %S\n", Irp->IoStatus.Information, (PWSTR)Irp->IoStatus.Information);
             break;
         }
+        case BusQueryCompatibleIDs:
+        {
+            PIOPNP_DEVICE_EXTENSION DeviceExtension;
+            PWCHAR Buffer;
 
+            DeviceExtension = DeviceObject->DeviceExtension;
+
+            if (Irp->IoStatus.Status != STATUS_NOT_SUPPORTED ||
+                !DeviceExtension ||
+                !DeviceExtension->CompatibleIdListSize)
+            {
+                break;
+            }
+
+            Buffer = ExAllocatePoolWithTag(PagedPool, DeviceExtension->CompatibleIdListSize, 'ddpP');
+            if (!Buffer)
+            {
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                break;
+            }
+
+            RtlCopyMemory(Buffer, DeviceExtension->CompatibleIdList, DeviceExtension->CompatibleIdListSize);
+
+            Irp->IoStatus.Information = (ULONG_PTR)Buffer;
+            Status = STATUS_SUCCESS;
+
+            break;
+        }
+        case BusQueryHardwareIDs:
+        case BusQueryDeviceSerialNumber:
+        {
+            break;
+        }
         default:
         {
-            DPRINT1("IRP_MJ_PNP / IRP_MN_QUERY_ID / unknown query id type 0x%lx\n", IdType);
+            ASSERT(FALSE);
+            break;
         }
     }
 
