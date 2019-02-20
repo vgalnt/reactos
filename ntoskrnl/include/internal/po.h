@@ -189,11 +189,13 @@ typedef struct _PO_DEVICE_NOTIFY_ORDER
 typedef struct _POP_DEVICE_SYS_STATE
 {
     UCHAR IrpMinor;
+    UCHAR Pad0[0x3];
     SYSTEM_POWER_STATE SystemState;
-    PKEVENT Event;
+    KEVENT Event;
     KSPIN_LOCK SpinLock;
     PKTHREAD Thread;
     BOOLEAN GetNewDeviceList;
+    UCHAR Pad1[0x3];
     PO_DEVICE_NOTIFY_ORDER Order;
     NTSTATUS Status;
     PDEVICE_OBJECT FailedDevice;
@@ -201,8 +203,9 @@ typedef struct _POP_DEVICE_SYS_STATE
     BOOLEAN Cancelled;
     BOOLEAN IgnoreErrors;
     BOOLEAN IgnoreNotImplemented;
-    BOOLEAN _WaitAny;
-    BOOLEAN _WaitAll;
+    BOOLEAN WaitAny;
+    BOOLEAN WaitAll;
+    UCHAR Pad2[0x2];
     LIST_ENTRY PresentIrpQueue;
     POP_DEVICE_POWER_IRP Head;
     POP_DEVICE_POWER_IRP PowerIrpState[20];
@@ -213,16 +216,19 @@ typedef struct _POP_POWER_ACTION
     UCHAR Updates;
     UCHAR State;
     BOOLEAN Shutdown;
+    UCHAR Pad0;
     POWER_ACTION Action;
     SYSTEM_POWER_STATE LightestState;
     ULONG Flags;
     NTSTATUS Status;
     UCHAR IrpMinor;
+    UCHAR Pad1[3];
     SYSTEM_POWER_STATE SystemState;
     SYSTEM_POWER_STATE NextSystemState;
     PPOP_SHUTDOWN_BUG_CHECK ShutdownBugCode;
     PPOP_DEVICE_SYS_STATE DevState;
     PPOP_HIBER_CONTEXT HiberContext;
+    SYSTEM_POWER_STATE LastWakeState;
     ULONGLONG WakeTime;
     ULONGLONG SleepTime;
 } POP_POWER_ACTION, *PPOP_POWER_ACTION;
