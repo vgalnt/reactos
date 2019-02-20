@@ -22,6 +22,48 @@ typedef struct _POWER_STATE_TRAVERSE_CONTEXT
     PDEVICE_OBJECT PowerDevice;
 } POWER_STATE_TRAVERSE_CONTEXT, *PPOWER_STATE_TRAVERSE_CONTEXT;
 
+typedef struct _SYSTEM_POWER_LEVEL
+{
+    BOOLEAN Enable;
+    UCHAR Spare[3];
+    ULONG BatteryLevel;
+    POWER_ACTION_POLICY PowerPolicy;
+    SYSTEM_POWER_STATE MinSystemState;
+} SYSTEM_POWER_LEVEL, *PSYSTEM_POWER_LEVEL;
+
+typedef struct _SYSTEM_POWER_POLICY
+{
+    ULONG Revision;
+    POWER_ACTION_POLICY PowerButton;
+    POWER_ACTION_POLICY SleepButton;
+    POWER_ACTION_POLICY LidClose;
+    SYSTEM_POWER_STATE LidOpenWake;
+    ULONG Reserved;
+    POWER_ACTION_POLICY Idle;
+    ULONG IdleTimeout;
+    UCHAR IdleSensitivity;
+    UCHAR DynamicThrottle;
+    UCHAR Spare2[2];
+    SYSTEM_POWER_STATE MinSleep;
+    SYSTEM_POWER_STATE MaxSleep;
+    SYSTEM_POWER_STATE ReducedLatencySleep;
+    ULONG WinLogonFlags;
+    ULONG Spare3;
+    ULONG DozeS4Timeout;
+    ULONG BroadcastCapacityResolution;
+    SYSTEM_POWER_LEVEL DischargePolicy[4];
+    ULONG VideoTimeout;
+    BOOLEAN VideoDimDisplay;
+    UCHAR Pad[0x3];
+    ULONG VideoReserved[3];
+    ULONG SpindownTimeout;
+    BOOLEAN OptimizeForPower;
+    UCHAR FanThrottleTolerance;
+    UCHAR ForcedThrottle;
+    UCHAR MinThrottle;
+    POWER_ACTION_POLICY OverThrottled;
+} SYSTEM_POWER_POLICY, *PSYSTEM_POWER_POLICY;
+
 PDEVICE_NODE PopSystemPowerDeviceNode = NULL;
 BOOLEAN PopAcpiPresent = FALSE;
 POP_POWER_ACTION PopAction;
@@ -29,6 +71,10 @@ WORK_QUEUE_ITEM PopShutdownWorkItem;
 
 ERESOURCE PopPolicyLock;
 PKTHREAD PopPolicyLockThread = NULL;
+
+SYSTEM_POWER_POLICY PopAcPolicy;
+SYSTEM_POWER_POLICY PopDcPolicy;
+PSYSTEM_POWER_POLICY PopPolicy;
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
@@ -42,6 +88,12 @@ VOID
 NTAPI
 PopReleasePolicyLock(
     _In_ BOOLEAN IsQueuePolicyWorker
+);
+
+VOID
+NTAPI
+PopDefaultPolicy(
+    _In_ PSYSTEM_POWER_POLICY Policy
 );
 
 static
@@ -1050,3 +1102,32 @@ PopReleasePolicyLock(
 
     KeLeaveCriticalRegion();
 }
+
+VOID
+NTAPI
+PopDefaultPolicy(
+    _In_ PSYSTEM_POWER_POLICY Policy)
+{
+    ULONG ix;
+
+    RtlZeroMemory(Policy, sizeof(*Policy));
+
+    Policy->Revision = 1;
+    Policy->LidOpenWake = PowerSystemWorking;
+    Policy->PowerButton.Action = PowerActionShutdownOff;
+    Policy->SleepButton.Action = PowerActionSleep;
+    Policy->LidClose.Action = PowerActionNone;
+    Policy->MinSleep = PowerSystemSleeping1;
+    Policy->MaxSleep = PowerActionShutdown;
+    Policy->ReducedLatencySleep = PowerSystemSleeping1;
+    Policy->WinLogonFlags = 0;
+    Policy->FanThrottleTolerance = 100;
+    Policy->ForcedThrottle = 100;
+    Policy->OverThrottled.Action = PowerActionNone;
+    Policy->BroadcastCapacityResolution = 25;
+
+    for (ix = 0; ix < NUM_DISCHARGE_POLICIES; ix++) {
+        Policy->DischargePolicy[ix].MinSystemState = PowerSystemSleeping1;
+    }
+}
+
