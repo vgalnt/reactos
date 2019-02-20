@@ -27,7 +27,22 @@ BOOLEAN PopAcpiPresent = FALSE;
 POP_POWER_ACTION PopAction;
 WORK_QUEUE_ITEM PopShutdownWorkItem;
 
+ERESOURCE PopPolicyLock;
+PKTHREAD PopPolicyLockThread = NULL;
+
 /* PRIVATE FUNCTIONS *********************************************************/
+
+VOID
+NTAPI
+PopAcquirePolicyLock(
+    VOID
+);
+
+VOID
+NTAPI
+PopReleasePolicyLock(
+    _In_ BOOLEAN IsQueuePolicyWorker
+);
 
 static
 NTSTATUS
@@ -353,6 +368,8 @@ PoInitSystem(IN ULONG BootPhase)
 
     /* Initialize support for shutdown waits and work-items */
     PopInitShutdownList();
+
+    ExInitializeResourceLite(&PopPolicyLock);
 
     return TRUE;
 }
@@ -999,4 +1016,37 @@ NtSetSystemPowerState(IN POWER_ACTION SystemAction,
 Exit:
     /* We're done, return */
     return Status;
+}
+
+VOID
+NTAPI
+PopAcquirePolicyLock(VOID)
+{
+    PAGED_CODE();
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceExclusiveLite(&PopPolicyLock, TRUE);
+
+    ASSERT(PopPolicyLockThread == NULL);
+    PopPolicyLockThread = KeGetCurrentThread();
+}
+
+VOID
+NTAPI
+PopReleasePolicyLock(
+    _In_ BOOLEAN IsQueuePolicyWorker)
+{
+    KIRQL OldIrql;
+  
+    ASSERT(PopPolicyLockThread == KeGetCurrentThread());
+
+    PopPolicyLockThread = NULL;
+    ExReleaseResourceLite(&PopPolicyLock);
+
+    if (IsQueuePolicyWorker)// && PopWorkerStatus & PopWorkerPending)
+    {
+        ASSERT(FALSE);
+    }
+
+    KeLeaveCriticalRegion();
 }
