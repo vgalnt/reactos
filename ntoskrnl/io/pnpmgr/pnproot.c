@@ -216,14 +216,16 @@ IopInitializeDeviceInstanceKey(
     UNICODE_STRING Name;
     DEVICE_CAPABILITIES_FLAGS CapFlags;
     ULONG Legacy;
+    ULONG Problem;
     ULONG ConfigFlags;
     ULONG ServiceType;
     NTSTATUS Status;
     BOOLEAN DuplicateOf = FALSE;
+    BOOLEAN Result;
 
     PAGED_CODE();
-    DPRINT("IopInitializeDeviceInstanceKey: KeyName - %wZ, RelationContext->Objects - %p\n",
-           KeyName, RelationContext->Objects);
+    DPRINT("IopInitializeDeviceInstanceKey: KeyHandle - %p, KeyName - %wZ, RelationContext->Objects - %p\n",
+           KeyHandle, KeyName, RelationContext->Objects);
 
     Status = IopGetRegistryValue(KeyHandle, L"Phantom", &ValueInfo);
 
@@ -246,6 +248,7 @@ IopInitializeDeviceInstanceKey(
 
         if (Phantom)
         {
+            DPRINT("IopInitializeDeviceInstanceKey: return TRUE\n");
             return TRUE;
         }
     }
@@ -263,6 +266,7 @@ IopInitializeDeviceInstanceKey(
         if (!NewRelationContext)
         {
             RelationContext->Status = STATUS_INSUFFICIENT_RESOURCES;
+            DPRINT("IopInitializeDeviceInstanceKey: STATUS_INSUFFICIENT_RESOURCES, return TRUE\n");
             return FALSE;
         }
 
@@ -292,12 +296,13 @@ IopInitializeDeviceInstanceKey(
         pDevices = RelationContext->Objects;
         pDevices[RelationContext->Count] = DeviceObject;
         RelationContext->Count++;
-
+        DPRINT("IopInitializeDeviceInstanceKey: return TRUE\n");
         return TRUE;
     }
 
     if (!PipIsFirmwareMapperDevicePresent(KeyHandle))
     {
+        DPRINT("IopInitializeDeviceInstanceKey: return TRUE\n");
         return TRUE;
     }
 
@@ -334,7 +339,7 @@ IopInitializeDeviceInstanceKey(
                          ServiceValueInfo->DataLength,
                          &Name.Length);
 
-        Name.MaximumLength = ServiceValueInfo->DataLength;
+        Name.MaximumLength = (USHORT)ServiceValueInfo->DataLength;
         Name.Buffer = Buffer;
     }
 
@@ -343,6 +348,7 @@ IopInitializeDeviceInstanceKey(
     if (NT_SUCCESS(Status) && ConfigFlags & 2) // ?
     {
         ExFreePoolWithTag(ServiceValueInfo, 'uspP');
+        DPRINT("IopInitializeDeviceInstanceKey: return TRUE\n");
         return TRUE;
     }
 
@@ -371,12 +377,12 @@ IopInitializeDeviceInstanceKey(
             {
                 PpDeviceRegistration(EnumString, TRUE, NULL);
 
-                if (!ServiceValueInfo)
+                if (ServiceValueInfo)
                 {
-                    return TRUE;
+                    ExFreePoolWithTag(ServiceValueInfo, 'uspP');
                 }
 
-                ExFreePoolWithTag(ServiceValueInfo, 'uspP');
+                DPRINT("IopInitializeDeviceInstanceKey: return TRUE\n");
                 return TRUE;
             }
         }
@@ -397,6 +403,7 @@ IopInitializeDeviceInstanceKey(
 
     if (!NT_SUCCESS(Status))
     {
+        DPRINT("IopInitializeDeviceInstanceKey: Status - %X\n", Status);
         goto Exit;
     }
 
@@ -407,11 +414,12 @@ IopInitializeDeviceInstanceKey(
 
     DeviceNode = PipAllocateDeviceNode(DeviceObject);
 
-    if (DeviceNode == NULL) // FIXME PpSystemHiveTooLarge
+    if (DeviceNode == NULL) //|| PpSystemHiveTooLarge)
     {
         IoDeleteDevice(DeviceObject);
         Status = STATUS_INSUFFICIENT_RESOURCES;
         DeviceObject = NULL;
+        DPRINT("IopInitializeDeviceInstanceKey: DeviceNode == NULL\n");
         goto Exit;
     }
 
@@ -422,6 +430,7 @@ IopInitializeDeviceInstanceKey(
     {
         IoDeleteDevice(DeviceObject);
         DeviceObject = NULL;
+        DPRINT("IopInitializeDeviceInstanceKey: Status - %X\n", Status);
         goto Exit;
     }
 
@@ -443,6 +452,8 @@ IopInitializeDeviceInstanceKey(
                                      &ValueInfo);
         if (!NT_SUCCESS(Status))
         {
+            DPRINT("IopInitializeDeviceInstanceKey: Status - %X\n", Status);
+
             if (Status == STATUS_OBJECT_NAME_NOT_FOUND ||
                 Status == STATUS_OBJECT_PATH_NOT_FOUND)
             {
@@ -462,14 +473,17 @@ IopInitializeDeviceInstanceKey(
 
             if (ConfigFlags & 0x20) // ?
             {
+                DPRINT("IopInitializeDeviceInstanceKey: CM_PROB_REINSTALL\n");
                 PipSetDevNodeProblem(DeviceNode, CM_PROB_REINSTALL);
             }
             else if (ConfigFlags & 0x2000) // ?
             {
+                DPRINT("IopInitializeDeviceInstanceKey: CM_PROB_PARTIAL_LOG_CONF\n");
                 PipSetDevNodeProblem(DeviceNode, CM_PROB_PARTIAL_LOG_CONF);
             }
             else if (ConfigFlags & 0x40) // ?
             {
+                DPRINT("IopInitializeDeviceInstanceKey: CM_PROB_FAILED_INSTALL\n");
                 PipSetDevNodeProblem(DeviceNode, CM_PROB_FAILED_INSTALL);
             }
         }
@@ -478,6 +492,7 @@ IopInitializeDeviceInstanceKey(
     if (DuplicateOf)
     {
         DeviceNode->Flags |= DNF_DUPLICATE;
+        DPRINT("IopInitializeDeviceInstanceKey: DNF_DUPLICATE\n");
     }
 
     Status = IopGetRegistryValue(KeyHandle,
@@ -506,7 +521,9 @@ IopInitializeDeviceInstanceKey(
     {
         PipClearDevNodeProblem(DeviceNode);
         PipSetDevNodeProblem(DeviceNode, CM_PROB_HARDWARE_DISABLED);
+        DPRINT("IopInitializeDeviceInstanceKey: CM_PROB_HARDWARE_DISABLED\n");
     }
+
 
     if (DeviceNode->Flags & (DNF_HAS_PROBLEM | DNF_HAS_PRIVATE_PROBLEM) &&
        !CapFlags.HardwareDisabled)
@@ -516,13 +533,17 @@ IopInitializeDeviceInstanceKey(
 
     if (DeviceNode->Flags & (DNF_HAS_PROBLEM | DNF_HAS_PRIVATE_PROBLEM))
     {
-        ASSERT(DeviceNode->Flags & DNF_HAS_PROBLEM);
-
-        ASSERT(DeviceNode->Problem == CM_PROB_NOT_CONFIGURED || 
-               DeviceNode->Problem == CM_PROB_REINSTALL ||
-               DeviceNode->Problem == CM_PROB_FAILED_INSTALL ||
-               DeviceNode->Problem == CM_PROB_HARDWARE_DISABLED ||
-               DeviceNode->Problem == CM_PROB_PARTIAL_LOG_CONF);
+        Problem = DeviceNode->Flags & DNF_HAS_PROBLEM;
+        if ((!Problem || DeviceNode->Problem != CM_PROB_NOT_CONFIGURED) && 
+            (!Problem || DeviceNode->Problem != CM_PROB_REINSTALL) &&
+            (!Problem || DeviceNode->Problem != CM_PROB_FAILED_INSTALL) &&
+            (!Problem || DeviceNode->Problem != CM_PROB_HARDWARE_DISABLED) &&
+            (!Problem || DeviceNode->Problem != CM_PROB_PARTIAL_LOG_CONF))
+        {
+            DPRINT("IopInitializeDeviceInstanceKey: DeviceNode->Flags - %X, DeviceNode->Problem - %X\n",
+                   DeviceNode->Flags, DeviceNode->Problem);
+            ASSERT(FALSE);
+        }
     }
 
     if ((!(DeviceNode->Flags & DNF_HAS_PROBLEM) ||
@@ -539,8 +560,6 @@ IopInitializeDeviceInstanceKey(
         }
     }
 
-    DPRINT("IopInitializeDeviceInstanceKey: FIXME IopNotifySetupDeviceArrival\n");
-
     /* Report the device's enumeration to umpnpmgr */
     IopQueueTargetDeviceEvent(&GUID_DEVICE_ENUMERATED,
                               &DeviceNode->InstancePath);
@@ -552,6 +571,7 @@ IopInitializeDeviceInstanceKey(
     Status = PpDeviceRegistration(&DeviceNode->InstancePath,
                                   TRUE,
                                   &DeviceNode->ServiceName);
+
     if (NT_SUCCESS(Status))
     {
         if ((DeviceNode->Flags & DNF_HAS_PROBLEM) &&
@@ -601,7 +621,7 @@ Exit:
         pDevices[RelationContext->Count] = DeviceObject;
         RelationContext->Count++;
 
-        DPRINT("IopInitializeDeviceInstanceKey: Objects - %p, Status - %X\n",
+        DPRINT("IopInitializeDeviceInstanceKey: [1] RelationContext->Objects - %p, RelationContext->Status - %X\n",
                RelationContext->Objects, RelationContext->Status);
 
         return TRUE;
@@ -609,7 +629,7 @@ Exit:
 
     RelationContext->Status = Status;
 
-    DPRINT("IopInitializeDeviceInstanceKey: Objects - %p, Status - %X\n",
+    DPRINT("IopInitializeDeviceInstanceKey: [0] RelationContext->Objects - %p, RelationContext->Status - %X\n",
            RelationContext->Objects, RelationContext->Status);
 
     return FALSE;
