@@ -145,16 +145,34 @@ typedef struct _POP_HIBER_CONTEXT
 
 typedef struct _PO_NOTIFY_ORDER_LEVEL
 {
+#if (NTDDI_VERSION < NTDDI_VISTA)
     KEVENT LevelReady;
+#endif
     ULONG DeviceCount;
     ULONG ActiveCount;
     LIST_ENTRY WaitSleep;
     LIST_ENTRY ReadySleep;
+#if (NTDDI_VERSION < NTDDI_VISTA)
     LIST_ENTRY Pending;
     LIST_ENTRY Complete;
+#endif
     LIST_ENTRY ReadyS0;
     LIST_ENTRY WaitS0;
 } PO_NOTIFY_ORDER_LEVEL, *PPO_NOTIFY_ORDER_LEVEL;
+
+#if defined(_M_X64)
+  #if (NTDDI_VERSION >= NTDDI_VISTA)
+    C_ASSERT(sizeof(PO_NOTIFY_ORDER_LEVEL) == 0x48);
+  #else
+    C_ASSERT(sizeof(PO_NOTIFY_ORDER_LEVEL) == 0x80);
+  #endif
+#else
+  #if (NTDDI_VERSION >= NTDDI_VISTA)
+    C_ASSERT(sizeof(PO_NOTIFY_ORDER_LEVEL) == 0x28);
+  #else
+    C_ASSERT(sizeof(PO_NOTIFY_ORDER_LEVEL) == 0x48);
+  #endif
+#endif
 
 typedef struct _POP_SHUTDOWN_BUG_CHECK
 {
@@ -181,35 +199,96 @@ typedef struct _POP_DEVICE_POWER_IRP
 
 typedef struct _PO_DEVICE_NOTIFY_ORDER
 {
+#if (NTDDI_VERSION < NTDDI_VISTA)
     ULONG DevNodeSequence;
+#else
+    BOOLEAN Locked;
+    UCHAR Pad0[3];
+#endif
     PDEVICE_OBJECT *WarmEjectPdoPointer;
+#if (NTDDI_VERSION < NTDDI_WIN7)
     PO_NOTIFY_ORDER_LEVEL OrderLevel[8];
+#else
+    PO_NOTIFY_ORDER_LEVEL OrderLevel[9];
+#endif
 } PO_DEVICE_NOTIFY_ORDER, *PPO_DEVICE_NOTIFY_ORDER;
+
+#if defined(_M_X64)
+  #if (NTDDI_VERSION >= NTDDI_WIN7)
+    C_ASSERT(sizeof(PO_DEVICE_NOTIFY_ORDER) == 0x298);
+  #elif (NTDDI_VERSION >= NTDDI_VISTA)
+    C_ASSERT(sizeof(PO_DEVICE_NOTIFY_ORDER) == 0x250);
+  #else
+    C_ASSERT(sizeof(PO_DEVICE_NOTIFY_ORDER) == 0x410);
+  #endif
+#else
+  #if (NTDDI_VERSION >= NTDDI_WIN7)
+    C_ASSERT(sizeof(PO_DEVICE_NOTIFY_ORDER) == 0x170);
+  #elif (NTDDI_VERSION >= NTDDI_VISTA)
+    C_ASSERT(sizeof(PO_DEVICE_NOTIFY_ORDER) == 0x148);
+  #else
+    C_ASSERT(sizeof(PO_DEVICE_NOTIFY_ORDER) == 0x248);
+  #endif
+#endif
 
 typedef struct _POP_DEVICE_SYS_STATE
 {
     UCHAR IrpMinor;
-    UCHAR Pad0[0x3];
     SYSTEM_POWER_STATE SystemState;
+#if (NTDDI_VERSION < NTDDI_VISTA)
     KEVENT Event;
+#endif
     KSPIN_LOCK SpinLock;
     PKTHREAD Thread;
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+    PKEVENT AbortEvent;
+    PKSEMAPHORE ReadySemaphore;
+    PKSEMAPHORE FinishedSemaphore;
+#endif
     BOOLEAN GetNewDeviceList;
-    UCHAR Pad1[0x3];
     PO_DEVICE_NOTIFY_ORDER Order;
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+  #if (NTDDI_VERSION < NTDDI_WIN7)
+    LONG NotifyGdiLevelForPowerOn;
+    LONG NotifyGdiLevelForResumeUI;
+  #endif
+    LIST_ENTRY Pending;
+#endif
     NTSTATUS Status;
     PDEVICE_OBJECT FailedDevice;
     BOOLEAN Waking;
     BOOLEAN Cancelled;
     BOOLEAN IgnoreErrors;
     BOOLEAN IgnoreNotImplemented;
+#if (NTDDI_VERSION < NTDDI_VISTA)
     BOOLEAN WaitAny;
     BOOLEAN WaitAll;
-    UCHAR Pad2[0x2];
     LIST_ENTRY PresentIrpQueue;
     POP_DEVICE_POWER_IRP Head;
     POP_DEVICE_POWER_IRP PowerIrpState[20];
+#endif
+#if (NTDDI_VERSION >= NTDDI_VISTA)
+    BOOLEAN TimeRefreshLockAcquired;
+#endif
 } POP_DEVICE_SYS_STATE, *PPOP_DEVICE_SYS_STATE;
+
+#if defined(_M_X64)
+  #if (NTDDI_VERSION >= NTDDI_WIN7)
+    C_ASSERT(sizeof(POP_DEVICE_SYS_STATE) == 0x2F8);
+  #elif (NTDDI_VERSION >= NTDDI_VISTA)
+    C_ASSERT(sizeof(POP_DEVICE_SYS_STATE) == 0x2B8);
+  #else
+    C_ASSERT(sizeof(POP_DEVICE_SYS_STATE) == 0xBA8);
+  #endif
+#else
+  #if (NTDDI_VERSION >= NTDDI_WIN7)
+    C_ASSERT(sizeof(POP_DEVICE_SYS_STATE) == 0x1A8);
+  #elif (NTDDI_VERSION >= NTDDI_VISTA)
+    C_ASSERT(sizeof(POP_DEVICE_SYS_STATE) == 0x188);
+  #else
+    C_ASSERT(sizeof(POP_DEVICE_SYS_STATE) == 0x620);
+  #endif
+#endif
 
 typedef struct _POP_POWER_ACTION
 {

@@ -423,6 +423,10 @@ PoInitSystem(IN ULONG BootPhase)
 
     ExInitializeResourceLite(&PopPolicyLock);
 
+    PopDefaultPolicy(&PopAcPolicy);
+    PopDefaultPolicy(&PopDcPolicy);
+    PopPolicy = &PopAcPolicy;
+
     return TRUE;
 }
 
