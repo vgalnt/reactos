@@ -525,6 +525,130 @@ IopDumpDeviceNode(
     PipDumpDeviceNodes(DeviceNode, 0, Flags);
 }
 
+VOID
+NTAPI
+PipDumpDeviceNodes1(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ ULONG Level,
+    _In_ ULONG Flags)
+{
+    PDEVICE_NODE ChildDeviceNode;
+    PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
+    PARBITER_INSTANCE Arbiter;
+    PLIST_ENTRY ArbiterListHead;
+    PLIST_ENTRY Entry;
+
+    DPRINT1("Level - %X DevNode - %p for PDO - %p\n", Level, DeviceNode, DeviceNode->PhysicalDeviceObject);
+    DPRINT1("InstancePath    - %wZ\n", &DeviceNode->InstancePath);
+    if (DeviceNode->ServiceName.Length) {
+    DPRINT1("ServiceName     - %wZ\n", &DeviceNode->ServiceName);
+    }
+    DPRINT1("State           - %X, %S\n", DeviceNode->State, PipGetDeviceNodeStateName(DeviceNode->State));
+    DPRINT1("Previous State  - %X, %S\n", DeviceNode->PreviousState, PipGetDeviceNodeStateName(DeviceNode->PreviousState));
+    if (DeviceNode->Problem) {
+    DPRINT1("Problem         - %X\n", DeviceNode->Problem);
+    }
+
+    if ((Flags & 0x00010000) && DeviceNode->Notify) {
+    DPRINT1("WakeNeeded      - %X\n", DeviceNode->Notify->WakeNeeded);
+    DPRINT1("OrderLevel      - %X\n", DeviceNode->Notify->OrderLevel);
+    DPRINT1("ChildCount      - %X\n", DeviceNode->Notify->ChildCount);
+    DPRINT1("ActiveChild     - %X\n", DeviceNode->Notify->ActiveChild);
+    }
+
+    /* Arbiters */
+    ArbiterListHead = &DeviceNode->DeviceArbiterList;
+    for (Entry = DeviceNode->DeviceArbiterList.Flink;
+         Entry != ArbiterListHead;
+         Entry = Entry->Flink)
+    {
+        ArbiterEntry = CONTAINING_RECORD(Entry, PI_RESOURCE_ARBITER_ENTRY, DeviceArbiterList);
+        ASSERT(ArbiterEntry);
+
+        Arbiter = (PARBITER_INSTANCE)ArbiterEntry->ArbiterInterface->Context;
+        ASSERT(Arbiter);
+
+        DPRINT1("ArbiterEntry(%X) - %X\n", ArbiterEntry->ResourceType, ArbiterEntry);
+        DPRINT1("Arbiter           - %S\n", Arbiter->Name);
+    }
+
+    if (Flags & 2) { /* Boot configuration (reported by IRP_MN_QUERY_RESOURCES) and AllocatedResources */
+
+        if (DeviceNode->ResourceList) {
+            DPRINT1("------------ ResourceList ------------\n");
+            IopDumpCmResourceList(DeviceNode->ResourceList);
+        }
+        if (DeviceNode->BootResources) {
+            DPRINT1("------------ BootResources ------------\n");
+            IopDumpCmResourceList(DeviceNode->BootResources);
+        }
+    }
+    if (Flags & 4) { /* Resources required (reported by IRP_MN_FILTER_RESOURCE_REQUIREMENTS) */
+
+        if (DeviceNode->ResourceRequirements) {
+            DPRINT1("------------ ResourceRequirements ------------\n");
+            IopDumpResourceRequirementsList(DeviceNode->ResourceRequirements);
+        }
+    }
+    if (Flags & 8) { /* Translated resources (AllocatedResourcesTranslated)  */
+
+        if (DeviceNode->ResourceListTranslated) {
+            DPRINT1("------------ ResourceListTranslated ------------\n");
+            IopDumpCmResourceList(DeviceNode->ResourceListTranslated);
+        }
+    }
+    if (Flags & 1) { /* Traversal of all children nodes */
+
+        for (ChildDeviceNode = DeviceNode->Child;
+             ChildDeviceNode != NULL;
+             ChildDeviceNode = ChildDeviceNode->Sibling)
+        {
+            PipDumpDeviceNodes1(ChildDeviceNode, Level + 1, Flags);
+        }
+    }
+}
+
+/* Displays information about a node in the device tree. DPRINT1 version.
+   See !devnode extension for WinDbg.
+   devnode (Address [Flags] [Service])
+   devnode (0, 1, NULL) - displays the entire device tree.
+   devnode (1, 0, NULL) - displays all pending removals of device objects
+   devnode (2, 0, NULL) - displays all pending ejects of device objects
+   New Flag 0x00010000  - displays DeviceNode->Notify fields
+*/
+
+VOID
+NTAPI
+IopDumpDeviceNode1(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ ULONG Flags,
+    _In_ PUNICODE_STRING ServiceName)
+{
+    DPRINT1("devnode: DeviceNode - %X, Flags - %X, ServiceName - %X\n",
+           DeviceNode, Flags, ServiceName);
+
+    if (DeviceNode == ULongToPtr(1) ||
+        DeviceNode == ULongToPtr(2))
+    {
+        DPRINT1("devnode: FIXME [pending removals] and [pending ejects] NOT IMPLEMENTED\n");
+        ASSERT(FALSE);
+        return;
+    }
+
+    if (ServiceName)
+    {
+        DPRINT1("devnode: FIXME [ServiceName] - %zW NOT IMPLEMENTED\n", ServiceName);
+        ASSERT(FALSE);
+    }
+
+    if (!DeviceNode)
+    {
+        DeviceNode = IopRootDeviceNode;
+    }
+
+    PipDumpDeviceNodes1(DeviceNode, 0, Flags);
+}
+
 //--------------------------------------------------------------------------
 
 VOID

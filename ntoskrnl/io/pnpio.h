@@ -322,6 +322,14 @@ IopDumpDeviceNode(
 
 VOID
 NTAPI
+IopDumpDeviceNode1(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ ULONG Flags,
+    _In_ PUNICODE_STRING ServiceName
+);
+
+VOID
+NTAPI
 IopDumpReqDescriptor(
     _In_ PPNP_REQ_DESCRIPTOR Descriptor,
     _In_ ULONG Idx
