@@ -290,6 +290,23 @@ typedef struct _POP_DEVICE_SYS_STATE
   #endif
 #endif
 
+#define POP_INRUSH_CONTEXT  5
+
+typedef union _POP_DEVICE_EXTENSION_POWER_FLAGS {
+  struct {
+    ULONG SystemState    : 4;
+    ULONG DeviceState    : 4;
+    ULONG SystemActive   : 1;
+    ULONG SystemSerialOn : 1;
+    ULONG DeviceActive   : 1;
+    ULONG DeviceSerialOn : 1;
+    ULONG Reserved       : 20;
+  };
+  ULONG AsULONG;
+} POP_DEVICE_EXTENSION_POWER_FLAGS;
+
+C_ASSERT(sizeof(POP_DEVICE_EXTENSION_POWER_FLAGS) == sizeof(ULONG));
+
 typedef struct _POP_POWER_ACTION
 {
     UCHAR Updates;
