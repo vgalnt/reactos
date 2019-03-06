@@ -76,7 +76,41 @@ SYSTEM_POWER_POLICY PopAcPolicy;
 SYSTEM_POWER_POLICY PopDcPolicy;
 PSYSTEM_POWER_POLICY PopPolicy;
 
+PIRP PopInrushIrpPointer;
+ULONG PopInrushIrpReferenceCount;
+BOOLEAN PopInrushPending;
+
+BOOLEAN PopFailedHibernationAttempt = FALSE;
+BOOLEAN IsFlushedVolumes;
+BOOLEAN Pad0;
+
+KSPIN_LOCK PopSubmitWorkerSpinLock;
+KSPIN_LOCK PopIrpSerialSpinLock;
+LIST_ENTRY PopIrpSerialList;
+ULONG PopIrpSerialListLength;
+ULONG PopCallSystemState;
+
+KEVENT PopUnlockComplete;
+
+ULONG PopSimulate = 0x00010000;
+SYSTEM_POWER_CAPABILITIES PopCapabilities;
+
+//PROCESSOR_POWER_POLICY PopAcProcessorPolicy;
+//PROCESSOR_POWER_POLICY PopDcProcessorPolicy;
+//PPROCESSOR_POWER_POLICY PopProcessorPolicy;
+
+KSPIN_LOCK PopWorkerLock;
+KSPIN_LOCK PopWorkerSpinLock;
+ULONG PopWorkerPending = 0;
+
+ULONG PopFullWake;
+
+HANDLE PopHiberFile = NULL;
+
+extern ULONG IoDeviceNodeTreeSequence;
+
 /* PRIVATE FUNCTIONS *********************************************************/
+
 
 VOID
 NTAPI
@@ -364,10 +398,33 @@ PoInitSystem(IN ULONG BootPhase)
     PVOID NotificationEntry;
     PCHAR CommandLine;
     BOOLEAN ForceAcpiDisable = FALSE;
+    NTSTATUS Status = STATUS_SUCCESS;
 
     /* Check if this is phase 1 init */
     if (BootPhase == 1)
     {
+        DPRINT("PoInitSystem: FIXME PopInitializePowerPolicySimulate()\n");
+        //PopInitializePowerPolicySimulate();
+
+        if (PopSimulate & 1) {
+            ASSERT(FALSE);
+        }
+
+        if (PopSimulate & 2) {
+            ASSERT(FALSE);
+        }
+
+        PopAcquirePolicyLock();
+
+        DPRINT("PoInitSystem: FIXME read [Heuristics] key\n");
+        DPRINT("PoInitSystem: FIXME read [PolicyOverrides] key\n");
+
+        DPRINT("PoInitSystem: FIXME PopResetCurrentPolicies() - read xxxPolicy keys from registry \n");
+        Status = 0;//PopResetCurrentPolicies();
+        PopReleasePolicyLock(FALSE);
+
+        DPRINT("PoInitSystem: FIXME PopIdleScanTimer \n");
+
         /* Register power button notification */
         IoRegisterPlugPlayNotification(EventCategoryDeviceInterfaceChange,
                                        PNPNOTIFY_DEVICE_INTERFACE_INCLUDE_EXISTING_INTERFACES,
@@ -387,7 +444,7 @@ PoInitSystem(IN ULONG BootPhase)
                                        PopAddRemoveSysCapsCallback,
                                        NULL,
                                        &NotificationEntry);
-        return TRUE;
+        return NT_SUCCESS(Status);
     }
 
     /* Get the Command Line */
@@ -411,21 +468,40 @@ PoInitSystem(IN ULONG BootPhase)
     }
 
 
-    /* Initialize volume support */
-    InitializeListHead(&PopVolumeDevices);
-    KeInitializeGuardedMutex(&PopVolumeLock);
+    KeInitializeSpinLock(&PopIrpSerialSpinLock);//PopIrpSerialLock
+    PopIrpSerialListLength = 0; //PopIrpSerialListCount 
+    InitializeListHead(&PopIrpSerialList);
 
-    /* Initialize support for dope */
-    KeInitializeSpinLock(&PopDopeGlobalLock);
+    PopInrushPending = FALSE;
+    PopInrushIrpPointer = NULL;
+    PopInrushIrpReferenceCount = 0;
+
+    PopCallSystemState = 0;
+
+    KeInitializeEvent(&PopUnlockComplete, SynchronizationEvent, TRUE);
 
     /* Initialize support for shutdown waits and work-items */
     PopInitShutdownList();
 
+    /* Initialize support for dope */
+    KeInitializeSpinLock(&PopDopeGlobalLock);
+
+    KeInitializeSpinLock(&PopSubmitWorkerSpinLock); //PopWorkerLock
+    KeInitializeSpinLock(&PopWorkerSpinLock);
+
     ExInitializeResourceLite(&PopPolicyLock);
+
+    /* Initialize volume support */
+    KeInitializeGuardedMutex(&PopVolumeLock);
+    InitializeListHead(&PopVolumeDevices);
+
+    PopAction.Action = PowerActionNone;
 
     PopDefaultPolicy(&PopAcPolicy);
     PopDefaultPolicy(&PopDcPolicy);
     PopPolicy = &PopAcPolicy;
+
+    PopFullWake = 5;
 
     return TRUE;
 }
