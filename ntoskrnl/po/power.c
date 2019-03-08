@@ -627,13 +627,166 @@ NTAPI
 PoCallDriver(IN PDEVICE_OBJECT DeviceObject,
              IN OUT PIRP Irp)
 {
-    NTSTATUS Status;
+    PEXTENDED_DEVOBJ_EXTENSION DeviceExtension;
+    POP_DEVICE_EXTENSION_POWER_FLAGS PowerFlags;
+    PIO_STACK_LOCATION IoStack;
+    UCHAR MinorFunction;
+    KIRQL OldIrql;
 
-    /* Forward to Io -- FIXME! */
-    Status = IoCallDriver(DeviceObject, Irp);
+    ASSERT(DeviceObject);
+    ASSERT(Irp);
+    ASSERT(KeGetCurrentIrql() <= DISPATCH_LEVEL);
 
-    /* Return status */
-    return Status;
+    KeAcquireSpinLock(&PopIrpSerialSpinLock, &OldIrql);
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->DeviceObject = DeviceObject;
+
+    ASSERT(IoStack->MajorFunction == IRP_MJ_POWER);
+    MinorFunction = IoStack->MinorFunction;
+    DPRINT1("PoCallDriver(%p, %p). Flags - %08X, Minor - %X, Context - %X, Type - %X, State - %X, ShutdownType - %X\n", DeviceObject, Irp, DeviceObject->Flags, MinorFunction, 
+            IoStack->Parameters.Power.SystemContext,
+            IoStack->Parameters.Power.Type,
+            IoStack->Parameters.Power.State,
+            IoStack->Parameters.Power.ShutdownType);
+
+    if (DeviceObject->Flags & 0x8000)
+    {
+        /* 0x8000 ? DO_POWER_NOOP ? (https://www-user.tu-chemnitz.de/~heha/oney_wdm/ch08d.htm) */
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+        Irp->IoStatus.Information = 0;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        KeReleaseSpinLock(&PopIrpSerialSpinLock, OldIrql);
+        return STATUS_SUCCESS;
+    }
+
+    if (MinorFunction != IRP_MN_SET_POWER &&
+        MinorFunction != IRP_MN_QUERY_POWER)
+    {
+        KeReleaseSpinLock(&PopIrpSerialSpinLock, OldIrql);
+        return IoCallDriver(DeviceObject, Irp);
+    }
+
+    DeviceExtension = IoGetDevObjExtension(DeviceObject);
+    PowerFlags.AsULONG = DeviceExtension->PowerFlags;
+
+    if (MinorFunction == IRP_MN_SET_POWER)
+    {
+        if (IoStack->Parameters.Power.Type == DevicePowerState &&
+            IoStack->Parameters.Power.State.DeviceState == PowerDeviceD0 &&
+            (PowerFlags.DeviceState != 1) &&
+            (DeviceObject->Flags & DO_POWER_INRUSH))
+        {
+            if (PopInrushIrpPointer == Irp)
+            {
+                ASSERT((IoStack->Parameters.Power.SystemContext & POP_INRUSH_CONTEXT) == POP_INRUSH_CONTEXT);
+
+                PopInrushIrpReferenceCount++;
+                if (PopInrushIrpReferenceCount > 256)
+                {
+                    DPRINT1("PoCallDriver: PopInrushIrpReferenceCount > 256 !!!\n");
+                    /* A device has overrun its maximum number of reference counts. */
+                    ASSERT(0);KeBugCheckEx(INTERNAL_POWER_ERROR, 0x400, 1, (ULONG_PTR)IoStack, (ULONG_PTR)DeviceObject);
+                }
+            }
+            else
+            {
+                if (PopInrushIrpPointer || PopInrushPending)
+                {
+                    PowerFlags.DeviceSerialOn = 1;
+                    IoStack->Parameters.Power.SystemContext = POP_INRUSH_CONTEXT;
+
+                    InsertTailList(&PopIrpSerialList, &Irp->Tail.Overlay.ListEntry);
+                    PopIrpSerialListLength++;
+
+                    if (PopIrpSerialListLength > 10) {
+                        DPRINT1("PoCallDriver: PopIrpSerialListLength > 10!\n");
+                    }
+
+                    if (PopIrpSerialListLength > 100)
+                    {
+                        DPRINT1("PoCallDriver: PopIrpSerialListLength > 100 !!!\n");
+                        /* Too many inrush power IRPs have been queued. */
+                        ASSERT(0);KeBugCheckEx(INTERNAL_POWER_ERROR, 0x401, 2, (ULONG_PTR)&PopIrpSerialList, (ULONG_PTR)DeviceObject);
+                    }
+
+                    PopInrushPending = 1;
+                    KeReleaseSpinLock(&PopIrpSerialSpinLock, OldIrql);
+                    return STATUS_PENDING;
+                }
+                else
+                {
+                    PopInrushIrpPointer = Irp;
+                    PopInrushIrpReferenceCount = 1;
+                    IoStack->Parameters.Power.SystemContext = POP_INRUSH_CONTEXT;
+                }
+            }
+        }
+    }
+
+    if (IoStack->Parameters.Power.Type == SystemPowerState)
+    {
+        if (PowerFlags.SystemActive)
+        {
+            PowerFlags.SystemSerialOn = 1;
+
+            InsertTailList(&PopIrpSerialList, &Irp->Tail.Overlay.ListEntry);
+            PopIrpSerialListLength++;
+
+            if (PopIrpSerialListLength > 10) {
+                DPRINT1("PoCallDriver: PopIrpSerialListLength > 10!\n");
+            }
+
+            if (PopIrpSerialListLength > 100)
+            {
+                DPRINT1("PoCallDriver: PopIrpSerialListLength > 100 !!!\n");
+                /* Too many inrush power IRPs have been queued. */
+                ASSERT(0);KeBugCheckEx(INTERNAL_POWER_ERROR, 0x402, 3, (ULONG_PTR)&PopIrpSerialList, (ULONG_PTR)DeviceObject);
+            }
+
+            KeReleaseSpinLock(&PopIrpSerialSpinLock, OldIrql);
+            return STATUS_PENDING;
+        }
+        else
+        {
+            PowerFlags.SystemActive = 1;
+        }
+    }
+
+    if (IoStack->Parameters.Power.Type == DevicePowerState)
+    {
+        if (PowerFlags.DeviceActive == 1 ||
+            PowerFlags.DeviceSerialOn == 1)
+        {
+            PowerFlags.DeviceSerialOn = 1;
+
+            InsertTailList(&PopIrpSerialList, &Irp->Tail.Overlay.ListEntry);
+            PopIrpSerialListLength++;
+
+            if (PopIrpSerialListLength > 10)
+                DPRINT1("PoCallDriver: PopIrpSerialListLength > 10!\n");
+
+            if (PopIrpSerialListLength > 100)
+            {
+                DPRINT1("PoCallDriver: PopIrpSerialListLength > 100 !!!\n");
+                /* Too many inrush power IRPs have been queued. */
+                ASSERT(0);KeBugCheckEx(INTERNAL_POWER_ERROR, 0x403, 4, (ULONG_PTR)&PopIrpSerialList, (ULONG_PTR)DeviceObject);
+            }
+
+            KeReleaseSpinLock(&PopIrpSerialSpinLock, OldIrql);
+            return STATUS_PENDING;
+        }
+        else
+        {
+            PowerFlags.DeviceActive = 1;// DeviceExtension->PowerFlags |= 0x400;
+        }
+    }
+
+    ASSERT(PowerFlags.SystemActive | PowerFlags.DeviceActive);
+
+    KeReleaseSpinLock(&PopIrpSerialSpinLock, OldIrql);
+
+    return PopSubmitIrp(IoStack, Irp);
 }
 
 /*
