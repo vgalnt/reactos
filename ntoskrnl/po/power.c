@@ -130,6 +130,13 @@ PopDefaultPolicy(
     _In_ PSYSTEM_POWER_POLICY Policy
 );
 
+NTSTATUS
+NTAPI
+PopSubmitIrp(
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PIRP Irp
+);
+
 static
 NTSTATUS
 NTAPI
@@ -1362,5 +1369,78 @@ PopDefaultPolicy(
     for (ix = 0; ix < NUM_DISCHARGE_POLICIES; ix++) {
         Policy->DischargePolicy[ix].MinSystemState = PowerSystemSleeping1;
     }
+}
+
+NTSTATUS
+NTAPI
+PopSubmitIrp(
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PIRP Irp)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PWORK_QUEUE_ITEM PopCallWorkItem;
+    NTSTATUS Status;
+    BOOLEAN IsLowLevelDispatch = TRUE;
+    KIRQL OldIrql;
+
+    DPRINT("PopSubmitIrp: IoStack - %p, Irp - %p\n", IoStack, Irp);
+
+    DeviceObject = IoStack->DeviceObject;
+    ASSERT(IoStack->MajorFunction == IRP_MJ_POWER);
+
+    if (IoStack->MinorFunction == IRP_MN_SET_POWER)
+    {
+        if (!(DeviceObject->Flags & DO_POWER_PAGABLE) ||
+            (DeviceObject->Flags & DO_POWER_INRUSH))
+        {
+            if ((PopCallSystemState & 2) ||
+                (IoStack->Parameters.Power.Type == DevicePowerState && IoStack->Parameters.Power.State.DeviceState == PowerDeviceD0) ||
+                (IoStack->Parameters.Power.Type == SystemPowerState && IoStack->Parameters.Power.State.SystemState == PowerSystemWorking))
+            {
+                IsLowLevelDispatch = FALSE;
+            }
+        }
+    }
+
+    if (!IsLowLevelDispatch)
+    {
+        KeRaiseIrql(DISPATCH_LEVEL, &OldIrql);
+        Status = IoCallDriver(IoStack->DeviceObject, Irp);
+        KeLowerIrql(OldIrql);
+        return Status;
+    }
+
+    if ((IoStack->Parameters.Power.SystemContext & POP_INRUSH_CONTEXT) == POP_INRUSH_CONTEXT)
+    {
+        DPRINT("PopSubmitIrp: inrush irp to passive level dispatch !!!\n");
+        ASSERT(FALSE);KeBugCheckEx(INTERNAL_POWER_ERROR, 0x404, 5, (ULONG_PTR)IoStack, (ULONG_PTR)DeviceObject);
+    }
+
+    if (KeGetCurrentIrql() == PASSIVE_LEVEL)
+    {
+        Status = IoCallDriver(IoStack->DeviceObject, Irp);
+        return Status;
+    }
+
+    IoStack->Control |= SL_PENDING_RETURNED;
+    Status = STATUS_PENDING;
+
+    KeAcquireSpinLock(&PopWorkerLock, &OldIrql);
+
+    if (PopCallSystemState & 1)
+    {
+        ASSERT(FALSE);
+        KeSetEvent(&PopAction.DevState->Event, IO_NO_INCREMENT, FALSE);
+    }
+    else
+    {
+        PopCallWorkItem = (PWORK_QUEUE_ITEM)Irp->Tail.Overlay.DriverContext;
+        ExInitializeWorkItem(PopCallWorkItem, PopCallPassiveLevel, Irp);
+        ExQueueWorkItem(PopCallWorkItem, DelayedWorkQueue);
+    }
+
+    KeReleaseSpinLock(&PopWorkerLock, OldIrql);
+
+    return Status;
 }
 
