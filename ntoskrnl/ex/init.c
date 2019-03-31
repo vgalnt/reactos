@@ -419,7 +419,7 @@ ExpLoadInitialProcess(IN PINIT_BUFFER InitBuffer,
     ProcessInformation = &InitBuffer->ProcessInfo;
 
     /* Allocate memory for the process parameters */
-    Size = sizeof(*ProcessParams) + ((MAX_PATH * 6) * sizeof(WCHAR));
+    Size = sizeof(*ProcessParams) + ((MAX_WIN32_PATH * 6) * sizeof(WCHAR));
     Status = ZwAllocateVirtualMemory(NtCurrentProcess(),
                                      (PVOID*)&ProcessParams,
                                      0,
@@ -474,7 +474,7 @@ ExpLoadInitialProcess(IN PINIT_BUFFER InitBuffer,
     /* Make a buffer for the DOS path */
     p = (PWSTR)(ProcessParams + 1);
     ProcessParams->CurrentDirectory.DosPath.Buffer = p;
-    ProcessParams->CurrentDirectory.DosPath.MaximumLength = MAX_PATH *
+    ProcessParams->CurrentDirectory.DosPath.MaximumLength = MAX_WIN32_PATH *
                                                             sizeof(WCHAR);
 
     /* Copy the DOS path */
@@ -485,7 +485,7 @@ ExpLoadInitialProcess(IN PINIT_BUFFER InitBuffer,
     p = (PWSTR)((PCHAR)ProcessParams->CurrentDirectory.DosPath.Buffer +
                 ProcessParams->CurrentDirectory.DosPath.MaximumLength);
     ProcessParams->DllPath.Buffer = p;
-    ProcessParams->DllPath.MaximumLength = MAX_PATH * sizeof(WCHAR);
+    ProcessParams->DllPath.MaximumLength = MAX_WIN32_PATH * sizeof(WCHAR);
 
     /* Copy the DLL path and append the system32 directory */
     RtlCopyUnicodeString(&ProcessParams->DllPath,
@@ -496,7 +496,7 @@ ExpLoadInitialProcess(IN PINIT_BUFFER InitBuffer,
     p = (PWSTR)((PCHAR)ProcessParams->DllPath.Buffer +
                 ProcessParams->DllPath.MaximumLength);
     ProcessParams->ImagePathName.Buffer = p;
-    ProcessParams->ImagePathName.MaximumLength = MAX_PATH * sizeof(WCHAR);
+    ProcessParams->ImagePathName.MaximumLength = MAX_WIN32_PATH * sizeof(WCHAR);
 
     /* Make sure the buffer is a valid string which within the given length */
     if ((NtInitialUserProcessBufferType != REG_SZ) ||
@@ -534,7 +534,7 @@ ExpLoadInitialProcess(IN PINIT_BUFFER InitBuffer,
     p = (PWSTR)((PCHAR)ProcessParams->ImagePathName.Buffer +
                 ProcessParams->ImagePathName.MaximumLength);
     ProcessParams->CommandLine.Buffer = p;
-    ProcessParams->CommandLine.MaximumLength = MAX_PATH * sizeof(WCHAR);
+    ProcessParams->CommandLine.MaximumLength = MAX_WIN32_PATH * sizeof(WCHAR);
 
     /* Add the image name to the command line */
     RtlAppendUnicodeToString(&ProcessParams->CommandLine,
