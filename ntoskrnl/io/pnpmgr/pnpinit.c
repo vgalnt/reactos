@@ -264,63 +264,70 @@ NTAPI
 INIT_FUNCTION
 PiInitCacheGroupInformation(VOID)
 {
-    HANDLE KeyHandle;
+    HANDLE ServiceGroupOrderHandle;
     NTSTATUS Status;
     PKEY_VALUE_FULL_INFORMATION KeyValueInformation;
     PUNICODE_STRING GroupTable;
     ULONG Count;
-    UNICODE_STRING GroupString =
-        RTL_CONSTANT_STRING(L"\\Registry\\Machine\\System\\CurrentControlSet"
-                            L"\\Control\\ServiceGroupOrder");
+    UNICODE_STRING GroupString;
 
-    /* Open the registry key */
-    Status = IopOpenRegistryKeyEx(&KeyHandle,
+    /* Open 'CurrentControlSet\Control\ServiceGroupOrder' key */
+    RtlInitUnicodeString(&GroupString, IO_REG_KEY_SERVICEGROUPORDER);
+    Status = IopOpenRegistryKeyEx(&ServiceGroupOrderHandle,
                                   NULL,
                                   &GroupString,
                                   KEY_READ);
-    if (NT_SUCCESS(Status))
+    if (!NT_SUCCESS(Status))
     {
-        /* Get the list */
-        Status = IopGetRegistryValue(KeyHandle, L"List", &KeyValueInformation);
-        ZwClose(KeyHandle);
-
-        /* Make sure we got it */
-        if (NT_SUCCESS(Status))
-        {
-            /* Make sure it's valid */
-            if ((KeyValueInformation->Type == REG_MULTI_SZ) &&
-                (KeyValueInformation->DataLength))
-            {
-                /* Convert it to unicode strings */
-                Status = PnpRegMultiSzToUnicodeStrings(KeyValueInformation,
-                                                       &GroupTable,
-                                                       &Count);
-
-                /* Cache it for later */
-                if (NT_SUCCESS(Status))
-                {
-                    PiInitGroupOrderTable = GroupTable;
-                    PiInitGroupOrderTableCount = (USHORT)Count;
-                }
-                else
-                {
-                    DPRINT1("PiInitCacheGroupInformation: Status - %p\n", Status);
-                    PiInitGroupOrderTable = NULL;
-                    PiInitGroupOrderTableCount = 0;
-                }
-            }
-            else
-            {
-                /* Fail */
-                Status = STATUS_UNSUCCESSFUL;
-            }
-
-            /* Free the information */
-            ExFreePool(KeyValueInformation);
-        }
+        DPRINT1("PiInitCacheGroupInformation: Status - %X\n", Status);
+        return Status;
     }
 
-    /* Return status */
+    /* Get the 'list' value */
+    Status = IopGetRegistryValue(ServiceGroupOrderHandle,
+                                 L"List",
+                                 &KeyValueInformation);
+
+    ZwClose(ServiceGroupOrderHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiInitCacheGroupInformation: Status - %X\n", Status);
+        return Status;
+    }
+
+    /* Make sure it's valid */
+    if ((KeyValueInformation->Type == REG_MULTI_SZ) &&
+        (KeyValueInformation->DataLength))
+    {
+        /* Convert it to unicode strings */
+        Status = PnpRegMultiSzToUnicodeStrings(KeyValueInformation,
+                                               &GroupTable,
+                                               &Count);
+    }
+    else
+    {
+        /* Fail */
+        Status = STATUS_UNSUCCESSFUL;
+    }
+
+    /* Free the information */
+    ExFreePool(KeyValueInformation);
+
+    /* Cache it for later */
+    if (NT_SUCCESS(Status))
+    {
+        PiInitGroupOrderTable = GroupTable;
+        PiInitGroupOrderTableCount = (USHORT)Count;
+        DPRINT("PiInitCacheGroupInformation: Count - %X\n", Count);
+    }
+    else
+    {
+        DPRINT1("PiInitCacheGroupInformation: Status - %p\n", Status);
+        PiInitGroupOrderTable = NULL;
+        PiInitGroupOrderTableCount = 0;
+    }
+
     return Status;
 }
 
