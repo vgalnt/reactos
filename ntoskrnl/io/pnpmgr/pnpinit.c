@@ -331,6 +331,24 @@ PiInitCacheGroupInformation(VOID)
     return Status;
 }
 
+VOID
+NTAPI
+PiInitReleaseCachedGroupInformation(VOID)
+{
+    ASSERT(PnpSystemInit);
+
+    if (!PiInitGroupOrderTable)
+    {
+        DPRINT("PiInitReleaseCachedGroupInformation: PiInitGroupOrderTable == NULL\n");
+        return;
+    }
+
+    PnpFreeUnicodeStringList(PiInitGroupOrderTable, PiInitGroupOrderTableCount);
+
+    PiInitGroupOrderTable = NULL;
+    PiInitGroupOrderTableCount = 0;
+}
+
 USHORT
 NTAPI
 PpInitGetGroupOrderIndex(IN HANDLE ServiceHandle)
