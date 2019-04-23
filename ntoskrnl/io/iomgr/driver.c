@@ -809,39 +809,6 @@ LdrProcessDriverModule(PLDR_DATA_TABLE_ENTRY LdrEntry,
     return STATUS_SUCCESS;
 }
 
-VOID
-FASTCALL
-INIT_FUNCTION
-IopInitializeSystemDrivers(VOID)
-{
-    PUNICODE_STRING *DriverList, *SavedList;
-
-    /* No system drivers on the boot cd */
-    if (KeLoaderBlock->SetupLdrBlock) return; // ExpInTextModeSetup
-
-    /* Get the driver list */
-    SavedList = DriverList = CmGetSystemDriverList();
-    ASSERT(DriverList);
-
-    /* Loop it */
-    while (*DriverList)
-    {
-        /* Load the driver */
-        ZwLoadDriver(*DriverList);
-
-        /* Free the entry */
-        RtlFreeUnicodeString(*DriverList);
-        ExFreePool(*DriverList);
-
-        /* Next entry */
-        InbvIndicateProgress();
-        DriverList++;
-    }
-
-    /* Free the list */
-    ExFreePool(SavedList);
-}
-
 /*
  * IopUnloadDriver
  *
