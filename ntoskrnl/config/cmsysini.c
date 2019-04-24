@@ -1776,7 +1776,7 @@ CmpFreeDriverList(IN PHHIVE Hive,
     }
 }
 
-PUNICODE_STRING*
+PHANDLE
 NTAPI
 INIT_FUNCTION
 CmGetSystemDriverList(VOID)
@@ -1791,9 +1791,10 @@ CmGetSystemDriverList(VOID)
     UNICODE_STRING KeyName;
     PLIST_ENTRY NextEntry;
     ULONG i;
-    PUNICODE_STRING* ServicePath = NULL;
     BOOLEAN Success, AutoSelect;
     PBOOT_DRIVER_LIST_ENTRY DriverEntry;
+    PHANDLE pHandleArray;
+    BOOLEAN IsError = FALSE;
     PAGED_CODE();
 
     /* Initialize the driver list */
@@ -1803,11 +1804,15 @@ CmGetSystemDriverList(VOID)
     RtlInitUnicodeString(&KeyName, L"\\Registry\\Machine\\System");
     InitializeObjectAttributes(&ObjectAttributes,
                                &KeyName,
-                               OBJ_CASE_INSENSITIVE,
+                               OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
                                NULL,
                                NULL);
     Status = NtOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
-    if (!NT_SUCCESS(Status)) return NULL;
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("CmGetSystemDriverList: KeyName - %wZ, Status - %X\n", &KeyName, Status);
+        return NULL;
+    }
 
     /* Reference the key object to get the root hive/cell to access directly */
     Status = ObReferenceObjectByHandle(KeyHandle,
@@ -1819,6 +1824,7 @@ CmGetSystemDriverList(VOID)
     if (!NT_SUCCESS(Status))
     {
         /* Fail */
+        DPRINT1("CmGetSystemDriverList: Status - %X\n", Status);
         NtClose(KeyHandle);
         return NULL;
     }
@@ -1833,58 +1839,41 @@ CmGetSystemDriverList(VOID)
     /* Open the current control set key */
     RtlInitUnicodeString(&KeyName, L"Current");
     ControlCell = CmpFindControlSet(Hive, RootCell, &KeyName, &AutoSelect);
-    if (ControlCell == HCELL_NIL) goto EndPath;
+    if (ControlCell == HCELL_NIL)
+    {
+        DPRINT1("CmGetSystemDriverList: not find ControlSet\n");
+        IsError = TRUE;
+        goto EndPath;
+    }
 
     /* Find all system drivers */
     Success = CmpFindDrivers(Hive, ControlCell, SystemLoad, NULL, &DriverList);
-    if (!Success) goto EndPath;
-
-    /* Sort by group/tag */
-    if (!CmpSortDriverList(Hive, ControlCell, &DriverList)) goto EndPath;
-
-    /* Remove circular dependencies (cycles) and sort */
-    if (!CmpResolveDriverDependencies(&DriverList)) goto EndPath;
-
-    /* Loop the list to count drivers */
-    for (i = 0, NextEntry = DriverList.Flink;
-         NextEntry != &DriverList;
-         i++, NextEntry = NextEntry->Flink);
-
-    /* Allocate the array */
-    ServicePath = ExAllocatePool(NonPagedPool, (i + 1) * sizeof(PUNICODE_STRING));
-    if (!ServicePath) KeBugCheckEx(CONFIG_INITIALIZATION_FAILED, 2, 1, 0, 0);
-
-    /* Loop the driver list */
-    for (i = 0, NextEntry = DriverList.Flink;
-         NextEntry != &DriverList;
-         i++, NextEntry = NextEntry->Flink)
+    if (!Success)
     {
-        /* Get the entry */
-        DriverEntry = CONTAINING_RECORD(NextEntry, BOOT_DRIVER_LIST_ENTRY, Link);
-
-        /* Allocate the path for the caller */
-        ServicePath[i] = ExAllocatePool(NonPagedPool, sizeof(UNICODE_STRING));
-        if (!ServicePath[i])
-        {
-            KeBugCheckEx(CONFIG_INITIALIZATION_FAILED, 2, 1, 0, 0);
-        }
-
-        /* Duplicate the registry path */
-        Status = RtlDuplicateUnicodeString(RTL_DUPLICATE_UNICODE_STRING_NULL_TERMINATE,
-                                           &DriverEntry->RegistryPath,
-                                           ServicePath[i]);
-        if (!NT_SUCCESS(Status))
-        {
-            KeBugCheckEx(CONFIG_INITIALIZATION_FAILED, 2, 1, 0, 0);
-        }
+        DPRINT1("CmGetSystemDriverList: not find any valid drivers\n");
+        CmpFreeDriverList(Hive, &DriverList);
+        IsError = TRUE;
+        goto EndPath;
     }
 
-    /* Terminate the list */
-    ServicePath[i] = NULL;
+    /* Sort by group/tag */
+    if (!CmpSortDriverList(Hive, ControlCell, &DriverList))
+    {
+        DPRINT1("CmGetSystemDriverList: not sort DriverList\n");
+        CmpFreeDriverList(Hive, &DriverList);
+        IsError = TRUE;
+        goto EndPath;
+    }
+
+    /* Remove circular dependencies (cycles) and sort */
+    if (!CmpResolveDriverDependencies(&DriverList))
+    {
+        DPRINT1("CmGetSystemDriverList: not resolve driver dependencies\n");
+        CmpFreeDriverList(Hive, &DriverList);
+        IsError = TRUE;
+    }
 
 EndPath:
-    /* Free the driver list if we had one */
-    if (!IsListEmpty(&DriverList)) CmpFreeDriverList(Hive, &DriverList);
 
     /* Unlock the registry */
     CmpUnlockRegistry();
@@ -1892,7 +1881,61 @@ EndPath:
     /* Close the key handle and dereference the object, then return the path */
     ObDereferenceObject(KeyBody);
     NtClose(KeyHandle);
-    return ServicePath;
+
+    if (IsError)
+    {
+        DPRINT1("CmGetSystemDriverList: return NULL\n");
+        return NULL;
+    }
+
+    /* Loop the list to count drivers */
+    for (NextEntry = DriverList.Flink, i = 0;
+         NextEntry != &DriverList;
+         NextEntry = NextEntry->Flink, i++);
+
+    /* Allocate the array */
+    pHandleArray = ExAllocatePoolWithTag(NonPagedPool, (i + 1) * sizeof(*pHandleArray), TAG_CM);
+    if (!pHandleArray) KeBugCheckEx(CONFIG_INITIALIZATION_FAILED, 2, 1, 0, 0);
+
+    for (NextEntry = DriverList.Flink, i = 0;
+         NextEntry != &DriverList;
+         NextEntry = NextEntry->Flink)
+    {
+        /* Get the entry */
+        DriverEntry = CONTAINING_RECORD(NextEntry, BOOT_DRIVER_LIST_ENTRY, Link);
+
+        InitializeObjectAttributes(&ObjectAttributes,
+                                   &DriverEntry->RegistryPath,
+                                   OBJ_CASE_INSENSITIVE,
+                                   NULL,
+                                   NULL);
+
+        Status = NtOpenKey(&pHandleArray[i], (KEY_READ | KEY_WRITE), &ObjectAttributes);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("CmGetSystemDriverList: not open %wZ, Status - %X\n", &DriverEntry->RegistryPath, Status);
+            continue;
+        }
+        else
+        {
+            DPRINT1("CmGetSystemDriverList: driver - %wZ, Status - %X\n", &DriverEntry->RegistryPath, Status);
+        }
+
+        i++;
+    }
+
+    /* Terminate the list */
+    pHandleArray[i] = NULL;
+
+    /* Free the driver list if we had one */
+    if (!IsListEmpty(&DriverList))
+    {
+        CmpFreeDriverList(Hive, &DriverList);
+    }
+
+    DPRINT1("CmGetSystemDriverList: pHandleArray - %X\n", pHandleArray);
+    return pHandleArray;
 }
 
 VOID
