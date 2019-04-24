@@ -16,8 +16,7 @@
 #include <debug.h>
 
 ULONG IopTraceLevel = 0;
-BOOLEAN PnpSystemInit = FALSE;
-KEVENT PiEnumerationLock;
+extern KEVENT PiEnumerationLock;
 
 VOID
 NTAPI
@@ -48,6 +47,8 @@ LARGE_INTEGER IoOtherTransferCount = {{0, 0}};
 KSPIN_LOCK IoStatisticsLock = 0;
 ULONG IopNumTriageDumpDataBlocks;
 PVOID IopTriageDumpDataBlocks[64];
+BOOLEAN IsWithoutGroupOrderIndex = FALSE;
+extern BOOLEAN PnPBootDriversInitialized;
 
 GENERIC_MAPPING IopFileMapping = {
     FILE_GENERIC_READ,
@@ -551,6 +552,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     /* Initialize HAL Root Bus Driver */
     DPRINT("IoInitSystem: HalInitPnpDriver()\n");
     HalInitPnpDriver();
+    DPRINT("IoInitSystem: IopMarkHalDeviceNode()\n");
     IopMarkHalDeviceNode();
 
     /* Make loader block available for the whole kernel */
@@ -563,22 +565,58 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     /* Load boot start drivers */
     DPRINT("IoInitSystem: IopInitializeBootDrivers()\n");
     IopInitializeBootDrivers(LoaderBlock);
-    ASSERT(FALSE);
+
+    DPRINT("IoInitSystem: IopWaitForBootDevicesStarted()\n");
+    if (!IopWaitForBootDevicesStarted())
+    {
+        DPRINT1("IopWaitForBootDevicesStarted failed!\n");
+        return FALSE;
+    }
 
     /* Call back drivers that asked for */
+    DPRINT("IoInitSystem: IopReinitializeBootDrivers()\n");
     IopReinitializeBootDrivers();
+
+    DPRINT("IoInitSystem: IopWaitForBootDevicesStarted()\n");
+    if (!IopWaitForBootDevicesStarted())
+    {
+        DPRINT1("IopWaitForBootDevicesStarted failed!\n");
+        return FALSE;
+    }
 
     /* Check if this was a ramdisk boot */
     if (!_strnicmp(LoaderBlock->ArcBootDeviceName, "ramdisk(0)", 10))
     {
         /* Initialize the ramdisk driver */
         IopStartRamdisk(LoaderBlock);
+        if (!IopWaitForBootDevicesStarted())
+        {
+            DPRINT1("IopWaitForBootDevicesStarted failed!\n");
+            return FALSE;
+        }
+    }
+
+    if (IsWithoutGroupOrderIndex)
+    {
+        LARGE_INTEGER Interval;
+
+        DPRINT("IoInitSystem: 1 sec. wait\n");
+        Interval.QuadPart = -10000LL * 1000; // 1 sec.
+        KeDelayExecutionThread(KernelMode, FALSE, &Interval);
+        DPRINT("IoInitSystem: 1 sec. end\n");
+
+        if (!IopWaitForBootDevicesStarted())
+        {
+            DPRINT1("IopWaitForBootDevicesStarted failed!\n");
+            return FALSE;
+        }
     }
 
     /* No one should need loader block any longer */
     IopLoaderBlock = NULL;
 
     /* Create ARC names for boot devices */
+    DPRINT("IoInitSystem: IopCreateArcNames()\n");
     Status = IopCreateArcNames(LoaderBlock);
     if (!NT_SUCCESS(Status))
     {
@@ -587,14 +625,14 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     }
 
     /* Mark the system boot partition */
+    DPRINT("IoInitSystem: IopMarkBootPartition()\n");
     if (!IopMarkBootPartition(LoaderBlock))
     {
         DPRINT1("IopMarkBootPartition failed!\n");
         return FALSE;
     }
 
-    /* Initialize PnP root relations */
-    IopEnumerateDevice(IopRootDeviceNode->PhysicalDeviceObject);
+    PnPBootDriversInitialized = TRUE;
 
 #ifndef _WINKD_
     /* Read KDB Data */
@@ -604,17 +642,16 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     KdInitSystem(3, LoaderBlock);
 #endif
 
-    /* Load services for devices found by PnP manager */
-    //IopInitializePnpServices(IopRootDeviceNode);
-
     /* Load system start drivers */
+    DPRINT("IoInitSystem: IopInitializeSystemDrivers()\n");
     IopInitializeSystemDrivers();
-    PnpSystemInit = TRUE;
 
     /* Reinitialize drivers that requested it */
+    DPRINT("IoInitSystem: Reinitialize drivers\n");
     IopReinitializeDrivers();
 
     /* Convert SystemRoot from ARC to NT path */
+    DPRINT("IoInitSystem: Convert SystemRoot from ARC to NT path\n");
     Status = IopReassignSystemRoot(LoaderBlock, &NtBootPath);
     if (!NT_SUCCESS(Status))
     {
@@ -638,6 +675,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     }
 
     /* Assign drive letters */
+    DPRINT("IoInitSystem: Assign drive letters\n");
     IoAssignDriveLetters(LoaderBlock,
                          &NtBootPath,
                          (PUCHAR)RootString.Buffer,
@@ -652,6 +690,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     }
 
     /* Load the System DLL and its Entrypoints */
+    DPRINT("IoInitSystem: Load the System DLL and its Entrypoints\n");
     Status = PsLocateSystemDll();
     if (!NT_SUCCESS(Status))
     {
@@ -660,6 +699,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     }
 
     /* Return success */
+    DPRINT("IoInitSystem: return TRUE\n");
     return TRUE;
 }
 
