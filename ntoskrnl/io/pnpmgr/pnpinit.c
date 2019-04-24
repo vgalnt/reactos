@@ -1605,6 +1605,51 @@ PipInsertDriverList(
 }
 
 BOOLEAN
+NTAPI
+PipCheckDependencies(
+    _In_ HANDLE KeyHandle)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    PDRIVER_GROUP_LIST_ENTRY Entry;
+    UNICODE_STRING GroupString;
+    PWSTR DependString;
+    ULONG Length;
+    NTSTATUS Status;
+    BOOLEAN Result = TRUE;
+
+    DPRINT("PipCheckDependencies: KeyHandle - %X\n", KeyHandle);
+
+    Status = IopGetRegistryValue(KeyHandle, L"DependOnGroup", &ValueInfo);
+    if (!NT_SUCCESS(Status))
+    {
+        return TRUE;
+    }
+
+    Length = ValueInfo->DataLength;
+    DependString = (PWSTR)((PUCHAR)ValueInfo + ValueInfo->DataOffset);
+
+    while (Length)
+    {
+        RtlInitUnicodeString(&GroupString, DependString);
+        GroupString.Length = GroupString.MaximumLength;
+
+        Entry = PipLookupGroupName(&GroupString, FALSE);
+        if (Entry && Entry->NumberOfLoads == 0)
+        {
+            Result = FALSE;
+            break;
+        }
+
+        DependString = (PWSTR)((PUCHAR)DependString + GroupString.MaximumLength);
+        Length -= GroupString.MaximumLength;
+    }
+
+    ExFreePool(ValueInfo);
+
+    return Result;
+}
+
+BOOLEAN
 FASTCALL
 INIT_FUNCTION
 IopInitializeBootDrivers(
