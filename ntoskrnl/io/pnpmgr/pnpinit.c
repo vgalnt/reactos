@@ -713,7 +713,7 @@ IopInitializePlugPlayServices(
     }
 
     PpDeviceEventList = ExAllocatePoolWithTag(NonPagedPool, sizeof(PNP_DEVICE_EVENT_LIST), 'LEpP');
-    if ( !PpDeviceEventList )
+    if (!PpDeviceEventList)
     {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
@@ -2014,32 +2014,163 @@ FASTCALL
 INIT_FUNCTION
 IopInitializeSystemDrivers(VOID)
 {
-    PUNICODE_STRING *DriverList, *SavedList;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    PDRIVER_GROUP_LIST_ENTRY Entry;
+    PDRIVER_OBJECT DriverObject;
+    UNICODE_STRING DriverName;
+    UNICODE_STRING EnumName;
+    UNICODE_STRING GroupName;
+    PHANDLE pHandleArray;
+    PHANDLE DriverList;
+    HANDLE DriverHandle;
+    HANDLE EnumHandle;
+    KEVENT Event;
+    NTSTATUS Status;
 
-    /* No system drivers on the boot cd */
-    if (KeLoaderBlock->SetupLdrBlock) return; // ExpInTextModeSetup
+    DPRINT("IopInitializeSystemDrivers()\n");
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    Status = PipRequestDeviceAction(IopRootDeviceNode->PhysicalDeviceObject,
+                                    PipEnumStartSystemDevices,
+                                    0,
+                                    0,
+                                    &Event,
+                                    NULL);
+    if (NT_SUCCESS(Status))
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+    }
 
     /* Get the driver list */
-    SavedList = DriverList = CmGetSystemDriverList();
-    ASSERT(DriverList);
+    pHandleArray = CmGetSystemDriverList();
+    if (!pHandleArray)
+    {
+        DPRINT("IopInitializeSystemDrivers: pHandleArray == NULL\n");
+        ASSERT(pHandleArray);
+        goto Exit;
+    }
 
     /* Loop it */
-    while (*DriverList)
+    for (DriverList = pHandleArray; *DriverList; DriverList++)
     {
-        /* Load the driver */
-        ZwLoadDriver(*DriverList);
+        DriverHandle = *DriverList;
+        Status = IopGetDriverNameFromKeyNode(DriverHandle, &DriverName);
 
-        /* Free the entry */
-        RtlFreeUnicodeString(*DriverList);
-        ExFreePool(*DriverList);
+        if (NT_SUCCESS(Status))
+        {
+            DPRINT("IopInitializeSystemDrivers: DriverName - %wZ\n", &DriverName);
 
-        /* Next entry */
+            DriverObject = IopReferenceDriverObjectByName(&DriverName);
+            RtlFreeUnicodeString(&DriverName);
+
+            if (DriverObject)
+            {
+                ObDereferenceObject(DriverObject);
+                ZwClose(DriverHandle);
+                continue;
+            }
+        }
+        else
+        {
+            DPRINT("IopInitializeSystemDrivers: Status - %X\n", Status);
+        }
+
+        RtlInitUnicodeString(&EnumName, L"Enum");
+        Status = IopOpenRegistryKeyEx(&EnumHandle, DriverHandle, &EnumName, KEY_READ);
+
+        if (NT_SUCCESS(Status))
+        {
+            ULONG InitStartFailed = 0;
+
+            Status = IopGetRegistryValue(EnumHandle, L"INITSTARTFAILED", &ValueInfo);
+
+            if (NT_SUCCESS(Status))
+            {
+                if (ValueInfo->DataLength == sizeof(ULONG))
+                {
+                    InitStartFailed = *(PULONG)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
+                }
+
+                ExFreePool(ValueInfo);
+            }
+
+            ZwClose(EnumHandle);
+
+            if (InitStartFailed)
+            {
+                ZwClose(DriverHandle);
+                continue;
+            }
+        }
+
+        Status = IopGetRegistryValue(DriverHandle, L"Group", &ValueInfo);
+
+        if (!NT_SUCCESS(Status))
+        {
+            Entry = NULL;
+        }
+        else
+        {
+            if (ValueInfo->DataLength)
+            {
+                GroupName.Length = (USHORT)ValueInfo->DataLength;
+                GroupName.MaximumLength = GroupName.Length;
+                GroupName.Buffer = (PWSTR)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
+
+                Entry = PipLookupGroupName(&GroupName, TRUE);
+            }
+            else
+            {
+                Entry = NULL;
+            }
+
+            ExFreePool(ValueInfo);
+        }
+
+        if (PipCheckDependencies(DriverHandle))
+        {
+            NTSTATUS InitStatus;
+
+            Status = IopLoadDriver(DriverHandle, TRUE, FALSE, &InitStatus);
+
+            if (NT_SUCCESS(Status) && Entry != NULL)
+            {
+                Entry->NumberOfLoads++;
+            }
+        }
+        else
+        {
+            ZwClose(DriverHandle);
+        }
+
         InbvIndicateProgress();
-        DriverList++;
     }
 
     /* Free the list */
-    ExFreePool(SavedList);
+    ExFreePoolWithTag(pHandleArray, TAG_CM);
+
+Exit:
+
+    PipRequestDeviceAction(IopRootDeviceNode->PhysicalDeviceObject,
+                           PipEnumStartSystemDevices,
+                           0,
+                           0,
+                           NULL,
+                           NULL);
+    PnpSystemInit = TRUE;
+
+    PiInitReleaseCachedGroupInformation();
+
+    DPRINT("IopInitializeSystemDrivers: FIXME PpReleaseBootDDB()\n");
+    //PpReleaseBootDDB();
+
+    if (IopGroupListHead)
+    {
+        PipFreeGroupTree(IopGroupListHead);
+    }
+
+    DPRINT("IopInitializeSystemDrivers: exit \n");
 }
 
 /* EOF */
