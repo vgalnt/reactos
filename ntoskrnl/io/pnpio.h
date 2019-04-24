@@ -240,6 +240,16 @@ typedef struct _IOPNP_DEVICE_EXTENSION
     ULONG CompatibleIdListSize;
 } IOPNP_DEVICE_EXTENSION, *PIOPNP_DEVICE_EXTENSION;
 
+typedef struct _DRIVER_GROUP_LIST_ENTRY {
+    struct _DRIVER_GROUP_LIST_ENTRY * ShortEntry;
+    struct _DRIVER_GROUP_LIST_ENTRY * LongEntry;
+    struct _DRIVER_GROUP_LIST_ENTRY * NextSameEntry;
+    ULONG Param;
+    ULONG NumberOfLoads;
+    UNICODE_STRING GroupName;
+    WCHAR Buffer[];
+} DRIVER_GROUP_LIST_ENTRY, *PDRIVER_GROUP_LIST_ENTRY;
+
 //=== iomgr ================================
 
 //
