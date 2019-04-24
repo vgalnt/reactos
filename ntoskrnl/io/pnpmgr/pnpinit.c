@@ -1819,7 +1819,7 @@ IopInitializeBootDrivers(
                                                                 &DriverObject);
                 ZwClose(ServiceHandle);
 
-                ExFreePoolWithTag(DriverName.Buffer, TAG_IO);
+                ExFreePoolWithTag(DriverName.Buffer, 0);
                 ExFreePoolWithTag(DriverInfo, 'nipP');
 
                 if (!DriverObject)
@@ -1872,7 +1872,7 @@ IopInitializeBootDrivers(
                                          &ValueInfo);
             if (!NT_SUCCESS(Status))
             {
-                DPRINT("IopInitializeBootDrivers: Status - %X\n", Status);
+                GroupListEntry = NULL;
             }
             else
             {
@@ -1887,11 +1887,11 @@ IopInitializeBootDrivers(
                     DPRINT("IopInitializeBootDrivers: Group - %S\n",
                            GroupName.Buffer);
 
-                    DPRINT("IopInitializeBootDrivers: FIXME PipLookupGroupName\n");
+                    GroupListEntry = PipLookupGroupName(&GroupName, TRUE);
                 }
                 else
                 {
-                    DPRINT("IopInitializeBootDrivers: ValueInfo->DataLength == 0\n");
+                    GroupListEntry = NULL;
                 }
 
                 ExFreePoolWithTag(ValueInfo, 'uspP');
@@ -1899,100 +1899,106 @@ IopInitializeBootDrivers(
 
             DriverObject = NULL;
 
-            DPRINT("IopInitializeBootDrivers: FIXME PipCheckDependencies\n");
-
-            DriverObject = DriverInfo->DriverObject;
-
-            if (DriverObject)
+            if (PipCheckDependencies(ServiceHandle))
             {
-                DriverInfo->DriverObject = DriverObject;
-                ExFreePoolWithTag(DriverName.Buffer, TAG_IO);
-                goto Next;
-            }
+                DriverObject = DriverInfo->DriverObject;
 
-            if (!DriverInfo->Failed)
-            {
-                DriverInfo->Status =
-                    IopInitializeBuiltinDriver(
-                        &DriverName,
-                        &DriverInfo->DataTableEntry->RegistryPath,
-                        BootLdrEntry->EntryPoint,
-                        BootLdrEntry,
-                        FALSE,
-                        &DriverObject);
-
-                if (!DriverObject)
+                if (DriverObject)
                 {
-                    DPRINT("IopInitializeBootDrivers: DriverInfo->Status - %p\n",
-                           DriverInfo->Status);
+                    if (GroupListEntry)
+                    {
+                        GroupListEntry->NumberOfLoads++;
+                    }
 
-                    DriverInfo->Failed = 1;
-                    ExFreePoolWithTag(DriverName.Buffer, TAG_IO);
+                    DriverInfo->DriverObject = DriverObject;
+                    ExFreePoolWithTag(DriverName.Buffer, 0);
                     goto Next;
                 }
 
-                ObReferenceObject(DriverObject);
-
-                if (!IopIsLegacyDriver(DriverObject))
+                if (!DriverInfo->Failed)
                 {
-                    if (DriverObject->DeviceObject)
-                    {
-                        DPRINT("IopInitializeBootDrivers: FIXME IopDeleteLegacyKey\n");
-                        ASSERT(FALSE);
-                    }
-                    else
-                    {
-                        DriverExtension = DriverObject->DriverExtension;
 
-                        if (!DriverExtension->ServiceKeyName.Buffer)
+                    //DriverInfo->Status = IopInitializeBuiltinDriver(
+                    Status = IopInitializeBuiltinDriver(&DriverName,
+                                                        &DriverInfo->DataTableEntry->RegistryPath,
+                                                        BootLdrEntry->EntryPoint,
+                                                        BootLdrEntry,
+                                                        0,
+                                                        &DriverObject);
+
+                    if (!DriverObject)
+                    {
+                        DPRINT("IopInitializeBootDrivers: Status - %X\n", Status);
+                        DriverInfo->Failed = 1;
+                        ExFreePoolWithTag(DriverName.Buffer, 0);
+                        goto Next;
+                    }
+
+                    ObReferenceObject(DriverObject);
+
+                    if (!IopIsLegacyDriver(DriverObject))
+                    {
+                        if (DriverObject->DeviceObject)
                         {
-                            DPRINT("IopInitializeBootDrivers: FIXME IopDeleteLegacyKey\n");
-                            ASSERT(FALSE);
+                            IopDeleteLegacyKey(DriverObject);
                         }
                         else
                         {
-                            if (IopIsAnyDeviceInstanceEnabled(&DriverExtension->ServiceKeyName,
-                                                              NULL,
-                                                              FALSE))
+                            DriverExtension = DriverObject->DriverExtension;
+                            if (!DriverExtension->ServiceKeyName.Buffer)
                             {
-                                DPRINT("IopInitializeBootDrivers: FIXME IopDeleteLegacyKey\n");
-                                //ASSERT(FALSE);
+                                IopDeleteLegacyKey(DriverObject);
                             }
                             else
                             {
-                                if (IsWithoutGroupOrderIndex &&
-                                    !(DriverObject->Flags & DRVO_REINIT_REGISTERED))
+                                if (IopIsAnyDeviceInstanceEnabled(&DriverExtension->ServiceKeyName,
+                                                                  NULL,
+                                                                  FALSE))
                                 {
-                                    DriverObject = DriverObject;
-                                    DPRINT("IopInitializeBootDrivers: FIXME IopDriverLoadingFailed\n");
-                                    ASSERT(FALSE);
+                                    IopDeleteLegacyKey(DriverObject);
+                                }
+                                else
+                                {
+                                    if (IsWithoutGroupOrderIndex && !(DriverObject->Flags & 8))
+                                    {
+                                        DriverObject = DriverObject;
+                                        DPRINT("IopInitializeBootDrivers: ASSERT\n");
+                                        ASSERT(FALSE);
+                                        //IopDriverLoadingFailed(0, &DriverObject->DriverExtension->ServiceKeyName);
+                                    }
                                 }
                             }
                         }
                     }
                 }
-
-            }
-            else
-            {
-                DPRINT("IopInitializeBootDrivers: ASSERT\n");
-                ASSERT(FALSE);
+                else
+                {
+                    DPRINT("IopInitializeBootDrivers: ASSERT\n");
+                    ASSERT(FALSE);
+                }
             }
 
             if (DriverObject)
             {
+                if (GroupListEntry)
+                {
+                    GroupListEntry->NumberOfLoads++;
+                }
+
                 DriverInfo->DriverObject = DriverObject;
-                ExFreePoolWithTag(DriverName.Buffer, TAG_IO);
+                ExFreePoolWithTag(DriverName.Buffer, 0);
             }
             else
             {
                 DriverInfo->Failed = 1;
-                ExFreePoolWithTag(DriverName.Buffer, TAG_IO);
+                ExFreePoolWithTag(DriverName.Buffer, 0);
             }
 
 Next:
             if (!DriverInfo->Failed)
             {
+                PipAddDevicesToBootDriver(DriverObject);
+
                 PipRequestDeviceAction(NULL,
                                        PipEnumBootDevices,
                                        0,
@@ -2008,10 +2014,9 @@ Next:
  
         if (ix == 2) // ServiceGroupName - "Boot Bus Extender"
         {
-            DPRINT("IopInitializeBootDrivers: FIXME IopAllocateLegacyBootResources\n");
-            ASSERT(FALSE);
-            //IopAllocateLegacyBootResources(0, 0);
+            DPRINT("IopInitializeBootDrivers: ix == 2. IopAllocateLegacyBootResources(0, 0)\n");
 
+            IopAllocateLegacyBootResources(0, 0);
             IopAllocateBootResourcesRoutine = IopAllocateBootResources;
 
             ASSERT(IopInitHalResources == NULL);
