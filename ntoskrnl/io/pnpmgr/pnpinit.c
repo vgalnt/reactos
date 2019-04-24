@@ -1604,6 +1604,116 @@ PipInsertDriverList(
     InsertHeadList(Entry->Blink, Link);
 }
 
+PDRIVER_GROUP_LIST_ENTRY
+NTAPI
+PipLookupGroupName(
+    _In_ PUNICODE_STRING GroupString,
+    _In_ BOOLEAN IsCreateEntry)
+{
+    PDRIVER_GROUP_LIST_ENTRY Entry;
+    PDRIVER_GROUP_LIST_ENTRY NewEntry;
+    PDRIVER_GROUP_LIST_ENTRY SameEntry;
+
+    DPRINT("PipLookupGroupName: GroupString - %wZ, IsCreateEntry - %X\n", GroupString, IsCreateEntry);
+
+    Entry = IopGroupListHead;
+    if (!IopGroupListHead)
+    {
+        if (IsCreateEntry)
+        {
+            NewEntry = PipCreateEntry(GroupString);
+            IopGroupListHead = NewEntry;
+        }
+        else
+        {
+            NewEntry = NULL;
+        }
+
+        return NewEntry;
+    }
+
+    while (TRUE)
+    {
+        if (GroupString->Length >= Entry->GroupName.Length)
+        {
+            if (GroupString->Length > Entry->GroupName.Length)
+            {
+                if (!Entry->LongEntry)
+                {
+                    if (!IsCreateEntry)
+                    {
+                        Entry = NULL;
+                        break;
+                    }
+
+                    NewEntry = PipCreateEntry(GroupString);
+                    Entry->LongEntry = NewEntry;
+                    Entry = NewEntry;
+                    break;
+                }
+
+                Entry = Entry->LongEntry;
+            }
+            else
+            {
+                if (RtlEqualUnicodeString(GroupString, &Entry->GroupName, TRUE))
+                {
+                    break;
+                }
+
+                for (SameEntry = Entry;
+                     ;
+                     SameEntry = SameEntry->NextSameEntry)
+                {
+                    Entry = Entry->NextSameEntry;
+
+                    if (!Entry)
+                    {
+                        if (IsCreateEntry)
+                        {
+                            NewEntry = PipCreateEntry(GroupString);
+                            SameEntry->NextSameEntry = NewEntry;
+                            Entry = NewEntry;
+                            break;
+                        }
+
+                        Entry = NULL;
+                        break;
+                    }
+
+                    if (RtlEqualUnicodeString(GroupString, &Entry->GroupName, TRUE))
+                    {
+                        break;
+                    }
+                }
+
+                break;
+            }
+        }
+        else
+        {
+            /* GroupString->Length < Entry->GroupName.Length */
+            if (!Entry->ShortEntry)
+            {
+                if (!IsCreateEntry)
+                {
+                    Entry = NULL;
+                    break;
+                }
+
+                NewEntry = PipCreateEntry(GroupString);
+                Entry->ShortEntry = NewEntry;
+                Entry = NewEntry;
+                break;
+            }
+
+            Entry = Entry->ShortEntry;
+        }
+    }
+
+    return Entry;
+}
+
 BOOLEAN
 NTAPI
 PipCheckDependencies(
