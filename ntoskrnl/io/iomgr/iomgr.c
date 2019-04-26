@@ -82,8 +82,6 @@ extern KSPIN_LOCK DriverBootReinitListLock;
 extern KSPIN_LOCK IopLogListLock;
 extern KSPIN_LOCK IopTimerLock;
 
-extern PDEVICE_OBJECT IopErrorLogObject;
-
 GENERAL_LOOKASIDE IoLargeIrpLookaside;
 GENERAL_LOOKASIDE IoSmallIrpLookaside;
 GENERAL_LOOKASIDE IopMdlLookasideList;
@@ -496,73 +494,8 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     DPRINT("IoInitSystem: IopInitializeBootDrivers()\n");
     IopInitializeBootDrivers(LoaderBlock);
 
-    DPRINT("IoInitSystem: IopWaitForBootDevicesStarted()\n");
-    if (!IopWaitForBootDevicesStarted())
-    {
-        DPRINT1("IopWaitForBootDevicesStarted failed!\n");
-        return FALSE;
-    }
-
-    /* Call back drivers that asked for */
-    DPRINT("IoInitSystem: IopReinitializeBootDrivers()\n");
-    IopReinitializeBootDrivers();
-
-    DPRINT("IoInitSystem: IopWaitForBootDevicesStarted()\n");
-    if (!IopWaitForBootDevicesStarted())
-    {
-        DPRINT1("IopWaitForBootDevicesStarted failed!\n");
-        return FALSE;
-    }
-
-    /* Check if this was a ramdisk boot */
-    if (!_strnicmp(LoaderBlock->ArcBootDeviceName, "ramdisk(0)", 10))
-    {
-        /* Initialize the ramdisk driver */
-        IopStartRamdisk(LoaderBlock);
-        if (!IopWaitForBootDevicesStarted())
-        {
-            DPRINT1("IopWaitForBootDevicesStarted failed!\n");
-            return FALSE;
-        }
-    }
-
-    if (IsWithoutGroupOrderIndex)
-    {
-        LARGE_INTEGER Interval;
-
-        DPRINT("IoInitSystem: 1 sec. wait\n");
-        Interval.QuadPart = -10000LL * 1000; // 1 sec.
-        KeDelayExecutionThread(KernelMode, FALSE, &Interval);
-        DPRINT("IoInitSystem: 1 sec. end\n");
-
-        if (!IopWaitForBootDevicesStarted())
-        {
-            DPRINT1("IopWaitForBootDevicesStarted failed!\n");
-            return FALSE;
-        }
-    }
-
     /* No one should need loader block any longer */
     IopLoaderBlock = NULL;
-
-    /* Create ARC names for boot devices */
-    DPRINT("IoInitSystem: IopCreateArcNames()\n");
-    Status = IopCreateArcNames(LoaderBlock);
-    if (!NT_SUCCESS(Status))
-    {
-        DPRINT1("IopCreateArcNames failed: %lx\n", Status);
-        return FALSE;
-    }
-
-    /* Mark the system boot partition */
-    DPRINT("IoInitSystem: IopMarkBootPartition()\n");
-    if (!IopMarkBootPartition(LoaderBlock))
-    {
-        DPRINT1("IopMarkBootPartition failed!\n");
-        return FALSE;
-    }
-
-    PnPBootDriversInitialized = TRUE;
 
 #ifndef _WINKD_
     /* Read KDB Data */
