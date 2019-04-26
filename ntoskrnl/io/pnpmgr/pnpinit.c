@@ -1643,6 +1643,34 @@ PipInsertDriverList(
 
 PDRIVER_GROUP_LIST_ENTRY
 NTAPI
+PipCreateEntry(
+    _In_ PUNICODE_STRING GroupString)
+{
+    PDRIVER_GROUP_LIST_ENTRY Entry;
+
+    DPRINT("PipCreateEntry: GroupString - %wZ\n", GroupString);
+
+    Entry = ExAllocatePoolWithTag(PagedPool,
+                                  sizeof(DRIVER_GROUP_LIST_ENTRY) + GroupString->Length,
+                                  'nipP');
+    if (!Entry)
+    {
+        return NULL;
+    }
+
+    RtlZeroMemory(Entry, sizeof(DRIVER_GROUP_LIST_ENTRY));
+
+    Entry->GroupName.Length = GroupString->Length;
+    Entry->GroupName.MaximumLength = GroupString->Length;
+    Entry->GroupName.Buffer = (PWSTR)&Entry[1];
+
+    RtlCopyMemory(&Entry[1], GroupString->Buffer, GroupString->Length);
+
+    return Entry;
+}
+
+PDRIVER_GROUP_LIST_ENTRY
+NTAPI
 PipLookupGroupName(
     _In_ PUNICODE_STRING GroupString,
     _In_ BOOLEAN IsCreateEntry)
