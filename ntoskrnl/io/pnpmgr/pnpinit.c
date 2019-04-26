@@ -70,6 +70,36 @@ BOOLEAN PiCriticalDeviceDatabaseEnabled = TRUE;
 
 /* FUNCTIONS ******************************************************************/
 
+BOOLEAN
+NTAPI
+IopWaitForBootDevicesStarted(VOID)
+{
+    NTSTATUS Status;
+
+    Status = KeWaitForSingleObject(&PiEnumerationLock,
+                                   Executive,
+                                   KernelMode,
+                                   FALSE,
+                                   NULL);
+
+    return NT_SUCCESS(Status);
+}
+
+BOOLEAN
+NTAPI
+IopWaitForBootDevicesDeleted(VOID)
+{
+    NTSTATUS Status;
+
+    Status = KeWaitForSingleObject(&PiEventQueueEmpty,
+                                   Executive,
+                                   KernelMode,
+                                   FALSE,
+                                   NULL);
+
+    return NT_SUCCESS(Status);
+}
+
 VOID
 NTAPI
 IopInitializeResourceMap(
