@@ -1641,6 +1641,23 @@ PipInsertDriverList(
     InsertHeadList(Entry->Blink, Link);
 }
 
+VOID
+NTAPI
+PipFreeGroupTree(
+    _In_ PDRIVER_GROUP_LIST_ENTRY GroupList)
+{
+    if (GroupList->ShortEntry)
+        PipFreeGroupTree(GroupList->ShortEntry);
+
+    if (GroupList->NextSameEntry)
+        PipFreeGroupTree(GroupList->NextSameEntry);
+
+    if (GroupList->LongEntry)
+        PipFreeGroupTree(GroupList->LongEntry);
+
+    ExFreePoolWithTag(GroupList, 'nipP');
+}
+
 PDRIVER_GROUP_LIST_ENTRY
 NTAPI
 PipCreateEntry(
