@@ -1796,6 +1796,105 @@ PipCheckDependencies(
     return Result;
 }
 
+NTSTATUS
+NTAPI
+IopStartTcpIpForRemoteBoot(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock)
+{
+    PSETUP_LOADER_BLOCK SetupLdrBlock;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING ObjectName;
+    HANDLE EventHandle = NULL;
+    HANDLE FileHandle = NULL;
+    IO_STATUS_BLOCK IoStatusBlock;
+    ULONG InputBuffer[3]; // ? FIXME
+    NTSTATUS Status;
+
+    DPRINT("IopStartTcpIpForRemoteBoot: LoaderBlock - %X\n", LoaderBlock);
+
+    SetupLdrBlock = LoaderBlock->SetupLdrBlock;
+
+    InputBuffer[0] = 2;
+    InputBuffer[1] = SetupLdrBlock->IpAddress;
+    InputBuffer[2] = SetupLdrBlock->SubnetMask;
+
+    RtlInitUnicodeString(&ObjectName, L"\\Device\\Ip");
+    InitializeObjectAttributes(&ObjectAttributes,
+                               &ObjectName,
+                               OBJ_CASE_INSENSITIVE,
+                               NULL,
+                               NULL);
+
+    Status = NtCreateFile(&FileHandle,
+                          (GENERIC_READ | GENERIC_WRITE),
+                          &ObjectAttributes,
+                          &IoStatusBlock,
+                          NULL,
+                          0,
+                          FILE_SHARE_VALID_FLAGS,
+                          FILE_OPEN,
+                          FILE_SYNCHRONOUS_IO_NONALERT,
+                          NULL,
+                          0);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopStartTcpIpForRemoteBoot: Unable to open IP. Status - %X\n", Status);
+        goto Exit;
+    }
+
+    Status = NtCreateEvent(&EventHandle,
+                           EVENT_ALL_ACCESS,
+                           NULL,
+                           SynchronizationEvent,
+                           FALSE);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopStartTcpIpForRemoteBoot: Unable to create event. Status - %X\n", Status);
+        goto Exit;
+    }
+
+    Status = NtDeviceIoControlFile(FileHandle,
+                                   EventHandle,
+                                   NULL,
+                                   NULL,
+                                   &IoStatusBlock,
+                                   0x128004, // ? FIXME
+                                   &InputBuffer,
+                                   sizeof(InputBuffer),
+                                   NULL,
+                                   0);
+    if (Status == STATUS_PENDING)
+    {
+        NtWaitForSingleObject(EventHandle, FALSE, NULL);
+        Status = IoStatusBlock.Status;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopStartTcpIpForRemoteBoot: Unable to IOCTL IP. Status - %X\n", Status);
+        if (Status == STATUS_DUPLICATE_NAME)
+        {
+            KeBugCheckEx(0xBC, LoaderBlock->SetupLdrBlock->IpAddress, 0, 0, 0);//NETWORK_BOOT_DUPLICATE_ADDRESS
+        }
+    }
+
+Exit:
+
+    if (EventHandle)
+    {
+        NtClose(EventHandle);
+    }
+
+    if (FileHandle)
+    {
+        NtClose(FileHandle);
+    }
+
+    return Status;
+}
+
 BOOLEAN
 INIT_FUNCTION
 NTAPI
