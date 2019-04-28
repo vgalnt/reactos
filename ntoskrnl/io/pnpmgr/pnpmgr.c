@@ -3606,6 +3606,82 @@ PiInitPhase0(VOID)
 
 BOOLEAN
 NTAPI
+PiInitPhase1(VOID)
+{
+    PKEY_VALUE_FULL_INFORMATION KeyInfo;
+    UNICODE_STRING KeyName;
+    HANDLE RootKeyHandle;
+    HANDLE Handle;
+    NTSTATUS Status;
+
+    RtlInitUnicodeString(&KeyName, IO_REG_KEY_CURRENTCONTROLSET);
+    Status = IopOpenRegistryKeyEx(&RootKeyHandle,
+                                  NULL,
+                                  &KeyName,
+                                  KEY_ALL_ACCESS);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiInitPhase1: Status - %X\n", Status);
+        ASSERT(0);
+        goto Exit;
+    }
+
+    RtlInitUnicodeString(&KeyName, L"Control\\Pnp");
+    Status = IopCreateRegistryKeyEx(&Handle,
+                                    RootKeyHandle,
+                                    &KeyName,
+                                    KEY_ALL_ACCESS,
+                                    0,
+                                    NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiInitPhase1: Status - %X\n", Status);
+        ASSERT(0);
+        ZwClose(RootKeyHandle);
+        goto Exit;
+    }
+
+    Status = IopGetRegistryValue(Handle,
+                                 L"DisableFirmwareMapper",
+                                 &KeyInfo);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiInitPhase1: Status - %X\n", Status);
+        ASSERT(0);
+        ZwClose(Handle);
+        ZwClose(RootKeyHandle);
+        goto Exit;
+    }
+
+    if (KeyInfo->Type == REG_DWORD && KeyInfo->DataLength == sizeof(ULONG))
+    {
+        PpDisableFirmwareMapper = *(PULONG)((PUCHAR)KeyInfo + KeyInfo->DataOffset);
+        DPRINT("PiInitPhase1: PpDisableFirmwareMapper - %X\n", PpDisableFirmwareMapper);
+    }
+    else
+    {
+        DPRINT1("PiInitPhase1: KeyInfo->Type - %X, KeyInfo->DataLength - %X\n", KeyInfo->Type, KeyInfo->DataLength);
+        ASSERT(0);
+    }
+
+    ExFreePoolWithTag(KeyInfo, 'uspP');
+
+    ZwClose(Handle);
+    ZwClose(RootKeyHandle);
+
+Exit:
+
+    if (!PpDisableFirmwareMapper)
+    {
+        DPRINT1("PiInitPhase1: FIXME PnPBiosInitializePnPBios()\n");
+        //PnPBiosInitializePnPBios();
+    }
+
+    return TRUE;
+}
+
+BOOLEAN
+NTAPI
 PpInitSystem(VOID)
 {
     /* Check the initialization phase */
@@ -3619,8 +3695,7 @@ PpInitSystem(VOID)
     case 1:
 
         /* Do Phase 1 */
-        return TRUE;
-        //return PiInitPhase1();
+        return PiInitPhase1();
 
     default:
 
