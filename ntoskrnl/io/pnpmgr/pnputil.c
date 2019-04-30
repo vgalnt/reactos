@@ -699,36 +699,36 @@ PipOpenServiceEnumKeys(
     _Out_ PHANDLE OutEnumHandle,
     _In_ BOOLEAN IsCreateKey)
 {
-    NTSTATUS Status;
+    UNICODE_STRING ServicesKeyName;
     UNICODE_STRING EnumName;
-    HANDLE Handle;
-    HANDLE EnumHandle;
+    HANDLE ServicesRootHandle;
     HANDLE ServiceHandle;
-    UNICODE_STRING KeyName = RTL_CONSTANT_STRING(
-        L"\\REGISTRY\\MACHINE\\SYSTEM\\CurrentControlSet\\Services\\");
+    HANDLE EnumHandle;
+    NTSTATUS Status;
 
-    DPRINT("PipOpenServiceEnumKeys: ServiceString %wZ\n", ServiceString);
+    DPRINT("PipOpenServiceEnumKeys: ServiceString - %wZ\n", ServiceString);
 
-    Status = IopOpenRegistryKeyEx(&Handle,
+    RtlInitUnicodeString(&ServicesKeyName, IO_REG_KEY_SERVICES);
+    Status = IopOpenRegistryKeyEx(&ServicesRootHandle,
                                   NULL,
-                                  &KeyName,
+                                  &ServicesKeyName,
                                   Access);
-
     if (!NT_SUCCESS(Status))
     {
+        DPRINT1("PipOpenServiceEnumKeys: Status - %X\n", Status);
+        ASSERT(FALSE);
         return Status;
     }
 
     Status = IopOpenRegistryKeyEx(&ServiceHandle,
-                                  Handle,
+                                  ServicesRootHandle,
                                   ServiceString,
                                   Access);
-
-    ZwClose(Handle);
+    ZwClose(ServicesRootHandle);
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT("PipOpenServiceEnumKeys: Status - %X\n", Status);
+        DPRINT1("PipOpenServiceEnumKeys: ServiceString - %wZ, Status - %X\n", ServiceString, Status);
         return Status;
     }
 
