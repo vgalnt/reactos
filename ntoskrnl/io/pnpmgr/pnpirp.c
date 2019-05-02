@@ -756,4 +756,28 @@ IopFilterResourceRequirementsCall(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopStartDevice(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    IO_STACK_LOCATION IoStack;
+
+    PAGED_CODE();
+
+    DPRINT("IopStartDevice: DeviceNode - %p\n", DeviceNode);
+    DPRINT("IopStartDevice: ResourceList - %p, ResourceListTranslated - %p\n", DeviceNode->ResourceList, DeviceNode->ResourceListTranslated);
+    DPRINT("IopStartDevice: InstancePath - %wZ, ServiceName - %wZ\n", &DeviceNode->InstancePath, &DeviceNode->ServiceName);
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_START_DEVICE;
+
+    IoStack.Parameters.StartDevice.AllocatedResources = DeviceNode->ResourceList;
+    IoStack.Parameters.StartDevice.AllocatedResourcesTranslated = DeviceNode->ResourceListTranslated;
+
+    return IopSynchronousCall(DeviceNode->PhysicalDeviceObject, &IoStack, NULL);
+}
+
 /* EOF */
