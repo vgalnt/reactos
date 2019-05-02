@@ -37,7 +37,12 @@ IopSynchronousCall(IN PDEVICE_OBJECT DeviceObject,
 
     /* Allocate an IRP */
     Irp = IoAllocateIrp(TopDeviceObject->StackSize, FALSE);
-    if (!Irp) return STATUS_INSUFFICIENT_RESOURCES;
+    if (!Irp)
+    {
+        /* Remove the reference */
+        ObDereferenceObject(TopDeviceObject);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     /* Initialize to failure */
     Irp->IoStatus.Status = IoStatusBlock.Status = STATUS_NOT_SUPPORTED;
@@ -68,6 +73,7 @@ IopSynchronousCall(IN PDEVICE_OBJECT DeviceObject,
 
     /* Call the driver */
     Status = IoCallDriver(TopDeviceObject, Irp);
+    DPRINT("IopSynchronousCall: Status - %X\n", Status);
     if (Status == STATUS_PENDING)
     {
         /* Wait for it */
@@ -86,8 +92,10 @@ IopSynchronousCall(IN PDEVICE_OBJECT DeviceObject,
     if (Information)
     {
         *Information = (PVOID)IoStatusBlock.Information;
+        DPRINT("IopSynchronousCall: IoStatusBlock.Information - %X\n", IoStatusBlock.Information);
     }
 
+    DPRINT("IopSynchronousCall: return Status - %X\n", Status);
     return Status;
 }
 
