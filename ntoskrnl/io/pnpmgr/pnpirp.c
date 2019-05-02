@@ -450,52 +450,52 @@ IopQueryLegacyBusInformation(
         return Status;
     }
 
-    if (!BusInfo)
+    if (BusInfo)
     {
-        DeviceNode = IopGetDeviceNode(DeviceObject);
-
-        if (!DeviceNode)
+        if (OutBusTypeGuid)
         {
-            ASSERT(BusInfo);
-            return Status;
+            RtlCopyMemory(OutBusTypeGuid, &BusInfo->BusTypeGuid, sizeof(GUID));
         }
 
-        ParentDeviceNode = DeviceNode->Parent;
-
-        if (!ParentDeviceNode)
+        if (OutInterfaceType)
         {
-            ASSERT(BusInfo);
-            return Status;
+            *OutInterfaceType = BusInfo->LegacyBusType;
         }
 
-        if (ParentDeviceNode->ServiceName.Buffer)
+        if (OutBusNumber)
         {
-            DPRINT("IopQueryLegacyBusInformation: STATUS_SUCCESS and BusInfo == NULL! Driver - %wZ\n",
-                   &ParentDeviceNode->ServiceName);
+            *OutBusNumber = BusInfo->BusNumber;
         }
 
-        ASSERT(BusInfo != NULL);
+        ExFreePool(BusInfo);
 
         return Status;
     }
 
-    if (OutBusTypeGuid)
+    /* Error */
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+    if (!DeviceNode)
     {
-        RtlCopyMemory(OutBusTypeGuid, &BusInfo->BusTypeGuid, sizeof(GUID));
+        goto Exit;
     }
 
-    if (OutInterfaceType)
+    ParentDeviceNode = DeviceNode->Parent;
+    if (!ParentDeviceNode)
     {
-        *OutInterfaceType = BusInfo->LegacyBusType;
+        goto Exit;
     }
 
-    if (OutBusNumber)
+    if (ParentDeviceNode->ServiceName.Buffer)
     {
-        *OutBusNumber = BusInfo->BusNumber;
+        DPRINT1("IopQueryLegacyBusInformation: Driver - %wZ\n", &ParentDeviceNode->ServiceName);
     }
 
-    ExFreePool(BusInfo);
+Exit:
 
+    DPRINT1("IopQueryLegacyBusInformation: return STATUS_SUCCESS and BusInfo == NULL!\n");
+
+    ASSERT(BusInfo);
     return Status;
 }
 
