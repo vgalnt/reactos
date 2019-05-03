@@ -4737,7 +4737,12 @@ Start:
         {
             InitializeListHead(&Request->RequestLink);
 
-            //FIXME: Check ShuttingDown\n");
+            if (PpPnpShuttingDown)
+            {
+                DPRINT("PipEnumerationWorker: STATUS_TOO_LATE (PpPnpShuttingDown)\n");
+                Status = STATUS_TOO_LATE;
+                goto NextRequest;
+            }
 
             DeviceObject = Request->DeviceObject;
             ASSERT(DeviceObject);
@@ -4747,137 +4752,114 @@ Start:
 
             if (DeviceNode->State == DeviceNodeDeleted)
             {
+                DPRINT("PipEnumerationWorker: DeviceNode->State == DeviceNodeDeleted\n");
                 Status = STATUS_UNSUCCESSFUL;
+                goto NextRequest;
             }
-            else
+
+            DPRINT("PipEnumerationWorker: DeviceObject - %p, Request->RequestType - %X\n",
+                   DeviceObject,
+                   Request->RequestType);
+
+            switch (Request->RequestType)
             {
-                DPRINT("PipEnumerationWorker: DeviceObject - %p, Request->RequestType - %X\n",
-                       DeviceObject,
-                       Request->RequestType);
+                case PipEnumDeviceOnly:
+                case PipEnumDeviceTree:
+                case PipEnumRootDevices:
+                case PipEnumSystemHiveLimitChange:
+                    DPRINT("PipEnumerationWorker: Reenumeration ...\n");
+                    Status = PiProcessReenumeration(Request);
+                    IsDereferenceObject = FALSE;
+                    break;
 
-                switch (Request->RequestType)
-                {
-                    case PipEnumDeviceOnly:
-                    case PipEnumDeviceTree:
-                    case PipEnumRootDevices:
-                    case PipEnumSystemHiveLimitChange:
-                        if (Request->RequestType == PipEnumDeviceOnly)
-                        {
-                            DPRINT("PipEnumerationWorker: PipEnumDeviceOnly\n");
-                        }
-                        else if (Request->RequestType == PipEnumDeviceTree)
-                        {
-                            DPRINT("PipEnumerationWorker: PipEnumDeviceTree\n");
-                        }
-                        else if (Request->RequestType == PipEnumRootDevices)
-                        {
-                            DPRINT("PipEnumerationWorker: PipEnumRootDevices\n");
-                        }
-                        else if (Request->RequestType == PipEnumSystemHiveLimitChange)
-                        {
-                            DPRINT("PipEnumerationWorker: PipEnumSystemHiveLimitChange\n");
-                        }
+                case PipEnumAddBootDevices:
+                    DPRINT("PipEnumerationWorker: PipEnumAddBootDevices\n");
+                    Status = PiProcessAddBootDevices(Request);
+                    DPRINT("PipEnumerationWorker: end\n");
+                    break;
 
-                        Status = PiProcessReenumeration(Request);
-                        IsDereferenceObject = FALSE;
-                        break;
+                case PipEnumBootDevices:
+                    DPRINT("PipEnumerationWorker: PipEnumBootDevices\n");
+                    IsBootProcess = TRUE;
+                    Request = NULL;
+                    goto Start;
 
-                    case PipEnumAddBootDevices:
-                        DPRINT("PipEnumerationWorker: PipEnumAddBootDevices\n");
-                        ASSERT(FALSE);
-                        Status = 0;//PiProcessAddBootDevices(Request);
-                        DPRINT("PipEnumerationWorker: end\n");
-                        break;
+                case PipEnumAssignResources:
+                    DPRINT("PipEnumerationWorker: PipEnumAssignResources\n");
+                    IsAssignResources = TRUE;
+                    Request = NULL;
+                    goto Start;
 
-                    case PipEnumBootDevices:
-                        DPRINT("PipEnumerationWorker: PipEnumBootDevices\n");
-                        IsBootProcess = TRUE;
-                        Request = NULL;
-                        goto Start;
+                case PipEnumGetSetDeviceStatus:
+                    DPRINT("PipEnumerationWorker: PipEnumGetSetDeviceStatus\n");
+                    ASSERT(FALSE);
+                    break;
 
-                    case PipEnumAssignResources:
-                        DPRINT("PipEnumerationWorker: PipEnumAssignResources\n");
+                case PipEnumInvalidateRelationsInList:
+                    DPRINT("PipEnumerationWorker: PipEnumInvalidateRelationsInList\n");
+                    ASSERT(FALSE);
+                    break;
+
+                case PipEnumClearProblem:
+                    DPRINT("PipEnumerationWorker: PipEnumClearProblem\n");
+                    Status = PpProcessClearProblem(Request);
+                    break;
+
+                case PipEnumHaltDevice:
+                    DPRINT("PipEnumerationWorker: PipEnumHaltDevice\n");
+                    ASSERT(FALSE);
+                    break;
+
+                case PipEnumInvalidateDeviceState:
+                    DPRINT("PipEnumerationWorker: PipEnumInvalidateDeviceState\n");
+                    Status = PiProcessRequeryDeviceState(Request);
+                    break;
+
+                case PipEnumResetDevice:
+                    DPRINT("PipEnumerationWorker: PipEnumResetDevice\n");
+                    goto RestartDevice;
+
+                case PipEnumStartDevice:
+                    DPRINT("PipEnumerationWorker: PipEnumStartDevice\n");
+RestartDevice:
+                    Status = PiRestartDevice(Request);
+                    break;
+
+                case PipEnumIoResourceChanged:
+                    DPRINT("PipEnumerationWorker: PipEnumIoResourceChanged\n");
+                    Status = PiProcessResourceRequirementsChanged(Request);
+                    if (!NT_SUCCESS(Status))
+                    {
                         ASSERT(FALSE);
                         IsAssignResources = TRUE;
+                        Status = STATUS_SUCCESS;
                         Request = NULL;
                         goto Start;
+                    }
+                    break;
 
-                    case PipEnumGetSetDeviceStatus:
-                        DPRINT("PipEnumerationWorker: PipEnumGetSetDeviceStatus\n");
-                        ASSERT(FALSE);
-                        break;
+                case PipEnumSetProblem:
+                    DPRINT("PipEnumerationWorker: PipEnumSetProblem\n");
+                    ASSERT(FALSE);
+                    break;
 
-                    case PipEnumInvalidateRelationsInList:
-                        DPRINT("PipEnumerationWorker: PipEnumInvalidateRelationsInList\n");
-                        ASSERT(FALSE);
-                        break;
+                case PipEnumShutdownPnpDevices:
+                    DPRINT("PipEnumerationWorker: PipEnumShutdownPnpDevices\n");
+                    Status = PiProcessShutdownPnpDevices(IopRootDeviceNode);
+                    break;
 
-                    case PipEnumClearProblem:
-                        DPRINT("PipEnumerationWorker: PipEnumClearProblem\n");
-                        ASSERT(FALSE);
-                        break;
+                case PipEnumStartSystemDevices:
+                    DPRINT("PipEnumerationWorker: PipEnumStartSystemDevices\n");
+                    Status = PiProcessStartSystemDevices(Request);
+                    IsDereferenceObject = FALSE;
+                    break;
 
-                    case PipEnumHaltDevice:
-                        DPRINT("PipEnumerationWorker: PipEnumHaltDevice\n");
-                        ASSERT(FALSE);
-                        break;
-
-                    case PipEnumInvalidateDeviceState:
-                        DPRINT("PipEnumerationWorker: PipEnumInvalidateDeviceState\n");
-                        ASSERT(FALSE);
-                        Status = 0;//PiProcessRequeryDeviceState(Request);
-                        break;
-
-                    case PipEnumResetDevice:
-                        DPRINT("PipEnumerationWorker: PipEnumResetDevice\n");
-                        ASSERT(FALSE);
-                        goto RestartDevice;
-
-                    case PipEnumStartDevice:
-                        DPRINT("PipEnumerationWorker: PipEnumStartDevice\n");
-                        ASSERT(FALSE);
-RestartDevice:
-                        Status = 0;//PiRestartDevice(Request);
-                        break;
-
-                    case PipEnumIoResourceChanged:
-                        DPRINT("PipEnumerationWorker: PipEnumIoResourceChanged\n");
-                        ASSERT(FALSE);
-                        Status = 0;//PiProcessResourceRequirementsChanged(Request);
-                        if (!NT_SUCCESS(Status))
-                        {
-                            ASSERT(FALSE);
-                            IsAssignResources = TRUE;
-                            Status = STATUS_SUCCESS;
-                            Request = NULL;
-                            goto Start;
-                        }
-                        break;
-
-                    case PipEnumSetProblem:
-                        DPRINT("PipEnumerationWorker: PipEnumSetProblem\n");
-                        ASSERT(FALSE);
-                        break;
-
-                    case PipEnumShutdownPnpDevices:
-                        DPRINT("PipEnumerationWorker: PipEnumShutdownPnpDevices\n");
-                        ASSERT(FALSE);
-                        break;
-
-                    case PipEnumStartSystemDevices:
-                        DPRINT("PipEnumerationWorker: PipEnumStartSystemDevices\n");
-                        ASSERT(FALSE);
-                        Status = 0;//PiProcessStartSystemDevices(Request);
-                        IsDereferenceObject = FALSE;
-                        break;
-
-                    default:
-                        ASSERT(FALSE);
-                        break;
-                }
+                default:
+                    ASSERT(FALSE);
+                    break;
             }
 
-            // ? Request->RequestListEntry ?
+NextRequest:
 
             if (Request->CompletionStatus)
             {
