@@ -5028,4 +5028,39 @@ PipRequestDeviceAction(
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+IoInvalidateDeviceState(
+    _In_ PDEVICE_OBJECT PhysicalDeviceObject)
+{
+    PDEVICE_NODE DeviceNode = IopGetDeviceNode(PhysicalDeviceObject);
+
+    DPRINT("IoInvalidateDeviceState: PhysicalDeviceObject - %p\n", PhysicalDeviceObject);
+
+    if (PhysicalDeviceObject == NULL ||
+        DeviceNode == NULL ||
+        DeviceNode->Flags & DNF_LEGACY_RESOURCE_DEVICENODE)
+    {
+        DPRINT1("IoInvalidateDeviceState: PNP_DETECTED_FATAL_ERROR\n");
+        KeBugCheckEx(PNP_DETECTED_FATAL_ERROR,
+                     2,
+                     (ULONG_PTR)PhysicalDeviceObject,
+                     0,
+                     0);
+    }
+
+    if (DeviceNode->State != DeviceNodeStarted)
+    {
+        DPRINT("IoInvalidateDeviceState: DeviceNode->State - %X\n", DeviceNode->State);
+        return;
+    }
+
+    PipRequestDeviceAction(PhysicalDeviceObject,
+                           PipEnumInvalidateDeviceState,
+                           0,
+                           0,
+                           NULL,
+                           NULL);
+}
+
 /* EOF */
