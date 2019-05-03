@@ -863,6 +863,82 @@ PdoQueryDeviceRelations(
     return Status;
 }
 
+BOOLEAN
+NTAPI
+IopIsFirmwareDisabled(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    KEY_VALUE_PARTIAL_INFORMATION ValueInfo;
+    UNICODE_STRING ValueName;
+    HANDLE Handle;
+    HANDLE KeyHandle;
+    ULONG ResultLength;
+    NTSTATUS Status;
+    BOOLEAN IsFirmwareDisabled = FALSE;
+
+    DPRINT("IopIsFirmwareDisabled: DeviceNode - %p\n", DeviceNode);
+
+    KeEnterCriticalRegion();
+    ExAcquireResourceSharedLite(&PpRegistryDeviceResource, TRUE);
+
+    Status = PnpDeviceObjectToDeviceInstance(DeviceNode->PhysicalDeviceObject,
+                                             &Handle,
+                                             KEY_ALL_ACCESS);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IopIsFirmwareDisabled: Status - %p\n", Status);
+        goto Exit;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"Control");
+    Status = IopCreateRegistryKeyEx(&KeyHandle,
+                                    Handle,
+                                    &ValueName,
+                                    KEY_ALL_ACCESS,
+                                    REG_OPTION_VOLATILE,
+                                    NULL);
+    ZwClose(Handle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IopIsFirmwareDisabled: Status - %p\n", Status);
+        goto Exit;
+    }
+
+    ResultLength = sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG);
+    RtlInitUnicodeString(&ValueName, L"FirmwareDisabled");
+
+    Status = ZwQueryValueKey(KeyHandle,
+                             &ValueName,
+                             KeyValuePartialInformation,
+                             &ValueInfo,
+                             sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG),
+                             &ResultLength);
+    ZwClose(KeyHandle);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IopIsFirmwareDisabled: Status - %p\n", Status);
+        goto Exit;
+    }
+
+    if (ValueInfo.Type == REG_DWORD &&
+        ValueInfo.DataLength == sizeof(ULONG))
+    {
+        if (*(PULONG)ValueInfo.Data)
+        {
+            IsFirmwareDisabled = TRUE;
+        }
+    }
+
+Exit:
+
+    ExReleaseResourceLite(&PpRegistryDeviceResource);
+    KeLeaveCriticalRegion();
+
+    return IsFirmwareDisabled;
+}
+
 static NTSTATUS
 PdoQueryCapabilities(
     IN PDEVICE_OBJECT DeviceObject,
