@@ -835,4 +835,133 @@ IopQueryReconfiguration(
     return IopSynchronousCall(DeviceObject, &IoStack, NULL);
 }
 
+PDMA_ADAPTER
+NTAPI
+IoGetDmaAdapter(
+    _In_ PDEVICE_OBJECT PhysicalDeviceObject,
+    _In_ PDEVICE_DESCRIPTION DeviceDescription,
+    _Inout_ PULONG NumberOfMapRegisters)
+{
+    NTSTATUS Status;
+    ULONG ResultLength;
+    BUS_INTERFACE_STANDARD BusInterface;
+    IO_STATUS_BLOCK IoStatusBlock;
+    PIO_STACK_LOCATION Stack;
+    DEVICE_DESCRIPTION PrivateDeviceDescription;
+    PDMA_ADAPTER DmaAdapter = NULL;
+    PDEVICE_OBJECT TopDeviceObject;
+    PDEVICE_NODE DeviceNode;
+    KEVENT Event;
+    PIRP Irp;
+
+    PAGED_CODE();
+    DPRINT("IoGetDmaAdapter: PhysicalDeviceObject - %p, DeviceDescription - %p\n",
+           PhysicalDeviceObject, DeviceDescription);
+
+    /* Try to create DMA adapter through bus driver */
+    if (!PhysicalDeviceObject)
+    {
+        DPRINT1("IoGetDmaAdapter: Error. PhysicalDeviceObject == NULL\n");
+        goto ExitError;
+    }
+
+    DeviceNode = IopGetDeviceNode(PhysicalDeviceObject);
+    if (!DeviceNode || DeviceNode->Flags & DNF_HAS_PROBLEM)
+    {
+        DPRINT1("IoGetDmaAdapter: PNP_DETECTED_FATAL_ERROR. DeviceNode - %p\n", DeviceNode);
+        KeBugCheckEx(PNP_DETECTED_FATAL_ERROR, 2, (ULONG_PTR)PhysicalDeviceObject, 0, 0);
+    }
+
+    if (DeviceDescription->InterfaceType == PNPBus ||//15
+        DeviceDescription->InterfaceType == InterfaceTypeUndefined)
+    {
+        RtlCopyMemory(&PrivateDeviceDescription,
+                      DeviceDescription,
+                      sizeof(PrivateDeviceDescription));
+
+        Status = IoGetDeviceProperty(PhysicalDeviceObject,
+                                     DevicePropertyLegacyBusType,
+                                     sizeof(INTERFACE_TYPE),
+                                     &PrivateDeviceDescription.InterfaceType,
+                                     &ResultLength);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("IoGetDmaAdapter: Error. Status - %X\n", Status);
+            ASSERT(Status == STATUS_OBJECT_NAME_NOT_FOUND);
+            PrivateDeviceDescription.InterfaceType = Internal;//PnpDefaultInterfaceType
+        }
+
+        DeviceDescription = &PrivateDeviceDescription;
+    }
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+    TopDeviceObject = IoGetAttachedDeviceReference(PhysicalDeviceObject);
+
+    Irp = IoBuildSynchronousFsdRequest(IRP_MJ_PNP,
+                                       TopDeviceObject,
+                                       NULL,
+                                       0,
+                                       NULL,
+                                       &Event,
+                                       &IoStatusBlock);
+    if (!Irp)
+    {
+        DPRINT1("IoGetDmaAdapter: Error ... return NULL\n");
+        ASSERT(FALSE);
+        return NULL;
+    }
+
+    RtlZeroMemory(&BusInterface, sizeof(BusInterface));
+
+    Stack = IoGetNextIrpStackLocation(Irp);
+
+    Stack->MinorFunction = IRP_MN_QUERY_INTERFACE;
+    Stack->Parameters.QueryInterface.Size = sizeof(BUS_INTERFACE_STANDARD);
+    Stack->Parameters.QueryInterface.Version = 1;
+    Stack->Parameters.QueryInterface.Interface = (PINTERFACE)&BusInterface;
+    Stack->Parameters.QueryInterface.InterfaceType = &GUID_BUS_INTERFACE_STANDARD;
+    Stack->Parameters.QueryInterface.InterfaceSpecificData = NULL;
+
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+    Status = IoCallDriver(TopDeviceObject, Irp);
+
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = IoStatusBlock.Status;
+    }
+
+    ObDereferenceObject(TopDeviceObject);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IoGetDmaAdapter: Error. Status - %X\n", Status);
+        goto ExitError;
+    }
+
+    if (BusInterface.GetDmaAdapter)
+    {
+        DmaAdapter = BusInterface.GetDmaAdapter(BusInterface.Context,
+                                                DeviceDescription,
+                                                NumberOfMapRegisters);
+    }
+
+    BusInterface.InterfaceDereference(BusInterface.Context);
+
+    if (DmaAdapter)
+    {
+        DPRINT("IoGetDmaAdapter: DmaAdapter - %X\n", DmaAdapter);
+        return DmaAdapter;
+    }
+
+ExitError:
+
+    /* Fall back to HAL */
+    return HalGetDmaAdapter(PhysicalDeviceObject,
+                            DeviceDescription,
+                            NumberOfMapRegisters);
+}
+
 /* EOF */
