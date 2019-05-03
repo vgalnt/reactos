@@ -698,7 +698,7 @@ ASSERT(FALSE);
 
     DPRINT("Sending IRP_MN_QUERY_CAPABILITIES to device stack (after start)\n");
 
-    Status = IopQueryDeviceCapabilities(DeviceNode, &DeviceCapabilities);
+    Status = PpIrpQueryCapabilities(DeviceObject, &DeviceCapabilities);
     if (!NT_SUCCESS(Status))
     {
         DPRINT("IopInitiatePnpIrp() failed (Status 0x%08lx)\n", Status);
@@ -855,79 +855,6 @@ ByeBye:
 
     return Status;
 #endif
-}
-
-NTSTATUS
-NTAPI
-IopQueryDeviceCapabilities(PDEVICE_NODE DeviceNode,
-                           PDEVICE_CAPABILITIES DeviceCaps)
-{
-    IO_STATUS_BLOCK StatusBlock;
-    IO_STACK_LOCATION Stack;
-    NTSTATUS Status;
-    HANDLE InstanceKey;
-    UNICODE_STRING ValueName;
-
-    /* Set up the Header */
-    RtlZeroMemory(DeviceCaps, sizeof(DEVICE_CAPABILITIES));
-    DeviceCaps->Size = sizeof(DEVICE_CAPABILITIES);
-    DeviceCaps->Version = 1;
-    DeviceCaps->Address = -1;
-    DeviceCaps->UINumber = -1;
-
-    /* Set up the Stack */
-    RtlZeroMemory(&Stack, sizeof(IO_STACK_LOCATION));
-    Stack.Parameters.DeviceCapabilities.Capabilities = DeviceCaps;
-
-    /* Send the IRP */
-    Status = IopInitiatePnpIrp(DeviceNode->PhysicalDeviceObject,
-                               &StatusBlock,
-                               IRP_MN_QUERY_CAPABILITIES,
-                               &Stack);
-    if (!NT_SUCCESS(Status))
-    {
-        if (Status != STATUS_NOT_SUPPORTED)
-        {
-            DPRINT1("IRP_MN_QUERY_CAPABILITIES failed with status 0x%lx\n", Status);
-        }
-        return Status;
-    }
-
-    DeviceNode->CapabilityFlags = *(PULONG)((ULONG_PTR)&DeviceCaps->Version + sizeof(DeviceCaps->Version));
-
-    if (DeviceCaps->NoDisplayInUI)
-        DeviceNode->UserFlags |= DNUF_DONT_SHOW_IN_UI;
-    else
-        DeviceNode->UserFlags &= ~DNUF_DONT_SHOW_IN_UI;
-
-    Status = IopCreateDeviceKeyPath(&DeviceNode->InstancePath, REG_OPTION_NON_VOLATILE, &InstanceKey);
-    if (NT_SUCCESS(Status))
-    {
-        /* Set 'Capabilities' value */
-        RtlInitUnicodeString(&ValueName, L"Capabilities");
-        Status = ZwSetValueKey(InstanceKey,
-                               &ValueName,
-                               0,
-                               REG_DWORD,
-                               &DeviceNode->CapabilityFlags,
-                               sizeof(ULONG));
-
-        /* Set 'UINumber' value */
-        if (DeviceCaps->UINumber != MAXULONG)
-        {
-            RtlInitUnicodeString(&ValueName, L"UINumber");
-            Status = ZwSetValueKey(InstanceKey,
-                                   &ValueName,
-                                   0,
-                                   REG_DWORD,
-                                   &DeviceCaps->UINumber,
-                                   sizeof(ULONG));
-        }
-
-        ZwClose(InstanceKey);
-    }
-
-    return Status;
 }
 
 static
@@ -2018,7 +1945,7 @@ IopCreateDeviceInstancePath(
 
     DPRINT("Sending IRP_MN_QUERY_CAPABILITIES to device stack (after enumeration)\n");
 
-    Status = IopQueryDeviceCapabilities(DeviceNode, &DeviceCapabilities);
+    Status = PpIrpQueryCapabilities(DeviceNode->PhysicalDeviceObject, &DeviceCapabilities);
     if (!NT_SUCCESS(Status))
     {
         DPRINT1("IopQueryDeviceCapabilities() failed (Status 0x%08lx)\n", Status);
@@ -2719,7 +2646,7 @@ ASSERT(FALSE);
 
       if (Service->Buffer == NULL)
       {
-         if (NT_SUCCESS(IopQueryDeviceCapabilities(DeviceNode, &DeviceCaps)) &&
+         if (NT_SUCCESS(PpIrpQueryCapabilities(DeviceNode->PhysicalDeviceObject, &DeviceCaps)) &&
              DeviceCaps.RawDeviceOK)
          {
             DPRINT("%wZ is using parent bus driver (%wZ)\n", &DeviceNode->InstancePath, &ParentDeviceNode->ServiceName);
@@ -4003,7 +3930,7 @@ IoGetDeviceProperty(IN PDEVICE_OBJECT DeviceObject,
         case DevicePropertyAddress:
 
             /* Query the device caps */
-            Status = IopQueryDeviceCapabilities(DeviceNode, &DeviceCaps);
+            Status = PpIrpQueryCapabilities(DeviceObject, &DeviceCaps);
             if (!NT_SUCCESS(Status) || (DeviceCaps.Address == MAXULONG))
                 return STATUS_OBJECT_NAME_NOT_FOUND;
 
@@ -4731,7 +4658,7 @@ IoRequestDeviceEject(IN PDEVICE_OBJECT PhysicalDeviceObject)
     IopQueueTargetDeviceEvent(&GUID_DEVICE_KERNEL_INITIATED_EJECT,
                               &DeviceNode->InstancePath);
 
-    if (IopQueryDeviceCapabilities(DeviceNode, &Capabilities) != STATUS_SUCCESS)
+    if (PpIrpQueryCapabilities(PhysicalDeviceObject, &Capabilities) != STATUS_SUCCESS)
     {
         goto cleanup;
     }
