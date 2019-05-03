@@ -30,6 +30,7 @@ extern BOOLEAN PnPBootDriversLoaded;
 extern BOOLEAN PnPBootDriversInitialized;
 extern BOOLEAN PiCriticalDeviceDatabaseEnabled;
 extern BOOLEAN PnpSystemInit;
+extern BOOLEAN PpPnpShuttingDown;
 
 /* DATA **********************************************************************/
 
@@ -4943,14 +4944,18 @@ PipRequestDeviceAction(
            DeviceObject,
            RequestType);
 
-    //FIXME: check ShuttingDown
+    if (PpPnpShuttingDown)
+    {
+        DPRINT1("PipRequestDeviceAction: STATUS_TOO_LATE\n");
+        return STATUS_TOO_LATE;
+    }
 
     Request = ExAllocatePoolWithTag(NonPagedPool,
                                     sizeof(PIP_ENUM_REQUEST),
                                     TAG_IO);
     if (!Request)
     {
-        DPRINT1("PipRequestDeviceAction: error\n");
+        DPRINT1("PipRequestDeviceAction: STATUS_INSUFFICIENT_RESOURCES\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -5003,7 +5008,7 @@ PipRequestDeviceAction(
 
     if (PipEnumerationInProgress)
     {
-        DPRINT("PipRequestDeviceAction: PipEnumerationInProgress\n");
+        DPRINT("PipRequestDeviceAction: PipEnumerationInProgress - TRUE\n");
         KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
         return STATUS_SUCCESS;
     }

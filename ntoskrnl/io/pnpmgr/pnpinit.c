@@ -68,8 +68,9 @@ BOOLEAN PnPBootDriversLoaded = FALSE;
 BOOLEAN PnPBootDriversInitialized = FALSE;
 BOOLEAN IopBootConfigsReserved = FALSE;
 BOOLEAN PnpSystemInit = FALSE;
+BOOLEAN PpPnpShuttingDown = FALSE;
 
-BOOLEAN PpDisableFirmwareMapper;
+BOOLEAN PpDisableFirmwareMapper = FALSE;
 BOOLEAN PiCriticalDeviceDatabaseEnabled = TRUE;
 
 extern PDEVICE_OBJECT IopErrorLogObject;
@@ -2368,7 +2369,7 @@ Next:
                                        NULL);
             }
 
-            if (!PipWaitForBootDevicesDeleted())
+            if (!IopWaitForBootDevicesDeleted())
             {
                 return FALSE;
             }
