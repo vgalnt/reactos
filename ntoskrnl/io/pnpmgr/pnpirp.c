@@ -780,4 +780,59 @@ IopStartDevice(
     return IopSynchronousCall(DeviceNode->PhysicalDeviceObject, &IoStack, NULL);
 }
 
+NTSTATUS
+NTAPI
+IopQueryReconfiguration(
+    _In_ UCHAR MinorFunction,
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    PDEVICE_NODE DeviceNode;
+    IO_STACK_LOCATION IoStack;
+
+    PAGED_CODE();
+    DPRINT("IopQueryReconfiguration: MinorFunction - %X\n", MinorFunction);
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    if (MinorFunction == IRP_MN_STOP_DEVICE)
+    {
+        if (DeviceNode->State != DeviceNodeQueryStopped)
+        {
+            DPRINT("IopQueryReconfiguration: send IRP_MN_STOP_DEVICE to an unqueried device %wZ!\n", &DeviceNode->InstancePath);
+            ASSERT(FALSE);
+            return STATUS_UNSUCCESSFUL;
+        }
+    }
+    else if (MinorFunction == IRP_MN_QUERY_STOP_DEVICE)
+    {
+        if (DeviceNode->State != DeviceNodeStarted)
+        {
+            DPRINT("IopQueryReconfiguration:  send IRP_MN_QUERY_STOP_DEVICE to an unstarted device %wZ!\n", &DeviceNode->InstancePath);
+            ASSERT(FALSE);
+            return STATUS_UNSUCCESSFUL;
+        }
+    }
+    else if (MinorFunction == IRP_MN_CANCEL_STOP_DEVICE)
+    {
+        if (DeviceNode->State != DeviceNodeQueryStopped && DeviceNode->State != DeviceNodeStarted)
+        {
+            DPRINT("IopQueryReconfiguration:  send IRP_MN_CANCEL_STOP_DEVICE to an unqueried\\unstarted device %wZ!\n", &DeviceNode->InstancePath);
+            ASSERT(FALSE);
+            return STATUS_UNSUCCESSFUL;
+        }
+    }
+    else
+    {
+        ASSERT(FALSE);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = MinorFunction;
+
+    return IopSynchronousCall(DeviceObject, &IoStack, NULL);
+}
+
 /* EOF */
