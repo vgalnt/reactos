@@ -5063,4 +5063,69 @@ IoInvalidateDeviceState(
                            NULL);
 }
 
+VOID
+NTAPI
+IoInvalidateDeviceRelations(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ DEVICE_RELATION_TYPE Type)
+{
+    PDEVICE_NODE DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    if (!DeviceObject ||
+        !DeviceNode ||
+        DeviceNode->Flags & DNF_LEGACY_RESOURCE_DEVICENODE)
+    {
+        ASSERT(FALSE);KeBugCheckEx(PNP_DETECTED_FATAL_ERROR, 0x2, (ULONG_PTR)DeviceObject, 0x0, 0x0);
+    }
+
+    switch (Type)
+    {
+        case BusRelations:
+        {
+            DPRINT("IoInvalidateDeviceRelations: [%p] BusRelations (PipEnumDeviceTree)\n", DeviceObject);
+            PipRequestDeviceAction(DeviceObject,
+                                   PipEnumDeviceTree,
+                                   0,
+                                   0,
+                                   NULL,
+                                   NULL);
+            break;
+        }
+        case PowerRelations:
+        {
+            DPRINT1("IoInvalidateDeviceRelations: [%p] PowerRelations NOT_IMPLEMENTED FIXME!\n", DeviceObject);
+            //PoInvalidateDevicePowerRelations(DeviceObject);
+            break;
+        }
+        case SingleBusRelations:
+        {
+            DPRINT("IoInvalidateDeviceRelations: [%p] SingleBusRelations (PipEnumDeviceOnly)\n", DeviceObject);
+            PipRequestDeviceAction(DeviceObject,
+                                   PipEnumDeviceOnly,
+                                   0,
+                                   0,
+                                   NULL,
+                                   NULL);
+            break;
+        }
+        default:
+        {
+            DPRINT("IoInvalidateDeviceRelations: [%p] Type %X not supported\n", DeviceObject, Type);
+            break;
+        }
+
+    }
+}
+
+NTSTATUS
+NTAPI
+IoSynchronousInvalidateDeviceRelations(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ DEVICE_RELATION_TYPE Type)
+{
+    DPRINT1("IoSynchronousInvalidateDeviceRelations: FIXME!\n");
+    ASSERT(FALSE);
+    return STATUS_NOT_SUPPORTED;
+}
+
 /* EOF */
