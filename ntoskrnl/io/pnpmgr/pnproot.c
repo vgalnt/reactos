@@ -939,21 +939,59 @@ Exit:
     return IsFirmwareDisabled;
 }
 
-static NTSTATUS
+NTSTATUS
+NTAPI
 PdoQueryCapabilities(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN PIRP Irp,
-    IN PIO_STACK_LOCATION IrpSp)
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IrpSp)
 {
     PDEVICE_CAPABILITIES DeviceCapabilities;
+    PDEVICE_NODE DeviceNode;
+    ULONG NumberOfBytes;
+    ULONG UINumber;
+    NTSTATUS Status;
 
     DeviceCapabilities = IrpSp->Parameters.DeviceCapabilities.Capabilities;
 
-    if (DeviceCapabilities->Version != 1)
-        return STATUS_REVISION_MISMATCH;
+    DPRINT("PdoQueryCapabilities: DeviceCapabilities - %p\n",
+           DeviceCapabilities);
 
-    DeviceCapabilities->UniqueID = TRUE;
-    /* FIXME: Fill other fields */
+    DeviceCapabilities->Size = sizeof(*DeviceCapabilities);
+    DeviceCapabilities->Version = 1;
+
+    DeviceCapabilities->DeviceState[PowerSystemUnspecified] = PowerDeviceUnspecified;
+    DeviceCapabilities->DeviceState[PowerSystemWorking] = PowerDeviceD0;
+    DeviceCapabilities->DeviceState[PowerSystemSleeping1] = PowerDeviceD3;
+    DeviceCapabilities->DeviceState[PowerSystemSleeping2] = PowerDeviceD3;
+    DeviceCapabilities->DeviceState[PowerSystemSleeping3] = PowerDeviceD3;
+    DeviceCapabilities->DeviceState[PowerSystemHibernate] = PowerDeviceD3;
+    DeviceCapabilities->DeviceState[PowerSystemShutdown] = PowerDeviceD3;
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    if (IopIsFirmwareDisabled(DeviceNode))
+    {
+        DeviceCapabilities->HardwareDisabled = 1;
+    }
+
+    if (DeviceCapabilities->UINumber != -1)
+    {
+        return STATUS_SUCCESS;
+    }
+
+    NumberOfBytes = sizeof(UINumber);
+
+    Status = PiGetDeviceRegistryProperty(DeviceObject,
+                                         REG_DWORD,
+                                         L"UINumber",
+                                         NULL,
+                                         &UINumber,
+                                         &NumberOfBytes);
+    if (NT_SUCCESS(Status))
+    {
+        DeviceCapabilities->UINumber = UINumber;
+    }
 
     return STATUS_SUCCESS;
 }
