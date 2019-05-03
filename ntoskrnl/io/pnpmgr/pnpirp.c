@@ -964,4 +964,80 @@ ExitError:
                             NumberOfMapRegisters);
 }
 
+NTSTATUS
+NTAPI
+PiPagePathSetState(
+    _In_ PFILE_OBJECT FileObject,
+    _In_ BOOLEAN InPath)
+{
+    PDEVICE_OBJECT DeviceObject;
+    PIO_STACK_LOCATION IoStack;
+    IO_STATUS_BLOCK Iosb;
+    KEVENT Event;
+    PIRP Irp;
+    NTSTATUS Status;
+  
+    PAGED_CODE();
+    DPRINT("PiPagePathSetState: FileObject - %p, InPath - %X\n", FileObject, InPath);
+
+    ObReferenceObject(FileObject);
+    DeviceObject = IoGetRelatedDeviceObject(FileObject);
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
+    if (!Irp)
+    {
+        DPRINT1("PiPagePathSetState: return STATUS_NO_MEMORY\n");
+        return STATUS_NO_MEMORY;
+    }
+
+    Irp->Tail.Overlay.Thread = PsGetCurrentThread();
+    Irp->Tail.Overlay.OriginalFileObject = FileObject;
+
+    Irp->UserEvent = &Event;
+    Irp->UserIosb = &Iosb;
+
+    Irp->RequestorMode = KernelMode;
+    Irp->Flags = IRP_SYNCHRONOUS_API;
+    Irp->Overlay.AsynchronousParameters.UserApcRoutine = NULL;
+
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+    Irp->AssociatedIrp.SystemBuffer = NULL;
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+
+    IoStack->FileObject = FileObject;
+    IoStack->MajorFunction = IRP_MJ_PNP;
+    IoStack->MinorFunction = IRP_MN_DEVICE_USAGE_NOTIFICATION;
+
+    IoStack->Parameters.UsageNotification.InPath = InPath;
+    IoStack->Parameters.UsageNotification.Type = DeviceUsageTypePaging;
+
+    IoQueueThreadIrp(Irp);
+
+    PpDevNodeLockTree(1);
+
+    Status = IoCallDriver(DeviceObject, Irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = Iosb.Status;
+    }
+
+    PpDevNodeUnlockTree(1);
+
+    DPRINT("PiPagePathSetState: return Status - %X\n", Status);
+    return Status;
+}
+
+NTSTATUS
+NTAPI
+PpPagePathAssign(
+    _In_ PFILE_OBJECT FileObject)
+{
+    PAGED_CODE();
+    return PiPagePathSetState(FileObject, TRUE);
+}
+
 /* EOF */
