@@ -795,4 +795,14 @@ IopCmResourcesToIoResources(
     _In_ ULONG Priority
 );
 
+NTSTATUS
+NTAPI
+IopOpenRegistryKey(
+    _Out_ PHANDLE KeyHandle,
+    _In_ HANDLE RootKeyHandle,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ BOOLEAN IsCreateOrOpen
+);
+
 #endif  /* _PNPIO_H */

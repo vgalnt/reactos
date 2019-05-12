@@ -1705,4 +1705,42 @@ IopCmResourcesToIoResources(
     return IoResource;
 }
 
+NTSTATUS
+NTAPI
+IopOpenRegistryKey(
+    _Out_ PHANDLE KeyHandle,
+    _In_ HANDLE RootKeyHandle,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ BOOLEAN IsCreateOrOpen)
+{
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    ULONG Disposition;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               KeyName,
+                               OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+                               RootKeyHandle,
+                               NULL);
+    if (IsCreateOrOpen)
+    {
+        Status = ZwCreateKey(KeyHandle,
+                             DesiredAccess,
+                             &ObjectAttributes,
+                             0,
+                             NULL,
+                             REG_OPTION_VOLATILE,
+                             &Disposition);
+    }
+    else
+    {
+        Status = ZwOpenKey(KeyHandle, DesiredAccess, &ObjectAttributes);
+    }
+
+    return Status;
+}
+
 /* EOF */
