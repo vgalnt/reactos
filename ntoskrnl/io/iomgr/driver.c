@@ -11,6 +11,8 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "../pnpio.h"
+
 #define NDEBUG
 #include <debug.h>
 

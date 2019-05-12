@@ -3264,31 +3264,6 @@ IopUpdateRootKey(VOID)
 
 NTSTATUS
 NTAPI
-IopOpenRegistryKeyEx(PHANDLE KeyHandle,
-                     HANDLE ParentKey,
-                     PUNICODE_STRING Name,
-                     ACCESS_MASK DesiredAccess)
-{
-    OBJECT_ATTRIBUTES ObjectAttributes;
-    NTSTATUS Status;
-
-    PAGED_CODE();
-
-    *KeyHandle = NULL;
-
-    InitializeObjectAttributes(&ObjectAttributes,
-        Name,
-        OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
-        ParentKey,
-        NULL);
-
-    Status = ZwOpenKey(KeyHandle, DesiredAccess, &ObjectAttributes);
-
-    return Status;
-}
-
-NTSTATUS
-NTAPI
 IopCreateRegistryKeyEx(OUT PHANDLE Handle,
                        IN HANDLE RootHandle OPTIONAL,
                        IN PUNICODE_STRING KeyName,

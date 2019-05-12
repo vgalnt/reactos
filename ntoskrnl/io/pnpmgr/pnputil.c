@@ -1743,4 +1743,30 @@ IopOpenRegistryKey(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IopOpenRegistryKeyEx(
+    _Out_ PHANDLE KeyHandle,
+    _In_ HANDLE RootKeyHandle,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ ACCESS_MASK DesiredAccess)
+{
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    *KeyHandle = NULL;
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               KeyName,
+                               OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+                               RootKeyHandle,
+                               NULL);
+
+    Status = ZwOpenKey(KeyHandle, DesiredAccess, &ObjectAttributes);
+
+    return Status;
+}
+
 /* EOF */

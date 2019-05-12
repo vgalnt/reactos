@@ -805,4 +805,13 @@ IopOpenRegistryKey(
     _In_ BOOLEAN IsCreateOrOpen
 );
 
+NTSTATUS
+NTAPI
+IopOpenRegistryKeyEx(
+    _Out_ PHANDLE KeyHandle,
+    _In_ HANDLE RootKeyHandle,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ ACCESS_MASK DesiredAccess
+);
+
 #endif  /* _PNPIO_H */
