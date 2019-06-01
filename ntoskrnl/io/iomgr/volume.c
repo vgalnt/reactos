@@ -636,11 +636,14 @@ IopMountVolume(IN PDEVICE_OBJECT DeviceObject,
             /* Check if mounting was successful */
             if (NT_SUCCESS(Status))
             {
+                BOOLEAN IsVpbRawMount;
+
+                IsVpbRawMount = (DeviceObject->Vpb->Flags & VPB_RAW_MOUNT)
+                                                         == VPB_RAW_MOUNT;
                 /* Mount the VPB */
                 *Vpb = IopMountInitializeVpb(DeviceObject,
                                              AttachedDeviceObject,
-                                             (DeviceObject->Vpb->Flags &
-                                              VPB_RAW_MOUNT));
+                                             IsVpbRawMount);
             }
             else
             {
