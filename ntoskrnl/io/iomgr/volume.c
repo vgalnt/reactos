@@ -125,6 +125,10 @@ IopCheckVpbMounted(IN POPEN_PACKET OpenPacket,
             *Status = STATUS_WRONG_VOLUME;
             return NULL;
         }
+        else if (Vpb)
+        {
+            return Vpb;
+        }
 
         /* Re-acquire the lock */
         IoAcquireVpbSpinLock(&OldIrql);
