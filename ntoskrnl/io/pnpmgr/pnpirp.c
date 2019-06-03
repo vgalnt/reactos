@@ -1405,4 +1405,31 @@ IoFindDeviceThatFailedIrp(
     return NULL;
 }
 
+NTSTATUS
+NTAPI
+PiIrpQueryRemoveDeviceCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    PDEVICE_OBJECT FailDeviceObject;
+    PQUERY_REMOVE_DEVICE_CONTEXT QueryContext;
+
+    QueryContext = Context;
+    ASSERT(QueryContext);
+
+    FailDeviceObject = IoFindDeviceThatFailedIrp(Irp);
+    if (FailDeviceObject)
+    {
+        QueryContext->DriverObject = FailDeviceObject->DriverObject;
+    }
+
+    QueryContext->CompletionStatus = Irp->IoStatus.Status;
+
+    IoFreeIrp(Irp);
+    KeSetEvent(&QueryContext->Event, IO_NO_INCREMENT, FALSE);
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
 /* EOF */
