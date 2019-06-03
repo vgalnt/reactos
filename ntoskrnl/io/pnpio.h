@@ -508,6 +508,33 @@ IopFilterResourceRequirementsCall(
     _Out_ PIO_RESOURCE_REQUIREMENTS_LIST * OutRequirementsList
 );
 
+NTSTATUS
+NTAPI
+IopStartDevice(
+    _In_ PDEVICE_NODE DeviceNode
+);
+
+NTSTATUS
+NTAPI
+IopQueryReconfiguration(
+    _In_ UCHAR MinorFunction,
+    _In_ PDEVICE_OBJECT DeviceObject
+);
+
+NTSTATUS
+NTAPI
+IopRemoveDevice(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ UCHAR MinorCode
+);
+
+NTSTATUS
+NTAPI
+PiIrpQueryRemoveDevice(
+    _In_ PDEVICE_OBJECT TargetDevice,
+    _Out_ PDRIVER_OBJECT * OutFailDriverObject
+);
+
 //
 // pnpmap.c
 //

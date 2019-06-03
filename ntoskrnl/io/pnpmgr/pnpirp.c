@@ -1432,4 +1432,84 @@ PiIrpQueryRemoveDeviceCompletionRoutine(
     return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
+NTSTATUS
+NTAPI
+PiIrpQueryRemoveDevice(
+    _In_ PDEVICE_OBJECT TargetDevice,
+    _Out_ PDRIVER_OBJECT * OutFailDriverObject)
+{
+    QUERY_REMOVE_DEVICE_CONTEXT QueryContext;
+    LOCK_DEVICES_FOR_REMOVE MountedDevices;
+    IO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+    BOOLEAN IsLocked = FALSE;
+  
+    PAGED_CODE();
+    DPRINT("PiIrpQueryRemoveDevice: TargetDevice - %p\n", TargetDevice);
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = IRP_MN_QUERY_REMOVE_DEVICE;
+
+    if (IopFindMountableDevice(TargetDevice))
+    {
+        TargetDevice = IopLockMountedDeviceForRemove(TargetDevice,
+                                                     IRP_MN_QUERY_REMOVE_DEVICE,
+                                                     &MountedDevices);
+        IsLocked = TRUE;
+    }
+    else
+    {
+        ASSERT(!(TargetDevice->Type == FILE_DEVICE_DISK ||
+                 TargetDevice->Type == FILE_DEVICE_CD_ROM ||
+                 TargetDevice->Type == FILE_DEVICE_TAPE ||
+                 TargetDevice->Type == FILE_DEVICE_VIRTUAL_DISK));
+
+        DPRINT1("PiIrpQueryRemoveDevice: Mass storage %p does not have VPB\n", TargetDevice);
+    }
+
+    KeInitializeEvent(&QueryContext.Event, SynchronizationEvent, FALSE);
+
+    QueryContext.DriverObject = NULL;
+    QueryContext.CompletionStatus = STATUS_UNSUCCESSFUL;
+
+    Status = PiAsynchronousCall(TargetDevice,
+                                &IoStack,
+                                PiIrpQueryRemoveDeviceCompletionRoutine,
+                                &QueryContext);
+
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&QueryContext.Event,
+                              Executive,
+                              KernelMode,
+                              FALSE,
+                              NULL);
+        Status = QueryContext.CompletionStatus;
+    }
+
+    if ( OutFailDriverObject )
+    {
+        *OutFailDriverObject = QueryContext.DriverObject;
+    }
+
+    DPRINT("PiIrpQueryRemoveDevice: Status - %X\n", Status);
+
+    if (IsLocked)
+    {
+        IopUnlockMountedDeviceForRemove(TargetDevice,
+                                        IRP_MN_QUERY_REMOVE_DEVICE,
+                                        &MountedDevices);
+
+        if (NT_SUCCESS(Status))
+        {
+            Status = IopInvalidateVolumesForDevice(TargetDevice);
+        }
+    }
+
+    DPRINT("PiIrpQueryRemoveDevice: return Status - %X\n", Status);
+    return Status;
+}
+
 /* EOF */
