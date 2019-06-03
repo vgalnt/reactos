@@ -1372,4 +1372,37 @@ Exit:
     return Status;
 }
 
+PDEVICE_OBJECT
+NTAPI
+IoFindDeviceThatFailedIrp(
+    _In_ PIRP Irp)
+{
+    PIO_STACK_LOCATION IoStack;
+    ULONG StackCount;
+    ULONG ix;
+
+    if (NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        return NULL;
+    }
+
+    StackCount = Irp->StackCount;
+
+    IoStack = (PIO_STACK_LOCATION)((ULONG_PTR)Irp +
+                                   sizeof(IRP) +
+                                   ((StackCount - 1) * sizeof(IO_STACK_LOCATION)));
+
+    for (ix = 0; ix < StackCount; ix++)
+    {
+        if (IoStack->Control & SL_ERROR_RETURNED)
+        {
+            return IoStack->DeviceObject;
+        }
+
+        IoStack--;
+    }
+
+    return NULL;
+}
+
 /* EOF */
