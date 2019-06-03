@@ -16,6 +16,14 @@
 
 /* GLOBALS ********************************************************************/
 
+/* DATA **********************************************************************/
+
+typedef struct _LOCK_DEVICES_FOR_REMOVE
+{
+    PDEVICE_OBJECT RemoveDeviceObject;
+    PDEVICE_OBJECT FileSystemDeviceObject;
+} LOCK_DEVICES_FOR_REMOVE, *PLOCK_DEVICES_FOR_REMOVE;
+
 /* FUNCTIONS ******************************************************************/
 
 NTSTATUS
@@ -1119,6 +1127,133 @@ IopFindMountableDevice(
     }
 
     return MountableDevice;
+}
+
+PDEVICE_OBJECT
+NTAPI
+IopLockMountedDeviceForRemove(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ UCHAR MinorCode,
+    _Out_ PLOCK_DEVICES_FOR_REMOVE MountedDevices)
+{
+    PDEVICE_OBJECT FileSystemDeviceObject = NULL;
+    PVPB Vpb;
+    KIRQL OldIrql;
+
+    MountedDevices->RemoveDeviceObject = DeviceObject;
+    MountedDevices->FileSystemDeviceObject = NULL;
+
+    while (DeviceObject)
+    {
+        if (!DeviceObject->Vpb)
+        {
+            goto Next;
+        }
+
+        KeWaitForSingleObject(&DeviceObject->DeviceLock,
+                              Executive,
+                              KernelMode,
+                              FALSE,
+                              NULL);
+
+        IoAcquireVpbSpinLock(&OldIrql);
+
+        Vpb = DeviceObject->Vpb;
+        ASSERT(Vpb != NULL);
+
+        if (MinorCode)
+        {
+            if (MinorCode == IRP_MN_QUERY_REMOVE_DEVICE ||
+                MinorCode == IRP_MN_REMOVE_DEVICE ||
+                MinorCode == IRP_MN_SURPRISE_REMOVAL)
+            {
+                Vpb->Flags |= VPB_REMOVE_PENDING;
+            }
+            else if (MinorCode == IRP_MN_CANCEL_REMOVE_DEVICE)
+            {
+                Vpb->Flags &= ~VPB_REMOVE_PENDING;
+            }
+        }
+
+        if (Vpb->Flags & VPB_MOUNTED)
+        {
+            MountedDevices->RemoveDeviceObject = DeviceObject;
+            FileSystemDeviceObject = Vpb->DeviceObject;
+        }
+
+        MountedDevices->FileSystemDeviceObject = FileSystemDeviceObject;
+        IoReleaseVpbSpinLock(OldIrql);
+
+        if (FileSystemDeviceObject)
+        {
+            IopIncrementDeviceObjectHandleCount(FileSystemDeviceObject);
+        }
+
+        KeSetEvent(&DeviceObject->DeviceLock, IO_NO_INCREMENT, FALSE);
+
+        if (FileSystemDeviceObject)
+        {
+            return FileSystemDeviceObject;
+        }
+Next:
+        OldIrql = KeAcquireQueuedSpinLock(LockQueueIoDatabaseLock);
+        DeviceObject = DeviceObject->AttachedDevice;
+        KeReleaseQueuedSpinLock(LockQueueIoDatabaseLock, OldIrql);
+    }
+
+    if (FileSystemDeviceObject)
+    {
+        return FileSystemDeviceObject;
+    }
+
+    return MountedDevices->RemoveDeviceObject;
+}
+
+VOID
+NTAPI
+IopUnlockMountedDeviceForRemove(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ UCHAR MinorCode,
+    _In_ PLOCK_DEVICES_FOR_REMOVE MountedDevices)
+{
+    KIRQL OldIrql;
+
+    while (DeviceObject)
+    {
+        if (DeviceObject->Vpb)
+        {
+            KeWaitForSingleObject(&DeviceObject->DeviceLock,
+                                  Executive,
+                                  KernelMode,
+                                  FALSE,
+                                  NULL);
+
+            IoAcquireVpbSpinLock(&OldIrql);
+            if (MinorCode == IRP_MN_REMOVE_DEVICE)
+            {
+                DeviceObject->Vpb->Flags &= ~VPB_REMOVE_PENDING;
+            }
+            IoReleaseVpbSpinLock(OldIrql);
+
+            KeSetEvent(&DeviceObject->DeviceLock, IO_NO_INCREMENT, FALSE);
+        }
+
+        if (MountedDevices->RemoveDeviceObject == DeviceObject)
+        {
+            if (MountedDevices->FileSystemDeviceObject)
+            {
+                IopDecrementDeviceObjectHandleCount(MountedDevices->FileSystemDeviceObject);
+            }
+
+            break;
+        }
+
+        OldIrql = KeAcquireQueuedSpinLock(LockQueueIoDatabaseLock);
+        DeviceObject = DeviceObject->AttachedDevice;
+        KeReleaseQueuedSpinLock(LockQueueIoDatabaseLock, OldIrql);
+    }
+
+    return;
 }
 
 /* EOF */
