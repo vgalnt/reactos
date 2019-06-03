@@ -269,6 +269,23 @@ typedef struct _DRIVER_GROUP_LIST_ENTRY {
     WCHAR Buffer[];
 } DRIVER_GROUP_LIST_ENTRY, *PDRIVER_GROUP_LIST_ENTRY;
 
+typedef struct _RELATION_LIST_ENTRY
+{
+    ULONG Count;
+    ULONG MaxCount;
+    PDEVICE_OBJECT Devices[1];
+} RELATION_LIST_ENTRY, *PRELATION_LIST_ENTRY;
+
+typedef struct _RELATION_LIST
+{
+    ULONG Count;
+    ULONG TagCount;
+    ULONG FirstLevel;
+    ULONG MaxLevel;
+    PRELATION_LIST_ENTRY Entries[1];
+} RELATION_LIST, *PRELATION_LIST;
+
+
 //=== iomgr ================================
 
 //
