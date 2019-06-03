@@ -901,6 +901,48 @@ IopReplaceSeparatorWithPound(
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+IopDisableDevice(
+    _In_ PDEVICE_NODE DeviceNode)
+{
+    ULONG IsDevNodeProblem;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT1("IopDisableDevice: DeviceNode - %X\n", DeviceNode);
+
+    Status = PiIrpQueryRemoveDevice(DeviceNode->PhysicalDeviceObject, NULL);
+
+    if (!NT_SUCCESS(Status))
+    {
+        IopRemoveDevice(DeviceNode->PhysicalDeviceObject, IRP_MN_CANCEL_REMOVE_DEVICE);
+    }
+    else
+    {
+        Status = IopRemoveDevice(DeviceNode->PhysicalDeviceObject, IRP_MN_REMOVE_DEVICE);
+        ASSERT(NT_SUCCESS(Status));
+        IopReleaseDeviceResources(DeviceNode, TRUE);
+    }
+
+    if (DeviceNode->Flags & (DNF_HAS_PROBLEM | DNF_HAS_PRIVATE_PROBLEM))
+    {
+        IsDevNodeProblem = (DeviceNode->Flags & DNF_HAS_PROBLEM);
+
+        if ((!IsDevNodeProblem || DeviceNode->Problem != CM_PROB_NOT_CONFIGURED) &&
+            (!IsDevNodeProblem || DeviceNode->Problem != CM_PROB_FAILED_INSTALL) &&
+            (!IsDevNodeProblem || DeviceNode->Problem != CM_PROB_REINSTALL))
+        {
+            DPRINT1("IopDisableDevice: DeviceNode->Problem - %X\n", DeviceNode->Problem);
+            ASSERT(FALSE);
+        }
+
+        PipClearDevNodeProblem(DeviceNode);
+    }
+
+    PipSetDevNodeProblem(DeviceNode, CM_PROB_DISABLED);
+}
+
 BOOLEAN
 NTAPI
 IopIsDeviceInstanceEnabled(
@@ -1046,9 +1088,8 @@ IopIsDeviceInstanceEnabled(
         DeviceNode &&
         DeviceNode->State != DeviceNodeUninitialized)
     {
-        DPRINT("IopIsDeviceInstanceEnabled: FIXME IopDisableDevice()\n");
-        ASSERT(FALSE);
-        //IopDisableDevice(DeviceNode);
+        DPRINT1("IopIsDeviceInstanceEnabled: Instance - %wZ, IsDisableDevice - TRUE\n", Instance);
+        IopDisableDevice(DeviceNode);
     }
 
 Exit:
