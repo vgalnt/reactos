@@ -40,6 +40,17 @@ typedef struct _PNP_DEVICE_INSTANCE_CONTEXT
     PUNICODE_STRING InstancePath;
 } PNP_DEVICE_INSTANCE_CONTEXT, *PPNP_DEVICE_INSTANCE_CONTEXT;
 
+typedef enum _PIP_TYPE_REMOVAL_DEVICE
+{
+    PipQueryRemove,
+    PipCancelRemove,
+    PipRemove,
+    PipSurpriseRemove,
+    PipEject,
+    PipRemoveFailed,
+    PipRemoveFailedNotStarted
+} PIP_TYPE_REMOVAL_DEVICE;
+
 //
 // Request types for PIP_ENUM_REQUEST
 //
