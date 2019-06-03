@@ -1256,4 +1256,120 @@ IopUnlockMountedDeviceForRemove(
     return;
 }
 
+NTSTATUS
+NTAPI
+IopRemoveDevice(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ UCHAR MinorCode)
+{
+    PDEVICE_OBJECT RemoveDeviceObject;
+    LOCK_DEVICES_FOR_REMOVE MountedDevices;
+    PDEVICE_NODE DeviceNode;
+    IO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+    BOOLEAN IsLocked = FALSE;
+
+    PAGED_CODE();
+    DPRINT("IopRemoveDevice: DeviceObject - %p, MinorCode - %X\n", DeviceObject, MinorCode);
+
+    ASSERT(MinorCode == IRP_MN_QUERY_REMOVE_DEVICE ||
+           MinorCode == IRP_MN_CANCEL_REMOVE_DEVICE ||
+           MinorCode == IRP_MN_REMOVE_DEVICE ||
+           MinorCode == IRP_MN_SURPRISE_REMOVAL ||
+           MinorCode == IRP_MN_EJECT);
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    if (MinorCode == IRP_MN_REMOVE_DEVICE ||
+        MinorCode == IRP_MN_QUERY_REMOVE_DEVICE)
+    {
+        IopUncacheInterfaceInformation(DeviceObject);
+    }
+
+    RtlZeroMemory(&IoStack, sizeof(IoStack));
+
+    IoStack.MajorFunction = IRP_MJ_PNP;
+    IoStack.MinorFunction = MinorCode;
+
+    if (IopFindMountableDevice(DeviceObject))
+    {
+        RemoveDeviceObject = IopLockMountedDeviceForRemove(DeviceObject,
+                                                           MinorCode,
+                                                           &MountedDevices);
+        IsLocked = TRUE;
+    }
+    else
+    {
+        ASSERT(!(DeviceObject->Type == FILE_DEVICE_DISK ||
+                 DeviceObject->Type == FILE_DEVICE_CD_ROM ||
+                 DeviceObject->Type == FILE_DEVICE_TAPE ||
+                 DeviceObject->Type == FILE_DEVICE_VIRTUAL_DISK));
+
+        DPRINT1("IopRemoveDevice: Mass storage DeviceObject %p does not have VPB\n", DeviceObject);
+        RemoveDeviceObject = DeviceObject;
+    }
+
+    if (MinorCode == IRP_MN_SURPRISE_REMOVAL ||
+        MinorCode == IRP_MN_REMOVE_DEVICE)
+    {
+        if (DeviceNode->UserFlags & DNUF_NOT_DISABLEABLE)
+        {
+            DeviceNode->UserFlags &= ~DNUF_NOT_DISABLEABLE;
+            DPRINT1("IopRemoveDevice: FIXME IopDecDisableableDepends\n");
+            //IopDecDisableableDepends(DeviceNode);
+        }
+    }
+
+    Status = IopSynchronousCall(RemoveDeviceObject, &IoStack, NULL);
+    DPRINT1("IopRemoveDevice: MinorCode - %X, Status - %X\n", MinorCode, Status);
+
+    if (IsLocked)
+    {
+        IopUnlockMountedDeviceForRemove(DeviceObject, MinorCode, &MountedDevices);
+
+        if ((MinorCode == IRP_MN_QUERY_REMOVE_DEVICE ||
+             MinorCode == IRP_MN_SURPRISE_REMOVAL) && NT_SUCCESS(Status))
+        {
+            Status = IopInvalidateVolumesForDevice(DeviceObject);
+        }
+    }
+
+    if (MinorCode != IRP_MN_REMOVE_DEVICE)
+    {
+        goto Exit;
+    }
+
+    /* MinorCode == IRP_MN_REMOVE_DEVICE */
+
+    DeviceNode->Flags &= ~(DNF_REENUMERATE | DNF_LEGACY_DRIVER);
+
+    if (DeviceNode->Parent)
+    {
+        goto Exit;
+    }
+
+    ASSERT(DeviceNode->PreviousParent);
+
+    if (InterlockedDecrement((PLONG)&DeviceNode->PreviousParent->DeletedChildren))
+    {
+        goto Exit;
+    }
+
+    if (DeviceNode->PreviousParent->State != DeviceNodeDeletePendingCloses &&
+        DeviceNode->PreviousParent->State != DeviceNodeRemovePendingCloses)
+    {
+        goto Exit;
+    }
+
+    IopNotifyPnpWhenChainDereferenced(&DeviceNode->PreviousParent->PhysicalDeviceObject,
+                                      1,
+                                      FALSE,
+                                      FALSE,
+                                      NULL);
+Exit:
+
+    DPRINT("IopRemoveDevice: return Status - %X\n", Status);
+    return Status;
+}
+
 /* EOF */
