@@ -101,6 +101,66 @@ IopSynchronousCall(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
+PiAsynchronousCall(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIO_STACK_LOCATION InIoStack,
+    _In_ PIO_COMPLETION_ROUTINE CompletionRoutine,
+    _In_ PQUERY_REMOVE_DEVICE_CONTEXT QueryContext)
+{
+    PDEVICE_OBJECT TopDeviceObject;
+    PIO_STACK_LOCATION IoStack;
+    PIRP Irp;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    /* Get the top of the device stack */
+    TopDeviceObject = IoGetAttachedDeviceReference(DeviceObject);
+
+    /* Allocate an IRP */
+    Irp = IoAllocateIrp(TopDeviceObject->StackSize, FALSE);
+    if (!Irp)
+    {
+        /* Remove the reference */
+        DPRINT1("PiAsynchronousCall: return STATUS_INSUFFICIENT_RESOURCES\n");
+        ObDereferenceObject(TopDeviceObject);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    /* Initialize to failure */
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+    Irp->IoStatus.Information = 0;
+
+    /* Set them up */
+    Irp->UserIosb = NULL;
+    Irp->UserEvent = NULL;
+
+    /* Queue the IRP */
+    Irp->Tail.Overlay.Thread = PsGetCurrentThread();
+    Irp->RequestorMode = KernelMode;
+
+    IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+    RtlCopyMemory(&IoStack[-1], InIoStack, sizeof(IO_STACK_LOCATION));
+
+    IoSetCompletionRoutine(Irp,
+                           CompletionRoutine,
+                           QueryContext,
+                           TRUE,
+                           TRUE,
+                           TRUE);
+
+    /* Call the driver */
+    Status = IoCallDriver(TopDeviceObject, Irp);
+
+    /* Remove the reference */
+    ObDereferenceObject(TopDeviceObject);
+
+    DPRINT("PiAsynchronousCall: return Status - %X\n", Status);
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IopQueryDeviceRelations(
     _In_ DEVICE_RELATION_TYPE RelationsType,
     _In_ PDEVICE_OBJECT DeviceObject,
