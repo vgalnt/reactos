@@ -24,6 +24,13 @@ typedef struct _LOCK_DEVICES_FOR_REMOVE
     PDEVICE_OBJECT FileSystemDeviceObject;
 } LOCK_DEVICES_FOR_REMOVE, *PLOCK_DEVICES_FOR_REMOVE;
 
+typedef struct _QUERY_REMOVE_DEVICE_CONTEXT
+{
+    PDRIVER_OBJECT DriverObject;
+    KEVENT Event;
+    NTSTATUS CompletionStatus;
+} QUERY_REMOVE_DEVICE_CONTEXT, *PQUERY_REMOVE_DEVICE_CONTEXT;
+
 /* FUNCTIONS ******************************************************************/
 
 NTSTATUS
