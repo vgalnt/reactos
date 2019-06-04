@@ -148,7 +148,7 @@ PpDevNodeUnlockTree(
     PAGED_CODE();
     DPRINT("PpDevNodeUnlockTree: LockLevel - %X\n", LockLevel);
 
-    //PpDevNodeAssertLockLevel(LockLevel);
+    PpDevNodeAssertLockLevel(LockLevel);
 
     if (LockLevel == 0)
     {
@@ -300,7 +300,7 @@ PiHotSwapGetDetachableNode(
     PAGED_CODE();
     DPRINT("PiHotSwapGetDetachableNode: DeviceNode - %p\n", DeviceNode);
 
-    //PpDevNodeAssertLockLevel(0);
+    PpDevNodeAssertLockLevel(0);
 
     for (CurrentNode = DeviceNode;
          CurrentNode;
@@ -329,7 +329,7 @@ PiHotSwapGetDefaultBusRemovalPolicy(
     PAGED_CODE();
     DPRINT("PiHotSwapGetDefaultBusRemovalPolicy: DeviceNode - %p\n", DeviceNode);
 
-    //PpDevNodeAssertLockLevel(1);
+    PpDevNodeAssertLockLevel(1);
 
     if ((DeviceNode->InstancePath.Length > (wcslen(L"USB\\") * sizeof(WCHAR)) &&
          !_wcsnicmp(DeviceNode->InstancePath.Buffer, L"USB\\", wcslen(L"USB\\"))) ||
@@ -379,7 +379,7 @@ PpHotSwapUpdateRemovalPolicy(
     PAGED_CODE();
     DPRINT("PpHotSwapUpdateRemovalPolicy: DeviceNode - %p\n", DeviceNode);
 
-    //PpDevNodeAssertLockLevel(1);
+    PpDevNodeAssertLockLevel(1);
 
     PiHotSwapGetDetachableNode(DeviceNode, &DetachableNode);
 
@@ -552,6 +552,36 @@ IopMarkHalDeviceNode(VOID)
             DeviceNode->Flags |= DNF_HAL_NODE;
             return;
         }
+    }
+}
+
+VOID
+NTAPI
+PpDevNodeAssertLockLevel(
+    _In_ LONG LockLevel)
+{
+    PAGED_CODE();
+
+    switch (LockLevel)
+    {
+        case 0:
+            ASSERT(ExIsResourceAcquiredSharedLite(&PiDeviceTreeLock));
+            break;
+
+        case 1:
+            ASSERT(ExIsResourceAcquiredSharedLite(&PiDeviceTreeLock));
+            ASSERT(ExIsResourceAcquiredExclusiveLite(&PiEngineLock));
+            break;
+
+        case 2:
+        case 3:
+            ASSERT(ExIsResourceAcquiredExclusiveLite(&PiDeviceTreeLock));
+            ASSERT(ExIsResourceAcquiredExclusiveLite(&PiEngineLock));
+            break;
+
+        default:
+            ASSERT(FALSE);
+            break;
     }
 }
 

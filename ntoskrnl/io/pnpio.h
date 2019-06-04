@@ -701,6 +701,12 @@ IopMarkHalDeviceNode(
     VOID
 );
 
+VOID
+NTAPI
+PpDevNodeAssertLockLevel(
+    _In_ LONG Level
+);
+
 //
 // pnpres.c
 //
