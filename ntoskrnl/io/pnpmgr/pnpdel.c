@@ -43,6 +43,57 @@ IopAllocateRelationList(
 }
 
 NTSTATUS
+NTAPI
+IopBuildRemovalRelationList(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIP_TYPE_REMOVAL_DEVICE RemovalType,
+    _In_ PPNP_VETO_TYPE VetoType,
+    _In_ PUNICODE_STRING VetoName,
+    _Out_ PRELATION_LIST * OutRelationList)
+{
+    PDEVICE_NODE DeviceNode;
+    PRELATION_LIST RelationsList;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IopBuildRemovalRelationList: DeviceObject - %p, RemovalType - %X\n",
+           DeviceObject, RemovalType);
+
+    *OutRelationList = NULL;
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+
+    ASSERT(DeviceObject != IopRootDeviceNode->PhysicalDeviceObject);
+
+    RelationsList = IopAllocateRelationList(RemovalType);
+    if (!RelationsList)
+    {
+        DPRINT1("IopBuildRemovalRelationList: return STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Status = IopProcessRelation(DeviceNode,
+                                RemovalType,
+                                TRUE,
+                                VetoType,
+                                VetoName,
+                                RelationsList);
+
+    ASSERT(Status != STATUS_INVALID_DEVICE_REQUEST);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IopBuildRemovalRelationList: Status - %X\n", Status);
+        IopFreeRelationList(RelationsList);
+        return Status;
+    }
+
+    IopCompressRelationList(&RelationsList);
+    *OutRelationList = RelationsList;
+
+    return Status;
+}
+
+NTSTATUS
 PipRequestDeviceRemovalWorker(
     _In_ PDEVICE_NODE DeviceNode,
     _In_ PVOID Context)

@@ -413,6 +413,49 @@ IopDumpResRequest(
 );
 
 //
+// pnpdel.c
+//
+BOOLEAN
+NTAPI
+IopEnumerateRelations(
+    _In_ PRELATION_LIST RelationList,
+    _In_ PULONG Marker,
+    _Out_ PDEVICE_OBJECT * OutEnumDevice,
+    _Out_ PUCHAR OutIsDirectDescendant,
+    _Out_ PBOOLEAN OutIsTagged,
+    _In_ BOOLEAN Direction
+);
+
+NTSTATUS
+NTAPI
+IopProcessRelation(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ PIP_TYPE_REMOVAL_DEVICE RemovalType,
+    _In_ BOOLEAN IsDirectDescendant,
+    _In_ PPNP_VETO_TYPE VetoType,
+    _In_ PUNICODE_STRING VetoName,
+    _In_ PRELATION_LIST RelationsList
+);
+
+NTSTATUS
+NTAPI
+IopBuildRemovalRelationList(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIP_TYPE_REMOVAL_DEVICE RemovalType,
+    _In_ PPNP_VETO_TYPE VetoType,
+    _In_ PUNICODE_STRING VetoName,
+    _Out_ PRELATION_LIST * OutRelationList
+);
+
+VOID
+NTAPI
+PipRequestDeviceRemoval(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ UCHAR TreeDeletion,
+    _In_ ULONG Problem
+);
+
+//
 // pnpenum.c
 //
 NTSTATUS
