@@ -42,6 +42,119 @@ IopAllocateRelationList(
     return RelationsList;
 }
 
+VOID
+NTAPI
+IopCompressRelationList(
+    _In_ PRELATION_LIST * OutRelationList)
+{
+    PRELATION_LIST RelationsList;
+    PRELATION_LIST_ENTRY Entry;
+    PRELATION_LIST_ENTRY NewEntry;
+    PRELATION_LIST NewRelationList;
+    ULONG LowestLevel;
+    ULONG HighestLevel;
+    ULONG Size;
+    ULONG ix;
+
+    PAGED_CODE();
+
+    RelationsList = *OutRelationList;
+
+    LowestLevel = RelationsList->MaxLevel;
+    HighestLevel = RelationsList->FirstLevel;
+
+    DPRINT("IopCompressRelationList: RelationsList - %p, FirstLevel - %X, MaxLevel - %X\n",
+           RelationsList, RelationsList->FirstLevel, RelationsList->MaxLevel);
+
+    for (ix = 0;
+         ix <= (RelationsList->MaxLevel - RelationsList->FirstLevel);
+         ix++)
+    {
+        Entry = RelationsList->Entries[ix];
+        if (!Entry)
+        {
+            continue;
+        }
+
+        if (LowestLevel > ix)
+        {
+            LowestLevel = ix;
+        }
+
+        if (HighestLevel < ix)
+        {
+            HighestLevel = ix;
+        }
+
+        if (Entry->Count >= Entry->MaxCount)
+        {
+            continue;
+        }
+
+        Size = FIELD_OFFSET(RELATION_LIST_ENTRY, Devices) +
+               Entry->Count * sizeof(PDEVICE_OBJECT);
+
+        NewEntry = ExAllocatePoolWithTag(PagedPool, Size, 'lrpP');
+        if (!NewEntry)
+        {
+            DPRINT1("IopCompressRelationList: NewEntry == NULL\n");
+            ASSERT(FALSE);
+            continue;
+        }
+
+        NewEntry->Count = Entry->Count;
+        NewEntry->MaxCount = Entry->Count;
+
+        RtlCopyMemory(NewEntry->Devices,
+                      Entry->Devices,
+                      Entry->Count * sizeof(PDEVICE_OBJECT));
+
+        RelationsList->Entries[ix] = NewEntry;
+
+        ExFreePoolWithTag(Entry, 'lrpP');
+    }
+
+    ASSERT(LowestLevel <= HighestLevel);
+
+    if (LowestLevel > HighestLevel)
+    {
+        LowestLevel = 0;
+        HighestLevel = 0;
+    }
+
+    if (LowestLevel == RelationsList->FirstLevel &&
+        HighestLevel == RelationsList->MaxLevel)
+    {
+        ASSERT(FALSE);
+        return;
+    }
+
+    Size = sizeof(RELATION_LIST) +
+           (HighestLevel - LowestLevel) * sizeof(PRELATION_LIST_ENTRY);
+
+    NewRelationList = ExAllocatePoolWithTag(PagedPool, Size, 'lrpP');
+    if (!NewRelationList)
+    {
+        DPRINT("IopCompressRelationList: ExAllocatePoolWithTag() failed\n");
+        ASSERT(FALSE);
+        return;
+    }
+
+    NewRelationList->Count = RelationsList->Count;
+    NewRelationList->TagCount = RelationsList->TagCount;
+
+    NewRelationList->FirstLevel = LowestLevel;
+    NewRelationList->MaxLevel = HighestLevel;
+
+    RtlCopyMemory(NewRelationList->Entries,
+                  &RelationsList->Entries[LowestLevel],
+                  (HighestLevel - LowestLevel + 1) * sizeof(PRELATION_LIST_ENTRY));
+
+    ExFreePoolWithTag(RelationsList, 'rcpP');
+
+    *OutRelationList = NewRelationList;
+}
+
 NTSTATUS
 NTAPI
 IopBuildRemovalRelationList(
