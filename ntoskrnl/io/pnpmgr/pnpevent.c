@@ -83,6 +83,57 @@ PpCompleteDeviceEvent(
     ExFreePoolWithTag(EventEntry, 'EEpP');
 }
 
+NTSTATUS
+NTAPI
+PiProcessTargetDeviceEvent(
+    _In_ PPNP_DEVICE_EVENT_ENTRY * pEventEntry)
+{
+    PPNP_DEVICE_EVENT_ENTRY EventEntry;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    PAGED_CODE();
+    DPRINT("PiProcessTargetDeviceEvent: pEventEntry - %p, Status - %X\n", pEventEntry, Status);
+
+    EventEntry = *pEventEntry;
+
+    if (PiCompareGuid(&EventEntry->Data.EventGuid, &GUID_DEVICE_QUERY_AND_REMOVE))
+    {
+        DPRINT("PiProcessTargetDeviceEvent: GUID_DEVICE_QUERY_AND_REMOVE\n");
+        Status = PiProcessQueryRemoveAndEject(pEventEntry);
+        return Status;
+    }
+
+    if (PiCompareGuid(&EventEntry->Data.EventGuid, &GUID_DEVICE_EJECT))
+    {
+        DPRINT("PiProcessTargetDeviceEvent: GUID_DEVICE_EJECT\n");
+        Status = PiProcessQueryRemoveAndEject(pEventEntry);
+        return Status;
+    }
+
+    if (PiCompareGuid(&EventEntry->Data.EventGuid, &GUID_DEVICE_ARRIVAL))
+    {
+        DPRINT("PiProcessTargetDeviceEvent: GUID_DEVICE_ARRIVAL\n");
+        DPRINT("PiProcessTargetDeviceEvent: FIXME PiNotifyUserMode()\n");
+        //PiNotifyUserMode(EventEntry);
+        return Status;
+    }
+
+    if (PiCompareGuid(&EventEntry->Data.EventGuid, &GUID_DEVICE_NOOP))
+    {
+        DPRINT("PiProcessTargetDeviceEvent: GUID_DEVICE_NOOP\n");
+        return Status;
+    }
+
+    if (PiCompareGuid(&EventEntry->Data.EventGuid, &GUID_DEVICE_SAFE_REMOVAL))
+    {
+        DPRINT("PiProcessTargetDeviceEvent: GUID_DEVICE_SAFE_REMOVAL\n");
+        DPRINT("PiProcessTargetDeviceEvent: FIXME PiNotifyUserMode()\n");
+        //PiNotifyUserMode(EventEntry);
+    }
+
+    return Status;
+}
+
 VOID
 NTAPI
 PiWalkDeviceList(
