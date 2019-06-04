@@ -435,6 +435,9 @@ PipCallDriverAddDevice(
     _In_ SERVICE_LOAD_TYPE * DriverLoadType
 );
 
+//
+// pnpevent.c
+//
 NTSTATUS
 NTAPI
 PipRequestDeviceAction(
