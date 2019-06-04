@@ -53,6 +53,17 @@ PiAllocateCriticalMemory(
     return Block;
 }
 
+static
+BOOLEAN
+NTAPI
+PiCompareGuid(
+    _In_ CONST GUID * Guid1,
+    _In_ CONST GUID * Guid2)
+{
+    PAGED_CODE();
+    return RtlCompareMemory(Guid1, Guid2, sizeof(GUID)) == sizeof(GUID);
+}
+ 
 VOID
 NTAPI
 PpCompleteDeviceEvent(
