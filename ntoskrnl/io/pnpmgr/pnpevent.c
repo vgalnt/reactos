@@ -55,6 +55,36 @@ PiAllocateCriticalMemory(
 
 VOID
 NTAPI
+PpCompleteDeviceEvent(
+    _In_ PPNP_DEVICE_EVENT_ENTRY EventEntry,
+    _In_ NTSTATUS Status)
+{
+    PAGED_CODE();
+    DPRINT("PpCompleteDeviceEvent: EventEntry - %p, Status - %X\n", EventEntry, Status);
+
+    if (EventEntry->CallerEvent)
+    {
+        *EventEntry->Data.Result = Status;
+        KeSetEvent(EventEntry->CallerEvent, IO_NO_INCREMENT, FALSE);
+    }
+
+    if (EventEntry->Callback)
+    {
+        DPRINT1("PpCompleteDeviceEvent: FIXME Callback\n");
+        ASSERT(FALSE);
+        //EventEntry->Callback(EventEntry->Context);
+    }
+
+    if (EventEntry->Data.DeviceObject)
+    {
+        ObDereferenceObject(EventEntry->Data.DeviceObject);
+    }
+
+    ExFreePoolWithTag(EventEntry, 'EEpP');
+}
+
+VOID
+NTAPI
 PiWalkDeviceList(
     _In_ PVOID Context)
 {
