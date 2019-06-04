@@ -42,6 +42,72 @@ IopAllocateRelationList(
     return RelationsList;
 }
 
+NTSTATUS
+PipRequestDeviceRemovalWorker(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ PVOID Context)
+{
+    PPNP_REMOVAL_WALK_CONTEXT RemovalContext = Context;
+    PNP_DEVNODE_STATE AwaitingState;
+
+    PAGED_CODE();
+    DPRINT("PipRequestDeviceRemovalWorker: DeviceNode - %p, DeviceNode->State - %X, TreeDeletion - %X\n",
+           DeviceNode, DeviceNode->State, RemovalContext->TreeDeletion);
+
+    switch (DeviceNode->State)
+    {
+        case DeviceNodeInitialized:
+        case DeviceNodeDriversAdded:
+        case DeviceNodeStarted:
+            break;
+
+        case DeviceNodeUninitialized:
+        case DeviceNodeResourcesAssigned:
+        case DeviceNodeRemovePendingCloses:
+        case DeviceNodeRemoved:
+            ASSERT(RemovalContext->TreeDeletion);
+            break;
+
+        case DeviceNodeStartCompletion:
+        case DeviceNodeStartPostWork:
+        case DeviceNodeStopped:
+        case DeviceNodeRestartCompletion:
+            ASSERT(!RemovalContext->DescendantNode);
+            ASSERT(!RemovalContext->TreeDeletion);
+            break;
+
+        case DeviceNodeAwaitingQueuedDeletion:
+        case DeviceNodeAwaitingQueuedRemoval:
+            ASSERT(RemovalContext->TreeDeletion);
+            PipRestoreDevNodeState(DeviceNode);
+            PipSetDevNodeState(DeviceNode, DeviceNodeAwaitingQueuedDeletion, NULL);
+            return STATUS_SUCCESS;
+
+        case DeviceNodeStartPending:
+        case DeviceNodeQueryStopped:
+        case DeviceNodeEnumeratePending:
+        default:
+            ASSERT(FALSE);
+            break;
+    }
+
+    if (RemovalContext->TreeDeletion)
+    {
+        AwaitingState = DeviceNodeAwaitingQueuedDeletion;
+    }
+    else
+    {
+        AwaitingState = DeviceNodeAwaitingQueuedRemoval;
+    }
+
+    PipSetDevNodeState(DeviceNode, AwaitingState, NULL);
+
+    RemovalContext->DescendantNode = TRUE;
+    RemovalContext->TreeDeletion = TRUE;
+
+    return STATUS_SUCCESS;
+}
+
 VOID
 NTAPI
 PipRequestDeviceRemoval(
