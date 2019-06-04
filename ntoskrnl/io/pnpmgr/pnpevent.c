@@ -107,6 +107,46 @@ PiInsertEventInQueue(
 
 NTSTATUS
 NTAPI
+PpSynchronizeDeviceEventQueue(VOID)
+{
+    PPNP_DEVICE_EVENT_ENTRY EventEntry;
+    NTSTATUS Status;
+    KEVENT Event;
+    NTSTATUS RetStatus;
+
+    PAGED_CODE();
+    DPRINT("PpSynchronizeDeviceEventQueue()\n");
+
+    EventEntry = ExAllocatePoolWithTag(PagedPool, sizeof(*EventEntry), 'EEpP');
+    if (!EventEntry)
+    {
+        DPRINT1("PpSynchronizeDeviceEventQueue: return STATUS_NO_MEMORY\n");
+        return STATUS_NO_MEMORY;
+    }
+
+    RtlZeroMemory(EventEntry, sizeof(*EventEntry));
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+    EventEntry->CallerEvent = &Event;
+
+    RtlCopyMemory(&EventEntry->Data.EventGuid, &GUID_DEVICE_NOOP, sizeof(GUID));
+
+    EventEntry->Data.EventCategory = 1;
+    EventEntry->Data.Result = (PULONG)&RetStatus;
+    EventEntry->Data.TotalSize = sizeof(EventEntry->Data);
+
+    Status = PiInsertEventInQueue(EventEntry);
+
+    if (NT_SUCCESS(Status))
+    {
+        Status = KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 PpSetDeviceClassChange(
     _In_ CONST GUID * EventGuid,
     _In_ GUID * ClassGuid,
@@ -140,6 +180,7 @@ PpSetDeviceClassChange(
     EventEntry = ExAllocatePoolWithTag(PagedPool, EventEntrySize, 'EEpP');
     if (!EventEntry)
     {
+        DPRINT1("PpSetDeviceClassChange: return STATUS_NO_MEMORY\n");
         return STATUS_NO_MEMORY;
     }
 
