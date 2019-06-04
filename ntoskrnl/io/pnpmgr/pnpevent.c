@@ -53,6 +53,147 @@ PiAllocateCriticalMemory(
     return Block;
 }
 
+VOID
+NTAPI
+PiWalkDeviceList(
+    _In_ PVOID Context)
+{
+    PPNP_DEVICE_EVENT_ENTRY EventEntry;
+    UNICODE_STRING SymbolicLinkName;
+    PWORK_QUEUE_ITEM WorkItem = Context;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PiWalkDeviceList: WorkItem - %p\n", WorkItem);
+
+    Status = KeWaitForSingleObject(&PpDeviceEventList->EventQueueMutex,
+                                   Executive,
+                                   KernelMode,
+                                   FALSE,
+                                   NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PiWalkDeviceList: Status - %X\n", Status);
+        KeAcquireGuardedMutex(&PiNotificationInProgressLock);
+        KeSetEvent(&PiEventQueueEmpty, IO_NO_INCREMENT, FALSE);
+        PiNotificationInProgress = FALSE;
+        KeReleaseGuardedMutex(&PiNotificationInProgressLock);
+        return;
+    }
+
+    while (TRUE)
+    {
+        KeAcquireGuardedMutex(&PpDeviceEventList->Lock);
+
+        if (IsListEmpty(&PpDeviceEventList->List))
+        {
+            DPRINT("PiWalkDeviceList: IsListEmpty(&PpDeviceEventList->List)\n");
+            break;
+        }
+
+        EventEntry = CONTAINING_RECORD(RemoveHeadList(&PpDeviceEventList->List),
+                                       PNP_DEVICE_EVENT_ENTRY,
+                                       ListEntry);
+
+        DPRINT("PiWalkDeviceList: EventEntry - %p, EventCategory - %X\n", EventEntry,
+               EventEntry->Data.EventCategory);
+
+        KeReleaseGuardedMutex(&PpDeviceEventList->Lock);
+
+        if (EventEntry->Data.DeviceObject)
+        {
+            PDEVICE_NODE DeviceNode;
+
+            DeviceNode = IopGetDeviceNode(EventEntry->Data.DeviceObject);
+            if (!DeviceNode)
+            {
+                DPRINT("PiWalkDeviceList: continue. STATUS_NO_SUCH_DEVICE\n");
+                PpCompleteDeviceEvent(EventEntry, STATUS_NO_SUCH_DEVICE);
+                IopProcessDeferredRegistrations();
+                continue;
+            }
+        }
+
+        switch (EventEntry->Data.EventCategory)
+        {
+            case DeviceClassChangeEvent:
+                DPRINT("PiWalkDeviceList: DeviceClassChangeEvent - kernel notifying\n");
+
+                RtlInitUnicodeString(&SymbolicLinkName,
+                                     EventEntry->Data.DeviceClass.SymbolicLinkName);
+
+                IopNotifyDeviceClassChange(&EventEntry->Data,
+                                           &EventEntry->Data.DeviceClass.ClassGuid,
+                                           &SymbolicLinkName);
+
+                DPRINT("PiWalkDeviceList: FIXME PiNotifyUserMode()\n");
+                //PiNotifyUserMode(EventEntry);
+                Status = STATUS_SUCCESS;
+                break;
+
+            case CustomDeviceEvent:
+                DPRINT("PiWalkDeviceList: FIXME CustomDeviceEvent()\n");
+                ASSERT(FALSE);
+                break;
+
+            case TargetDeviceChangeEvent:
+                Status = PiProcessTargetDeviceEvent(&EventEntry);
+                break;
+
+            case DeviceInstallEvent:
+                DPRINT("PiWalkDeviceList: FIXME DeviceInstallEvent\n");
+                ASSERT(FALSE);
+                break;
+
+            case HardwareProfileChangeEvent:
+                DPRINT("PiWalkDeviceList: FIXME HardwareProfileChangeEvent\n");
+                ASSERT(FALSE);
+                break;
+
+            case PowerEvent:
+            case VetoEvent:
+            case BlockedDriverEvent:
+            case InvalidIDEvent:
+                ASSERT(FALSE);
+                break;
+
+            default:
+                DPRINT("PiWalkDeviceList: EventEntry->Data.EventCategory - %X\n", EventEntry->Data.EventCategory);
+                ASSERT(FALSE);
+                Status = STATUS_UNSUCCESSFUL;
+                break;
+        }
+
+        if (Status != STATUS_PENDING)
+        {
+            PpCompleteDeviceEvent(EventEntry, Status);
+        }
+        else
+        {
+            ASSERT(FALSE);
+        }
+
+        IopProcessDeferredRegistrations();
+    }
+
+    KeAcquireGuardedMutex(&PiNotificationInProgressLock);
+    KeSetEvent(&PiEventQueueEmpty, IO_NO_INCREMENT, FALSE);
+    PiNotificationInProgress = FALSE;
+    IopProcessDeferredRegistrations();
+    KeReleaseGuardedMutex(&PiNotificationInProgressLock);
+
+    KeReleaseGuardedMutex(&PpDeviceEventList->Lock);
+
+    if (WorkItem)
+    {
+        ExFreePoolWithTag(WorkItem, 'IWpP');
+    }
+
+    KeReleaseMutex(&PpDeviceEventList->EventQueueMutex, FALSE);
+
+    DPRINT("PiWalkDeviceList: exit\n");
+}
+
 NTSTATUS
 NTAPI
 PiInsertEventInQueue(
