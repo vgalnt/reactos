@@ -9,7 +9,15 @@
 
 /* GLOBALS *******************************************************************/
 
+extern PPNP_DEVICE_EVENT_LIST PpDeviceEventList;
+extern KGUARDED_MUTEX PiNotificationInProgressLock;
+
+extern KEVENT PiEventQueueEmpty;
+extern BOOLEAN PpPnpShuttingDown;
+
 /* DATA **********************************************************************/
+
+BOOLEAN PiNotificationInProgress = FALSE;
 
 /* FUNCTIONS *****************************************************************/
 
@@ -43,6 +51,58 @@ PiAllocateCriticalMemory(
     }
 
     return Block;
+}
+
+NTSTATUS
+NTAPI
+PiInsertEventInQueue(
+    _In_ PPNP_DEVICE_EVENT_ENTRY EventEntry)
+{
+    NTSTATUS Status = STATUS_SUCCESS;
+    PWORK_QUEUE_ITEM WorkItem = NULL;
+
+    PAGED_CODE();
+    DPRINT("PiInsertEventInQueue: EventEntry - %p, EventCategory - %X\n", EventEntry, EventEntry->Data.EventCategory);
+
+    KeAcquireGuardedMutex(&PpDeviceEventList->Lock);
+    KeAcquireGuardedMutex(&PiNotificationInProgressLock);
+
+    if (PiNotificationInProgress)
+    {
+        DPRINT("PiInsertEventInQueue: PiNotificationInProgress - TRUE\n");
+    }
+    else
+    {
+        WorkItem = ExAllocatePoolWithTag(NonPagedPool, sizeof(*WorkItem), 'IWpP');
+        if (WorkItem)
+        {
+            PiNotificationInProgress = TRUE;
+            KeClearEvent(&PiEventQueueEmpty);
+        }
+        else
+        {
+            DPRINT("PiInsertEventInQueue: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    InsertTailList(&PpDeviceEventList->List, &EventEntry->ListEntry);
+
+    KeReleaseGuardedMutex(&PiNotificationInProgressLock);
+    KeReleaseGuardedMutex(&PpDeviceEventList->Lock);
+
+    if (WorkItem)
+    {
+        WorkItem->WorkerRoutine = PiWalkDeviceList;
+        WorkItem->Parameter = WorkItem;
+        WorkItem->List.Flink = NULL;
+
+        ExQueueWorkItem(WorkItem, DelayedWorkQueue);
+
+        DPRINT("PiInsertEventInQueue: queue WorkItem - %X\n", WorkItem);
+    }
+
+    return Status;
 }
 
 NTSTATUS
