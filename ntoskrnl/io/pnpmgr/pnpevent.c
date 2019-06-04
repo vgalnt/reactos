@@ -107,6 +107,62 @@ PiInsertEventInQueue(
 
 NTSTATUS
 NTAPI
+PpSetDeviceClassChange(
+    _In_ CONST GUID * EventGuid,
+    _In_ GUID * ClassGuid,
+    _In_ PUNICODE_STRING SymbolicLinkName)
+{
+    NTSTATUS Status;
+    ULONG EventEntrySize;
+    PPNP_DEVICE_EVENT_ENTRY EventEntry;
+    ULONG DataTotalSize;
+    ULONG Length;
+
+    PAGED_CODE();
+    DPRINT("PpSetDeviceClassChange: SymbolicLinkName - %wZ\n", SymbolicLinkName);
+
+    if (PpPnpShuttingDown)
+    {
+        ASSERT(FALSE);
+        return STATUS_TOO_LATE;
+    }
+
+    //_SEH2_TRY
+
+    ASSERT(EventGuid != NULL);
+    ASSERT(ClassGuid != NULL);
+    ASSERT(SymbolicLinkName != NULL);
+
+    Length = SymbolicLinkName->Length;
+    DataTotalSize = Length + sizeof(PLUGPLAY_EVENT_BLOCK);
+    EventEntrySize = Length + sizeof(PNP_DEVICE_EVENT_ENTRY);
+
+    EventEntry = ExAllocatePoolWithTag(PagedPool, EventEntrySize, 'EEpP');
+    if (!EventEntry)
+    {
+        return STATUS_NO_MEMORY;
+    }
+
+    RtlZeroMemory(EventEntry, EventEntrySize);
+
+    EventEntry->Data.EventCategory = DeviceClassChangeEvent;
+    EventEntry->Data.TotalSize = DataTotalSize;
+
+    RtlCopyMemory(&EventEntry->Data.EventGuid, EventGuid, sizeof(GUID));
+    RtlCopyMemory(&EventEntry->Data.DeviceClass.ClassGuid, ClassGuid, sizeof(GUID));
+    RtlCopyMemory(EventEntry->Data.DeviceClass.SymbolicLinkName, SymbolicLinkName->Buffer, Length);
+
+    EventEntry->Data.DeviceClass.SymbolicLinkName[Length / sizeof(WCHAR)] = UNICODE_NULL;
+
+    Status = PiInsertEventInQueue(EventEntry);
+
+    //_SEH2_END;
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 PpSetTargetDeviceRemove(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ BOOLEAN IsRemove,

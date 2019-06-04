@@ -440,6 +440,14 @@ PipCallDriverAddDevice(
 //
 NTSTATUS
 NTAPI
+PpSetDeviceClassChange(
+    _In_ CONST GUID * EventGuid,
+    _In_ GUID * ClassGuid,
+    _In_ PUNICODE_STRING SymbolicLinkName
+);
+
+NTSTATUS
+NTAPI
 PipRequestDeviceAction(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIP_ENUM_TYPE RequestType,
