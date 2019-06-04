@@ -259,6 +259,18 @@ typedef struct _IOPNP_DEVICE_EXTENSION
     ULONG CompatibleIdListSize;
 } IOPNP_DEVICE_EXTENSION, *PIOPNP_DEVICE_EXTENSION;
 
+typedef struct _PNP_DEVICE_EVENT_ENTRY
+{
+    LIST_ENTRY ListEntry;                                                                                                                                       // 2 elements, 0x8 bytes (sizeof)
+    ULONG Argument;
+    PKEVENT CallerEvent;
+    PVOID Callback;
+    PVOID Context;
+    PPNP_VETO_TYPE VetoType;
+    PUNICODE_STRING VetoName;
+    PLUGPLAY_EVENT_BLOCK Data;                                                                                                                                  // 7 elements, 0x38 bytes (sizeof)
+} PNP_DEVICE_EVENT_ENTRY, *PPNP_DEVICE_EVENT_ENTRY;
+
 typedef struct _DRIVER_GROUP_LIST_ENTRY {
     struct _DRIVER_GROUP_LIST_ENTRY * ShortEntry;
     struct _DRIVER_GROUP_LIST_ENTRY * LongEntry;
