@@ -1,12 +1,12 @@
-# arbiter library for bus drivers (PCI) and for legacy HAL (only PIC version)
+# arbiter library for bus drivers (acpi, pci), kernel and legacy (pic) HAL 
 
 remove_definitions(-D_NTOSKRNL_)
 
 include_directories(${REACTOS_SOURCE_DIR}/sdk/lib/rtl)
 
 list(APPEND SOURCE
-    ${REACTOS_SOURCE_DIR}/ntoskrnl/io/arbiter/arbiter.c
-    arbiter.h)
+     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/arbiter/arbiter.c
+     arbiter.h)
 
 add_library(arblib STATIC ${SOURCE})
 

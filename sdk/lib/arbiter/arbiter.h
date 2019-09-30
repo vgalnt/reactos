@@ -43,7 +43,7 @@ extern "C" {
 #define ARB_ORDERING_LIST_DEFAULT_COUNT  16
 #define ARB_ORDERING_LIST_ADD_COUNT      8
 
-/* FIXME structures changes for NT >= 6.0 */
+/* FIXME for NT >= 6.0 */
 
 typedef struct _ARBITER_ORDERING {
     ULONGLONG Start;
@@ -53,13 +53,13 @@ typedef struct _ARBITER_ORDERING {
 typedef struct _ARBITER_ORDERING_LIST {
     USHORT Count;
     USHORT Maximum;
-#if defined(_M_X64)
+  #if defined(_M_AMD64)
     ULONG Padding;
-#endif
+  #endif
     PARBITER_ORDERING Orderings;
 } ARBITER_ORDERING_LIST, *PARBITER_ORDERING_LIST;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     C_ASSERT(sizeof(ARBITER_ORDERING_LIST) == 0x10);
 #else
     C_ASSERT(sizeof(ARBITER_ORDERING_LIST) == 0x08);
@@ -74,12 +74,12 @@ typedef struct _ARBITER_ALTERNATIVE {
     ULONG Flags;
     PIO_RESOURCE_DESCRIPTOR Descriptor;
     ULONG Reserved[3];
-#if defined(_M_X64)
+  #if defined(_M_AMD64)
     ULONG Padding;
-#endif
+  #endif
 } ARBITER_ALTERNATIVE, *PARBITER_ALTERNATIVE;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     C_ASSERT(sizeof(ARBITER_ALTERNATIVE) == 0x38);
 #else
     C_ASSERT(sizeof(ARBITER_ALTERNATIVE) == 0x30);
@@ -94,19 +94,19 @@ typedef struct _ARBITER_ALLOCATION_STATE {
     PARBITER_ALTERNATIVE CurrentAlternative;
     ULONG AlternativeCount;
     PARBITER_ALTERNATIVE Alternatives;
-#if defined(_M_X64)
+  #if defined(_M_AMD64)
     ULONG Padding0;
-#endif
+  #endif
     USHORT Flags;
     UCHAR RangeAttributes;
     UCHAR RangeAvailableAttributes;
-#if defined(_M_X64)
+  #if defined(_M_AMD64)
     ULONG Padding1;
-#endif
+  #endif
     ULONG WorkSpace;
 } ARBITER_ALLOCATION_STATE, *PARBITER_ALLOCATION_STATE;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     C_ASSERT(sizeof(ARBITER_ALLOCATION_STATE) == 0x50);
 #else
     C_ASSERT(sizeof(ARBITER_ALLOCATION_STATE) == 0x38);
@@ -126,17 +126,15 @@ typedef NTSTATUS
 typedef NTSTATUS
 (NTAPI * PARB_PACK_RESOURCE)(
     _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
-    _In_ PHYSICAL_ADDRESS Start,
+    _In_ ULONGLONG Start,
     _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor
 );
 
 typedef NTSTATUS
 (NTAPI * PARB_UNPACK_RESOURCE)(
     _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor,
-    _Out_ PULONGLONG OutMinimumAddress,
-    _Out_ PULONGLONG OutMaximumAddress,
-    _Out_ PULONG OutLength,
-    _Out_ PULONG OutAlignment
+    _Out_ PULONGLONG Start,
+    _Out_ PULONG OutLength
 );
 
 typedef LONG
@@ -148,6 +146,22 @@ typedef NTSTATUS
 (NTAPI * PARB_TEST_ALLOCATION)(
     _In_ PARBITER_INSTANCE Arbiter,
     _In_ PLIST_ENTRY ArbitrationList
+);
+
+typedef NTSTATUS
+(NTAPI * PARB_RETEST_ALLOCATION)(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PLIST_ENTRY ArbitrationList
+);
+
+typedef NTSTATUS
+(NTAPI * PARB_COMMIT_ALLOCATION)(
+    _In_ PARBITER_INSTANCE Arbiter
+);
+
+typedef NTSTATUS
+(NTAPI * PARB_ROLLBACK_ALLOCATION)(
+    _In_ PARBITER_INSTANCE Arbiter
 );
 
 typedef NTSTATUS
@@ -168,73 +182,88 @@ typedef NTSTATUS
     _Inout_ PARBITER_ALLOCATION_STATE ArbState
 );
 
+typedef BOOLEAN
+(NTAPI * PARB_GET_NEXT_ALLOCATION_RANGE)(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
+);
+
+typedef BOOLEAN
+(NTAPI * PARB_FIND_SUITABLE_RANGE)(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
+);
+
 typedef VOID
 (NTAPI * PARB_ADD_ALLOCATION)(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState
 );
 
-//typedef struct _RTL_RANGE_LIST RTL_RANGE_LIST, *PRTL_RANGE_LIST;
+typedef VOID
+(NTAPI * PARB_BACKTRACK_ALLOCATION)(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
+);
 
 typedef struct _ARBITER_INSTANCE {
     ULONG Signature;
-#if defined(_M_X64)
+  #if defined(_M_AMD64)
     ULONG Padding0;
-#endif
+  #endif
     PKEVENT MutexEvent;
     PUSHORT Name;
     CM_RESOURCE_TYPE ResourceType;
-#if defined(_M_X64)
+  #if defined(_M_AMD64)
     ULONG Padding1;
-#endif
+  #endif
     PRTL_RANGE_LIST Allocation;
     PRTL_RANGE_LIST PossibleAllocation;
     ARBITER_ORDERING_LIST OrderingList;
     ARBITER_ORDERING_LIST ReservedList;
     LONG ReferenceCount;
-#if defined(_M_X64)
+  #if defined(_M_AMD64)
     ULONG Padding2;
-#endif
+  #endif
     PARBITER_INTERFACE Interface;
     ULONG AllocationStackMaxSize;
-#if defined(_M_X64)
+  #if defined(_M_AMD64)
     ULONG Padding3;
-#endif
+  #endif
     PARBITER_ALLOCATION_STATE AllocationStack;
     PARB_UNPACK_REQUIREMENT UnpackRequirement;
     PARB_PACK_RESOURCE PackResource;
     PARB_UNPACK_RESOURCE UnpackResource;
     PARB_SCORE_REQUIREMENT ScoreRequirement;
-    // FIXME next funcs
     PARB_TEST_ALLOCATION TestAllocation;
-    PVOID RetestAllocation; // PARB_RETEST_ALLOCATION
-    PVOID CommitAllocation; // PARB_COMMIT_ALLOCATION
-    PVOID RollbackAllocation; // PARB_ROLLBACK_ALLOCATION
+    PARB_RETEST_ALLOCATION RetestAllocation;
+    PARB_COMMIT_ALLOCATION CommitAllocation;
+    PARB_ROLLBACK_ALLOCATION RollbackAllocation;
     PARB_BOOT_ALLOCATION BootAllocation;
-    PVOID QueryArbitrate; // PARB_QUERY_ARBITRATE
-    PVOID QueryConflict; // PARB_QUERY_CONFLICT
-    PVOID AddReserved; // PARB_ADD_RESERVED
-    PVOID StartArbiter; // PARB_START_ARBITER
+    PVOID QueryArbitrate; /* FIXME PARB_QUERY_ARBITRATE */
+    PVOID QueryConflict; /* FIXME PARB_QUERY_CONFLICT */
+    PVOID AddReserved; /* FIXME PARB_ADD_RESERVED */
+    PVOID StartArbiter; /* FIXME PARB_START_ARBITER */
     PARB_PREPROCESS_ENTRY PreprocessEntry;
     PARB_ALLOCATE_ENTRY AllocateEntry;
-    PVOID GetNextAllocationRange; // PARB_GET_NEXT_ALLOCATION_RANGE
-    PVOID FindSuitableRange; // PARB_FIND_SUITABLE_RANGE
+    PARB_GET_NEXT_ALLOCATION_RANGE GetNextAllocationRange;
+    PARB_FIND_SUITABLE_RANGE FindSuitableRange;
     PARB_ADD_ALLOCATION AddAllocation;
-    PVOID BacktrackAllocation; // PARB_BACKTRACK_ALLOCATION
-    PVOID OverrideConflict; // PARB_OVERRIDE_CONFLICT
+    PARB_BACKTRACK_ALLOCATION BacktrackAllocation;
+    PVOID OverrideConflict; // FIXME PARB_OVERRIDE_CONFLICT
     BOOLEAN TransactionInProgress;
-#if defined(_M_X64)
+  #if defined(_M_AMD64)
     UCHAR Padding4[0x7];
-#else
+  #else
     UCHAR Padding4[0x3];
-#endif
+  #endif
     PVOID Extension;
     PDEVICE_OBJECT BusDeviceObject;
     PVOID ConflictCallbackContext;
     PVOID ConflictCallback;
 } ARBITER_INSTANCE, *PARBITER_INSTANCE;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     C_ASSERT(sizeof(ARBITER_INSTANCE) == 0x138);
 #else
     C_ASSERT(sizeof(ARBITER_INSTANCE) == 0x9C);
@@ -265,21 +294,32 @@ ArbArbiterHandler(
     _Out_ PARBITER_PARAMETERS Params
 );
 
-// lib "rtl" FIXME!
-NTSTATUS
+BOOLEAN
 NTAPI
-RtlCopyRangeList(OUT PRTL_RANGE_LIST CopyRangeList,
-                 IN PRTL_RANGE_LIST RangeList
+ArbFindSuitableRange(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
 );
 
 NTSTATUS
 NTAPI
-RtlDeleteOwnersRanges(
-    _In_ PRTL_RANGE_LIST RangeList,
-    _In_ PVOID Owner
+ArbBootAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PLIST_ENTRY ArbitrationList
 );
 
-// end lib "rtl"
+NTSTATUS
+NTAPI
+ArbTestAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PLIST_ENTRY ArbitrationList
+);
+
+NTSTATUS
+NTAPI
+ArbCommitAllocation(
+    _In_ PARBITER_INSTANCE Arbiter
+);
 
 #ifdef __cplusplus
 }
