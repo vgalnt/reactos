@@ -3506,6 +3506,15 @@ InterlockedPushListSList(
 );
 
 //
+// RTL Range List callbacks
+//
+typedef BOOLEAN
+(NTAPI *PRTL_CONFLICT_RANGE_CALLBACK)(
+    PVOID Context,
+    struct _RTL_RANGE *Range
+);
+
+//
 // Range List functions
 //
 NTSYSAPI
@@ -3533,6 +3542,89 @@ RtlAddRange(
     _In_ ULONG Flags,
     _In_opt_ PVOID UserData,
     _In_opt_ PVOID Owner
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlCopyRangeList(
+    _Out_ PRTL_RANGE_LIST CopyRangeList,
+    _In_ PRTL_RANGE_LIST RangeList
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlDeleteRange(
+    _Inout_ PRTL_RANGE_LIST RangeList,
+    _In_ ULONGLONG Start,
+    _In_ ULONGLONG End,
+    _In_ PVOID Owner
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlDeleteOwnersRanges(
+    _In_ PRTL_RANGE_LIST RangeList,
+    _In_ PVOID Owner
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlFindRange(
+    _In_ PRTL_RANGE_LIST RangeList,
+    _In_ ULONGLONG Minimum,
+    _In_ ULONGLONG Maximum,
+    _In_ ULONG Length,
+    _In_ ULONG Alignment,
+    _In_ ULONG Flags,
+    _In_ UCHAR AttributeAvailableMask,
+    _In_ PVOID Context OPTIONAL,
+    _In_ PRTL_CONFLICT_RANGE_CALLBACK Callback OPTIONAL,
+    _Out_ PULONGLONG OutStart
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlIsRangeAvailable(
+    _In_ PRTL_RANGE_LIST RangeList,
+    _In_ ULONGLONG Start,
+    _In_ ULONGLONG End,
+    _In_ ULONG Flags,
+    _In_ UCHAR AttributeAvailableMask,
+    _In_ PVOID Context OPTIONAL,
+    _In_ PRTL_CONFLICT_RANGE_CALLBACK Callback OPTIONAL,
+    _Out_ PBOOLEAN Available
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlGetFirstRange(
+    _In_ PRTL_RANGE_LIST RangeList,
+    _Inout_ PRTL_RANGE_LIST_ITERATOR Iterator,
+    _Out_ PRTL_RANGE * OutRange
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlGetNextRange(
+    _Inout_ PRTL_RANGE_LIST_ITERATOR Iterator,
+    _Out_ PRTL_RANGE * OutRange,
+    _In_ BOOLEAN MoveForwards
+);
+
+NTSYSAPI
+NTSTATUS
+NTAPI
+RtlGetLastRange(
+    _In_ PRTL_RANGE_LIST RangeList,
+    _Inout_ PRTL_RANGE_LIST_ITERATOR Iterator,
+    _Out_ PRTL_RANGE * OutRange
 );
 
 //

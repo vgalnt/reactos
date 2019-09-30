@@ -692,15 +692,7 @@ typedef NTSTATUS
 );
 #endif
 
-//
-// RTL Range List callbacks
-//
 #ifdef NTOS_MODE_USER
-typedef BOOLEAN
-(NTAPI *PRTL_CONFLICT_RANGE_CALLBACK)(
-    PVOID Context,
-    struct _RTL_RANGE *Range
-);
 
 //
 // Custom Heap Commit Routine for RtlCreateHeap
@@ -1456,12 +1448,12 @@ typedef struct _RTL_RANGE_LIST
     ULONG Flags;
     ULONG Count;
     ULONG Stamp;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padding;
 #endif
 } RTL_RANGE_LIST, *PRTL_RANGE_LIST;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
 C_ASSERT(sizeof(RTL_RANGE_LIST) == 0x20);
 #else
 C_ASSERT(sizeof(RTL_RANGE_LIST) == 0x14);
@@ -1482,16 +1474,16 @@ typedef struct _RTLP_RANGE_LIST_ENTRY {
     UCHAR Attributes;
     UCHAR PublicFlags;
     USHORT PrivateFlags;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padding0;
 #endif
     LIST_ENTRY ListEntry;
-#if !defined(_M_X64)
+#if !defined(_M_AMD64)
     ULONG Padding1;
 #endif
 } RTLP_RANGE_LIST_ENTRY, *PRTLP_RANGE_LIST_ENTRY;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
 C_ASSERT(sizeof(RTLP_RANGE_LIST_ENTRY) == 0x38);
 #else
 C_ASSERT(sizeof(RTLP_RANGE_LIST_ENTRY) == 0x28);
@@ -1509,7 +1501,7 @@ typedef struct _RTL_RANGE
     UCHAR Padding[6];
 } RTL_RANGE, *PRTL_RANGE;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
 C_ASSERT(sizeof(RTL_RANGE) == 0x28);
 #else
 C_ASSERT(sizeof(RTL_RANGE) == 0x20);
@@ -1521,12 +1513,12 @@ typedef struct _RANGE_LIST_ITERATOR
     PLIST_ENTRY MergedHead;
     PVOID Current;
     ULONG Stamp;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padding;
 #endif
 } RTL_RANGE_LIST_ITERATOR, *PRTL_RANGE_LIST_ITERATOR;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
 C_ASSERT(sizeof(RTL_RANGE_LIST_ITERATOR) == 0x20);
 #else
 C_ASSERT(sizeof(RTL_RANGE_LIST_ITERATOR) == 0x10);
