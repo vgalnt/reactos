@@ -860,7 +860,7 @@ typedef struct _DEVICE_NODE
     struct _DEVICE_NODE *Parent;
     struct _DEVICE_NODE *LastChild;
     ULONG Level;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padded1;
 #endif
     struct _PO_DEVICE_NOTIFY *Notify;
@@ -876,7 +876,7 @@ typedef struct _DEVICE_NODE
     ULONG Flags;
     ULONG UserFlags;
     ULONG Problem;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padded2;
 #endif
     PDEVICE_OBJECT PhysicalDeviceObject;
@@ -893,7 +893,7 @@ typedef struct _DEVICE_NODE
     USHORT ChildBusTypeIndex;
     UCHAR RemovalPolicy;
     UCHAR HardwareRemovalPolicy;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padded3;
 #endif
     LIST_ENTRY TargetDeviceNotify;
@@ -920,31 +920,31 @@ typedef struct _DEVICE_NODE
     PCM_RESOURCE_LIST BootResourcesTranslated;
 #endif
     ULONG CapabilityFlags;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padded4;
 #endif
     struct
     {
         PROFILE_STATUS DockStatus;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
         ULONG Padded5;
 #endif
         LIST_ENTRY ListEntry;
         WCHAR *SerialNumber;
     } DockInfo;
     ULONG DisableableDepends;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padded6;
 #endif
     LIST_ENTRY PendedSetInterfaceState;
     LIST_ENTRY LegacyBusListEntry;
     ULONG DriverUnloadRetryCount;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padded7;
 #endif
     struct _DEVICE_NODE *PreviousParent;
-    ULONG DeletedChidren;
-#if defined(_M_X64)
+    ULONG DeletedChildren;
+#if defined(_M_AMD64)
     ULONG Padded8;
 #endif
 #if (NTDDI_VERSION >= NTDDI_LONGHORN)
@@ -952,10 +952,12 @@ typedef struct _DEVICE_NODE
 #endif
 #if DBG
     NTSTATUS DebugStatus;
+    PVOID PrevCmResource;
+    PVOID DbgParam2;
 #endif
 } DEVICE_NODE, *PDEVICE_NODE;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
   #if (NTDDI_VERSION >= NTDDI_LONGHORN)
     //C_ASSERT(sizeof(DEVICE_NODE) == 0x220);
     //if DBG ?
@@ -972,7 +974,7 @@ typedef struct _DEVICE_NODE
     #endif
   #else
     #if DBG
-      C_ASSERT(sizeof(DEVICE_NODE) == 0x124);
+      C_ASSERT(sizeof(DEVICE_NODE) == 0x12C);
     #else
       C_ASSERT(sizeof(DEVICE_NODE) == 0x120);
     #endif
@@ -986,6 +988,7 @@ typedef struct _PI_RESOURCE_ARBITER_ENTRY
 {
     LIST_ENTRY DeviceArbiterList;
     UCHAR ResourceType;
+    UCHAR Padded1[3];
     PARBITER_INTERFACE ArbiterInterface;
     ULONG Level;
     LIST_ENTRY ResourceList;
@@ -994,6 +997,7 @@ typedef struct _PI_RESOURCE_ARBITER_ENTRY
     LIST_ENTRY ActiveArbiterList;
     UCHAR State;
     UCHAR ResourcesChanged;
+    UCHAR Padded2[2];
 } PI_RESOURCE_ARBITER_ENTRY, *PPI_RESOURCE_ARBITER_ENTRY;
 
 //

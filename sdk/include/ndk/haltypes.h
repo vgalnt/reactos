@@ -194,7 +194,7 @@ typedef struct _SUPPORTED_RANGE
 {
     struct _SUPPORTED_RANGE *Next;
     ULONG SystemAddressSpace;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padding0;
 #endif
     ULONGLONG SystemBase;
@@ -202,7 +202,7 @@ typedef struct _SUPPORTED_RANGE
     ULONGLONG Limit;
 } SUPPORTED_RANGE, *PSUPPORTED_RANGE;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
   C_ASSERT(sizeof(SUPPORTED_RANGE) == 0x28);
 #else
   C_ASSERT(sizeof(SUPPORTED_RANGE) == 0x20);
@@ -226,7 +226,7 @@ typedef struct _SUPPORTED_RANGES
     SUPPORTED_RANGE Dma;
 } SUPPORTED_RANGES, *PSUPPORTED_RANGES;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
   C_ASSERT(sizeof(SUPPORTED_RANGES) == 0xC0);
 #else
   C_ASSERT(sizeof(SUPPORTED_RANGES) == 0xA0);
