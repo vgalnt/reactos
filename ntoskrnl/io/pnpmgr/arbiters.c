@@ -9,9 +9,10 @@
 /* INCLUDES ******************************************************************/
 
 #include <ntoskrnl.h>
+#include "../pnpio.h"
 #include "../arbiter/arbiter.h"
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS *******************************************************************/
@@ -37,7 +38,7 @@ IopBusNumberUnpackRequirement(
     _Out_ PULONG OutAlignment)
 {
     PAGED_CODE();
-    DPRINT("IopBusNumberUnpackRequirement: IoDescriptor - %p, MinBusNumber - %X, MaxBusNumber - %X, Length - %X\n",
+    DPRINT("BusNumberUnpackIo: [%p] Min %X Max %X Len %X\n",
             IoDescriptor,
             IoDescriptor->u.BusNumber.MinBusNumber,
             IoDescriptor->u.BusNumber.MaxBusNumber,
@@ -59,12 +60,23 @@ NTSTATUS
 NTAPI
 IopBusNumberPackResource(
     _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
-    _In_ PHYSICAL_ADDRESS Start,
+    _In_ ULONGLONG Start,
     _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
 {
-    PAGED_CODE();
-    DPRINT("IopBusNumberPackResource: IoDescriptor - %p, Start.QuadPart - %I64X\n", IoDescriptor, Start.QuadPart);
-    ASSERT(FALSE);
+    DPRINT("BusNumberPack: [%p] Start %X\n", IoDescriptor, (ULONG)Start);
+
+    ASSERT(CmDescriptor);
+    ASSERT(Start < ((ULONG)-1));
+    ASSERT(IoDescriptor);
+    ASSERT(IoDescriptor->Type == CmResourceTypeBusNumber);
+
+    CmDescriptor->Type = CmResourceTypeBusNumber;
+    CmDescriptor->ShareDisposition = IoDescriptor->ShareDisposition;
+    CmDescriptor->Flags = IoDescriptor->Flags;
+
+    CmDescriptor->u.BusNumber.Start = Start;
+    CmDescriptor->u.BusNumber.Length = IoDescriptor->u.BusNumber.Length;
+
     return STATUS_SUCCESS;
 }
 
