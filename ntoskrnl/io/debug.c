@@ -142,52 +142,57 @@ IopDumpIoResourceDescriptor(
 {
     PAGED_CODE();
 
-    if (!Descriptor)
+    if (Descriptor == NULL)
     {
-        DPRINT("IopDumpResourceDescriptor: Descriptor == 0\n");
+        DPRINT("DumpResourceDescriptor: Descriptor == 0\n");
         return;
     }
 
     switch (Descriptor->Type)
     {
+        case CmResourceTypeNull:
+        {
+            DPRINT("[%p:%X:%X] IO: Len %X Align %X Min %I64X, Max %I64X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Generic.Length, Descriptor->u.Generic.Alignment, Descriptor->u.Generic.MinimumAddress.QuadPart, Descriptor->u.Generic.MaximumAddress.QuadPart);
+            break;
+        }
         case CmResourceTypePort:
         {
-            DPRINT("%s[%p] Opt - %X, Share - %X, IO:  Min - %X:%08X, Max - %X:%08X, Align - %X, Len - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Port.MinimumAddress.HighPart, Descriptor->u.Port.MinimumAddress.LowPart, Descriptor->u.Port.MaximumAddress.HighPart, Descriptor->u.Port.MaximumAddress.LowPart, Descriptor->u.Port.Alignment, Descriptor->u.Port.Length);
+            DPRINT("[%p:%X:%X] IO: Min %X:%X, Max %X:%X, Align %X Len %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Port.MinimumAddress.HighPart, Descriptor->u.Port.MinimumAddress.LowPart, Descriptor->u.Port.MaximumAddress.HighPart, Descriptor->u.Port.MaximumAddress.LowPart, Descriptor->u.Port.Alignment, Descriptor->u.Port.Length);
             break;
         }
         case CmResourceTypeInterrupt:
         {
-            DPRINT("%s[%p] Opt - %X, Share - %X, INT: Min - %X, Max - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Interrupt.MinimumVector, Descriptor->u.Interrupt.MaximumVector);
+            DPRINT("[%p:%X:%X] INT: Min %X Max %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Interrupt.MinimumVector, Descriptor->u.Interrupt.MaximumVector);
             break;
         }
         case CmResourceTypeMemory:
         {
-            DPRINT("%s[%p] Opt - %X, Share - %X, MEM: Min - %X:%08X, Max - %X:%08X, Align - %X, Len - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Memory.MinimumAddress.HighPart, Descriptor->u.Memory.MinimumAddress.LowPart, Descriptor->u.Memory.MaximumAddress.HighPart, Descriptor->u.Memory.MaximumAddress.LowPart, Descriptor->u.Memory.Alignment, Descriptor->u.Memory.Length);
+            DPRINT("[%p:%X:%X] MEM: Min %X:%X, Max %X:%X, Align %X Len %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Memory.MinimumAddress.HighPart, Descriptor->u.Memory.MinimumAddress.LowPart, Descriptor->u.Memory.MaximumAddress.HighPart, Descriptor->u.Memory.MaximumAddress.LowPart, Descriptor->u.Memory.Alignment, Descriptor->u.Memory.Length);
             break;
         }
         case CmResourceTypeDma:
         {
-            DPRINT("%s[%p] Opt - %X, Share - %X, DMA: Min - %X, Max - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Dma.MinimumChannel, Descriptor->u.Dma.MaximumChannel);
+            DPRINT("[%p:%X:%X] DMA: Min %X Max %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Dma.MinimumChannel, Descriptor->u.Dma.MaximumChannel);
             break;
         }
         case CmResourceTypeBusNumber:
         {
-            DPRINT("%s[%p] Opt - %X, Share - %X, BUS: Min - %X, Max - %X, Length - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.BusNumber.MinBusNumber, Descriptor->u.BusNumber.MaxBusNumber, Descriptor->u.BusNumber.Length);
+            DPRINT("[%p:%X:%X] BUS: Min %X Max %X Len %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.BusNumber.MinBusNumber, Descriptor->u.BusNumber.MaxBusNumber, Descriptor->u.BusNumber.Length);
             break;
         }
-        case CmResourceTypeConfigData: //0x80
+        case CmResourceTypeConfigData:
         {
-            DPRINT("%s[%p] Opt - %X, Share - %X, CFG: Priority - %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.ConfigData.Priority);
+            DPRINT("[%p:%X:%X] CFG: Priority %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.ConfigData.Priority);
             break;
         }
-        case CmResourceTypeDevicePrivate: //0x81
+        case CmResourceTypeDevicePrivate:
         {
-            DPRINT("%s[%p] Opt - %X, Share - %X, DAT: %X, %X, %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.DevicePrivate.Data[0], Descriptor->u.DevicePrivate.Data[1], Descriptor->u.DevicePrivate.Data[2]);
+            DPRINT("[%p:%X:%X] DAT: %X %X %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.DevicePrivate.Data[0], Descriptor->u.DevicePrivate.Data[1], Descriptor->u.DevicePrivate.Data[2]);
             break;
         }
         default:
         {
-            DPRINT("%s[%p] Opt - %X, Share - %X. Unknown Descriptor type %X\n", Tab, Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->Type);
+            DPRINT("%s[%p:%X:%X]. Unknown type %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->Type);
             break;
         }
     }

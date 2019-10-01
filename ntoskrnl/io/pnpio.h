@@ -96,7 +96,7 @@ typedef struct _PIP_ENUM_REQUEST
     NTSTATUS * CompletionStatus;
 } PIP_ENUM_REQUEST, *PPIP_ENUM_REQUEST;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
 C_ASSERT(sizeof(PIP_ENUM_REQUEST) == 0x38);
 #else
 C_ASSERT(sizeof(PIP_ENUM_REQUEST) == 0x20);
@@ -125,12 +125,12 @@ typedef struct _PNP_RESOURCE_REQUEST
     PCM_RESOURCE_LIST ResourceAssignment;
     PCM_RESOURCE_LIST TranslatedResourceAssignment;
     NTSTATUS Status;
-#if defined(_M_X64)
+#if defined(_M_AMD64)
     ULONG Padding;
 #endif
 } PNP_RESOURCE_REQUEST, *PPNP_RESOURCE_REQUEST;
 
-#if defined(_M_X64)
+#if defined(_M_AMD64)
 C_ASSERT(sizeof(PNP_RESOURCE_REQUEST) == 0x40);
 #else
 C_ASSERT(sizeof(PNP_RESOURCE_REQUEST) == 0x28);
