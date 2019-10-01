@@ -26,34 +26,37 @@ IopDumpCmResourceDescriptor(
 {
     PAGED_CODE();
 
-    if ( !Descriptor )
+    if (Descriptor == NULL)
     {
-        DPRINT("IopDumpCmResourceDescriptor: Descriptor == NULL\n");
+        DPRINT("Dump CmDescriptor: Descriptor == NULL\n");
         return;
     }
 
-    switch ( Descriptor->Type )
+    switch (Descriptor->Type)
     {
-        case 1:
-            DPRINT("%s[%p] Share - %X, Flags - %X, IO:  Start - %X:%08X, Length - %X\n", Tab, Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Port.Start.HighPart, Descriptor->u.Port.Start.LowPart, Descriptor->u.Port.Length);
+        case CmResourceTypePort:
+            DPRINT("[%p:%X:%X] IO:  Start %X:%X, Len %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Port.Start.HighPart, Descriptor->u.Port.Start.LowPart, Descriptor->u.Port.Length);
             break;
-        case 2:
-            DPRINT("%s[%p] Share - %X, Flags - %X, INT: Level - %X, Vector - %X, Affinity - %X\n", Tab, Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Interrupt.Level, Descriptor->u.Interrupt.Vector, Descriptor->u.Interrupt.Affinity);
+        case CmResourceTypeInterrupt:
+            DPRINT("[%p:%X:%X] INT: Lev %X Vec %X Aff %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Interrupt.Level, Descriptor->u.Interrupt.Vector, Descriptor->u.Interrupt.Affinity);
             break;
-        case 3:
-            DPRINT("%s[%p] Share - %X, Flags - %X, MEM: Start - %X:%08X, Length - %X\n", Tab, Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Memory.Start.HighPart, Descriptor->u.Memory.Start.LowPart, Descriptor->u.Memory.Length);
+        case CmResourceTypeMemory:
+            DPRINT("[%p:%X:%X] MEM: %X:%X Len %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Memory.Start.HighPart, Descriptor->u.Memory.Start.LowPart, Descriptor->u.Memory.Length);
             break;
-        case 4:
-            DPRINT("%s[%p] Share - %X, Flags - %X, DMA: Channel - %X, Port - %X\n", Tab, Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Dma.Channel, Descriptor->u.Dma.Port);
+        case CmResourceTypeDma:
+            DPRINT("[%p:%X:%X] DMA: Channel %X Port %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Dma.Channel, Descriptor->u.Dma.Port);
             break;
-        case 5:
-            DPRINT("%s[%p] Share - %X, Flags - %X, DAT: DataSize - %X\n", Tab, Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.DeviceSpecificData.DataSize);
+        case CmResourceTypeDeviceSpecific:
+            DPRINT("[%p:%X:%X] DAT: DataSize %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.DeviceSpecificData.DataSize);
             break;
-        case 6:
-            DPRINT("%s[%p] Share - %X, Flags - %X, BUS: Start - %X, Length - %X, Reserved - %X\n", Tab, Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor, Descriptor->u.BusNumber.Start, Descriptor->u.BusNumber.Length, Descriptor->u.BusNumber.Reserved);
+        case CmResourceTypeBusNumber:
+            DPRINT("[%p:%X:%X] BUS: Start %X Len %X Reserv %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.BusNumber.Start, Descriptor->u.BusNumber.Length, Descriptor->u.BusNumber.Reserved);
+            break;
+        case CmResourceTypeDevicePrivate:
+            DPRINT("[%p:%X:%X] PVT: D[0] %X D[1] %X D[2] %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.DevicePrivate.Data[0], Descriptor->u.DevicePrivate.Data[1], Descriptor->u.DevicePrivate.Data[2]);
             break;
         default:
-            DPRINT("%s[%p] Unknown Descriptor type %X\n", Tab, Descriptor, Descriptor->Type);
+            DPRINT("[%p] Unknown type %X\n", Descriptor, Descriptor->Type);
             break;
     }
 }
