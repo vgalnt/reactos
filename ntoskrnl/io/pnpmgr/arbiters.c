@@ -471,16 +471,48 @@ NTAPI
 IopGenericScoreRequirement(
     _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
 {
+    ULONG Alignment;
+    LONGLONG Score;
+
     PAGED_CODE();
-    DPRINT("IopGenericScoreRequirement: IoDescriptor - %p, MinimumAddress - %I64X, MaximumAddress - %I64X, Length - %X, Alignment - %X\n",
+
+    ASSERT(IoDescriptor);
+    ASSERT((IoDescriptor->Type == CmResourceTypePort) ||
+           (IoDescriptor->Type == CmResourceTypeMemory));
+
+    if (IoDescriptor->u.Generic.Alignment == 0)
+    {
+        Alignment = 1;
+    }
+    else
+    {
+        Alignment = IoDescriptor->u.Generic.Alignment;
+    }
+
+    DPRINT("IopGenericScoreRequirement: [%p] Min %I64X Max %I64X Len %X Align %X\n",
            IoDescriptor,
            IoDescriptor->u.Generic.MinimumAddress.QuadPart,
            IoDescriptor->u.Generic.MaximumAddress.QuadPart,
            IoDescriptor->u.Generic.Length,
            IoDescriptor->u.Generic.Alignment);
 
-    ASSERT(FALSE);
-    return 0;
+    Score = (IoDescriptor->u.Generic.MaximumAddress.QuadPart -
+             (~(Alignment - 1) & (Alignment + IoDescriptor->u.Generic.MinimumAddress.QuadPart - 1)) -
+             IoDescriptor->u.Generic.Length + 1) / Alignment + 1;
+
+    if (Score >= 0)
+    {
+        if (Score > 0x7FFFFFFF)
+        {
+            Score = 0x7FFFFFFF;
+        }
+    }
+    else
+    {
+        Score = 0xFFFFFFFF;
+    }
+
+    return (LONG)Score;
 }
 
 NTSTATUS
