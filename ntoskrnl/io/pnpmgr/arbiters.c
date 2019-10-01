@@ -202,10 +202,8 @@ NTSTATUS
 NTAPI
 IopIrqUnpackResource(
     _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor,
-    _Out_ PULONGLONG OutMinimumVector,
-    _Out_ PULONGLONG OutMaximumVector,
-    _Out_ PULONG OutParam1,
-    _Out_ PULONG OutParam2)
+    _Out_ PULONGLONG Start,
+    _Out_ PULONG OutLength)
 {
     DPRINT("IopIrqUnpackResource: ...\n");
     ASSERT(FALSE);
@@ -325,7 +323,7 @@ NTSTATUS
 NTAPI
 IopDmaPackResource(
     _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
-    _In_ PHYSICAL_ADDRESS Start,
+    _In_ ULONGLONG Start,
     _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
 {
     DPRINT("IopDmaPackResource: ...\n");
@@ -337,10 +335,8 @@ NTSTATUS
 NTAPI
 IopDmaUnpackResource(
     _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor,
-    _Out_ PULONGLONG OutMinimumChannel,
-    _Out_ PULONGLONG OutMaximumChannel,
-    _Out_ PULONG OutParam1,
-    _Out_ PULONG OutParam2)
+    _Out_ PULONGLONG Start,
+    _Out_ PULONG OutLength)
 {
     DPRINT("IopDmaUnpackResource: ...\n");
     ASSERT(FALSE);
@@ -435,12 +431,26 @@ NTSTATUS
 NTAPI
 IopGenericPackResource(
     _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
-    _In_ PHYSICAL_ADDRESS Start,
+    _In_ ULONGLONG Start,
     _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
 {
     PAGED_CODE();
-    DPRINT("IopGenericPackResource: IoDescriptor - %p, Start.QuadPart - %I64X\n", IoDescriptor, Start.QuadPart);
-    ASSERT(FALSE);
+
+    ASSERT(CmDescriptor);
+    ASSERT(IoDescriptor);
+    ASSERT(IoDescriptor->Type == CmResourceTypePort ||
+           IoDescriptor->Type == CmResourceTypeMemory);
+
+    CmDescriptor->Type = IoDescriptor->Type;
+    CmDescriptor->Flags = IoDescriptor->Flags;
+    CmDescriptor->ShareDisposition = IoDescriptor->ShareDisposition;
+
+    CmDescriptor->u.Generic.Start.QuadPart = Start;
+    CmDescriptor->u.Generic.Length = IoDescriptor->u.Generic.Length;
+
+    DPRINT("IopGenericPackResource: [%p] Start %I64X Len %X\n",
+           IoDescriptor, Start, CmDescriptor->u.Generic.Length);
+
     return STATUS_SUCCESS;
 }
 
@@ -448,10 +458,8 @@ NTSTATUS
 NTAPI
 IopGenericUnpackResource(
     _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor,
-    _Out_ PULONGLONG OutMinimumAddress,
-    _Out_ PULONGLONG OutMaximumAddress,
-    _Out_ PULONG OutLength,
-    _Out_ PULONG OutAlignment)
+    _Out_ PULONGLONG Start,
+    _Out_ PULONG OutLength)
 {
     DPRINT("IopGenericUnpackResource: ...\n");
     ASSERT(FALSE);
