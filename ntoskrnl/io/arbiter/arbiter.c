@@ -476,10 +476,128 @@ ArbPreprocessEntry(
 
 NTSTATUS
 NTAPI
-ArbAllocateEntry()
+ArbAllocateEntry(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    DPRINT("ArbAllocateEntry: ...\n");
-    ASSERT(FALSE);
+    PARBITER_ALLOCATION_STATE Allocation;
+    PARBITER_ALTERNATIVE CurrentAlternative;
+    PCHAR Str;
+    BOOLEAN IsRepeat = FALSE;
+    NTSTATUS Status;
+
+    //PAGED_CODE();
+    DPRINT("ArbAllocateEntry: Arbiter %p, ArbState %p\n", Arbiter, ArbState);
+
+    Allocation = ArbState;
+
+StartAllocate:
+
+    while (Allocation >= ArbState && Allocation->Entry)
+    {
+        Status = Arbiter->PreprocessEntry(Arbiter, Allocation);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ArbAllocateEntry: Status %X\n", Status);
+            return Status;
+        }
+
+        if (IsRepeat == FALSE)
+        {
+            goto NextAllocation;
+        }
+
+        CurrentAlternative = Allocation->CurrentAlternative;
+        Allocation[1].CurrentAlternative = 0;
+        IsRepeat = FALSE;
+
+        DPRINT("ArbAllocateEntry: CurrentAlternative->Length %X\n", CurrentAlternative->Length);
+
+        if (CurrentAlternative->Length)
+        {
+            Arbiter->BacktrackAllocation(Arbiter, Allocation);
+
+            if (Allocation->Start - 1 <= Allocation->CurrentMinimum &&
+                Allocation->Start - 1 >= CurrentAlternative->Minimum)
+            {
+                Allocation->CurrentMaximum = Allocation->Start - 1;
+                goto NextSuitable;
+            }
+
+NextAllocation:
+
+            while (Arbiter->GetNextAllocationRange(Arbiter, Allocation))
+            {
+                if (!(Allocation->CurrentAlternative->Flags & 1))
+                {
+                    DPRINT("ArbAllocateEntry: %I64X-%I64X non-shared\n", Allocation->CurrentMinimum, Allocation->CurrentMaximum);
+                }
+                else
+                {
+                    DPRINT("ArbAllocateEntry: %I64X-%I64X shared\n", Allocation->CurrentMinimum, Allocation->CurrentMaximum);
+                }
+
+NextSuitable:
+                if (Arbiter->FindSuitableRange(Arbiter, Allocation))
+                {
+                    if (Allocation->CurrentAlternative->Length)
+                    {
+                        if ((Allocation->CurrentAlternative->Flags & 1) == 0)
+                        {
+                            DPRINT("ArbAllocateEntry: %p, %I64X-%I64X non-shared\n", Allocation->Entry->PhysicalDeviceObject, Allocation->Start, Allocation->End);
+                        }
+                        else
+                        {
+                            DPRINT("ArbAllocateEntry: %p, %I64X-%I64X shared\n", Allocation->Entry->PhysicalDeviceObject, Allocation->Start, Allocation->End);
+                        }
+
+                        Arbiter->AddAllocation(Arbiter, Allocation);
+                    }
+                    else
+                    {
+                        if ((Allocation->CurrentAlternative->Flags & 1) == 0)
+                        {
+                            DPRINT("ArbAllocateEntry: %p, %I64X-%I64X non-shared\n", Allocation->Entry->PhysicalDeviceObject, Allocation->Start, Allocation->End);
+                        }
+                        else
+                        {
+                            DPRINT("ArbAllocateEntry: %p, %I64X-%I64X shared\n", Allocation->Entry->PhysicalDeviceObject, Allocation->Start, Allocation->End);
+                        }
+
+                        Allocation->Entry->Result = 2;
+                    }
+
+                    Allocation++;
+                    goto StartAllocate;
+                }
+            }
+        }
+
+        if (Allocation == ArbState)
+        {
+            DPRINT("ArbAllocateEntry: Allocation == ArbState\n");
+            ASSERT(FALSE);
+            return STATUS_UNSUCCESSFUL;
+        }
+
+        DPRINT("ArbAllocateEntry: Allocation failed for %p\n", Allocation->Entry->PhysicalDeviceObject);
+
+        IsRepeat = TRUE;
+        Allocation--;
+    }
+
+    for (Allocation = ArbState; Allocation->Entry; Allocation++)
+    {
+        Status = Arbiter->PackResource(Allocation->CurrentAlternative->Descriptor,
+                                       Allocation->Start,
+                                       Allocation->Entry->Assignment);
+        ASSERT(NT_SUCCESS(Status));
+
+        Allocation->Entry->SelectedAlternative = Allocation->CurrentAlternative->Descriptor;
+
+        DPRINT("ArbAllocateEntry: Assigned - %I64X-%I64X\n", Allocation->Start, Allocation->End);
+    }
+
     return STATUS_SUCCESS;
 }
 
