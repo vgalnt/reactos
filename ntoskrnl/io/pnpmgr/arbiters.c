@@ -633,9 +633,17 @@ IopMemFindSuitableRange(
     _In_ PARBITER_ALLOCATION_STATE State)
 {
     BOOLEAN Result;
-    DPRINT("IopMemFindSuitableRange: Arbiter - %p, State - %p\n", Arbiter, State);
-    ASSERT(FALSE);
-    return Result=0;
+
+    DPRINT("IopMemFindSuitableRange: ...\n");
+
+    if (State->Entry->Flags & 1)
+    {
+        State->RangeAvailableAttributes |= 1;
+    }
+
+    Result = ArbFindSuitableRange(Arbiter, State);
+
+    return Result;
 }
 
 NTSTATUS
