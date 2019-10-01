@@ -159,7 +159,7 @@ IopIrqUnpackRequirement(
     ASSERT(IoDescriptor);
     ASSERT(IoDescriptor->Type == CmResourceTypeInterrupt);
 
-    DPRINT("IopIrqUnpackRequirement: IoDescriptor - %p, MinimumVector - %X, MaximumVector - %X\n",
+    DPRINT("IrqUnpackIo: [%p] Min %X Max %X\n",
             IoDescriptor,
             IoDescriptor->u.Interrupt.MinimumVector,
             IoDescriptor->u.Interrupt.MaximumVector);
@@ -177,11 +177,24 @@ NTSTATUS
 NTAPI
 IopIrqPackResource(
     _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
-    _In_ PHYSICAL_ADDRESS Start,
+    _In_ ULONGLONG Start,
     _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
 {
     DPRINT("IopIrqPackResource: ...\n");
-    ASSERT(FALSE);
+
+    ASSERT(CmDescriptor);
+    ASSERT(Start < ((ULONG)-1));
+    ASSERT(IoDescriptor);
+    ASSERT(IoDescriptor->Type == CmResourceTypeInterrupt);
+
+    CmDescriptor->Type = CmResourceTypeInterrupt;
+    CmDescriptor->Flags = IoDescriptor->Flags;
+    CmDescriptor->ShareDisposition = IoDescriptor->ShareDisposition;
+
+    CmDescriptor->u.Interrupt.Affinity = -1;
+    CmDescriptor->u.Interrupt.Vector = (ULONG)Start;
+    CmDescriptor->u.Interrupt.Level = (ULONG)Start;
+
     return STATUS_SUCCESS;
 }
 
