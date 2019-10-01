@@ -428,10 +428,21 @@ ArbRetestAllocation()
 
 NTSTATUS
 NTAPI
-ArbCommitAllocation()
+ArbCommitAllocation(
+    _In_ PARBITER_INSTANCE Arbiter)
 {
-    DPRINT("ArbCommitAllocation: ...\n");
-    ASSERT(FALSE);
+    PRTL_RANGE_LIST Allocation;
+
+    //PAGED_CODE();
+    DPRINT("ArbCommitAllocation: Arbiter %p\n", Arbiter);
+
+    RtlFreeRangeList(Arbiter->Allocation);
+
+    Allocation = Arbiter->PossibleAllocation;
+
+    Arbiter->PossibleAllocation = Arbiter->Allocation;
+    Arbiter->Allocation = Allocation;
+
     return STATUS_SUCCESS;
 }
 
