@@ -253,6 +253,26 @@ typedef union _DEVICE_CAPABILITIES_FLAGS
 
 C_ASSERT(sizeof(DEVICE_CAPABILITIES_FLAGS) == sizeof(ULONG));
 
+typedef union _CM_DEVICE_CAPABILITIES_FLAGS
+{
+    struct {
+        ULONG  LockSupported:1;
+        ULONG  EjectSupported:1;
+        ULONG  Removable:1;
+        ULONG  DockDevice:1;
+        ULONG  UniqueID:1;
+        ULONG  SilentInstall:1;
+        ULONG  RawDeviceOK:1;
+        ULONG  SurpriseRemovalOK:1;
+        ULONG  HardwareDisabled:1;
+        ULONG  NonDynamic:1;
+        ULONG  Reserved:22;
+    };
+    ULONG AsULONG;
+} CM_DEVICE_CAPABILITIES_FLAGS, *PCM_DEVICE_CAPABILITIES_FLAGS;
+
+C_ASSERT(sizeof(CM_DEVICE_CAPABILITIES_FLAGS) == sizeof(ULONG));
+
 typedef struct _IOPNP_DEVICE_EXTENSION
 {
     PWCHAR CompatibleIdList;
