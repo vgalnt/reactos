@@ -17,7 +17,7 @@
 
 /* DATA **********************************************************************/
 
-static PCHAR ArbpActionStrings[] =
+static PCHAR ArbpActionStrings[10] =
 {
     "Arbiter Action TestAllocation",
     "Arbiter Action RetestAllocation",
@@ -83,23 +83,29 @@ ArbArbiterHandler(
             ASSERT(Params->Parameters.TestAllocation.AllocateFrom == NULL);
             Status = Arbiter->TestAllocation(Arbiter, Params->Parameters.TestAllocation.ArbitrationList);
             break;
+
         case ArbiterActionRetestAllocation:
             ASSERT(FALSE);
             break;
+
         case ArbiterActionCommitAllocation:
-            ASSERT(FALSE);
+            Status = Arbiter->CommitAllocation(Arbiter);
             break;
+
         case ArbiterActionRollbackAllocation:
             ASSERT(FALSE);
             break;
+
         case ArbiterActionBootAllocation:
             Status = Arbiter->BootAllocation(
                               Arbiter,
                               Params->Parameters.BootAllocation.ArbitrationList);
             break;
+
         case ArbiterActionQueryConflict:
             ASSERT(FALSE);
             break;
+
         case ArbiterActionQueryAllocatedResources:
         case ArbiterActionWriteReservedResources:
         case ArbiterActionQueryArbitrate:
@@ -107,6 +113,7 @@ ArbArbiterHandler(
             ASSERT(FALSE);
             Status = STATUS_NOT_IMPLEMENTED;
             return STATUS_NOT_IMPLEMENTED;
+
         default:
             ASSERT(FALSE);
             Status = STATUS_INVALID_PARAMETER;
