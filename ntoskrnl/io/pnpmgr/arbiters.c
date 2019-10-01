@@ -83,14 +83,20 @@ IopBusNumberPackResource(
 NTSTATUS
 NTAPI
 IopBusNumberUnpackResource(
-    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor,
-    _Out_ PULONGLONG OutMinimumAddress,
-    _Out_ PULONGLONG OutMaximumAddress,
-    _Out_ PULONG OutLength,
-    _Out_ PULONG OutAlignment)
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor,
+    _Out_ PULONGLONG Start,
+    _Out_ PULONG Length)
 {
-    DPRINT("IopBusNumberUnpackResource: ...\n");
-    ASSERT(FALSE);
+    DPRINT("IopBusNumberUnpackResource: Descriptor %p\n", Descriptor);
+
+    ASSERT(Descriptor);
+    ASSERT(Start);
+    ASSERT(Length);
+    ASSERT(Descriptor->Type == CmResourceTypeBusNumber);
+
+    *Start = Descriptor->u.BusNumber.Start;
+    *Length = Descriptor->u.BusNumber.Length;
+
     return STATUS_SUCCESS;
 }
 
