@@ -397,37 +397,16 @@ PipGetDeviceNodeStateName(
 
 VOID
 NTAPI
-PipDumpDeviceNodes(
+PipDumpArbiters(
     _In_ PDEVICE_NODE DeviceNode,
-    _In_ ULONG Level,
-    _In_ ULONG Flags)
+    _In_ ULONG Level)
 {
-    PDEVICE_NODE ChildDeviceNode;
     PPI_RESOURCE_ARBITER_ENTRY ArbiterEntry;
     PARBITER_INSTANCE Arbiter;
-    PDEVICE_OBJECT PDO;
-    PDEVICE_OBJECT AttachedDO;
     PLIST_ENTRY ArbiterListHead;
     PLIST_ENTRY Entry;
 
-    ASSERT(DeviceNode);
-    PDO = DeviceNode->PhysicalDeviceObject;
-    AttachedDO = PDO ? PDO->AttachedDevice : NULL;
-
-    DPRINT("Level - %X DevNode - %p for PDO - %p, AttachedDO - %p\n", Level, DeviceNode, PDO, AttachedDO);
-    DPRINT("InstancePath    - %wZ\n", &DeviceNode->InstancePath);
-    if (DeviceNode->ServiceName.Length)
-    {
-    DPRINT("ServiceName     - %wZ\n", &DeviceNode->ServiceName);
-    }
-
-    DPRINT("State           - %X, %S\n", DeviceNode->State, PipGetDeviceNodeStateName(DeviceNode->State));
-    DPRINT("Previous State  - %X, %S\n", DeviceNode->PreviousState, PipGetDeviceNodeStateName(DeviceNode->PreviousState));
-    if (DeviceNode->Problem)
-    {
-    DPRINT("Problem         - %X\n", DeviceNode->Problem);
-    }
-
+    /* Arbiters Head */
     ArbiterListHead = &DeviceNode->DeviceArbiterList;
 
     for (Entry = DeviceNode->DeviceArbiterList.Flink;
@@ -440,50 +419,59 @@ PipDumpDeviceNodes(
         Arbiter = (PARBITER_INSTANCE)ArbiterEntry->ArbiterInterface->Context;
         ASSERT(Arbiter);
 
-        DPRINT("ArbiterEntry(%X) - %X\n", ArbiterEntry->ResourceType, ArbiterEntry);
-        DPRINT("Arbiter           - %S\n", Arbiter->Name);
+        DPRINT("ArbiterEntry(%X) [%p] '%S'\n", ArbiterEntry->ResourceType, ArbiterEntry, Arbiter->Name);
+    }
+}
+
+VOID
+NTAPI
+PipDumpDeviceNodes(
+    _In_ PDEVICE_NODE DeviceNode,
+    _In_ ULONG Level,
+    _In_ ULONG Flags)
+{
+    PDEVICE_NODE ChildDeviceNode;
+
+    DPRINT("* Level %X DevNode %p for PDO %p\n", Level, DeviceNode, DeviceNode->PhysicalDeviceObject);
+    DPRINT("Instance    %wZ\n", &DeviceNode->InstancePath);
+    if (DeviceNode->ServiceName.Length) {
+    DPRINT("Service     %wZ\n", &DeviceNode->ServiceName);
+    }
+    DPRINT("State       %X %S\n", DeviceNode->State, PipGetDeviceNodeStateName(DeviceNode->State));
+    DPRINT("Prev State  %X %S\n", DeviceNode->PreviousState, PipGetDeviceNodeStateName(DeviceNode->PreviousState));
+    if (DeviceNode->Problem) {
+    DPRINT("Problem     %X\n", DeviceNode->Problem);
     }
 
-    if (Flags & 2)
-    {
-        /* Display boot configuration (reported by IRP_MN_QUERY_RESOURCES) and AllocatedResources */
-        if (DeviceNode->ResourceList)
-        {
-            DPRINT("------------ ResourceList ------------\n");
+    PipDumpArbiters(DeviceNode, Level);
+
+    if (Flags & 2) { /* Display boot configuration (reported by IRP_MN_QUERY_RESOURCES) and AllocatedResources */
+
+        if (DeviceNode->ResourceList) {
+            DPRINT("---------- ResourceList ----------\n");
             IopDumpCmResourceList(DeviceNode->ResourceList);
         }
-
-        if (DeviceNode->BootResources)
-        {
-            DPRINT("------------ BootResources ------------\n");
+        if (DeviceNode->BootResources) {
+            DPRINT("---------- BootResources ----------\n");
             IopDumpCmResourceList(DeviceNode->BootResources);
         }
     }
+    if (Flags & 4) { /* Display resources required (reported by IRP_MN_FILTER_RESOURCE_REQUIREMENTS) */
 
-    if (Flags & 4)
-    {
-        /* Display resources required (reported by IRP_MN_FILTER_RESOURCE_REQUIREMENTS) */
-        if (DeviceNode->ResourceRequirements)
-        {
-            DPRINT("------------ ResourceRequirements ------------\n");
+        if (DeviceNode->ResourceRequirements) {
+            DPRINT("---------- ResourceRequirements ----------\n");
             IopDumpResourceRequirementsList(DeviceNode->ResourceRequirements);
         }
-
     }
+    if (Flags & 8) { /* Display translated resources (AllocatedResourcesTranslated)  */
 
-    if (Flags & 8)
-    {
-        /* Display translated resources (AllocatedResourcesTranslated)  */
-        if (DeviceNode->ResourceListTranslated)
-        {
-            DPRINT("------------ ResourceListTranslated ------------\n");
+        if (DeviceNode->ResourceListTranslated) {
+            DPRINT("---------- ResourceListTranslated ----------\n");
             IopDumpCmResourceList(DeviceNode->ResourceListTranslated);
         }
     }
+    if (Flags & 1) { /* Traversal of all children nodes */
 
-    if (Flags & 1)
-    {
-        /* Traversal of all children nodes */
         for (ChildDeviceNode = DeviceNode->Child;
              ChildDeviceNode != NULL;
              ChildDeviceNode = ChildDeviceNode->Sibling)
