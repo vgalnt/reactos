@@ -610,13 +610,75 @@ ArbGetNextAllocationRange()
     return STATUS_SUCCESS;
 }
 
-NTSTATUS
+BOOLEAN
 NTAPI
-ArbFindSuitableRange()
+ArbFindSuitableRange(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    DPRINT("ArbFindSuitableRange: ...\n");
-    ASSERT(FALSE);
-    return STATUS_SUCCESS;
+    ULONG Flags = 0;
+    NTSTATUS Status;
+
+    //PAGED_CODE();
+    DPRINT("ArbFindSuitableRange: Arbiter %p, ArbState %p\n", Arbiter, ArbState);
+
+    ASSERT(ArbState->CurrentAlternative);
+
+    if (ArbState->CurrentMinimum > ArbState->CurrentMaximum)
+    {
+        return FALSE;
+    }
+
+    if (!ArbState->CurrentAlternative->Length)
+    {
+        ArbState->End = ArbState->CurrentMinimum;
+        ArbState->Start = ArbState->CurrentMinimum;
+        return TRUE;
+    }
+
+    if (ArbState->Entry->RequestSource == ArbiterRequestLegacyReported ||
+        ArbState->Entry->RequestSource == ArbiterRequestLegacyAssigned)
+    {
+        ArbState->RangeAvailableAttributes |= 1;
+    }
+
+    if (ArbState->Flags & 8)
+    {
+        Flags = 2;
+    }
+
+    if (ArbState->CurrentAlternative->Flags & 1)
+    {
+        Flags |= 1;
+    }
+
+    Status = RtlFindRange(Arbiter->PossibleAllocation,
+                     ArbState->CurrentMinimum,
+                     ArbState->CurrentMaximum,
+                     ArbState->CurrentAlternative->Length,
+                     ArbState->CurrentAlternative->Alignment,
+                     Flags,
+                     ArbState->RangeAvailableAttributes,
+                     Arbiter->ConflictCallbackContext,
+                     Arbiter->ConflictCallback,
+                     &ArbState->Start);
+
+    if (NT_SUCCESS(Status))
+    {
+        ArbState->End = ArbState->Start + ArbState->CurrentAlternative->Length - 1;
+        return TRUE;
+    }
+
+    //ASSERT(FALSE);
+
+    DPRINT("ArbFindSuitableRange: FIXME ArbShareDriverExclusive\n");
+    //if (ArbShareDriverExclusive(Arbiter, ArbState))
+    //    return TRUE;
+
+    DPRINT("ArbFindSuitableRange: FIXME Arbiter->OverrideConflict\n");
+    //return Arbiter->OverrideConflict(Arbiter, ArbState);
+
+    return FALSE;
 }
 
 VOID
