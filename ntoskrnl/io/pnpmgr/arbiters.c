@@ -686,16 +686,72 @@ IopMemInitialize(VOID)
 }
 
 //--- Port arbiter ------------------------------------
+static
+BOOLEAN
+NTAPI
+IopPortIsAliasedRangeAvailable(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PARBITER_ALLOCATION_STATE State)
+{
+    PAGED_CODE();
+    DPRINT("IopPortIsAliasedRangeAvailable()\n");
+    return TRUE;
+}
+
 BOOLEAN
 NTAPI
 IopPortFindSuitableRange(
     _In_ PARBITER_INSTANCE Arbiter,
     _In_ PARBITER_ALLOCATION_STATE State)
 {
+    NTSTATUS Status;
+    UCHAR AttributeAvailableMask = 0;
+
     PAGED_CODE();
-    DPRINT("IopPortFindSuitableRange: ...\n");
-    ASSERT(FALSE);
-    return 0;
+    DPRINT("IopPortFindSuitableRange: Arbiter %p\n", Arbiter);
+
+    if (!State->CurrentAlternative->Length)
+    {
+        State->End = State->Start;
+        return TRUE;
+    }
+
+    if (State->Entry->RequestSource == ArbiterRequestLegacyReported ||
+        State->Entry->RequestSource == ArbiterRequestLegacyAssigned ||
+        State->Entry->Flags & 1)
+    {
+        AttributeAvailableMask = 1;
+    }
+
+    while (State->CurrentMinimum <= State->CurrentMaximum)
+    {
+        Status = RtlFindRange(Arbiter->PossibleAllocation,
+                              State->CurrentMinimum,
+                              State->CurrentMaximum,
+                              State->CurrentAlternative->Length,
+                              State->CurrentAlternative->Alignment,
+                              (State->CurrentAlternative->Flags & 1),
+                              AttributeAvailableMask,
+                              Arbiter->ConflictCallbackContext,
+                              Arbiter->ConflictCallback,
+                              &State->Start);
+
+        if (!NT_SUCCESS(Status))
+        {
+             ASSERT(FALSE);
+        }
+
+        State->End = State->Start + State->CurrentAlternative->Length - 1;
+
+        if (IopPortIsAliasedRangeAvailable(Arbiter, State))
+        {
+            return TRUE;
+        }
+
+        State->Start += State->CurrentAlternative->Length;
+    }
+
+    return FALSE;
 }
 
 BOOLEAN
@@ -804,9 +860,11 @@ IopPortAddAllocation(
     }
 }
 
-NTSTATUS
+VOID
 NTAPI
-IopPortBacktrackAllocation()
+IopPortBacktrackAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
     DPRINT("IopPortBacktrackAllocation: ...\n");
     ASSERT(FALSE);
