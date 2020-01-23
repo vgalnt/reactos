@@ -63,8 +63,10 @@ C_ASSERT(MM_ALLOCATION_GRANULARITY >= PAGE_SIZE);
 #define KSEG0_BASE_PAE                    0xE0000000
 
 //
-// Page Table Entry Definitions
+// Page table entry (PTE) definitions
 //
+#if !defined(_X86PAE_)
+
 typedef struct _HARDWARE_PTE_X86
 {
     ULONG Valid:1;
@@ -160,6 +162,121 @@ typedef struct _MMPTE_HARDWARE
     ULONG PageFrameNumber:20;
 } MMPTE_HARDWARE, *PMMPTE_HARDWARE;
 
+#else // PTE for systems with PAE
+
+typedef struct _HARDWARE_PTE_X86
+{
+    union
+    {
+        struct
+        {
+            ULONGLONG Valid:1;            // 0
+            ULONGLONG Write:1;            // 1
+            ULONGLONG Owner:1;            // 2
+            ULONGLONG WriteThrough:1;     // 3
+            ULONGLONG CacheDisable:1;     // 4
+            ULONGLONG Accessed:1;         // 5
+            ULONGLONG Dirty:1;            // 6
+            ULONGLONG LargePage:1;        // 7
+            ULONGLONG Global:1;           // 8
+            ULONGLONG CopyOnWrite:1;      // 9
+            ULONGLONG Prototype:1;        // 10
+            ULONGLONG reserved0:1;        // 11
+            ULONGLONG PageFrameNumber:26; // 12
+            ULONGLONG reserved1:26;       // 38
+        };
+        struct
+        {
+            ULONG LowPart;
+            ULONG HighPart;
+        };
+    };
+} HARDWARE_PTE_X86, *PHARDWARE_PTE_X86;
+
+typedef struct _MMPTE_SOFTWARE
+{
+    ULONGLONG Valid:1;         // 0
+    ULONGLONG PageFileLow:4;   // 1
+    ULONGLONG Protection:5;    // 5
+    ULONGLONG Prototype:1;     // 10
+    ULONGLONG Transition:1;    // 11
+    ULONGLONG Unused:20;       // 12
+    ULONGLONG PageFileHigh:32; // 32
+} MMPTE_SOFTWARE;
+
+typedef struct _MMPTE_TRANSITION
+{
+    ULONGLONG Valid:1;            // 0
+    ULONGLONG Write:1;            // 1
+    ULONGLONG Owner:1;            // 2
+    ULONGLONG WriteThrough:1;     // 3
+    ULONGLONG CacheDisable:1;     // 4
+    ULONGLONG Protection:5;       // 5
+    ULONGLONG Prototype:1;        // 10
+    ULONGLONG Transition:1;       // 11
+    ULONGLONG PageFrameNumber:26; // 12
+    ULONGLONG Unused:26;          // 38
+} MMPTE_TRANSITION;
+
+typedef struct _MMPTE_PROTOTYPE
+{
+    ULONGLONG Valid:1;         // 0
+    ULONGLONG Unused0:7;       // 1
+    ULONGLONG ReadOnly:1;      // 8
+    ULONGLONG Unused1:1;       // 9
+    ULONGLONG Prototype:1;     // 10
+    ULONGLONG Protection:5;    // 11
+    ULONGLONG Unused:16;       // 16
+    ULONGLONG ProtoAddress:32; // 32
+} MMPTE_PROTOTYPE;
+
+typedef struct _MMPTE_SUBSECTION
+{
+    ULONGLONG Valid:1;              // 0
+    ULONGLONG Unused0:4;            // 1
+    ULONGLONG Protection:5;         // 5
+    ULONGLONG Prototype:1;          // 10
+    ULONGLONG Unused1:21;           // 11
+    ULONGLONG SubsectionAddress:32; // 32
+} MMPTE_SUBSECTION;
+
+typedef struct _MMPTE_LIST
+{
+    ULONGLONG Valid:1;      // 0
+    ULONGLONG OneEntry:1;   // 1
+    ULONGLONG filler0:8;    // 2
+    ULONGLONG Prototype:1;  // 10
+    ULONGLONG filler1:21;   // 11
+    ULONGLONG NextEntry:32; // 32
+} MMPTE_LIST;
+
+typedef struct _MMPTE_HARDWARE {
+    ULONGLONG Valid:1;            // 0
+#ifndef CONFIG_SMP
+    ULONGLONG Write:1;            // 1
+#else
+    ULONGLONG Writable:1;         // 1
+#endif
+    ULONGLONG Owner:1;            // 2
+    ULONGLONG WriteThrough:1;     // 3
+    ULONGLONG CacheDisable:1;     // 4
+    ULONGLONG Accessed:1;         // 5
+    ULONGLONG Dirty:1;            // 6
+    ULONGLONG LargePage:1;        // 7
+    ULONGLONG Global:1;           // 8
+    ULONGLONG CopyOnWrite:1;      // 9
+    ULONGLONG Prototype:1;        // 10
+#ifndef CONFIG_SMP
+    ULONGLONG reserved0:1;        // 11
+#else
+    ULONGLONG Write:1;            // 11
+#endif
+    ULONGLONG PageFrameNumber:26; // 12
+    ULONGLONG reserved1:26;       // 38
+} MMPTE_HARDWARE, *PMMPTE_HARDWARE;
+
+#endif
+
 //
 // Use the right PTE structure
 //
@@ -170,7 +287,16 @@ typedef struct _MMPTE
 {
     union
     {
-        ULONG_PTR Long;
+#if !defined(_X86PAE_)
+        ULONG Long;
+#else
+        ULONGLONG Long;
+        struct
+        {
+            ULONG LowPart;
+            ULONG HighPart;
+        } HighLow;
+#endif
         HARDWARE_PTE Flush;
         MMPTE_HARDWARE Hard;
         MMPTE_PROTOTYPE Proto;
@@ -182,8 +308,17 @@ typedef struct _MMPTE
 } MMPTE, *PMMPTE,
   MMPDE, *PMMPDE;
 
+#if !defined(_X86PAE_)
+C_ASSERT(sizeof(MMPTE) == sizeof(ULONG));
+#else
+C_ASSERT(sizeof(MMPTE) == sizeof(ULONGLONG));
+#endif
+
 #ifdef __cplusplus
 }; // extern "C"
 #endif
 
-#endif
+#endif // _I386_MMTYPES_H
+
+/* EOF */
+
