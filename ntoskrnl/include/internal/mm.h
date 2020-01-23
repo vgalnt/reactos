@@ -302,6 +302,11 @@ typedef struct _MMPFNENTRY
 } MMPFNENTRY;
 
 // Mm internal
+
+#if defined(_X86PAE_)
+#pragma pack(1)
+#endif
+
 typedef struct _MMPFN
 {
     union
@@ -337,10 +342,20 @@ typedef struct _MMPFN
     union
     {
         MMPTE OriginalPte;
-        LONG AweReferenceCount;
-
-        // HACK for ROSPFN
-        PMM_RMAP_ENTRY RmapListHead;
+        struct
+        {
+            LONG AweReferenceCount;
+#if defined(_X86PAE_)
+            ULONG Pad0;
+#endif
+        };
+        struct // HACK for ROSPFN
+        {
+            PMM_RMAP_ENTRY RmapListHead;
+#if defined(_X86PAE_)
+            ULONG Pad1;
+#endif
+        };
     };
     union
     {
@@ -363,6 +378,10 @@ typedef struct _MMPFN
     // HACK until WS lists are supported
     MMWSLE Wsle;
 } MMPFN, *PMMPFN;
+
+#if defined(_X86PAE_)
+#pragma pack()
+#endif
 
 extern PMMPFN MmPfnDatabase;
 
