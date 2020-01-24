@@ -957,8 +957,21 @@ FORCEINLINE
 BOOLEAN
 MI_IS_MAPPED_PTE(PMMPTE PointerPte)
 {
-    /// \todo Make this reasonable code, this is UGLY!
-    return ((PointerPte->u.Long & 0xFFFFFC01) != 0);
+    if (PointerPte->u.Soft.Valid ||
+        PointerPte->u.Soft.Prototype ||
+        PointerPte->u.Soft.Transition ||
+#if defined(_X86PAE_)
+        PointerPte->u.Soft.Unused ||
+#endif
+        PointerPte->u.Soft.PageFileHigh)
+    {
+        return TRUE;
+    }
+    else
+    {
+        /* Demand zero PTE */
+        return FALSE;
+    }
 }
 
 #endif

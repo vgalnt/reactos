@@ -281,9 +281,20 @@ FORCEINLINE
 BOOLEAN
 MI_IS_MAPPED_PTE(PMMPTE PointerPte)
 {
-    /// FIXME
-    __debugbreak();
-    return ((PointerPte->u.Long & 0xFFFFFC01) != 0);
+    if (PointerPte->u.Soft.Valid ||
+        PointerPte->u.Soft.Prototype ||
+        PointerPte->u.Soft.Transition ||
+        PointerPte->u.Soft.UsedPageTableEntries ||
+        PointerPte->u.Soft.Reserved ||
+        PointerPte->u.Soft.PageFileHigh)
+    {
+        return TRUE;
+    }
+    else
+    {
+        /* Demand zero PTE */
+        return FALSE;
+    }
 }
 
 INIT_FUNCTION
