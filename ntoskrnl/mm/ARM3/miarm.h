@@ -832,9 +832,8 @@ MI_MAKE_HARDWARE_PTE_USER(IN PMMPTE NewPte,
 }
 
 #ifndef _M_AMD64
-//
-// Builds a Prototype PTE for the address of the PTE
-//
+
+/* Builds a Prototype PTE for the address of the PTE */
 FORCEINLINE
 VOID
 MI_MAKE_PROTOTYPE_PTE(IN PMMPTE NewPte,
@@ -846,19 +845,23 @@ MI_MAKE_PROTOTYPE_PTE(IN PMMPTE NewPte,
     NewPte->u.Long = 0;
     NewPte->u.Proto.Prototype = 1;
 
+#if !defined(_X86PAE_)
     /*
      * Prototype PTEs are only valid in paged pool by design, this little trick
      * lets us only use 30 bits for the adress of the PTE, as long as the area
-     * stays 1024MB At most.
+     * stays 1024 MB at most.
      */
     Offset = (ULONG_PTR)PointerPte - (ULONG_PTR)MmPagedPoolStart;
 
-    /*
-     * 7 bits go in the "low" (but we assume the bottom 2 are zero)
-     * and the other 21 bits go in the "high"
-     */
-    NewPte->u.Proto.ProtoAddressLow = (Offset & 0x1FC) >> 2;
+    /* 9 bits go in the "low" (we assume the bottom 2 are zero and trim it) */
+    ASSERT((Offset % 4) == 0);
+    NewPte->u.Proto.ProtoAddressLow = (Offset & 0x1FF) >> 2;
+
+    /* and the other 21 bits go in the "high" field. */
     NewPte->u.Proto.ProtoAddressHigh = (Offset & 0x3FFFFE00) >> 9;
+#else
+    NewPte->u.Proto.ProtoAddress = (ULONG_PTR)PointerPte;
+#endif
 }
 
 //
