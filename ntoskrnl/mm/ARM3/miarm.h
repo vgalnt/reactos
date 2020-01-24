@@ -865,6 +865,13 @@ MI_MAKE_PROTOTYPE_PTE(IN PMMPTE NewPte,
 }
 
 //
+// Decodes a Prototype PTE into the underlying PTE
+//
+#define MiProtoPteToPte(x)                  \
+    (PMMPTE)((ULONG_PTR)MmPagedPoolStart +  \
+             (((x)->u.Proto.ProtoAddressHigh << 9) | (x)->u.Proto.ProtoAddressLow << 2))
+
+//
 // Builds a Subsection PTE for the address of the Segment
 //
 FORCEINLINE
@@ -902,6 +909,18 @@ MI_MAKE_SUBSECTION_PTE(IN PMMPTE NewPte,
     NewPte->u.Subsect.SubsectionAddressLow = (Offset & 0x78) >> 3;
     NewPte->u.Subsect.SubsectionAddressHigh = (Offset & 0xFFFFF80) >> 7;
 }
+
+//
+// Decodes a Prototype PTE into the underlying PTE
+//
+#define MiSubsectionPteToSubsection(x)                              \
+    ((x)->u.Subsect.WhichPool == PagedPool) ?                       \
+        (PMMPTE)((ULONG_PTR)MmSubsectionBase +                      \
+                 (((x)->u.Subsect.SubsectionAddressHigh << 7) |     \
+                   (x)->u.Subsect.SubsectionAddressLow << 3)) :     \
+        (PMMPTE)((ULONG_PTR)MmNonPagedPoolEnd -                     \
+                (((x)->u.Subsect.SubsectionAddressHigh << 7) |      \
+                  (x)->u.Subsect.SubsectionAddressLow << 3))
 
 FORCEINLINE
 BOOLEAN

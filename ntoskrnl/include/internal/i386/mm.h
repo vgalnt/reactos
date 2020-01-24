@@ -157,21 +157,4 @@
 #define MiIsPteOnPdeBoundary(PointerPte) \
     ((((ULONG_PTR)PointerPte) & (PAGE_SIZE - 1)) == 0)
 
-//
-// Decodes a Prototype PTE into the underlying PTE
-//
-#define MiProtoPteToPte(x)                  \
-    (PMMPTE)((ULONG_PTR)MmPagedPoolStart +  \
-             (((x)->u.Proto.ProtoAddressHigh << 9) | (x)->u.Proto.ProtoAddressLow << 2))
-
-//
-// Decodes a Prototype PTE into the underlying PTE
-//
-#define MiSubsectionPteToSubsection(x)                              \
-    ((x)->u.Subsect.WhichPool == PagedPool) ?                       \
-        (PMMPTE)((ULONG_PTR)MmSubsectionBase +                      \
-                 (((x)->u.Subsect.SubsectionAddressHigh << 7) |     \
-                   (x)->u.Subsect.SubsectionAddressLow << 3)) :     \
-        (PMMPTE)((ULONG_PTR)MmNonPagedPoolEnd -                     \
-                (((x)->u.Subsect.SubsectionAddressHigh << 7) |      \
-                  (x)->u.Subsect.SubsectionAddressLow << 3))
+/* EOF */
