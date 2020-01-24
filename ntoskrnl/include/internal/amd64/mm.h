@@ -241,9 +241,7 @@ MiPxeToAddress(PMMPTE PointerPxe)
 #define MiIsPteOnPxeBoundary(PointerPte) \
     ((((ULONG_PTR)PointerPte) & (PPE_PER_PAGE * PDE_PER_PAGE * PAGE_SIZE - 1)) == 0)
 
-//
-// Decodes a Prototype PTE into the underlying PTE
-//
+/* Decodes a Prototype PTE into the underlying PTE */
 #define MiProtoPteToPte(x)                  \
     (PMMPTE)(((LONG64)(x)->u.Long) >> 16) /* Sign extend 48 bits */
 
@@ -307,3 +305,4 @@ MiIsPdeForAddressValid(PVOID Address)
             (MiAddressToPde(Address)->u.Hard.Valid));
 }
 
+/* EOF */

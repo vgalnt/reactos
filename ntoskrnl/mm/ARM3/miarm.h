@@ -864,12 +864,24 @@ MI_MAKE_PROTOTYPE_PTE(IN PMMPTE NewPte,
 #endif
 }
 
-//
-// Decodes a Prototype PTE into the underlying PTE
-//
-#define MiProtoPteToPte(x)                  \
-    (PMMPTE)((ULONG_PTR)MmPagedPoolStart +  \
-             (((x)->u.Proto.ProtoAddressHigh << 9) | (x)->u.Proto.ProtoAddressLow << 2))
+/* Decodes a Prototype PTE into the underlying PTE */
+FORCEINLINE
+PMMPTE
+MiProtoPteToPte(IN PMMPTE ProtoPte)
+{
+    ULONG_PTR Offset;
+
+    /* Do MI_MAKE_PROTOTYPE_PTE() in the opposite direction. */
+
+#if !defined(_X86PAE_)
+    Offset = (ProtoPte->u.Proto.ProtoAddressHigh << 9);
+    Offset += (ProtoPte->u.Proto.ProtoAddressLow << 2);
+
+    return (PMMPTE)((ULONG_PTR)MmPagedPoolStart + Offset);
+#else
+    return (PMMPTE)(OutPte->u.Proto.ProtoAddress);
+#endif
+}
 
 //
 // Builds a Subsection PTE for the address of the Segment
