@@ -2124,10 +2124,6 @@ MmArmInitSystem(IN ULONG Phase,
         MmHighSectionBase = (PVOID)((ULONG_PTR)MmHighestUserAddress - 0x800000);
 
 #if DBG
-        /* The subection PTE format depends on things being 8-byte aligned */
-        ASSERT((sizeof(CONTROL_AREA) % 8) == 0);
-        ASSERT((sizeof(SUBSECTION) % 8) == 0);
-
         /* Prototype PTEs are assumed to be in paged pool, so check if the math works */
         PointerPte = (PMMPTE)MmPagedPoolStart;
         MI_MAKE_PROTOTYPE_PTE(&TempPte, PointerPte);
