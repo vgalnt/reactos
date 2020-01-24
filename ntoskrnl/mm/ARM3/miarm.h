@@ -883,13 +883,11 @@ MiProtoPteToPte(IN PMMPTE ProtoPte)
 #endif
 }
 
-//
-// Builds a Subsection PTE for the address of the Segment
-//
+/* Builds a Subsection PTE for the address of the Subsection */
 FORCEINLINE
 VOID
 MI_MAKE_SUBSECTION_PTE(IN PMMPTE NewPte,
-                       IN PVOID Segment)
+                       IN PVOID Subsection)
 {
     ULONG_PTR Offset;
 
@@ -897,29 +895,34 @@ MI_MAKE_SUBSECTION_PTE(IN PMMPTE NewPte,
     NewPte->u.Long = 0;
     NewPte->u.Subsect.Prototype = 1;
 
+#if !defined(_X86PAE_)
     /*
-     * Segments are only valid either in nonpaged pool. We store the 20 bit
-     * difference either from the top or bottom of nonpaged pool, giving a
-     * maximum of 128MB to each delta, meaning nonpaged pool cannot exceed
-     * 256MB.
+     * Subsections are only in nonpaged pool (NP).
+     * We use the 27-bit difference either from the top or bottom of NP, giving
+     * a maximum of 128 MB to each delta, meaning NP cannot exceed 256 MB.
      */
-    if ((ULONG_PTR)Segment < ((ULONG_PTR)MmSubsectionBase + (128 * _1MB)))
+    if ((ULONG_PTR)Subsection < ((ULONG_PTR)MmSubsectionBase + (128 * _1MB)))
     {
-        Offset = (ULONG_PTR)Segment - (ULONG_PTR)MmSubsectionBase;
-        NewPte->u.Subsect.WhichPool = PagedPool;
+        /* MmNonPagedPoolStart ... + MmSizeOfNonPagedPoolInBytes */
+        Offset = (ULONG_PTR)Subsection - (ULONG_PTR)MmSubsectionBase;
+        NewPte->u.Subsect.WhichPool = 1;
     }
     else
     {
-        Offset = (ULONG_PTR)MmNonPagedPoolEnd - (ULONG_PTR)Segment;
-        NewPte->u.Subsect.WhichPool = NonPagedPool;
+        /* MmNonPagedPoolExpansionStart ... MmNonPagedPoolEnd */
+        Offset = (ULONG_PTR)MmNonPagedPoolEnd - (ULONG_PTR)Subsection;
+        NewPte->u.Subsect.WhichPool = 0;
     }
 
-    /*
-     * 4 bits go in the "low" (but we assume the bottom 3 are zero)
-     * and the other 20 bits go in the "high"
-     */
-    NewPte->u.Subsect.SubsectionAddressLow = (Offset & 0x78) >> 3;
+    /* 7 bits go in the "low" (we assume the bottom 3 are zero and trim it) */
+    ASSERT((Offset % 8) == 0);
+    NewPte->u.Subsect.SubsectionAddressLow = (Offset & 0x7F) >> 3;
+
+    /* and the other 20 bits go in the "high" field */
     NewPte->u.Subsect.SubsectionAddressHigh = (Offset & 0xFFFFF80) >> 7;
+#else
+    NewPte->u.Subsect.SubsectionAddress = (ULONG_PTR)Subsection;
+#endif
 }
 
 //

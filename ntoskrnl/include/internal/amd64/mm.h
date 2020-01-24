@@ -255,14 +255,14 @@ FORCEINLINE
 VOID
 MI_MAKE_SUBSECTION_PTE(
     _Out_ PMMPTE NewPte,
-    _In_ PVOID Segment)
+    _In_ PVOID Subsection)
 {
     /* Mark this as a prototype */
     NewPte->u.Long = 0;
     NewPte->u.Subsect.Prototype = 1;
 
-    /* Store the lower 48 bits of the Segment address */
-    NewPte->u.Subsect.SubsectionAddress = ((ULONG_PTR)Segment & 0x0000FFFFFFFFFFFF);
+    /* Store the lower 48 bits of the Subsection address */
+    NewPte->u.Subsect.SubsectionAddress = ((ULONG_PTR)Subsection & 0x0000FFFFFFFFFFFF);
 }
 
 FORCEINLINE
