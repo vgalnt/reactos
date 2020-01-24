@@ -925,17 +925,33 @@ MI_MAKE_SUBSECTION_PTE(IN PMMPTE NewPte,
 #endif
 }
 
-//
-// Decodes a Prototype PTE into the underlying PTE
-//
-#define MiSubsectionPteToSubsection(x)                              \
-    ((x)->u.Subsect.WhichPool == PagedPool) ?                       \
-        (PMMPTE)((ULONG_PTR)MmSubsectionBase +                      \
-                 (((x)->u.Subsect.SubsectionAddressHigh << 7) |     \
-                   (x)->u.Subsect.SubsectionAddressLow << 3)) :     \
-        (PMMPTE)((ULONG_PTR)MmNonPagedPoolEnd -                     \
-                (((x)->u.Subsect.SubsectionAddressHigh << 7) |      \
-                  (x)->u.Subsect.SubsectionAddressLow << 3))
+/* Get a pointer to a Subsection from the Subsection PTE */
+FORCEINLINE
+PVOID
+MiSubsectionPteToSubsection(IN PMMPTE SubsectionPte)
+{
+    ULONG_PTR Offset;
+
+    /* Do MI_MAKE_SUBSECTION_PTE() in the opposite direction. */
+
+#if !defined(_X86PAE_)
+    Offset = (SubsectionPte->u.Subsect.SubsectionAddressHigh << 7);
+    Offset += (SubsectionPte->u.Subsect.SubsectionAddressLow << 3);
+
+    if (SubsectionPte->u.Subsect.WhichPool == 1)
+    {
+        /* MmNonPagedPoolStart ... + MmSizeOfNonPagedPoolInBytes */
+        return (PVOID)((ULONG_PTR)MmSubsectionBase + Offset);
+    }
+    else
+    {
+        /* MmNonPagedPoolExpansionStart ... MmNonPagedPoolEnd */
+        return (PVOID)((ULONG_PTR)MmNonPagedPoolEnd - Offset);
+    }
+#else
+    return (PVOID)(OutPte->u.Subsect.SubsectionAddress);
+#endif
+}
 
 FORCEINLINE
 BOOLEAN

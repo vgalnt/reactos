@@ -245,11 +245,9 @@ MiPxeToAddress(PMMPTE PointerPxe)
 #define MiProtoPteToPte(x)                  \
     (PMMPTE)(((LONG64)(x)->u.Long) >> 16) /* Sign extend 48 bits */
 
-//
-// Decodes a Prototype PTE into the underlying PTE
-//
+/* Get a pointer to a Subsection from the Subsection PTE */
 #define MiSubsectionPteToSubsection(x)                              \
-        (PMMPTE)((x)->u.Subsect.SubsectionAddress >> 16)
+        (PVOID)((x)->u.Subsect.SubsectionAddress >> 16)
 
 FORCEINLINE
 VOID
