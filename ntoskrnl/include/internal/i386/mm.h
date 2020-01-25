@@ -28,6 +28,13 @@
 #define MI_DEBUG_MAPPING                        (PVOID)0xFFBFF000
 #define MI_HIGHEST_SYSTEM_ADDRESS               (PVOID)0xFFFFFFFF
 
+/* Page directory entry (PDE) and Page table entry (PTE) definitions */
+#ifndef _PAE_
+#define PD_COUNT       (1 << 0) // Only one page directory 
+#else
+#define PD_COUNT       (1 << 2) // The two most significant bits in the Va 
+#endif
+
 /* FIXME: These are different for PAE */
 #define PTE_BASE    0xC0000000
 #define PDE_BASE    0xC0300000
@@ -37,6 +44,13 @@
 #define PTE_PER_PAGE 0x400
 #define PDE_PER_PAGE 0x400
 #define PPE_PER_PAGE 1
+
+/* The size of all page directories for the OS. */
+#define SYSTEM_PD_SIZE (PD_COUNT * PAGE_SIZE)
+#ifdef _M_IX86
+/* PAE not yet implemented. */
+C_ASSERT(PD_COUNT == 1);
+#endif
 
 /* Misc address definitions */
 #define MI_SYSTEM_PTE_BASE                      (PVOID)MiAddressToPte(NULL)

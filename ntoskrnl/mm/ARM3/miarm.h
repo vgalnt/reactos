@@ -21,15 +21,6 @@
 /* Area mapped by a PDE */
 #define PDE_MAPPED_VA  (PTE_PER_PAGE * PAGE_SIZE)
 
-/* Stop using these! */
-#define PD_COUNT  PPE_PER_PAGE
-
-/* Size of all page directories for a process */
-#define SYSTEM_PD_SIZE (PD_COUNT * PD_SIZE)
-#ifdef _M_IX86
-C_ASSERT(SYSTEM_PD_SIZE == PAGE_SIZE);
-#endif
-
 //
 // Protection Bits part of the internal memory manager Protection Mask, from:
 // http://reactos.org/wiki/Techwiki:Memory_management_in_the_Windows_XP_kernel
