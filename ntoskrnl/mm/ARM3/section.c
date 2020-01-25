@@ -647,7 +647,7 @@ MiSegmentDelete(IN PSEGMENT Segment)
     while (PointerPte < LastPte)
     {
         /* Check if it's time to switch master PTEs if we passed a PDE boundary */
-        if (!((ULONG_PTR)PointerPte & (PD_SIZE - 1)) &&
+        if (MiIsPteOnPdeBoundary(PointerPte) &&
             (PointerPte != Subsection->SubsectionBase))
         {
             /* Check if the master PTE is invalid */
