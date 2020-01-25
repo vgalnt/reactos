@@ -35,15 +35,22 @@
 #define PD_COUNT       (1 << 2) // The two most significant bits in the Va 
 #endif
 
-/* FIXME: These are different for PAE */
-#define PTE_BASE    0xC0000000
-#define PDE_BASE    0xC0300000
-#define PDE_TOP     0xC0300FFF
-#define PTE_TOP     0xC03FFFFF
+#define PTE_PER_PAGE   (PAGE_SIZE / sizeof(MMPTE))  // Number of PTEs per page table
+#define PDE_PER_PAGE   (PAGE_SIZE / sizeof(MMPDE))  // Number of PDEs per page directory
+#define PDE_PER_SYSTEM (PD_COUNT * PDE_PER_PAGE)    // Maximum number of PDEs for the current OS
 
-#define PTE_PER_PAGE 0x400
-#define PDE_PER_PAGE 0x400
-#define PPE_PER_PAGE 1
+#define MI_MAX_PAGES   (0x100000000ull / PAGE_SIZE) // Maximum number of pages for 4 GB of space
+
+/* Base addresses for page tables. */
+#define PTE_BASE (ULONG_PTR)0xC0000000                                        // Not PAE    / PAE
+#define PTE_TOP  (ULONG_PTR)(PTE_BASE + MI_MAX_PAGES * sizeof(MMPTE) - 1)     // 0xC03FFFFF / 0xC07FFFFF
+#define PTE_MASK (PTE_TOP - PTE_BASE)                                         // 0x003FFFFF / 0x007FFFFF
+
+/* Base addreses for page directories. */
+#define PDE_BASE (ULONG_PTR)MiAddressToPte(PTE_BASE)                          // 0xC0300000 / 0xC0600000
+#define PDE_TOP  (ULONG_PTR)(PDE_BASE + (PDE_PER_SYSTEM * sizeof(MMPDE)) - 1) // 0xC0300FFF / 0xC0603FFF
+#define PDE_MASK (PDE_TOP - PDE_BASE)                                         // 0x00000FFF / 0x00003FFF
+
 
 /* The size of all page directories for the OS. */
 #define SYSTEM_PD_SIZE (PD_COUNT * PAGE_SIZE)
