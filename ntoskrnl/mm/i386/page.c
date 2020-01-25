@@ -389,7 +389,7 @@ MmDeleteVirtualMapping(PEPROCESS Process, PVOID Address,
 		{
 			/* Remove PDE reference */
 			Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)]--;
-			ASSERT(Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)] < PTE_COUNT);
+			ASSERT(Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)] < PTE_PER_PAGE);
 		}
 
         Pfn = PTE_TO_PFN(Pte);
@@ -453,7 +453,7 @@ MmDeletePageFileMapping(PEPROCESS Process, PVOID Address,
 	{
 		/* Remove PDE reference */
 		Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)]--;
-		ASSERT(Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)] < PTE_COUNT);
+		ASSERT(Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)] < PTE_PER_PAGE);
 	}
 
     /* We don't need to flush here because page file entries
@@ -638,7 +638,7 @@ MmCreatePageFileMapping(PEPROCESS Process,
 	{
 		/* Add PDE reference */
 		Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)]++;
-		ASSERT(Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)] <= PTE_COUNT);
+		ASSERT(Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)] <= PTE_PER_PAGE);
 	}
 
     /* We don't need to flush the TLB here because it
@@ -755,7 +755,7 @@ MmCreateVirtualMappingUnsafe(PEPROCESS Process,
 		{
 			/* Add PDE reference */
 			Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Addr)]++;
-			ASSERT(Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Addr)] <= PTE_COUNT);
+			ASSERT(Process->Vm.VmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Addr)] <= PTE_PER_PAGE);
 		}
     }
 

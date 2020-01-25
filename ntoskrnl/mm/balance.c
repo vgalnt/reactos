@@ -361,7 +361,7 @@ MiBalancerThread(PVOID Unused)
                 PMMPDE pointerPde;
                 for (Address = (ULONG_PTR)MI_LOWEST_VAD_ADDRESS;
                         Address < (ULONG_PTR)MM_HIGHEST_VAD_ADDRESS;
-                        Address += (PAGE_SIZE * PTE_COUNT))
+                        Address += (PAGE_SIZE * PTE_PER_PAGE))
                 {
                     if (MiQueryPageTableReferences((PVOID)Address) == 0)
                     {

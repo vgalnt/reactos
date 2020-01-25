@@ -600,7 +600,7 @@ MmDeleteProcessAddressSpace(PEPROCESS Process)
 
         for (Address = MI_LOWEST_VAD_ADDRESS;
                 Address < MM_HIGHEST_VAD_ADDRESS;
-                Address =(PVOID)((ULONG_PTR)Address + (PAGE_SIZE * PTE_COUNT)))
+                Address =(PVOID)((ULONG_PTR)Address + (PAGE_SIZE * PTE_PER_PAGE)))
         {
             /* At this point all references should be dead */
             if (MiQueryPageTableReferences(Address) != 0)

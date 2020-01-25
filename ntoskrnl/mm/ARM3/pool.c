@@ -480,7 +480,7 @@ MiAllocatePoolPages(IN POOL_TYPE PoolType,
             //
             // Get the page bit count
             //
-            i = ((SizeInPages - 1) / PTE_COUNT) + 1;
+            i = ((SizeInPages - 1) / PTE_PER_PAGE) + 1;
             DPRINT("Paged pool expansion: %lu %x\n", i, SizeInPages);
 
             //
@@ -587,10 +587,10 @@ MiAllocatePoolPages(IN POOL_TYPE PoolType,
             //
             EndAllocation = (ULONG)(MmPagedPoolInfo.NextPdeForPagedPoolExpansion -
                              (PMMPDE)MiAddressToPte(MmPagedPoolInfo.FirstPteForPagedPool)) *
-                             PTE_COUNT;
+                             PTE_PER_PAGE;
             RtlClearBits(MmPagedPoolInfo.PagedPoolAllocationMap,
                          EndAllocation,
-                         PageTableCount * PTE_COUNT);
+                         PageTableCount * PTE_PER_PAGE);
 
             //
             // Update the next expansion location
