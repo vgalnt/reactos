@@ -21,12 +21,6 @@
 /* Area mapped by a PDE */
 #define PDE_MAPPED_VA  (PTE_PER_PAGE * PAGE_SIZE)
 
-/* Size of a page table */
-#define PT_SIZE  (PTE_PER_PAGE * sizeof(MMPTE))
-
-/* Size of a page directory */
-#define PD_SIZE  (PDE_PER_PAGE * sizeof(MMPDE))
-
 /* Stop using these! */
 #define PD_COUNT  PPE_PER_PAGE
 
