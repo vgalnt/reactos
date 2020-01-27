@@ -146,9 +146,6 @@ C_ASSERT(PD_COUNT == 1);
 #define MI_IS_WRITE_ACCESS(FaultCode) BooleanFlagOn(FaultCode, 0x2)
 #define MI_IS_INSTRUCTION_FETCH(FaultCode) BooleanFlagOn(FaultCode, 0x10)
 
-/* On x86, these two are the same */
-#define MI_WRITE_VALID_PPE MI_WRITE_VALID_PTE
-
 /* Convert an address to a corresponding PTE */
 #define MiAddressToPte(x) \
     ((PMMPTE)(((((ULONG)(x)) >> 12) << 2) + PTE_BASE))
