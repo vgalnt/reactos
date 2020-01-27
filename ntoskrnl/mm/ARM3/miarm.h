@@ -18,7 +18,7 @@
 /* Everyone loves 64K */
 #define _64K (64 * _1KB)
 
-/* Area mapped by a PDE */
+/* The area of virtual memory mapped with a single PDE. */
 #define PDE_MAPPED_VA  (PTE_PER_PAGE * PAGE_SIZE)
 
 //
@@ -1716,7 +1716,7 @@ MiIncrementPageTableReferences(IN PVOID Address)
 {
     PUSHORT RefCount;
 
-    RefCount = &MmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)];
+    RefCount = &MmWorkingSetList->UsedPageTableEntries[MiAddressToPdeOffset(Address)];
 
     *RefCount += 1;
     ASSERT(*RefCount <= PTE_PER_PAGE);
@@ -1728,7 +1728,7 @@ MiDecrementPageTableReferences(IN PVOID Address)
 {
     PUSHORT RefCount;
 
-    RefCount = &MmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)];
+    RefCount = &MmWorkingSetList->UsedPageTableEntries[MiAddressToPdeOffset(Address)];
 
     *RefCount -= 1;
     ASSERT(*RefCount < PTE_PER_PAGE);
@@ -1740,7 +1740,7 @@ MiQueryPageTableReferences(IN PVOID Address)
 {
     PUSHORT RefCount;
 
-    RefCount = &MmWorkingSetList->UsedPageTableEntries[MiGetPdeOffset(Address)];
+    RefCount = &MmWorkingSetList->UsedPageTableEntries[MiAddressToPdeOffset(Address)];
 
     return *RefCount;
 }
