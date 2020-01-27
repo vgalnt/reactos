@@ -2150,7 +2150,7 @@ MiSetProtectionOnSection(IN PEPROCESS Process,
         //
         // Check if we've crossed a PDE boundary and make the new PDE valid too
         //
-        if ((((ULONG_PTR)PointerPte) & (SYSTEM_PD_SIZE - 1)) == 0)
+        if (MiIsPteOnPdeBoundary(PointerPte))
         {
             PointerPde = MiPteToPde(PointerPte);
             MiMakePdeExistAndMakeValid(PointerPde, Process, MM_NOIRQL);
