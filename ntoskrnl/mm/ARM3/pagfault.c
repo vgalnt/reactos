@@ -461,7 +461,7 @@ MiCheckPdeForPagedPool(IN PVOID Address)
         // Copy it from our double-mapped system page directory
         //
         InterlockedExchangePte(PointerPde,
-                               MmSystemPagePtes[((ULONG_PTR)PointerPde & (SYSTEM_PD_SIZE - 1)) / sizeof(MMPTE)].u.Long);
+                               MmSystemPagePtes[MiGetPdeOffset(PointerPde)].u.Long);
     }
 
     //

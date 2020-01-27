@@ -488,7 +488,7 @@ MiFillSystemPageDirectory(IN PVOID Base,
 
 #if (_MI_PAGING_LEVELS == 2)
     /* Find the system double-mapped PDE that describes this mapping */
-    SystemMapPde = &MmSystemPagePtes[((ULONG_PTR)PointerPde & (SYSTEM_PD_SIZE - 1)) / sizeof(MMPTE)];
+    SystemMapPde = &MmSystemPagePtes[MiGetPdeOffset(PointerPde)];
 #else
     /* We don't have a double mapping */
     SystemMapPde = PointerPde;
@@ -512,7 +512,7 @@ MiFillSystemPageDirectory(IN PVOID Base,
             TempPde.u.Hard.PageFrameNumber = PageFrameIndex;
 
 #if (_MI_PAGING_LEVELS == 2)
-            ParentPage = MmSystemPageDirectory[(PointerPde - MiAddressToPde(NULL)) / PDE_PER_PAGE];
+            ParentPage = MmSystemPageDirectory[MiGetPdIndex(PointerPde)];
 #else
             ParentPage = MiPdeToPpe(PointerPde)->u.Hard.PageFrameNumber;
 #endif
@@ -2271,7 +2271,7 @@ MiRemoveMappedPtes(IN PVOID BaseAddress,
             {
 #if (_MI_PAGING_LEVELS == 2)
                 /* Find the system double-mapped PDE that describes this mapping */
-                SystemMapPde = &MmSystemPagePtes[((ULONG_PTR)PointerPde & (SYSTEM_PD_SIZE - 1)) / sizeof(MMPTE)];
+                SystemMapPde = &MmSystemPagePtes[MiGetPdeOffset(PointerPde)];
 
                 /* Make it valid */
                 ASSERT(SystemMapPde->u.Hard.Valid == 1);

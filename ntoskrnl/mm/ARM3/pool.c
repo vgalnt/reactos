@@ -561,12 +561,12 @@ MiAllocatePoolPages(IN POOL_TYPE PoolType,
                 //
                 // Save it into our double-buffered system page directory
                 //
-                MmSystemPagePtes[((ULONG_PTR)PointerPde & (SYSTEM_PD_SIZE - 1)) / sizeof(MMPTE)] = TempPde;
+                MmSystemPagePtes[MiGetPdeOffset(PointerPde)] = TempPde;
 
                 /* Initialize the PFN */
                 MiInitializePfnForOtherProcess(PageFrameNumber,
                                                (PMMPTE)PointerPde,
-                                               MmSystemPageDirectory[(PointerPde - MiAddressToPde(NULL)) / PDE_PER_PAGE]);
+                                               MmSystemPageDirectory[MiGetPdIndex(PointerPde)]);
 #endif
 
                 //

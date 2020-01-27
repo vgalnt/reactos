@@ -58,8 +58,6 @@
 #define PDE_MAPPED_VA  (PTE_PER_PAGE * PAGE_SIZE)
 #endif
 
-/* The size of all page directories for the OS. */
-#define SYSTEM_PD_SIZE (PD_COUNT * PAGE_SIZE)
 #ifdef _M_IX86
 /* PAE not yet implemented. */
 C_ASSERT(PD_COUNT == 1);

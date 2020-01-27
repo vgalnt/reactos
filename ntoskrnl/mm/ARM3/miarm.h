@@ -576,7 +576,6 @@ extern PMMPTE MiSessionImagePteStart;
 extern PMMPTE MiSessionImagePteEnd;
 extern PMMPTE MiSessionBasePte;
 extern PMMPTE MiSessionLastPte;
-extern PMMPDE MmSystemPagePtes;
 extern PVOID MmSystemCacheStart;
 extern PVOID MmSystemCacheEnd;
 extern MMSUPPORT MmSystemCacheWs;
@@ -613,7 +612,7 @@ extern PFN_NUMBER MmMinimumFreePages;
 extern PFN_NUMBER MmPlentyFreePages;
 extern SIZE_T MmMinimumStackCommitInBytes;
 extern PFN_COUNT MiExpansionPoolPagesInitialCharge;
-extern PFN_NUMBER MmResidentAvailablePages;
+//extern PFN_NUMBER MmResidentAvailablePages;
 extern PFN_NUMBER MmResidentAvailableAtInit;
 extern ULONG MmTotalFreeSystemPtes[MaximumPtePoolTypes];
 extern PFN_NUMBER MmTotalSystemDriverPages;
@@ -622,7 +621,6 @@ extern PVOID MiSessionImageStart;
 extern PVOID MiSessionImageEnd;
 extern PMMPTE MiHighestUserPte;
 extern PMMPDE MiHighestUserPde;
-extern PFN_NUMBER MmSystemPageDirectory[PD_COUNT];
 extern PMMPTE MmSharedUserDataPte;
 extern LIST_ENTRY MmProcessList;
 extern BOOLEAN MmZeroingPageThreadActive;
@@ -649,6 +647,10 @@ extern LARGE_INTEGER MmCriticalSectionTimeout;
 extern LIST_ENTRY MmWorkingSetExpansionHead;
 extern KSPIN_LOCK MmExpansionLock;
 extern PETHREAD MiExpansionLockOwner;
+#if (_MI_PAGING_LEVELS <= 3)
+extern PFN_NUMBER MmSystemPageDirectory[PD_COUNT];
+extern PMMPDE MmSystemPagePtes;
+#endif
 
 FORCEINLINE
 BOOLEAN
@@ -2361,26 +2363,19 @@ MiRemoveZeroPageSafe(IN ULONG Color)
     return 0;
 }
 
-#if (_MI_PAGING_LEVELS == 2)
+#if (_MI_PAGING_LEVELS <= 3)
 FORCEINLINE
 BOOLEAN
 MiSynchronizeSystemPde(PMMPDE PointerPde)
 {
-    MMPDE SystemPde;
-    ULONG Index;
-
-    /* Get the Index from the PDE */
-    Index = ((ULONG_PTR)PointerPde & (SYSTEM_PD_SIZE - 1)) / sizeof(MMPTE);
-
     /* Copy the PDE from the double-mapped system page directory */
-    SystemPde = MmSystemPagePtes[Index];
-    *PointerPde = SystemPde;
+    *PointerPde = MmSystemPagePtes[MiGetPdeOffset(PointerPde)];
 
     /* Make sure we re-read the PDE and PTE */
     KeMemoryBarrierWithoutFence();
 
     /* Return, if we had success */
-    return SystemPde.u.Hard.Valid != 0;
+    return (PointerPde->u.Hard.Valid != 0);
 }
 #endif
 

@@ -154,7 +154,7 @@ PMMPTE MiSessionLastPte;
 PVOID MiSystemViewStart;
 SIZE_T MmSystemViewSize;
 
-#if (_MI_PAGING_LEVELS == 2)
+#if (_MI_PAGING_LEVELS <= 3)
 //
 // A copy of the system page directory (the page directory associated with the
 // System process) is kept (double-mapped) by the manager in order to lazily
@@ -1276,12 +1276,14 @@ MiBuildPagedPool(VOID)
     KIRQL OldIrql;
     SIZE_T Size;
     ULONG BitMapSize;
-#if (_MI_PAGING_LEVELS >= 3)
+#if (_MI_PAGING_LEVELS >= 4)
     MMPPE TempPpe = ValidKernelPpe;
     PMMPPE PointerPpe;
-#elif (_MI_PAGING_LEVELS == 2)
+#else
     MMPTE TempPte = ValidKernelPte;
+#endif
 
+#if (_MI_PAGING_LEVELS == 2)
     //
     // Get the page frame number for the system page directory
     //
@@ -1307,6 +1309,8 @@ MiBuildPagedPool(VOID)
     ASSERT(PD_COUNT == 1);
     TempPte.u.Hard.PageFrameNumber = MmSystemPageDirectory[0];
     MI_WRITE_VALID_PTE(PointerPte, TempPte);
+#elif (_MI_PAGING_LEVELS == 3)
+    ASSERT(FALSE);
 #endif
 
 #ifdef _M_IX86
@@ -1365,7 +1369,7 @@ MiBuildPagedPool(VOID)
     //
     OldIrql = MiAcquirePfnLock();
 
-#if (_MI_PAGING_LEVELS >= 3)
+#if (_MI_PAGING_LEVELS >= 4)
     /* On these systems, there's no double-mapping, so instead, the PPEs
      * are setup to span the entire paged pool area, so there's no need for the
      * system PD */
@@ -1403,7 +1407,7 @@ MiBuildPagedPool(VOID)
     PageFrameIndex = MiRemoveZeroPage(0);
     TempPde.u.Hard.PageFrameNumber = PageFrameIndex;
     MI_WRITE_VALID_PDE(PointerPde, TempPde);
-#if (_MI_PAGING_LEVELS >= 3)
+#if (_MI_PAGING_LEVELS >= 4)
     /* Use the PPE of MmPagedPoolStart that was setup above */
 //    Bla = PFN_FROM_PTE(PpeAddress(MmPagedPool...));
 
@@ -1418,7 +1422,7 @@ MiBuildPagedPool(VOID)
     /* Initialize the PFN entry for it */
     MiInitializePfnForOtherProcess(PageFrameIndex,
                                    (PMMPTE)PointerPde,
-                                   MmSystemPageDirectory[(PointerPde - (PMMPDE)PDE_BASE) / PDE_PER_PAGE]);
+                                   MmSystemPageDirectory[MiGetPdIndex(PointerPde)]);
 #endif
 
     //
