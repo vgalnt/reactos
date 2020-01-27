@@ -29,15 +29,17 @@
 #define MI_HIGHEST_SYSTEM_ADDRESS               (PVOID)0xFFFFFFFF
 
 /* Page directory entry (PDE) and Page table entry (PTE) definitions */
+
+/* Maximum number of page directories (PDs) */
 #ifndef _PAE_
-#define PD_COUNT       (1 << 0) // Only one page directory 
+#define PD_COUNT       (1 << 0)                     // Only one page directory page
 #else
-#define PD_COUNT       (1 << 2) // The two most significant bits in the Va 
+#define PD_COUNT       (1 << 2)                     // The two most significant bits in the Va
 #endif
 
-#define PTE_PER_PAGE   (PAGE_SIZE / sizeof(MMPTE))  // Number of PTEs per page table
-#define PDE_PER_PAGE   (PAGE_SIZE / sizeof(MMPDE))  // Number of PDEs per page directory
-#define PDE_PER_SYSTEM (PD_COUNT * PDE_PER_PAGE)    // Maximum number of PDEs for the current OS
+#define PTE_PER_PAGE   (PAGE_SIZE / sizeof(MMPTE))  // Number of PTEs per page table (PT) page
+#define PDE_PER_PAGE   (PAGE_SIZE / sizeof(MMPDE))  // Number of PDEs per page directory (PD) page
+#define PDE_PER_SYSTEM (PD_COUNT * PDE_PER_PAGE)    // Maximum number of PDEs
 
 #define MI_MAX_PAGES   (0x100000000ull / PAGE_SIZE) // Maximum number of pages for 4 GB of space
 
@@ -148,40 +150,49 @@ C_ASSERT(PD_COUNT == 1);
 #define MI_IS_WRITE_ACCESS(FaultCode) BooleanFlagOn(FaultCode, 0x2)
 #define MI_IS_INSTRUCTION_FETCH(FaultCode) BooleanFlagOn(FaultCode, 0x10)
 
-/* Convert an address to a corresponding PTE */
+/* Maps the virtual address to the corresponding PTE. */
 #define MiAddressToPte(Va) \
     ((PMMPTE)(PTE_BASE + ((((ULONG_PTR)(Va)) / PAGE_SIZE) * sizeof(MMPTE))))
 
-/* Convert an address to a corresponding PDE */
+/* Maps the virtual address to the corresponding PDE. */
 #define MiAddressToPde(Va) \
     ((PMMPDE)(PDE_BASE + ((MiAddressToPdeOffset(Va)) * sizeof(MMPTE))))
 
-/* Convert an address to a corresponding PTE offset/index */
+/* Takes the PTE offset/index from the virtual address. */
 #define MiAddressToPteOffset(Va) \
     ((((ULONG_PTR)(Va)) & (PDE_MAPPED_VA - 1)) / PAGE_SIZE)
 
-/* Convert an address to a corresponding PDE offset/index */
+/* Takes the PDE offset (within all PDs pages) from the virtual address. */
 #define MiAddressToPdeOffset(Va) (((ULONG_PTR)(Va)) / PDE_MAPPED_VA)
-#define MiAddressToPdeIndex(Va) (BYTE_OFFSET(MiAddressToPdeOffset(Va))
 
+/* PTE offset from the pointer to a PTE. */
 #define MiGetPteOffset(_Pte) ((((ULONG_PTR)(_Pte)) & PTE_MASK) / sizeof(MMPTE))
+
+/* PDE offset (within all PDs pages) from the pointer to a PDE. */
 #define MiGetPdeOffset(_Pde) ((((ULONG_PTR)(_Pde)) & PDE_MASK) / sizeof(MMPDE))
 
+/* Index of PD in which the PDE is located. */
 #ifndef _PAE_
+/* Maximum 4 pages of memory (0 ... 3) */
 #define MiGetPdIndex(_Pde) ((MiGetPdeOffset(_Pde)) / PDE_PER_PAGE)
 #else
+/* Only 1 page of memory */
 #define MiGetPdIndex(_Pde) (0)
 #endif
 
-/* Convert a PTE/PDE into a corresponding address */
+/* Determines a virtual address mapped to a this PTE. */
 #define MiPteToAddress(_Pte) ((PVOID)((MiGetPteOffset(_Pte)) * PAGE_SIZE))
+
+/* Determines a virtual address mapped to a this PDE. */
 #define MiPdeToAddress(_Pde) ((PVOID)((MiGetPdeOffset(_Pde)) * PDE_MAPPED_VA))
 
-/* Translate between P*Es */
+/* Finds the first PTE in the PT that this PDE points to. */
 #define MiPdeToPte(_Pde) ((PMMPTE)MiPteToAddress(_Pde))
+
+/* Finds a PDE pointing to the PT that contains this PTE. */
 #define MiPteToPde(_Pte) ((PMMPDE)MiAddressToPte(_Pte))
 
-/* Check P*E boundaries */
+/* TRUE if the PTE is at the beginning of the PT. */
 #define MiIsPteOnPdeBoundary(PointerPte) \
     ((((ULONG_PTR)PointerPte) & (PAGE_SIZE - 1)) == 0)
 
