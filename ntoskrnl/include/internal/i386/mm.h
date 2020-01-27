@@ -51,6 +51,10 @@
 #define PDE_TOP  (ULONG_PTR)(PDE_BASE + (PDE_PER_SYSTEM * sizeof(MMPDE)) - 1) // 0xC0300FFF / 0xC0603FFF
 #define PDE_MASK (PDE_TOP - PDE_BASE)                                         // 0x00000FFF / 0x00003FFF
 
+#ifndef PDE_MAPPED_VA
+/* The area of virtual memory mapped with a single PDE. */
+#define PDE_MAPPED_VA  (PTE_PER_PAGE * PAGE_SIZE)
+#endif
 
 /* The size of all page directories for the OS. */
 #define SYSTEM_PD_SIZE (PD_COUNT * PAGE_SIZE)
@@ -109,7 +113,6 @@ C_ASSERT(PD_COUNT == 1);
 #define MM_EMPTY_PTE_LIST  ((ULONG)0xFFFFF)
 #define MM_EMPTY_LIST  ((ULONG_PTR)-1)
 
-
 /* Easy accessing PFN in PTE */
 #define PFN_FROM_PTE(v) ((v)->u.Hard.PageFrameNumber)
 
@@ -140,32 +143,39 @@ C_ASSERT(PD_COUNT == 1);
 #define MI_MAKE_WRITE_PAGE(x)      ((x)->u.Hard.Writable = 1)
 #endif
 
-
 /* Macros to identify the page fault reason from the error code */
 #define MI_IS_NOT_PRESENT_FAULT(FaultCode) !BooleanFlagOn(FaultCode, 0x1)
 #define MI_IS_WRITE_ACCESS(FaultCode) BooleanFlagOn(FaultCode, 0x2)
 #define MI_IS_INSTRUCTION_FETCH(FaultCode) BooleanFlagOn(FaultCode, 0x10)
 
 /* Convert an address to a corresponding PTE */
-#define MiAddressToPte(x) \
-    ((PMMPTE)(((((ULONG)(x)) >> 12) << 2) + PTE_BASE))
+#define MiAddressToPte(Va) \
+    ((PMMPTE)(PTE_BASE + ((((ULONG_PTR)(Va)) / PAGE_SIZE) * sizeof(MMPTE))))
 
 /* Convert an address to a corresponding PDE */
-#define MiAddressToPde(x) \
-    ((PMMPDE)(((((ULONG)(x)) >> 22) << 2) + PDE_BASE))
+#define MiAddressToPde(Va) \
+    ((PMMPDE)(PDE_BASE + ((MiAddressToPdeOffset(Va)) * sizeof(MMPTE))))
 
 /* Convert an address to a corresponding PTE offset/index */
-#define MiAddressToPteOffset(x) \
-    ((((ULONG)(x)) << 10) >> 22)
+#define MiAddressToPteOffset(Va) \
+    ((((ULONG_PTR)(Va)) & (PDE_MAPPED_VA - 1)) / PAGE_SIZE)
 
 /* Convert an address to a corresponding PDE offset/index */
-#define MiAddressToPdeOffset(x) \
-    (((ULONG)(x)) / (1024 * PAGE_SIZE))
-#define MiGetPdeOffset MiAddressToPdeOffset
+#define MiAddressToPdeOffset(Va) (((ULONG_PTR)(Va)) / PDE_MAPPED_VA)
+#define MiAddressToPdeIndex(Va) (BYTE_OFFSET(MiAddressToPdeOffset(Va))
+
+#define MiGetPteOffset(_Pte) ((((ULONG_PTR)(_Pte)) & PTE_MASK) / sizeof(MMPTE))
+#define MiGetPdeOffset(_Pde) ((((ULONG_PTR)(_Pde)) & PDE_MASK) / sizeof(MMPDE))
+
+#ifndef _PAE_
+#define MiGetPdIndex(_Pde) ((MiGetPdeOffset(_Pde)) / PDE_PER_PAGE)
+#else
+#define MiGetPdIndex(_Pde) (0)
+#endif
 
 /* Convert a PTE/PDE into a corresponding address */
-#define MiPteToAddress(_Pte) ((PVOID)((ULONG)(_Pte) << 10))
-#define MiPdeToAddress(_Pde) ((PVOID)((ULONG)(_Pde) << 20))
+#define MiPteToAddress(_Pte) ((PVOID)((MiGetPteOffset(_Pte)) * PAGE_SIZE))
+#define MiPdeToAddress(_Pde) ((PVOID)((MiGetPdeOffset(_Pde)) * PDE_MAPPED_VA))
 
 /* Translate between P*Es */
 #define MiPdeToPte(_Pde) ((PMMPTE)MiPteToAddress(_Pde))
