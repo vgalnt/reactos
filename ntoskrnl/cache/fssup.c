@@ -12,7 +12,7 @@
 #include <ntoskrnl.h>
 #include "newcc.h"
 #include "section/newmm.h"
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -199,6 +199,8 @@ CcInitializeCacheMap(IN PFILE_OBJECT FileObject,
     PNOCC_CACHE_MAP Map = FileObject->SectionObjectPointer->SharedCacheMap;
     PNOCC_PRIVATE_CACHE_MAP PrivateCacheMap = FileObject->PrivateCacheMap;
 
+    ASSERT(FALSE);
+
     CcpLock();
     /* We don't have a shared cache map.  First find out if we have a sibling
        stream file object we can take it from. */
@@ -293,6 +295,8 @@ CcUninitializeCacheMap(IN PFILE_OBJECT FileObject,
            &FileObject->FileName,
            FileObject->SectionObjectPointer);
 
+    ASSERT(FALSE);
+
     ASSERT(UninitializeEvent == NULL);
 
     /* It may not be strictly necessary to flush here, but we do just for
@@ -357,6 +361,8 @@ CcSetFileSizes(IN PFILE_OBJECT FileObject,
     PNOCC_CACHE_MAP Map = (PNOCC_CACHE_MAP)FileObject->SectionObjectPointer->SharedCacheMap;
     PNOCC_BCB Bcb;
 
+    ASSERT(FALSE);
+
     if (!Map) return;
     Map->FileSizes = *FileSizes;
     Bcb = Map->AssociatedBcb.Flink == &Map->AssociatedBcb ?
@@ -387,6 +393,9 @@ CcPurgeCacheSection(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
                     IN BOOLEAN UninitializeCacheMaps)
 {
     PNOCC_CACHE_MAP Map = (PNOCC_CACHE_MAP)SectionObjectPointer->SharedCacheMap;
+
+    ASSERT(FALSE);
+
     if (!Map) return TRUE;
     CcpFlushCache(Map, NULL, 0, NULL, TRUE);
     return TRUE;
@@ -425,6 +434,8 @@ CcZeroData(IN PFILE_OBJECT FileObject,
     DPRINT("S %I64x E %I64x\n",
            StartOffset->QuadPart,
            EndOffset->QuadPart);
+
+    ASSERT(FALSE);
 
     if (!Map)
     {
@@ -605,6 +616,9 @@ CcGetFileObjectFromSectionPtrs(IN PSECTION_OBJECT_POINTERS SectionObjectPointer)
 {
     PFILE_OBJECT Result = NULL;
     PNOCC_CACHE_MAP Map = SectionObjectPointer->SharedCacheMap;
+
+    ASSERT(FALSE);
+
     CcpLock();
     if (!IsListEmpty(&Map->AssociatedBcb))
     {
@@ -624,6 +638,9 @@ CcGetFileObjectFromBcb(PVOID Bcb)
 {
     PNOCC_BCB RealBcb = (PNOCC_BCB)Bcb;
     DPRINT("BCB #%x\n", RealBcb - CcCacheSections);
+
+    ASSERT(FALSE);
+
     return MmGetFileObjectForSection((PROS_SECTION_OBJECT)RealBcb->SectionObject);
 }
 

@@ -33,6 +33,9 @@ CcSetLogHandleForFile(IN PFILE_OBJECT FileObject,
                       IN PFLUSH_TO_LSN FlushToLsnRoutine)
 {
     PNOCC_CACHE_MAP Map = FileObject->SectionObjectPointer->SharedCacheMap;
+
+    ASSERT(FALSE);
+
     if (!Map) return;
     Map->LogHandle = LogHandle;
     Map->FlushToLsn = FlushToLsnRoutine;

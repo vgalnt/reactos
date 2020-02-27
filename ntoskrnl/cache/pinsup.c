@@ -12,7 +12,7 @@
 #include <ntoskrnl.h>
 #include "newcc.h"
 #include "section/newmm.h"
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 /* The following is a test mode that only works with modified filesystems.
@@ -710,6 +710,8 @@ CcMapData(IN PFILE_OBJECT FileObject,
 {
     BOOLEAN Result;
 
+    ASSERT(FALSE);
+
     Result = CcpMapData(FileObject,
                         FileOffset,
                         Length,
@@ -790,6 +792,8 @@ CcPinMappedData(IN PFILE_OBJECT FileObject,
     PVOID Buffer;
     PNOCC_CACHE_MAP Map = (PNOCC_CACHE_MAP)FileObject->SectionObjectPointer->SharedCacheMap;
 
+    ASSERT(FALSE);
+
     if (!Map)
     {
         DPRINT1("Not cached\n");
@@ -818,6 +822,8 @@ CcPinRead(IN PFILE_OBJECT FileObject,
 {
     PNOCC_BCB RealBcb;
     BOOLEAN Result;
+
+    ASSERT(FALSE);
 
     Result = CcPinMappedData(FileObject, FileOffset, Length, Flags, Bcb);
 
@@ -851,6 +857,8 @@ CcPreparePinWrite(IN PFILE_OBJECT FileObject,
 #endif
 
     DPRINT("CcPreparePinWrite(%x:%x)\n", Buffer, Length);
+
+    ASSERT(FALSE);
 
     Result = CcPinRead(FileObject, FileOffset, Length, Flags, Bcb, Buffer);
 
@@ -973,6 +981,8 @@ CcUnpinData(IN PVOID Bcb)
 
     DPRINT("CcUnpinData Bcb #%x (RefCount %d)\n", Selected, RealBcb->RefCount);
 
+    ASSERT(FALSE);
+
     CcpLock();
     Released = CcpUnpinData(RealBcb, FALSE);
     CcpUnlock();
@@ -990,6 +1000,9 @@ CcSetBcbOwnerPointer(IN PVOID Bcb,
                      IN PVOID OwnerPointer)
 {
     PNOCC_BCB RealBcb = (PNOCC_BCB)Bcb;
+
+    ASSERT(FALSE);
+
     CcpLock();
     CcpReferenceCache(RealBcb - CcCacheSections);
     RealBcb->OwnerPointer = OwnerPointer;
@@ -1001,6 +1014,7 @@ NTAPI
 CcUnpinDataForThread(IN PVOID Bcb,
                      IN ERESOURCE_THREAD ResourceThreadId)
 {
+    ASSERT(FALSE);
     CcUnpinData(Bcb);
 }
 

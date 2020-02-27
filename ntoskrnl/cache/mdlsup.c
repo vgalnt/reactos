@@ -10,7 +10,7 @@
 
 #include <ntoskrnl.h>
 #include "newcc.h"
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -67,6 +67,7 @@ CcMdlRead(IN PFILE_OBJECT FileObject,
           OUT PMDL *MdlChain,
           OUT PIO_STATUS_BLOCK IoStatus)
 {
+    ASSERT(FALSE);
     *MdlChain = CcpBuildCacheMdl(FileObject, FileOffset, Length, IoStatus);
 }
 
@@ -75,6 +76,7 @@ NTAPI
 CcMdlReadComplete(IN PFILE_OBJECT FileObject,
                   IN PMDL MdlChain)
 {
+    ASSERT(FALSE);
     IoFreeMdl(MdlChain);
 }
 
@@ -94,6 +96,7 @@ CcPrepareMdlWrite(IN PFILE_OBJECT FileObject,
                   OUT PMDL *MdlChain,
                   OUT PIO_STATUS_BLOCK IoStatus)
 {
+    ASSERT(FALSE);
     *MdlChain = CcpBuildCacheMdl(FileObject, FileOffset, Length, IoStatus);
 }
 
@@ -103,6 +106,7 @@ CcMdlWriteComplete(IN PFILE_OBJECT FileObject,
                    IN PLARGE_INTEGER FileOffset,
                    IN PMDL MdlChain)
 {
+    ASSERT(FALSE);
     IoFreeMdl(MdlChain);
 }
 

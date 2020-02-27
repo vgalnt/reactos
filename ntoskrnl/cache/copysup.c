@@ -11,7 +11,7 @@
 #include <ntoskrnl.h>
 #include "newcc.h"
 #include "section/newmm.h"
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -59,6 +59,8 @@ CcCopyRead(IN PFILE_OBJECT FileObject,
            Length,
            Wait,
            Buffer);
+
+    ASSERT(FALSE);
 
     CacheOffset.QuadPart = FileOffset->QuadPart;
     EndOfExtent.QuadPart = FileOffset->QuadPart + Length;
@@ -149,6 +151,8 @@ CcCopyWrite(IN PFILE_OBJECT FileObject,
            Length,
            Wait,
            Buffer);
+
+    ASSERT(FALSE);
 
     while (CurrentOffset.QuadPart < EndOffset.QuadPart)
     {

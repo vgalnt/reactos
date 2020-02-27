@@ -12,7 +12,7 @@
 #include <ntoskrnl.h>
 #include "newcc.h"
 #include "section/newmm.h"
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 /* STRUCTURES *****************************************************************/
@@ -37,6 +37,9 @@ CcSetReadAheadGranularity(IN PFILE_OBJECT FileObject,
                           IN ULONG Granularity)
 {
     PNOCC_CACHE_MAP Map = (PNOCC_CACHE_MAP)FileObject->SectionObjectPointer->SharedCacheMap;
+
+    ASSERT(FALSE);
+
     if (Map)
     {
         Map->ReadAheadGranularity = Granularity;
@@ -101,6 +104,8 @@ CcScheduleReadAhead(IN PFILE_OBJECT FileObject,
            Length,
            &FileObject->FileName);
 
+    ASSERT(FALSE);
+
     WorkItem = ExAllocatePool(NonPagedPool, sizeof(*WorkItem));
     if (!WorkItem) KeBugCheck(0);
     ObReferenceObject(FileObject);
@@ -122,6 +127,7 @@ CcSetDirtyPinnedData(IN PVOID BcbVoid,
                      IN OPTIONAL PLARGE_INTEGER Lsn)
 {
     PNOCC_BCB Bcb = (PNOCC_BCB)BcbVoid;
+    ASSERT(FALSE);
     Bcb->Dirty = TRUE;
 }
 
@@ -155,6 +161,8 @@ _CcpFlushCache(IN PNOCC_CACHE_MAP Map,
     RtlZeroMemory(&IOSB, sizeof(IO_STATUS_BLOCK));
 
     DPRINT("CcFlushCache (while file) (%s:%d)\n", File, Line);
+
+    ASSERT(FALSE);
 
     if (FileOffset && Length)
     {
@@ -287,6 +295,9 @@ NTAPI
 CcRemapBcb(IN PVOID Bcb)
 {
     ULONG Number = (ULONG)(((PNOCC_BCB)Bcb) - CcCacheSections);
+
+    ASSERT(FALSE);
+
     CcpLock();
     ASSERT(RtlTestBit(CcCacheBitmap, Number));
     CcpReferenceCache(Number);
@@ -331,6 +342,9 @@ NTAPI
 CcRepinBcb(IN PVOID Bcb)
 {
     ULONG Number = (ULONG)(((PNOCC_BCB)Bcb) - CcCacheSections);
+
+    ASSERT(FALSE);
+
     CcpLock();
     ASSERT(RtlTestBit(CcCacheBitmap, Number));
     DPRINT("CcRepinBcb(#%x)\n", Number);
@@ -345,6 +359,8 @@ CcUnpinRepinnedBcb(IN PVOID Bcb,
                    OUT PIO_STATUS_BLOCK IoStatus)
 {
     PNOCC_BCB RealBcb = (PNOCC_BCB)Bcb;
+
+    ASSERT(FALSE);
 
     if (WriteThrough)
     {

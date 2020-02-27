@@ -29,6 +29,7 @@ NTSTATUS
 NTAPI
 CcWaitForCurrentLazyWriterActivity(VOID)
 {
+    ASSERT(FALSE);
     //KeWaitForSingleObject(&CcpLazyWriteEvent, Executive, KernelMode, FALSE, NULL);
     return STATUS_SUCCESS;
 }
