@@ -396,6 +396,9 @@ LARGE_INTEGER MmCriticalSectionTimeout;
 ULONG MmThrottleTop;
 ULONG MmThrottleBottom;
 
+/* If "/3GB" key in the "Boot.ini" - User address spaces enlarge up to 3 GB. */
+ULONG MmVirtualBias = 0;
+
 /* PRIVATE FUNCTIONS **********************************************************/
 
 VOID
@@ -1639,6 +1642,12 @@ MmArmInitSystem(IN ULONG Phase,
         MmBootImageSize *= PAGE_SIZE;
         MmBootImageSize = (MmBootImageSize + PDE_MAPPED_VA - 1) & ~(PDE_MAPPED_VA - 1);
         ASSERT((MmBootImageSize % PDE_MAPPED_VA) == 0);
+
+#if defined(_X86_)
+        /* Enlargement user address space not yet implemented. */
+        MmVirtualBias = LoaderBlock->u.I386.VirtualBias;
+        ASSERT(MmVirtualBias == 0);
+#endif
 
         /* Initialize session space address layout */
         MiInitializeSessionSpaceLayout();
