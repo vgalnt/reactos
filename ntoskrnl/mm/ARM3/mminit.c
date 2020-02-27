@@ -2153,7 +2153,7 @@ MmArmInitSystem(IN ULONG Phase,
         MiSetSystemCache(SystemCacheSizeInPages);
 
         /* Initialize the system cache */
-        //MiInitializeSystemCache(MmSystemCacheWsMinimum, MmAvailablePages);
+        MiInitializeSystemCache(MmSystemCacheWsMinimum, MmAvailablePages);
 
         /* Update the commit limit */
         MmTotalCommitLimit = MmAvailablePages;

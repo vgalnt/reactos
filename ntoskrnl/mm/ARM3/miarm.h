@@ -18,6 +18,9 @@
 /* Everyone loves 64K */
 #define _64K (64 * _1KB)
 
+/* Number of pages in one unit of the system cache */
+#define MM_PAGES_PER_VACB  (VACB_MAPPING_GRANULARITY / PAGE_SIZE)
+
 /* The area of virtual memory mapped with a single PDE. */
 #define PDE_MAPPED_VA  (PTE_PER_PAGE * PAGE_SIZE)
 
@@ -579,6 +582,7 @@ extern PMMPTE MiSessionLastPte;
 extern PVOID MmSystemCacheStart;
 extern PVOID MmSystemCacheEnd;
 extern MMSUPPORT MmSystemCacheWs;
+extern PMMWSLE MmSystemCacheWsle;
 extern SIZE_T MmAllocatedNonPagedPool;
 extern ULONG MmSpecialPoolTag;
 extern PVOID MmHyperSpaceEnd;
@@ -2347,6 +2351,14 @@ VOID
 NTAPI
 MiWriteProtectSystemImage(
     _In_ PVOID ImageBase);
+
+VOID
+NTAPI
+MiInitializeSystemCache(
+    IN ULONG MinimumWorkingSetSize,
+    IN ULONG MaximumWorkingSetSize
+);
+
 
 //
 // MiRemoveZeroPage will use inline code to zero out the page manually if only
