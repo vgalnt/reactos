@@ -402,6 +402,9 @@ ULONG MmVirtualBias = 0;
 /* For debugging */
 PKTHREAD MmPfnOwner;
 
+/* Hack! It relation with MmLargeSystemCache FIXME */
+ULONG MiMaximumSystemCacheSizeExtra = 0;
+
 /* PRIVATE FUNCTIONS **********************************************************/
 
 VOID
@@ -1633,16 +1636,58 @@ VOID
 NTAPI
 MiSetSystemCache(ULONG SystemCacheSizeInPages)
 {
+#ifndef _M_AMD64
+    PMMPDE StartPde;
+    PMMPDE EndPde;
+    MMPDE TmpPde;
+    ULONG Color;
+    PFN_NUMBER PageNumber;
+    KIRQL OldIrql;
+#endif
+
+    /* Calculate size and end system cache */
 #ifdef _M_AMD64
     MmSizeOfSystemCacheInPages = ((MI_SYSTEM_CACHE_END + 1) - MI_SYSTEM_CACHE_START) / PAGE_SIZE;
-#else
-    MmSizeOfSystemCacheInPages = ((ULONG_PTR)MI_PAGED_POOL_START - (ULONG_PTR)MI_SYSTEM_CACHE_START) / PAGE_SIZE;
-#endif
     MmSystemCacheEnd = (PVOID)((ULONG_PTR)MmSystemCacheStart + (MmSizeOfSystemCacheInPages * PAGE_SIZE) - 1);
-#ifdef _M_AMD64
     ASSERT(MmSystemCacheEnd == (PVOID)MI_SYSTEM_CACHE_END);
 #else
+    StartPde = MiAddressToPde(MmSystemCacheWorkingSetList);
+  #if (_MI_PAGING_LEVELS == 2)
+    ASSERT((StartPde + 1) == MiAddressToPde(MmSystemCacheStart));
+  #endif
+    MmSystemCacheEnd = (PVOID)(((ULONG_PTR)MmSystemCacheStart + (SystemCacheSizeInPages * PAGE_SIZE)) - 1);
     ASSERT(MmSystemCacheEnd == (PVOID)((ULONG_PTR)MI_PAGED_POOL_START - 1));
+    EndPde = MiAddressToPde(MmSystemCacheEnd);
+
+    if (MiMaximumSystemCacheSizeExtra)
+    {
+        DPRINT1("MmArmInitSystem: FIXME MmSizeOfSystemCacheInPages\n");
+        ASSERT(FALSE);//MmSizeOfSystemCacheInPages = SystemCacheSizeInPages + MiMaximumSystemCacheSizeExtra;
+    }
+    else
+    {
+        MmSizeOfSystemCacheInPages = SystemCacheSizeInPages;
+    }
+
+    /* Initialize PDEs and PFNs for system cache */
+
+    TmpPde.u.Long = ValidKernelPde.u.Long;
+    for (; StartPde <= EndPde; StartPde++)
+    {
+        ASSERT(StartPde->u.Hard.Valid == 0);
+
+        Color = MI_GET_NEXT_COLOR();
+
+        OldIrql = MiLockPfnDb(APC_LEVEL);
+
+        PageNumber = MiRemoveZeroPage(Color);
+        TmpPde.u.Hard.PageFrameNumber = PageNumber;
+
+        MiInitializePfnAndMakePteValid(PageNumber, StartPde, TmpPde);
+        MmResidentAvailablePages--;
+
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+    }
 #endif
 }
 
