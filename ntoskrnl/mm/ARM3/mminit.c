@@ -1564,6 +1564,68 @@ MiDbgDumpMemoryDescriptors(VOID)
 }
 
 INIT_FUNCTION
+VOID
+NTAPI
+MiSetSystemSize(VOID)
+{
+    /* Check how many pages the system has */
+    if (MmNumberOfPhysicalPages <= ((13 * _1MB) / PAGE_SIZE))
+    {
+        /* Set small system */
+        MmSystemSize = MmSmallSystem;
+        MmMaximumDeadKernelStacks = 0;
+    }
+    else if (MmNumberOfPhysicalPages <= ((19 * _1MB) / PAGE_SIZE))
+    {
+        /* Set small system and add 100 pages for the cache */
+        MmSystemSize = MmSmallSystem;
+        MmSystemCacheWsMinimum += 100;
+        MmMaximumDeadKernelStacks = 2;
+    }
+    else
+    {
+        /* Set medium system and add 400 pages for the cache */
+        MmSystemSize = MmMediumSystem;
+        MmSystemCacheWsMinimum += 400;
+        MmMaximumDeadKernelStacks = 5;
+    }
+
+    /* Check for less than 24MB */
+    if (MmNumberOfPhysicalPages < ((24 * _1MB) / PAGE_SIZE))
+    {
+        /* No more than 32 pages */
+        MmSystemCacheWsMinimum = 32;
+    }
+
+    /* Check for more than 32MB */
+    if (MmNumberOfPhysicalPages >= ((32 * _1MB) / PAGE_SIZE))
+    {
+        /* Check for product type being "Wi" for WinNT */
+        if (MmProductType == '\0i\0W')
+        {
+            /* Then this is a large system */
+            MmSystemSize = MmLargeSystem;
+        }
+        else
+        {
+            /* For servers, we need 64MB to consider this as being large */
+            if (MmNumberOfPhysicalPages >= ((64 * _1MB) / PAGE_SIZE))
+            {
+                /* Set it as large */
+                MmSystemSize = MmLargeSystem;
+            }
+        }
+    }
+
+    /* Check for more than 33 MB */
+    if (MmNumberOfPhysicalPages > ((33 * _1MB) / PAGE_SIZE))
+    {
+        /* Add another 500 pages to the cache */
+        MmSystemCacheWsMinimum += 500;
+    }
+}
+
+INIT_FUNCTION
 BOOLEAN
 NTAPI
 MmArmInitSystem(IN ULONG Phase,
@@ -1938,61 +2000,8 @@ MmArmInitSystem(IN ULONG Phase,
 
         /* FIXME: Call out into Driver Verifier for initialization  */
 
-        /* Check how many pages the system has */
-        if (MmNumberOfPhysicalPages <= ((13 * _1MB) / PAGE_SIZE))
-        {
-            /* Set small system */
-            MmSystemSize = MmSmallSystem;
-            MmMaximumDeadKernelStacks = 0;
-        }
-        else if (MmNumberOfPhysicalPages <= ((19 * _1MB) / PAGE_SIZE))
-        {
-            /* Set small system and add 100 pages for the cache */
-            MmSystemSize = MmSmallSystem;
-            MmSystemCacheWsMinimum += 100;
-            MmMaximumDeadKernelStacks = 2;
-        }
-        else
-        {
-            /* Set medium system and add 400 pages for the cache */
-            MmSystemSize = MmMediumSystem;
-            MmSystemCacheWsMinimum += 400;
-            MmMaximumDeadKernelStacks = 5;
-        }
-
-        /* Check for less than 24MB */
-        if (MmNumberOfPhysicalPages < ((24 * _1MB) / PAGE_SIZE))
-        {
-            /* No more than 32 pages */
-            MmSystemCacheWsMinimum = 32;
-        }
-
-        /* Check for more than 32MB */
-        if (MmNumberOfPhysicalPages >= ((32 * _1MB) / PAGE_SIZE))
-        {
-            /* Check for product type being "Wi" for WinNT */
-            if (MmProductType == '\0i\0W')
-            {
-                /* Then this is a large system */
-                MmSystemSize = MmLargeSystem;
-            }
-            else
-            {
-                /* For servers, we need 64MB to consider this as being large */
-                if (MmNumberOfPhysicalPages >= ((64 * _1MB) / PAGE_SIZE))
-                {
-                    /* Set it as large */
-                    MmSystemSize = MmLargeSystem;
-                }
-            }
-        }
-
-        /* Check for more than 33 MB */
-        if (MmNumberOfPhysicalPages > ((33 * _1MB) / PAGE_SIZE))
-        {
-            /* Add another 500 pages to the cache */
-            MmSystemCacheWsMinimum += 500;
-        }
+        /* Set variables depending on the size of the memory */
+        MiSetSystemSize();
 
         /* Now setup the shared user data fields */
         ASSERT(SharedUserData->NumberOfPhysicalPages == 0);
