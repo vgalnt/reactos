@@ -360,4 +360,22 @@ CcUnpinRepinnedBcb(IN PVOID Bcb,
     CcUnpinData(Bcb);
 }
 
+#if DBG && defined(KDBG)
+BOOLEAN
+ExpKdbgExtFileCache(ULONG Argc, PCHAR Argv[])
+{
+    DPRINT1("ExpKdbgExtFileCache: ... \n");
+    UNIMPLEMENTED;
+    return TRUE;
+}
+
+BOOLEAN
+ExpKdbgExtDefWrites(ULONG Argc, PCHAR Argv[])
+{
+    DPRINT1("ExpKdbgExtDefWrites: ... \n");
+    UNIMPLEMENTED;
+    return TRUE;
+}
+#endif
+
 /* EOF */

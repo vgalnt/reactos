@@ -104,6 +104,16 @@ KEVENT CcFinalizeEvent;
 ULONG CcCacheClockHand;
 LONG CcOutstandingDeletes;
 
+ULONG CcMapDataNoWait;
+ULONG CcMapDataWait;
+ULONG CcPinMappedDataCount;
+ULONG CcPinReadNoWait;
+ULONG CcPinReadWait;
+ULONG CcLazyWriteIos;
+ULONG CcLazyWritePages;
+ULONG CcDataFlushes;
+ULONG CcDataPages;
+
 /* FUNCTIONS ******************************************************************/
 
 PETHREAD LastThread;

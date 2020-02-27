@@ -18,6 +18,8 @@ if(NOT DEFINED NEWCC)
     set(NEWCC FALSE)
 endif()
 
+set(NEWCC TRUE)
+
 if(NEWCC)
     add_definitions(-DNEWCC)
     list(APPEND SOURCE
@@ -27,7 +29,8 @@ if(NEWCC)
         ${REACTOS_SOURCE_DIR}/ntoskrnl/cache/lazyrite.c
         ${REACTOS_SOURCE_DIR}/ntoskrnl/cache/logsup.c
         ${REACTOS_SOURCE_DIR}/ntoskrnl/cache/mdlsup.c
-        ${REACTOS_SOURCE_DIR}/ntoskrnl/cache/pinsup.c)
+        ${REACTOS_SOURCE_DIR}/ntoskrnl/cache/pinsup.c
+        ${REACTOS_SOURCE_DIR}/ntoskrnl/cache/vacbsup.c)
 else()
     list(APPEND SOURCE
         ${REACTOS_SOURCE_DIR}/ntoskrnl/cc/cacheman.c
