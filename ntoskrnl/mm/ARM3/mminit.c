@@ -399,6 +399,9 @@ ULONG MmThrottleBottom;
 /* If "/3GB" key in the "Boot.ini" - User address spaces enlarge up to 3 GB. */
 ULONG MmVirtualBias = 0;
 
+/* For debugging */
+PKTHREAD MmPfnOwner;
+
 /* PRIVATE FUNCTIONS **********************************************************/
 
 VOID
@@ -1628,7 +1631,7 @@ MiSetSystemSize(VOID)
 INIT_FUNCTION
 VOID
 NTAPI
-MiSetSystemCache()
+MiSetSystemCache(ULONG SystemCacheSizeInPages)
 {
 #ifdef _M_AMD64
     MmSizeOfSystemCacheInPages = ((MI_SYSTEM_CACHE_END + 1) - MI_SYSTEM_CACHE_START) / PAGE_SIZE;
@@ -2102,7 +2105,7 @@ MmArmInitSystem(IN ULONG Phase,
         }
 
         /* Define limits for system cache */
-        MiSetSystemCache();
+        MiSetSystemCache(SystemCacheSizeInPages);
 
         /* Initialize the system cache */
         //MiInitializeSystemCache(MmSystemCacheWsMinimum, MmAvailablePages);

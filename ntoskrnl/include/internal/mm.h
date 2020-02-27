@@ -399,6 +399,8 @@ extern MMPFNLIST MmStandbyPageListHead;
 extern MMPFNLIST MmModifiedPageListHead;
 extern MMPFNLIST MmModifiedNoWritePageListHead;
 
+extern PKTHREAD MmPfnOwner;
+
 typedef struct _MM_MEMORY_CONSUMER
 {
     ULONG PagesUsed;
@@ -914,6 +916,49 @@ NTAPI
 MmPageOutPhysicalAddress(PFN_NUMBER Page);
 
 /* freelist.c **********************************************************/
+
+FORCEINLINE
+KIRQL 
+MiLockPfnDb(KIRQL MaximumLevel)
+{
+    KIRQL OldIrql;
+
+    if (MaximumLevel == APC_LEVEL)
+    {
+        ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
+    }
+    else if (MaximumLevel == DISPATCH_LEVEL)
+    {
+        ASSERT(KeGetCurrentIrql() <= DISPATCH_LEVEL);
+    }
+
+    OldIrql = KeAcquireQueuedSpinLock(LockQueuePfnLock);
+
+    ASSERT(MmPfnOwner == NULL);
+    MmPfnOwner = KeGetCurrentThread();
+
+    return OldIrql;
+}
+
+FORCEINLINE
+VOID 
+MiUnlockPfnDb(KIRQL OldIrql, KIRQL MaximumLevel)
+{
+    if (MaximumLevel == APC_LEVEL)
+    {
+        ASSERT(OldIrql <= APC_LEVEL);
+    }
+    else if (MaximumLevel == DISPATCH_LEVEL)
+    {
+        ASSERT(OldIrql <= DISPATCH_LEVEL);
+    }
+
+    ASSERT(MmPfnOwner == KeGetCurrentThread());
+    MmPfnOwner = NULL;
+
+    KeReleaseQueuedSpinLock(LockQueuePfnLock, OldIrql);
+    ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
+}
 
 FORCEINLINE
 KIRQL
