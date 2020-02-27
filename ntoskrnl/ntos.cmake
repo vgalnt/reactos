@@ -213,6 +213,7 @@ list(APPEND SOURCE
     ${REACTOS_SOURCE_DIR}/ntoskrnl/mm/ARM3/section.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/mm/ARM3/session.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/mm/ARM3/special.c
+    ${REACTOS_SOURCE_DIR}/ntoskrnl/mm/ARM3/syscache.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/mm/ARM3/sysldr.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/mm/ARM3/syspte.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/mm/ARM3/vadnode.c
