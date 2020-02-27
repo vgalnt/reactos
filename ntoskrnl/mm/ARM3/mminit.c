@@ -1641,6 +1641,10 @@ MmArmInitSystem(IN ULONG Phase,
     PMMPTE PointerPte, TestPte;
     MMPTE TempPte;
 #endif
+    ULONG SystemCacheSizeInPages;
+#if defined(_X86_)
+    ULONG BiasPages;
+#endif
 
     /* Dump memory descriptors */
     if (MiDbgEnableMdDump) MiDbgDumpMemoryDescriptors();
@@ -1716,6 +1720,29 @@ MmArmInitSystem(IN ULONG Phase,
 
         /* Set the based section highest address */
         MmHighSectionBase = (PVOID)((ULONG_PTR)MmHighestUserAddress - 0x800000);
+
+        /* Calculate size of system cache */
+        SystemCacheSizeInPages = ((ULONG_PTR)MI_PAGED_POOL_START -
+                                  (ULONG_PTR)MmSystemCacheStart) / PAGE_SIZE;
+
+#if defined(_X86_)
+        if (MmSizeOfPagedPoolInBytes == (SIZE_T)(-1) && MmVirtualBias == 0)
+        {
+            /* The registry has requested the maximum possible size of the paged pool.
+               Increase paged pool size due to the size of the system cache.
+            */
+            BiasPages = (SystemCacheSizeInPages / 3 + (PTE_PER_PAGE - 1)) & ~(PTE_PER_PAGE - 1);
+            SystemCacheSizeInPages -= BiasPages;
+            MmPagedPoolStart = (PVOID)((ULONG_PTR)MmPagedPoolStart - (BiasPages * PAGE_SIZE));
+        }
+
+        /* Setting variables if enabled bias */
+        if (MmVirtualBias)
+        {
+            /* Not yet implemented. FIXME. */
+            ASSERT(MmVirtualBias == 0);
+        }        
+#endif
 
 #if DBG
         /* Prototype PTEs are assumed to be in paged pool, so check if the math works */
