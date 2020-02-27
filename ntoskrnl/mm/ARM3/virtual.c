@@ -9,7 +9,7 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 #define MODULE_INVOLVED_IN_ARM3
@@ -398,6 +398,8 @@ MiDeletePte(IN PMMPTE PointerPte,
     PFN_NUMBER PageFrameIndex;
     PMMPDE PointerPde;
 
+    DPRINT("MiDeletePte: Pte %p [%p], Va %p, Proto %p [%p], CurrentProcess %p\n", PointerPte, (PointerPte?PointerPte->u.Long:0), VirtualAddress, PrototypePte, (PrototypePte?PrototypePte->u.Long:0), CurrentProcess);
+
     /* PFN lock must be held */
     MI_ASSERT_PFN_LOCK_HELD();
 
@@ -548,6 +550,8 @@ MiDeleteVirtualAddresses(IN ULONG_PTR Va,
     KIRQL OldIrql;
     BOOLEAN AddressGap = FALSE;
     PSUBSECTION Subsection;
+
+    DPRINT("MiDeleteVirtualAddresses: Va %p, EndingAddress %p, Vad %p\n", Va, EndingAddress, Vad);
 
     /* Get out if this is a fake VAD, RosMm will free the marea pages */
     if ((Vad) && (Vad->u.VadFlags.Spare == 1)) return;
@@ -1651,6 +1655,9 @@ MiQueryMemoryBasicInformation(IN HANDLE ProcessHandle,
     PMEMORY_AREA MemoryArea;
     SIZE_T ResultLength;
 
+    DPRINT("MiQueryMemoryBasicInformation: BaseAddress %p\n", BaseAddress);
+    ASSERT(FALSE);
+
     /* Check for illegal addresses in user-space, or the shared memory area */
     if ((BaseAddress > MM_HIGHEST_VAD_ADDRESS) ||
         (PAGE_ALIGN(BaseAddress) == (PVOID)MM_SHARED_USER_DATA_VA))
@@ -2060,6 +2067,8 @@ MiRosProtectVirtualMemory(IN PEPROCESS Process,
     ULONG OldAccessProtection_;
     NTSTATUS Status;
 
+    ASSERT(0);
+
     *NumberOfBytesToProtect = PAGE_ROUND_UP((ULONG_PTR)(*BaseAddress) + (*NumberOfBytesToProtect)) - PAGE_ROUND_DOWN(*BaseAddress);
     *BaseAddress = (PVOID)PAGE_ROUND_DOWN(*BaseAddress);
 
@@ -2108,6 +2117,8 @@ MiProtectVirtualMemory(IN PEPROCESS Process,
     NTSTATUS Status = STATUS_SUCCESS;
     PETHREAD Thread = PsGetCurrentThread();
     TABLE_SEARCH_RESULT Result;
+
+    ASSERT(0);
 
     /* Calculate base address for the VAD */
     StartingAddress = (ULONG_PTR)PAGE_ALIGN((*BaseAddress));
@@ -4391,6 +4402,8 @@ NtAllocateVirtualMemory(IN HANDLE ProcessHandle,
     TABLE_SEARCH_RESULT Result;
     PAGED_CODE();
 
+    ASSERT(0);
+
     /* Check for valid Zero bits */
     if (ZeroBits > MI_MAX_ZERO_BITS)
     {
@@ -5107,6 +5120,8 @@ NtFreeVirtualMemory(IN HANDLE ProcessHandle,
     KAPC_STATE ApcState;
     BOOLEAN Attached = FALSE;
     PAGED_CODE();
+
+    ASSERT(0);
 
     //
     // Only two flags are supported, exclusively.

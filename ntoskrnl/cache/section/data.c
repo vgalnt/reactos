@@ -326,6 +326,7 @@ MmCreateCacheSection(PROS_SECTION_OBJECT *SectionObject,
     KIRQL OldIrql;
 
     DPRINT("MmCreateDataFileSection\n");
+    ASSERT(FALSE);
 
     /* Create the section */
     Status = ObCreateObject(ExGetPreviousMode(),
@@ -761,7 +762,9 @@ MmExtendCacheSection(PROS_SECTION_OBJECT Section,
 {
     LARGE_INTEGER OldSize;
     PMM_SECTION_SEGMENT Segment = Section->Segment;
+
     DPRINT("Extend Segment %p\n", Segment);
+    ASSERT(FALSE);
 
     MmLockSectionSegment(Segment);
     OldSize.QuadPart = Segment->RawLength.QuadPart;

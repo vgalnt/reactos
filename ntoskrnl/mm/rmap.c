@@ -65,6 +65,8 @@ MmPageOutPhysicalAddress(PFN_NUMBER Page)
     ULONGLONG Offset;
     NTSTATUS Status = STATUS_SUCCESS;
 
+    ASSERT(FALSE);
+
     ExAcquireFastMutex(&RmapListLock);
     entry = MmGetRmapListHeadPage(Page);
 

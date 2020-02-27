@@ -9,7 +9,7 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 #define MODULE_INVOLVED_IN_ARM3
@@ -119,6 +119,8 @@ MiIsProtectionCompatible(IN ULONG SectionPageProtection,
 {
     ULONG ProtectionMask, CompatibleMask;
 
+    ASSERT(FALSE);
+
     /* Calculate the protection mask and make sure it's valid */
     ProtectionMask = MiMakeProtectionMask(SectionPageProtection);
     if (ProtectionMask == MM_INVALID_PROTECTION)
@@ -141,6 +143,8 @@ MiArm3GetCorrectFileAccessMask(IN ACCESS_MASK SectionPageProtection)
 {
     ULONG ProtectionMask;
 
+    ASSERT(FALSE);
+
     /* Calculate the protection mask and make sure it's valid */
     ProtectionMask = MiMakeProtectionMask(SectionPageProtection);
     if (ProtectionMask == MM_INVALID_PROTECTION)
@@ -158,6 +162,8 @@ NTAPI
 MiMakeProtectionMask(IN ULONG Protect)
 {
     ULONG Mask1, Mask2, ProtectMask;
+
+    ASSERT(FALSE);
 
     /* PAGE_EXECUTE_WRITECOMBINE is theoretically the maximum */
     if (Protect >= (PAGE_WRITECOMBINE * 2)) return MM_INVALID_PROTECTION;
@@ -243,6 +249,8 @@ MiInitializeSystemSpaceMap(IN PMMSESSION InputSession OPTIONAL)
     PVOID ViewStart;
     PMMSESSION Session;
 
+    ASSERT(FALSE);
+
     /* Check if this a session or system space */
     if (InputSession)
     {
@@ -311,6 +319,8 @@ MiInsertInSystemSpace(IN PMMSESSION Session,
     ULONG Entry, Hash, i, HashSize;
     PMMVIEW OldTable;
     PAGED_CODE();
+
+    ASSERT(FALSE);
 
     /* Stay within 4GB */
     ASSERT(Buckets < MI_SYSTEM_VIEW_BUCKET_SIZE);
@@ -422,6 +432,8 @@ MiAddMappedPtes(IN PMMPTE FirstPte,
     PMMPTE PointerPte, ProtoPte, LastProtoPte, LastPte;
     PSUBSECTION Subsection;
 
+    ASSERT(FALSE);
+
     /* ARM3 doesn't support this yet */
     ASSERT(ControlArea->u.Flags.GlobalOnlyPerSession == 0);
     ASSERT(ControlArea->u.Flags.Rom == 0);
@@ -481,6 +493,8 @@ MiFillSystemPageDirectory(IN PVOID Base,
     PFN_NUMBER PageFrameIndex, ParentPage;
     KIRQL OldIrql;
     PAGED_CODE();
+
+    ASSERT(FALSE);
 
     /* Find the PDEs needed for this mapping */
     PointerPde = MiAddressToPde(Base);
@@ -546,6 +560,8 @@ MiCheckPurgeAndUpMapCount(IN PCONTROL_AREA ControlArea,
 {
     KIRQL OldIrql;
 
+    ASSERT(FALSE);
+
     /* Flag not yet supported */
     ASSERT(FailIfSystemViews == FALSE);
 
@@ -573,6 +589,8 @@ MiLocateSubsection(IN PMMVAD Vad,
     PSUBSECTION Subsection;
     PCONTROL_AREA ControlArea;
     ULONG_PTR PteOffset;
+
+    ASSERT(FALSE);
 
     /* Get the control area */
     ControlArea = Vad->ControlArea;
@@ -612,6 +630,8 @@ MiSegmentDelete(IN PSEGMENT Segment)
     PFN_NUMBER PageFrameIndex;
     MMPTE TempPte;
     KIRQL OldIrql;
+
+    ASSERT(FALSE);
 
     /* Capture data */
     SegmentFlags = Segment->SegmentFlags;
@@ -731,6 +751,8 @@ MiCheckControlArea(IN PCONTROL_AREA ControlArea,
     BOOLEAN DeleteSegment = FALSE;
     MI_ASSERT_PFN_LOCK_HELD();
 
+    ASSERT(FALSE);
+
     /* Check if this is the last reference or view */
     if (!(ControlArea->NumberOfMappedViews) &&
         !(ControlArea->NumberOfSectionReferences))
@@ -764,6 +786,8 @@ MiDereferenceControlArea(IN PCONTROL_AREA ControlArea)
 {
     KIRQL OldIrql;
 
+    ASSERT(FALSE);
+
     /* Lock the PFN database */
     OldIrql = MiAcquirePfnLock();
 
@@ -783,6 +807,8 @@ MiRemoveMappedView(IN PEPROCESS CurrentProcess,
     KIRQL OldIrql;
     PCONTROL_AREA ControlArea;
     PETHREAD CurrentThread = PsGetCurrentThread();
+
+    ASSERT(FALSE);
 
     /* Get the control area */
     ControlArea = Vad->ControlArea;
@@ -828,6 +854,8 @@ MiUnmapViewOfSection(IN PEPROCESS Process,
     PETHREAD CurrentThread = PsGetCurrentThread();
     PEPROCESS CurrentProcess = PsGetCurrentProcess();
     PAGED_CODE();
+
+    ASSERT(FALSE);
 
     /* Check for Mm Region */
     MemoryArea = MmLocateMemoryAreaByAddress(&Process->Vm, BaseAddress);
@@ -941,6 +969,8 @@ MiSessionCommitPageTables(IN PVOID StartVa,
     MMPDE TempPde = ValidKernelPdeLocal;
     PMMPFN Pfn1;
     PFN_NUMBER PageCount = 0, ActualPages = 0, PageFrameNumber;
+
+    ASSERT(FALSE);
 
     /* Windows sanity checks */
     ASSERT(StartVa >= (PVOID)MmSessionBase);
@@ -1060,6 +1090,8 @@ MiMapViewInSystemSpace(IN PVOID Section,
     NTSTATUS Status;
     PAGED_CODE();
 
+    ASSERT(FALSE);
+
     /* Get the control area, check for any flags ARM3 doesn't yet support */
     ControlArea = ((PSECTION)Section)->Segment->ControlArea;
     ASSERT(ControlArea->u.Flags.Image == 0);
@@ -1143,6 +1175,8 @@ MiSetControlAreaSymbolsLoaded(IN PCONTROL_AREA ControlArea)
 {
     KIRQL OldIrql;
 
+    ASSERT(FALSE);
+
     ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
 
     OldIrql = MiAcquirePfnLock();
@@ -1165,6 +1199,8 @@ MiLoadUserSymbols(IN PCONTROL_AREA ControlArea,
     PUNICODE_STRING FileName;
     PIMAGE_NT_HEADERS NtHeaders;
     PLDR_DATA_TABLE_ENTRY LdrEntry;
+
+    ASSERT(FALSE);
 
     FileName = &ControlArea->FilePointer->FileName;
     if (FileName->Length == 0)
@@ -1274,6 +1310,8 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
     ULONG Granularity = MM_VIRTMEM_GRANULARITY;
 
     DPRINT("Mapping ARM3 data section\n");
+
+    ASSERT(FALSE);
 
     /* Get the segment for this section */
     Segment = ControlArea->Segment;
@@ -1477,6 +1515,8 @@ VOID
 NTAPI
 MiSubsectionConsistent(IN PSUBSECTION Subsection)
 {
+    ASSERT(FALSE);
+
     /* ReactOS only supports systems with 4K pages and 4K sectors */
     ASSERT(Subsection->u.SubsectionFlags.SectorEndOffset == 0);
 
@@ -1520,6 +1560,8 @@ MiCreatePagingFileMap(OUT PSEGMENT *Segment,
     PSEGMENT NewSegment;
     PSUBSECTION Subsection;
     PAGED_CODE();
+
+    ASSERT(FALSE);
 
     /* No large pages in ARM3 yet */
     ASSERT((AllocationAttributes & SEC_LARGE_PAGES) == 0);
@@ -1622,6 +1664,8 @@ MiGetFileObjectForSectionAddress(
     PMMVAD Vad;
     PCONTROL_AREA ControlArea;
 
+    ASSERT(FALSE);
+
     /* Get the VAD */
     Vad = MiLocateAddress(Address);
     if (Vad == NULL)
@@ -1684,6 +1728,8 @@ MmGetFileObjectForSection(IN PVOID SectionObject)
     ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
     ASSERT(SectionObject != NULL);
 
+    ASSERT(FALSE);
+
     /* Check if it's an ARM3, or ReactOS section */
     if (MiIsRosSectionObject(SectionObject) == FALSE)
     {
@@ -1703,6 +1749,8 @@ MiGetFileObjectForVad(
 {
     PCONTROL_AREA ControlArea;
     PFILE_OBJECT FileObject;
+
+    ASSERT(FALSE);
 
     /* Check if this is a RosMm memory area */
     if (Vad->u.VadFlags.Spare != 0)
@@ -1755,6 +1803,8 @@ MmGetImageInformation (OUT PSECTION_IMAGE_INFORMATION ImageInformation)
 {
     PSECTION_OBJECT SectionObject;
 
+    ASSERT(FALSE);
+
     /* Get the section object of this process*/
     SectionObject = PsGetCurrentProcess()->SectionObject;
     ASSERT(SectionObject != NULL);
@@ -1772,6 +1822,8 @@ MmGetFileNameForFileObject(IN PFILE_OBJECT FileObject,
     POBJECT_NAME_INFORMATION ObjectNameInfo;
     NTSTATUS Status;
     ULONG ReturnLength;
+
+    ASSERT(FALSE);
 
     /* Allocate memory for our structure */
     ObjectNameInfo = ExAllocatePoolWithTag(PagedPool, 1024, TAG_MM);
@@ -1802,6 +1854,8 @@ MmGetFileNameForSection(IN PVOID Section,
                         OUT POBJECT_NAME_INFORMATION *ModuleName)
 {
     PFILE_OBJECT FileObject;
+
+    ASSERT(FALSE);
 
     /* Make sure it's an image section */
     if (MiIsRosSectionObject(Section) == FALSE)
@@ -1836,6 +1890,8 @@ MmGetFileNameForAddress(IN PVOID Address,
     NTSTATUS Status;
     PMMVAD Vad;
     PFILE_OBJECT FileObject = NULL;
+
+    ASSERT(FALSE);
 
     /* Lock address space */
     AddressSpace = MmGetCurrentAddressSpace();
@@ -1901,6 +1957,8 @@ MiQueryMemorySectionName(IN HANDLE ProcessHandle,
     PMEMORY_SECTION_NAME SectionName = NULL;
     KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
 
+    ASSERT(FALSE);
+
     Status = ObReferenceObjectByHandle(ProcessHandle,
                                        PROCESS_QUERY_INFORMATION,
                                        NULL,
@@ -1965,6 +2023,8 @@ MiFlushTbAndCapture(IN PMMVAD FoundVad,
     MMPTE TempPte, PreviousPte;
     KIRQL OldIrql;
     BOOLEAN RebuildPte = FALSE;
+
+    ASSERT(FALSE);
 
     //
     // User for sanity checking later on
@@ -2076,6 +2136,8 @@ MiSetProtectionOnSection(IN PEPROCESS Process,
     ULONG ProtectionMask, QuotaCharge = 0;
     PETHREAD Thread = PsGetCurrentThread();
     PAGED_CODE();
+
+    ASSERT(FALSE);
 
     //
     // Tell caller nothing is being locked
@@ -2241,6 +2303,8 @@ MiRemoveMappedPtes(IN PVOID BaseAddress,
     KIRQL OldIrql;
     DPRINT("Removing mapped view at: 0x%p\n", BaseAddress);
 
+    ASSERT(FALSE);
+
     ASSERT(Ws == NULL);
 
     /* Get the PTE and loop each one */
@@ -2339,6 +2403,8 @@ MiRemoveFromSystemSpace(IN PMMSESSION Session,
     ULONG_PTR Entry;
     PAGED_CODE();
 
+    ASSERT(FALSE);
+
     /* Compute the hash for this entry and loop trying to find it */
     Entry = (ULONG_PTR)Base >> 16;
     Hash = Entry % Session->SystemSpaceHashKey;
@@ -2381,6 +2447,8 @@ MiUnmapViewInSystemSpace(IN PMMSESSION Session,
     ULONG Size;
     PCONTROL_AREA ControlArea;
     PAGED_CODE();
+
+    ASSERT(FALSE);
 
     /* Remove this mapping */
     KeAcquireGuardedMutex(Session->SystemSpaceViewLockPointer);
@@ -2431,6 +2499,8 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
     PFILE_OBJECT File;
     BOOLEAN UserRefIncremented = FALSE;
     PVOID PreviousSectionPointer;
+
+    ASSERT(FALSE);
 
     /* Make the same sanity checks that the Nt interface should've validated */
     ASSERT((AllocationAttributes & ~(SEC_COMMIT | SEC_RESERVE | SEC_BASED |
@@ -2852,6 +2922,8 @@ MmMapViewOfArm3Section(IN PVOID SectionObject,
     ULONG64 CalculatedViewSize;
     PAGED_CODE();
 
+    ASSERT(FALSE);
+
     /* Get the segment and control area */
     Section = (PSECTION)SectionObject;
     ControlArea = Section->Segment->ControlArea;
@@ -2996,6 +3068,8 @@ MmMapViewInSessionSpace(IN PVOID Section,
 {
     PAGED_CODE();
 
+    ASSERT(FALSE);
+
     // HACK
     if (MiIsRosSectionObject(Section))
     {
@@ -3026,6 +3100,8 @@ MmUnmapViewInSessionSpace(IN PVOID MappedBase)
 {
     PAGED_CODE();
 
+    ASSERT(FALSE);
+
     // HACK
     if (!MI_IS_SESSION_ADDRESS(MappedBase))
     {
@@ -3053,6 +3129,7 @@ NTAPI
 MmUnmapViewOfSection(IN PEPROCESS Process,
                      IN PVOID BaseAddress)
 {
+    ASSERT(FALSE);
     return MiUnmapViewOfSection(Process, BaseAddress, 0);
 }
 
@@ -3065,6 +3142,8 @@ MmUnmapViewInSystemSpace(IN PVOID MappedBase)
 {
     PMEMORY_AREA MemoryArea;
     PAGED_CODE();
+
+    ASSERT(FALSE);
 
     /* Was this mapped by RosMm? */
     MemoryArea = MmLocateMemoryAreaByAddress(MmGetKernelAddressSpace(), MappedBase);
@@ -3094,6 +3173,8 @@ MmCommitSessionMappedView(IN PVOID MappedBase,
     PSUBSECTION Subsection;
     MMPTE TempPte;
     PAGED_CODE();
+
+    ASSERT(FALSE);
 
     /* Make sure the base isn't past the session view range */
     if ((MappedBase < MiSessionViewStart) ||
@@ -3251,6 +3332,8 @@ MiDeleteARM3Section(PVOID ObjectBody)
     PCONTROL_AREA ControlArea;
     KIRQL OldIrql;
 
+    ASSERT(FALSE);
+
     SectionObject = (PSECTION)ObjectBody;
 
     if (SectionObject->u.Flags.Based == 1)
@@ -3298,6 +3381,8 @@ NtAreMappedFilesTheSame(IN PVOID File1MappedAsAnImage,
     PMMVAD Vad1, Vad2;
     PFILE_OBJECT FileObject1, FileObject2;
     NTSTATUS Status;
+
+    ASSERT(FALSE);
 
     /* Lock address space */
     AddressSpace = MmGetCurrentAddressSpace();
@@ -3384,6 +3469,8 @@ NtCreateSection(OUT PHANDLE SectionHandle,
     KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
     NTSTATUS Status;
     PAGED_CODE();
+
+    ASSERT(FALSE);
 
     /* Check for non-existing flags */
     if ((AllocationAttributes & ~(SEC_COMMIT | SEC_RESERVE | SEC_BASED |
@@ -3507,6 +3594,8 @@ NtOpenSection(OUT PHANDLE SectionHandle,
     KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
     PAGED_CODE();
 
+    ASSERT(FALSE);
+
     /* Check for user-mode caller */
     if (PreviousMode != KernelMode)
     {
@@ -3578,6 +3667,8 @@ NtMapViewOfSection(IN HANDLE SectionHandle,
     static const ULONG ValidAllocationType = (MEM_TOP_DOWN | MEM_LARGE_PAGES |
             SEC_NO_CHANGE | MEM_RESERVE);
 #endif
+
+    ASSERT(FALSE);
 
     /* Check for invalid inherit disposition */
     if ((InheritDisposition > ViewUnmap) || (InheritDisposition < ViewShare))
@@ -3786,6 +3877,8 @@ NtUnmapViewOfSection(IN HANDLE ProcessHandle,
     NTSTATUS Status;
     KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
 
+    ASSERT(FALSE);
+
     /* Don't allowing mapping kernel views */
     if ((PreviousMode == UserMode) && (BaseAddress > MM_HIGHEST_USER_ADDRESS))
     {
@@ -3819,6 +3912,8 @@ NtExtendSection(IN HANDLE SectionHandle,
     PROS_SECTION_OBJECT Section;
     NTSTATUS Status;
     KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
+
+    ASSERT(FALSE);
 
     /* Check for user-mode parameters */
     if (PreviousMode != KernelMode)

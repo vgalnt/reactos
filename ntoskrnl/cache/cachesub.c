@@ -314,6 +314,8 @@ CcShutdownSystem(VOID)
 
     DPRINT1("CC: Shutdown\n");
 
+    ASSERT(FALSE);
+
     for (i = 0; i < CACHE_NUM_SECTIONS; i++)
     {
         PNOCC_BCB Bcb = &CcCacheSections[i];

@@ -10,7 +10,7 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 #define MODULE_INVOLVED_IN_ARM3
@@ -132,6 +132,8 @@ MiInsertNode(IN PMM_AVL_TABLE Table,
 {
     PMMVAD_LONG Vad;
 
+    ASSERT(FALSE);
+
     /* Insert it into the tree */
     RtlpInsertAvlTreeNode(Table, NewNode, Parent, Result);
 
@@ -186,6 +188,8 @@ MiInsertVad(IN PMMVAD Vad,
     TABLE_SEARCH_RESULT Result;
     PMMADDRESS_NODE Parent = NULL;
 
+    DPRINT("MiInsertVad: ... \n");
+
     /* Validate the VAD and set it as the current hint */
     ASSERT(Vad->EndingVpn >= Vad->StartingVpn);
     VadRoot->NodeHint = Vad;
@@ -214,6 +218,8 @@ MiInsertVadEx(
     PETHREAD CurrentThread;
     TABLE_SEARCH_RESULT Result;
     PMMADDRESS_NODE Parent;
+
+    ASSERT(FALSE);
 
     /* Align the view size to pages */
     ViewSize = ALIGN_UP_BY(ViewSize, PAGE_SIZE);
@@ -348,6 +354,8 @@ MiInsertBasedSection(IN PSECTION Section)
     PMMADDRESS_NODE Parent = NULL;
     ASSERT(Section->Address.EndingVpn >= Section->Address.StartingVpn);
 
+    DPRINT("MiInsertBasedSection: ... \n");
+
     /* Find the parent VAD and where this child should be inserted */
     Result = RtlpFindAvlTableNodeOrParent(&MmSectionBasedRoot, (PVOID)Section->Address.StartingVpn, &Parent);
     ASSERT(Result != TableFoundNode);
@@ -361,6 +369,8 @@ MiRemoveNode(IN PMMADDRESS_NODE Node,
              IN PMM_AVL_TABLE Table)
 {
     PMMVAD_LONG Vad;
+
+    ASSERT(FALSE);
 
     /* Call the AVL code */
     RtlpDeleteAvlTreeNode(Table, Node);
@@ -509,6 +519,8 @@ MiFindEmptyAddressRangeInTree(IN SIZE_T Length,
     ULONG_PTR PageCount, AlignmentVpn, LowVpn, HighestVpn;
     ASSERT(Length != 0);
 
+    ASSERT(FALSE);
+
     /* Calculate page numbers for the length, alignment, and starting address */
     PageCount = BYTES_TO_PAGES(Length);
     AlignmentVpn = Alignment >> PAGE_SHIFT;
@@ -604,6 +616,8 @@ MiFindEmptyAddressRangeDownTree(IN SIZE_T Length,
     PMMADDRESS_NODE Node, OldNode = NULL, Child;
     ULONG_PTR LowVpn, HighVpn, AlignmentVpn;
     PFN_NUMBER PageCount;
+
+    ASSERT(FALSE);
 
     /* Sanity checks */
     ASSERT(BoundaryAddress);
@@ -718,6 +732,8 @@ MiFindEmptyAddressRangeDownBasedTree(IN SIZE_T Length,
 {
     PMMADDRESS_NODE Node, LowestNode;
     ULONG_PTR LowVpn, BestVpn;
+
+    ASSERT(FALSE);
 
     /* Sanity checks */
     ASSERT(Table == &MmSectionBasedRoot);

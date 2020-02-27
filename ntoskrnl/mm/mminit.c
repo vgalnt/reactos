@@ -219,7 +219,7 @@ MmInitSystem(IN ULONG Phase,
     MmKernelAddressSpace = &PsIdleProcess->Vm;
 
     /* Intialize system memory areas */
-    MiInitSystemMemoryAreas();
+    //MiInitSystemMemoryAreas();
 
     /* Dump the address space */
     MiDbgDumpAddressSpace();

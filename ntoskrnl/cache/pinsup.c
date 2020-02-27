@@ -159,6 +159,7 @@ CcpAllocateSection(PFILE_OBJECT FileObject,
 
     DPRINT("Making Section for File %x\n", FileObject);
     DPRINT("File name %wZ\n", &FileObject->FileName);
+    ASSERT(FALSE);
 
     Status = MmCreateSection((PVOID*)Result,
                              STANDARD_RIGHTS_REQUIRED,
@@ -231,6 +232,7 @@ CcpDereferenceCache(ULONG Start,
     PWORK_QUEUE_WITH_CONTEXT WorkItem;
 
     DPRINT("CcpDereferenceCache(#%x)\n", Start);
+    ASSERT(FALSE);
 
     Bcb = &CcCacheSections[Start];
 
@@ -325,6 +327,7 @@ CcpAllocateCacheSections(PFILE_OBJECT FileObject,
     PNOCC_BCB Bcb;
 
     DPRINT("AllocateCacheSections: FileObject %x\n", FileObject);
+    ASSERT(FALSE);
 
     if (!FileObject->SectionObjectPointer)
         return INVALID_CACHE;
@@ -489,6 +492,9 @@ CcpMapData(IN PFILE_OBJECT FileObject,
     NTSTATUS Status;
     PNOCC_CACHE_MAP Map = (PNOCC_CACHE_MAP)FileObject->SectionObjectPointer->SharedCacheMap;
     ViewSize = CACHE_STRIPE;
+
+    ASSERT(FALSE);
+
 
     if (!Map)
     {

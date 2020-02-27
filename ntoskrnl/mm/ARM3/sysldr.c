@@ -10,7 +10,7 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 #define MODULE_INVOLVED_IN_ARM3
@@ -102,6 +102,9 @@ MiLoadImageSection(IN OUT PVOID *SectionPtr,
     KIRQL OldIrql;
     PFN_NUMBER PageFrameIndex;
     PAGED_CODE();
+
+    DPRINT1("MiLoadImageSection: Section %p, FileName %wZ\n", *SectionPtr, FileName);
+    ASSERT(FALSE);
 
     /* Detect session load */
     if (SessionLoad)
@@ -2607,7 +2610,13 @@ MiEnablePagingOfDriver(IN PLDR_DATA_TABLE_ENTRY LdrEntry)
     ULONG Sections, Alignment, Size;
     PIMAGE_SECTION_HEADER Section;
     PMMPTE PointerPte = NULL, LastPte = NULL;
-    if (MmDisablePagingExecutive) return;
+
+    DPRINT("MiEnablePagingOfDriver: ... \n");
+    if (MmDisablePagingExecutive)
+    {
+        DPRINT1("MiEnablePagingOfDriver: MmDisablePagingExecutive ... return.\n");
+        return;
+    }
 
     /* Get the driver base address and its NT header */
     ImageBase = (ULONG_PTR)LdrEntry->DllBase;
@@ -2827,7 +2836,10 @@ MmLoadSystemImage(IN PUNICODE_STRING FileName,
     PLIST_ENTRY NextEntry;
     IMAGE_INFO ImageInfo;
     STRING AnsiTemp;
+
     PAGED_CODE();
+    DPRINT("MmLoadSystemImage: FileName - %wZ, NamePrefix - %wZ, LoadedName - %wZ, Flags - %X\n", FileName, NamePrefix, LoadedName, Flags);
+    ASSERT(FALSE);
 
     /* Detect session-load */
     if (Flags)

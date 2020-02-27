@@ -896,6 +896,8 @@ MmInitializeProcessAddressSpace(IN PEPROCESS Process,
     USHORT Length = 0;
     MMPTE TempPte;
 
+    ASSERT(FALSE);
+
     /* We should have a PDE */
     ASSERT(Process->Pcb.DirectoryTableBase[0] != 0);
     ASSERT(Process->PdeUpdateNeeded == FALSE);

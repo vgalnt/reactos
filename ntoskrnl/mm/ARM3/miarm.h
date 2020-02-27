@@ -1120,6 +1120,7 @@ BOOLEAN
 MiIsRosSectionObject(IN PVOID Section)
 {
     PROS_SECTION_OBJECT RosSection = Section;
+    ASSERT(FALSE);
     if ((RosSection->Type == 'SC') && (RosSection->Size == 'TN')) return TRUE;
     return FALSE;
 }

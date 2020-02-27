@@ -29,6 +29,7 @@ MmpAccessFault(KPROCESSOR_MODE Mode,
     NTSTATUS Status;
 
     DPRINT("MmAccessFault(Mode %d, Address %x)\n", Mode, Address);
+    ASSERT(FALSE);
 
     if (KeGetCurrentIrql() >= DISPATCH_LEVEL)
     {
@@ -116,6 +117,7 @@ MmNotPresentFault(KPROCESSOR_MODE Mode,
     NTSTATUS Status;
 
     DPRINT("MmNotPresentFault(Mode %d, Address %x)\n", Mode, Address);
+    ASSERT(FALSE);
 
     if (KeGetCurrentIrql() >= DISPATCH_LEVEL)
     {
@@ -207,6 +209,8 @@ MmAccessFault(IN ULONG FaultCode,
               IN PVOID TrapInformation)
 {
     PMEMORY_AREA MemoryArea = NULL;
+
+    ASSERT(FALSE);
 
     /* Cute little hack for ROS */
     if ((ULONG_PTR)Address >= (ULONG_PTR)MmSystemRangeStart)

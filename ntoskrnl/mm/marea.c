@@ -69,6 +69,8 @@ MmLocateMemoryAreaByAddress(
     TABLE_SEARCH_RESULT Result;
     PMMVAD_LONG Vad;
 
+    ASSERT(FALSE);
+
     Process = MmGetAddressSpaceOwner(AddressSpace);
     Table = (Process != NULL) ? &Process->VadRoot : &MiRosKernelVadRoot;
 
@@ -116,6 +118,8 @@ MmLocateMemoryAreaByRegion(
     PMEMORY_AREA MemoryArea;
     TABLE_SEARCH_RESULT Result;
     PMMVAD_LONG Vad;
+
+    ASSERT(FALSE);
 
     Process = MmGetAddressSpaceOwner(AddressSpace);
     Table = (Process != NULL) ? &Process->VadRoot : &MiRosKernelVadRoot;
@@ -169,6 +173,8 @@ MmInsertMemoryArea(
 {
     PEPROCESS Process = MmGetAddressSpaceOwner(AddressSpace);
 
+    ASSERT(FALSE);
+
     marea->VadNode.u.VadFlags.Spare = 1;
     marea->VadNode.u.VadFlags.Protection = MiMakeProtectionMask(marea->Protect);
 
@@ -218,6 +224,8 @@ MmFindGap(
     TABLE_SEARCH_RESULT Result;
     PMMADDRESS_NODE Parent;
     ULONG_PTR StartingAddress, HighestAddress;
+
+    ASSERT(FALSE);
 
     Process = MmGetAddressSpaceOwner(AddressSpace);
     VadRoot = Process ? &Process->VadRoot : &MiRosKernelVadRoot;
@@ -283,6 +291,8 @@ MmFreeMemoryArea(
 {
     ULONG_PTR Address;
     PVOID EndAddress;
+
+    ASSERT(FALSE);
 
     /* Make sure we own the address space lock! */
     ASSERT(CONTAINING_RECORD(AddressSpace, EPROCESS, Vm)->AddressCreationLock.Owner == KeGetCurrentThread());
@@ -426,6 +436,8 @@ MmCreateMemoryArea(PMMSUPPORT AddressSpace,
            Type, BaseAddress, *BaseAddress, Length, AllocationFlags,
            Result);
 
+    ASSERT(FALSE);
+
     /* Is this a static memory area? */
     if (Type & MEMORY_AREA_STATIC)
     {
@@ -527,6 +539,8 @@ MiRosCleanupMemoryArea(
     PVOID BaseAddress;
     NTSTATUS Status;
 
+    ASSERT(FALSE);
+
     /* We must be called from MmCleanupAddressSpace and nowhere else!
        Make sure things are as expected... */
     ASSERT(Process == PsGetCurrentProcess());
@@ -577,6 +591,8 @@ MmDeleteProcessAddressSpace(PEPROCESS Process)
 
     DPRINT("MmDeleteProcessAddressSpace(Process %p (%s))\n", Process,
            Process->ImageFileName);
+
+    ASSERT(FALSE);
 
 #ifndef _M_AMD64
     OldIrql = MiAcquireExpansionLock();
