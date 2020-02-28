@@ -11,7 +11,7 @@
 
 #include <ntoskrnl.h>
 #include <reactos/buildno.h>
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 /* This is the size that we can expect from the win 2003 loader */
@@ -219,6 +219,8 @@ ExpInitNls(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     ULONG NlsTablesEncountered = 0;
     SIZE_T NlsTableSizes[3] = {0, 0, 0}; /* 3 NLS tables */
 
+    DPRINT("ExpInitNls: ExpNlsTableBase %p\n", ExpNlsTableBase);
+
     /* Check if this is boot-time phase 0 initialization */
     if (!ExpInitializationPhase)
     {
@@ -394,6 +396,8 @@ ExpLoadInitialProcess(IN PINIT_BUFFER InitBuffer,
     PVOID EnvironmentPtr = NULL;
     PRTL_USER_PROCESS_INFORMATION ProcessInformation;
     PRTL_USER_PROCESS_PARAMETERS ProcessParams = NULL;
+
+    DPRINT("ExpLoadInitialProcess: InitBuffer %p\n", InitBuffer);
 
     NullString.Length = sizeof(WCHAR);
 
@@ -931,6 +935,8 @@ ExpInitializeExecutive(IN ULONG Cpu,
     PCHAR RcEnd = NULL;
     CHAR VersionBuffer[65];
 
+    DPRINT("ExpInitializeExecutive: Cpu %X\n", Cpu);
+
     /* Validate Loader */
     if (!ExpIsLoaderValid(LoaderBlock))
     {
@@ -1043,6 +1049,7 @@ ExpInitializeExecutive(IN ULONG Cpu,
     RtlResetRtlTranslations(&ExpNlsTableInfo);
 
     /* Now initialize the HAL */
+    DPRINT("HalInitSystem: ExpInitializationPhase %X\n", ExpInitializationPhase);
     if (!HalInitSystem(ExpInitializationPhase, LoaderBlock))
     {
         /* HAL failed to initialize, bugcheck */
@@ -1097,6 +1104,7 @@ ExpInitializeExecutive(IN ULONG Cpu,
     if (!ExInitSystem()) KeBugCheck(PHASE0_INITIALIZATION_FAILED);
 
     /* Initialize the memory manager at phase 0 */
+    DPRINT("ExpInitializeExecutive: Initialize the memory manager at phase 0\n");
     if (!MmArmInitSystem(0, LoaderBlock)) KeBugCheck(PHASE0_INITIALIZATION_FAILED);
 
     /* Load boot symbols */
@@ -1122,6 +1130,7 @@ ExpInitializeExecutive(IN ULONG Cpu,
 #endif
 
     /* Make a copy of the NLS Tables */
+    DPRINT("ExpInitializeExecutive: Make a copy of the NLS Tables\n");
     ExpInitNls(LoaderBlock);
 
     /* Get the kernel's load entry */
@@ -1306,9 +1315,11 @@ ExpInitializeExecutive(IN ULONG Cpu,
     if (!SeInitSystem()) KeBugCheck(SECURITY_INITIALIZATION_FAILED);
 
     /* Initialize the Process Manager */
+    DPRINT("ExpInitializeExecutive: Initialize the Process Manager\n");
     if (!PsInitSystem(LoaderBlock)) KeBugCheck(PROCESS_INITIALIZATION_FAILED);
 
     /* Initialize the PnP Manager */
+    DPRINT("ExpInitializeExecutive: Initialize the PnP Manager\n");
     if (!PpInitSystem()) KeBugCheck(PP0_INITIALIZATION_FAILED);
 
     /* Initialize the User-Mode Debugging Subsystem */
@@ -1357,6 +1368,8 @@ Phase1InitializationDiscard(IN PVOID Context)
     HANDLE KeyHandle, OptionHandle;
     PRTL_USER_PROCESS_PARAMETERS ProcessParameters = NULL;
 
+    DPRINT("Phase1InitializationDiscard: LoaderBlock %p\n",LoaderBlock);
+
     /* Allocate the initialization buffer */
     InitBuffer = ExAllocatePoolWithTag(NonPagedPool,
                                        sizeof(INIT_BUFFER),
@@ -1374,6 +1387,7 @@ Phase1InitializationDiscard(IN PVOID Context)
     KeSetPriorityThread(KeGetCurrentThread(), HIGH_PRIORITY);
 
     /* Do Phase 1 HAL Initialization */
+    DPRINT("Phase1InitializationDiscard: Do Phase 1 HAL Init\n");
     if (!HalInitSystem(1, LoaderBlock)) KeBugCheck(HAL1_INITIALIZATION_FAILED);
 
     /* Get the command line and upcase it */
@@ -1386,6 +1400,7 @@ Phase1InitializationDiscard(IN PVOID Context)
     SosEnabled = (CommandLine && strstr(CommandLine, "SOS") != NULL);
 
     /* Setup the boot driver */
+    DPRINT("Phase1InitializationDiscard: Setup the boot driver\n");
     InbvEnableBootDriver(!NoGuiBoot);
     InbvDriverInitialize(LoaderBlock, IDB_MAX_RESOURCE);
 
@@ -1411,6 +1426,7 @@ Phase1InitializationDiscard(IN PVOID Context)
         /* Setup WinPE Settings */
         InitIsWinPEMode = TRUE;
         InitWinPEModeType |= (strstr(CommandLine, "INRAM") != NULL) ? 0x80000000 : 0x00000001;
+        DPRINT1("InitWinPEModeType %X\n", InitWinPEModeType);
     }
 
     /* Get the kernel's load entry */
@@ -1503,6 +1519,7 @@ Phase1InitializationDiscard(IN PVOID Context)
     InbvDisplayString(EndBuffer);
 
     /* Initialize Power Subsystem in Phase 0 */
+    DPRINT("Phase1InitializationDiscard: Initialize Power Subsystem in Phase 0\n");
     if (!PoInitSystem(0)) KeBugCheck(INTERNAL_POWER_ERROR);
 
     /* Check for Y2K hack */
@@ -1557,6 +1574,7 @@ Phase1InitializationDiscard(IN PVOID Context)
     }
 
     /* Initialize all processors */
+    DPRINT("Phase1InitializationDiscard: Initialize all processors\n");
     if (!HalAllProcessorsStarted()) KeBugCheck(HAL1_INITIALIZATION_FAILED);
 
 #ifdef CONFIG_SMP
@@ -1642,18 +1660,23 @@ Phase1InitializationDiscard(IN PVOID Context)
     }
 
     /* Set up Region Maps, Sections and the Paging File */
+    DPRINT("Phase1InitializationDiscard: Set up Region Maps, Sections and the Paging File\n");
     if (!MmInitSystem(1, LoaderBlock)) KeBugCheck(MEMORY1_INITIALIZATION_FAILED);
 
     /* Create NLS section */
+    DPRINT("Phase1InitializationDiscard: Create NLS section\n");
     ExpInitNls(LoaderBlock);
 
     /* Initialize Cache Views */
+    DPRINT("Phase1InitializationDiscard: Initialize Cache Views\n");
     if (!CcInitializeCacheManager()) KeBugCheck(CACHE_INITIALIZATION_FAILED);
 
     /* Initialize the Registry */
+    DPRINT("Phase1InitializationDiscard: Initialize the Registry\n");
     if (!CmInitSystem1()) KeBugCheck(CONFIG_INITIALIZATION_FAILED);
 
     /* Initialize Prefetcher */
+    DPRINT("Phase1InitializationDiscard: CcPfInitializePrefetcher\n");
     CcPfInitializePrefetcher();
 
     /* Update progress bar */
@@ -1681,24 +1704,29 @@ Phase1InitializationDiscard(IN PVOID Context)
     }
 
     /* Initialize the File System Runtime Library */
+    DPRINT("Phase1InitializationDiscard: Initialize the File System Runtime Library\n");
     if (!FsRtlInitSystem()) KeBugCheck(FILE_INITIALIZATION_FAILED);
 
     /* Initialize range lists */
     RtlInitializeRangeListPackage();
 
     /* Report all resources used by HAL */
+    DPRINT("Phase1InitializationDiscard: Report all resources used by HAL\n");
     HalReportResourceUsage();
 
     /* Call the debugger DLL */
+    DPRINT("Phase1InitializationDiscard: Call the debugger DLL\n");
     KdDebuggerInitialize1(LoaderBlock);
 
     /* Setup PnP Manager in phase 1 */
+    DPRINT("Phase1InitializationDiscard: Setup PnP Manager in phase 1\n");
     if (!PpInitSystem()) KeBugCheck(PP1_INITIALIZATION_FAILED);
 
     /* Update progress bar */
     InbvUpdateProgressBar(20);
 
     /* Initialize LPC */
+    DPRINT("Phase1InitializationDiscard: Initialize LPC\n");
     if (!LpcInitSystem()) KeBugCheck(LPC_INITIALIZATION_FAILED);
 
     /* Make sure we have a command line */
@@ -1796,12 +1824,14 @@ Phase1InitializationDiscard(IN PVOID Context)
     KdpTimeSlipPending = 0;
 
     /* Initialize in-place execution support */
+    DPRINT("Phase1InitializationDiscard: Initialize in-place execution support\n");
     XIPInit(LoaderBlock);
 
     /* Set maximum update to 75% */
     InbvSetProgressBarSubset(25, 75);
 
     /* Initialize the I/O Subsystem */
+    DPRINT("Phase1InitializationDiscard: Initialize the I/O Subsystem\n");
     if (!IoInitSystem(LoaderBlock)) KeBugCheck(IO1_INITIALIZATION_FAILED);
 
     /* Set maximum update to 100% */
@@ -1932,6 +1962,7 @@ Phase1InitializationDiscard(IN PVOID Context)
     }
 
     /* FIXME: This doesn't do anything for now */
+    DPRINT("Phase1InitializationDiscard: Initialize MmArmInitSystem 2\n");
     MmArmInitSystem(2, LoaderBlock);
 
     /* Update progress bar */
@@ -1943,12 +1974,14 @@ Phase1InitializationDiscard(IN PVOID Context)
 #endif
 
     /* Initialize Power Subsystem in Phase 1*/
+    DPRINT("Phase1InitializationDiscard: Initialize Power Subsystem in Phase 1\n");
     if (!PoInitSystem(1)) KeBugCheck(INTERNAL_POWER_ERROR);
 
     /* Update progress bar */
     InbvUpdateProgressBar(90);
 
     /* Initialize the Process Manager at Phase 1 */
+    DPRINT("Phase1InitializationDiscard: Initialize the Process Manager at Phase 1\n");
     if (!PsInitSystem(LoaderBlock)) KeBugCheck(PROCESS1_INITIALIZATION_FAILED);
 
     /* Make sure nobody touches the loader block again */
@@ -1957,6 +1990,7 @@ Phase1InitializationDiscard(IN PVOID Context)
     LoaderBlock = Context = NULL;
 
     /* Initialize the SRM in phase 1 */
+    DPRINT("Phase1InitializationDiscard: Initialize the SRM in phase 1\n");
     if (!SeRmInitPhase1()) KeBugCheck(PROCESS1_INITIALIZATION_FAILED);
 
     /* Update progress bar */
@@ -1969,13 +2003,15 @@ Phase1InitializationDiscard(IN PVOID Context)
     InbvEnableDisplayString(TRUE);
 
     /* Launch initial process */
-    DPRINT("Free non-cache pages: %lx\n", MmAvailablePages + MiMemoryConsumers[MC_CACHE].PagesUsed);
+    DPRINT("Phase1Initialization: Free non-cache pages %lx\n", MmAvailablePages + MiMemoryConsumers[MC_CACHE].PagesUsed);
     ProcessInfo = &InitBuffer->ProcessInfo;
     ExpLoadInitialProcess(InitBuffer, &ProcessParameters, &Environment);
 
     /* Wait 5 seconds for initial process to initialize */
+    DPRINT("Phase1Initialization: Wait 5 seconds for initial process to initialize\n");
     Timeout.QuadPart = Int32x32To64(5, -10000000);
     Status = ZwWaitForSingleObject(ProcessInfo->ProcessHandle, FALSE, &Timeout);
+    DPRINT("Phase1Initialization: Status %X\n", Status);
     if (Status == STATUS_SUCCESS)
     {
         /* Failed, display error */
@@ -2008,7 +2044,7 @@ Phase1InitializationDiscard(IN PVOID Context)
 
     /* Free the boot buffer */
     ExFreePoolWithTag(InitBuffer, TAG_INIT);
-    DPRINT("Free non-cache pages: %lx\n", MmAvailablePages + MiMemoryConsumers[MC_CACHE].PagesUsed);
+    DPRINT("Phase1Initialization: Free non-cache pages %lx\n", MmAvailablePages + MiMemoryConsumers[MC_CACHE].PagesUsed);
 }
 
 VOID
@@ -2019,5 +2055,6 @@ Phase1Initialization(IN PVOID Context)
     Phase1InitializationDiscard(Context);
 
     /* Jump into zero page thread */
+    DPRINT("Phase1Initialization: Jump into zero page thread\n");
     MmZeroPageThread();
 }

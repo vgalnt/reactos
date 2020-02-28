@@ -2577,7 +2577,7 @@ IopCreateFile(OUT PHANDLE FileHandle,
     PAGED_CODE();
 
     IOTRACE(IO_FILE_DEBUG, "FileName: %wZ\n", ObjectAttributes->ObjectName);
-
+    DPRINT1("IopCreateFile: FileName '%wZ'\n", ObjectAttributes->ObjectName);
 
     /* Check if we have no parameter checking to do */
     if (Options & IO_NO_PARAMETER_CHECKING)
@@ -2968,6 +2968,7 @@ IopCreateFile(OUT PHANDLE FileHandle,
         ObDereferenceObject(OpenPacket->FileObject);
     }
 
+    DPRINT1("IopCreateFile: FileName '%wZ', Status %X, FileObject %p\n", ObjectAttributes->ObjectName, Status, (OpenPacket->FileObject?OpenPacket->FileObject:0));
     /* Return status */
     ExFreePool(OpenPacket);
     return Status;

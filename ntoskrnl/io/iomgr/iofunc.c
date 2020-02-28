@@ -2687,7 +2687,8 @@ NtReadFile(IN HANDLE FileHandle,
 
     PAGED_CODE();
     CapturedByteOffset.QuadPart = 0;
-    IOTRACE(IO_API_DEBUG, "FileHandle: %p\n", FileHandle);
+    //IOTRACE(IO_API_DEBUG, "FileHandle: %p\n", FileHandle);
+    DPRINT1("NtReadFile: FileHandle %p, Buffer %p\n", FileHandle, Buffer);
 
     /* Get File Object */
     Status = ObReferenceObjectByHandle(FileHandle,
