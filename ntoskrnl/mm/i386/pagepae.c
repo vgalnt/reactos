@@ -10,7 +10,7 @@
 /* INCLUDES ***************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 #if defined (ALLOC_PRAGMA)
@@ -1537,6 +1537,17 @@ MmInitGlobalKernelPageDirectory(VOID)
          }
       }
    }
+}
+
+BOOLEAN
+NTAPI
+MmCreateProcessAddressSpace(IN ULONG MinWs,
+                            IN PEPROCESS Process,
+                            OUT PULONG_PTR DirectoryTableBase)
+{
+    DPRINT1("MmCreateProcessAddressSpace: MinWs %X, Process %p\n", MinWs, Process);
+    UNIMPLEMENTED_DBGBREAK("For PAE not yet supported!\n");
+    return TRUE;
 }
 
 /* EOF */
