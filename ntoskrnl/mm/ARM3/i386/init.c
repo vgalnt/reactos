@@ -588,7 +588,7 @@ MiBuildPfnDatabaseFromLoaderBlock(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                 Pfn1 = MiGetPfnEntry(PageFrameIndex);
 
                 /* Lock the PFN Database */
-                OldIrql = MiAcquirePfnLock();
+                OldIrql = MiLockPfnDb(APC_LEVEL);
                 while (PageCount--)
                 {
                     /* If the page really has no references, mark it as free */
@@ -605,7 +605,7 @@ MiBuildPfnDatabaseFromLoaderBlock(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                 }
 
                 /* Release PFN database */
-                MiReleasePfnLock(OldIrql);
+                MiUnlockPfnDb(OldIrql, APC_LEVEL);
 
                 /* Done with this block */
                 break;
@@ -966,7 +966,7 @@ MiInitMachineDependent(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     StartPde = MiAddressToPde(HYPER_SPACE);
 
     /* Lock PFN database */
-    OldIrql = MiAcquirePfnLock();
+    OldIrql = MiLockPfnDb(APC_LEVEL);
 
     /* Allocate a page for hyperspace and create it */
     MI_SET_USAGE(MI_USAGE_PAGE_TABLE);
@@ -980,7 +980,7 @@ MiInitMachineDependent(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     KeFlushCurrentTb();
 
     /* Release the lock */
-    MiReleasePfnLock(OldIrql);
+    MiUnlockPfnDb(OldIrql, APC_LEVEL);
 
     //
     // Zero out the page table now
@@ -997,6 +997,9 @@ MiInitMachineDependent(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 
     /* Set the working set address */
     MmWorkingSetList = (PVOID)MI_WORKING_SET_LIST;
+#if (_MI_PAGING_LEVELS >= 3)
+    DPRINT1("MiInitMachineDependent: FIXME! struct _MMWSL definition for PAE\n");
+#endif
 
     //
     // Reserve system PTEs for zeroing PTEs and clear them
@@ -1011,7 +1014,7 @@ MiInitMachineDependent(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     MiFirstReservedZeroingPte->u.Hard.PageFrameNumber = MI_ZERO_PTES - 1;
 
     /* Lock PFN database */
-    OldIrql = MiAcquirePfnLock();
+    OldIrql = MiLockPfnDb(APC_LEVEL);
 
     /* Reset the ref/share count so that MmInitializeProcessAddressSpace works */
     Pfn1 = MiGetPfnEntry(PFN_FROM_PTE(MiAddressToPde(PDE_BASE)));
@@ -1022,6 +1025,8 @@ MiInitMachineDependent(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     MI_SET_USAGE(MI_USAGE_PAGE_TABLE);
     MI_SET_PROCESS2("Kernel WS List");
     PageFrameIndex = MiRemoveAnyPage(0);
+    MiUnlockPfnDb(OldIrql, APC_LEVEL);
+
     TempPte = ValidKernelPteLocal;
     TempPte.u.Hard.PageFrameNumber = PageFrameIndex;
 
@@ -1033,6 +1038,22 @@ MiInitMachineDependent(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     RtlZeroMemory(MiPteToAddress(PointerPte), PAGE_SIZE);
     PsGetCurrentProcess()->WorkingSetPage = PageFrameIndex;
 
+    /* Map the VAD bitmap */
+    PointerPte = MiAddressToPte(MI_VAD_BITMAP);
+
+    /* Lock PFN database */
+    OldIrql = MiLockPfnDb(APC_LEVEL);
+    PageFrameIndex = MiRemoveAnyPage(0);
+    MiUnlockPfnDb(OldIrql, APC_LEVEL);
+
+    TempPte = ValidKernelPteLocal;
+    TempPte.u.Hard.PageFrameNumber = PageFrameIndex;
+    MI_WRITE_VALID_PTE(PointerPte, TempPte);
+
+    /* Zero it out, and save maximal bit index */
+    RtlZeroMemory(MI_VAD_BITMAP, PAGE_SIZE);
+    MiLastVadBit = (ULONG_PTR)MM_HIGHEST_VAD_ADDRESS / (64 * 1024); // 64KB
+
     /* Check for Pentium LOCK errata */
     if (KiI386PentiumLockErrataPresent)
     {
@@ -1042,9 +1063,6 @@ MiInitMachineDependent(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
         PointerPte = MiAddressToPte(KeGetPcr()->IDT);
         PointerPte->u.Hard.WriteThrough = 1;
     }
-
-    /* Release the lock */
-    MiReleasePfnLock(OldIrql);
 
     /* Initialize the bogus address space */
     Flags = 0;

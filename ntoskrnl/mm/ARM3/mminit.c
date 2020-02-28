@@ -405,6 +405,9 @@ PKTHREAD MmPfnOwner;
 /* Hack! It relation with MmLargeSystemCache FIXME */
 ULONG MiMaximumSystemCacheSizeExtra = 0;
 
+/* The maximal index in a Vad bitmap array (MI_VAD_BITMAP). */
+ULONG MiLastVadBit = 1;
+
 /* PRIVATE FUNCTIONS **********************************************************/
 
 VOID

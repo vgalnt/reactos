@@ -655,6 +655,7 @@ extern PETHREAD MiExpansionLockOwner;
 extern PFN_NUMBER MmSystemPageDirectory[PD_COUNT];
 extern PMMPDE MmSystemPagePtes;
 #endif
+extern ULONG MiLastVadBit;
 
 FORCEINLINE
 BOOLEAN
@@ -1126,6 +1127,9 @@ MiIsRosSectionObject(IN PVOID Section)
 }
 
 #define MI_IS_ROS_PFN(x)     ((x)->u4.AweAllocation == TRUE)
+
+#define MiGetPteContents(PointerPte) \
+    (ULONGLONG)((PointerPte) != NULL ? ((PointerPte)->u.Long) : (0))
 
 VOID
 NTAPI
