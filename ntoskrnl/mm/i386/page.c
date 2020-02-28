@@ -899,6 +899,8 @@ MmCreateProcessAddressSpace(IN ULONG MinWs,
     ULONG Color;
     PMMPFN Pfn1;
 
+    DPRINT("MmCreateProcessAddressSpace: MinWs %X, Process %p\n", MinWs, Process);
+
     /* Choose a process color */
     Process->NextPageColor = (USHORT)RtlRandom(&MmProcessColorSeed);
 
@@ -937,6 +939,9 @@ MmCreateProcessAddressSpace(IN ULONG MinWs,
         MiZeroPhysicalPage(HyperIndex);
         OldIrql = MiAcquirePfnLock();
     }
+
+    DPRINT1("MmCreateProcessAddressSpace: FIXME! Add zero page for MI_VAD_BITMAP (%p)\n", MI_VAD_BITMAP);
+    ASSERT(FALSE);
 
     /* Get a zero page for the woring set list, if possible */
     MI_SET_USAGE(MI_USAGE_PAGE_TABLE);
