@@ -249,7 +249,7 @@ MiInitializeSystemSpaceMap(IN PMMSESSION InputSession OPTIONAL)
     PVOID ViewStart;
     PMMSESSION Session;
 
-    ASSERT(FALSE);
+    DPRINT("MiInitializeSystemSpaceMap: InputSession %p\n", InputSession);
 
     /* Check if this a session or system space */
     if (InputSession)

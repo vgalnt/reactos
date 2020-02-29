@@ -199,6 +199,8 @@ MmNotPresentFault(KPROCESSOR_MODE Mode,
     return(Status);
 }
 
+#if 0
+
 extern BOOLEAN Mmi386MakeKernelPageTableGlobal(PVOID Address);
 
 NTSTATUS
@@ -268,3 +270,4 @@ MmAccessFault(IN ULONG FaultCode,
     }
 }
 
+#endif

@@ -9,7 +9,7 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 #define MODULE_INVOLVED_IN_ARM3
@@ -603,9 +603,8 @@ MiResolveDemandZeroFault(IN PVOID Address,
     BOOLEAN NeedZero = FALSE, HaveLock = FALSE;
     ULONG Color;
     PMMPFN Pfn1;
-    DPRINT("ARM3 Demand Zero Page Fault Handler for address: %p in process: %p\n",
-            Address,
-            Process);
+
+    DPRINT("MiResolveDemandZeroFault: Address %p, Pte %p [%I64X], Protection %p, Process %p, OldIrql %X\n", Address, PointerPte, MiGetPteContents(PointerPte), Protection, Process, OldIrql);
 
     /* Must currently only be called by paging path */
     if ((Process > HYDRA_PROCESS) && (OldIrql == MM_NOIRQL))
@@ -748,7 +747,7 @@ MiResolveDemandZeroFault(IN PVOID Address,
     //
     // It's all good now
     //
-    DPRINT("Demand zero page has now been paged in\n");
+    DPRINT("MiResolveDemandZeroFault: Demand zero page has now been paged in\n");
     return STATUS_PAGE_FAULT_DEMAND_ZERO;
 }
 
@@ -1311,9 +1310,8 @@ MiDispatchFault(IN ULONG FaultCode,
     PMMPFN Pfn1, OutPfn = NULL;
     PFN_NUMBER PageFrameIndex;
     PFN_COUNT PteCount, ProcessedPtes;
-    DPRINT("ARM3 Page Fault Dispatcher for address: %p in process: %p\n",
-             Address,
-             Process);
+
+    DPRINT("MiDispatchFault: FaultCode %X, Address %p, Pte %p [%p], Proto %p [%I64X], Recursive %X, Process %p, TrapInfo %p, Vad %p\n", FaultCode, Address, PointerPte, PointerPte->u.Long, PointerProtoPte, MiGetPteContents(PointerProtoPte), Recursive, Process, TrapInformation, Vad);
 
     /* Make sure the addresses are ok */
     ASSERT(PointerPte == MiAddressToPte(Address));
@@ -1645,12 +1643,14 @@ MiDispatchFault(IN ULONG FaultCode,
     return STATUS_ACCESS_VIOLATION;
 }
 
+extern BOOLEAN Mmi386MakeKernelPageTableGlobal(PVOID Address);
+
 NTSTATUS
 NTAPI
-MmArmAccessFault(IN ULONG FaultCode,
-                 IN PVOID Address,
-                 IN KPROCESSOR_MODE Mode,
-                 IN PVOID TrapInformation)
+MmAccessFault(IN ULONG FaultCode,
+              IN PVOID Address,
+              IN KPROCESSOR_MODE Mode,
+              IN PVOID TrapInformation)
 {
     KIRQL OldIrql = KeGetCurrentIrql(), LockIrql;
     PMMPTE ProtoPte = NULL;
@@ -1673,7 +1673,21 @@ MmArmAccessFault(IN ULONG FaultCode,
     ULONG Color;
     BOOLEAN IsSessionAddress;
     PMMPFN Pfn1;
-    DPRINT("ARM3 FAULT AT: %p\n", Address);
+
+    DPRINT("MmAccessFault: Code %X, Address %p, Pde %p [%p], Pte %p [%p], Mode %X, TrapInfo %p\n", FaultCode, Address, PointerPde, PointerPde->u.Long, PointerPte, PointerPte->u.Long, Mode, TrapInformation);
+
+    /* Cute little hack for ROS */
+    if ((ULONG_PTR)Address >= (ULONG_PTR)MmSystemRangeStart)
+    {
+#ifdef _M_IX86
+        /* Check for an invalid page directory in kernel mode */
+        if (Mmi386MakeKernelPageTableGlobal(Address))
+        {
+            /* All is well with the world */
+            ASSERT(0);return STATUS_SUCCESS;
+        }
+#endif
+    }
 
     /* Check for page fault on high IRQL */
     if (OldIrql > APC_LEVEL)
@@ -2064,7 +2078,7 @@ _WARN("Session space stuff is not implemented yet!")
         KeLowerIrql(LockIrql);
 
         /* We are done! */
-        DPRINT("Fault resolved with status: %lx\n", Status);
+        DPRINT("MmAccessFault: Fault resolved with status: %lx\n", Status);
         return Status;
     }
 
