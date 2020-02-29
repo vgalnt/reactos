@@ -648,6 +648,8 @@ extern PVOID MmHighSectionBase;
 extern SIZE_T MmSystemLockPagesCount;
 extern ULONG_PTR MmSubsectionBase;
 extern LARGE_INTEGER MmCriticalSectionTimeout;
+extern LARGE_INTEGER MmHalfSecond;
+extern LARGE_INTEGER MmShortTime;
 extern LIST_ENTRY MmWorkingSetExpansionHead;
 extern KSPIN_LOCK MmExpansionLock;
 extern PETHREAD MiExpansionLockOwner;

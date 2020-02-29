@@ -3464,30 +3464,31 @@ NtCreateSection(OUT PHANDLE SectionHandle,
                 IN HANDLE FileHandle OPTIONAL)
 {
     LARGE_INTEGER SafeMaximumSize;
-    PVOID SectionObject;
+    PSECTION SectionObject;
     HANDLE Handle;
     KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
+    PCONTROL_AREA ControlArea;
+    PFILE_OBJECT FileObject;
+    ULONG MaximumRetry = 3;
+    ULONG ix;
     NTSTATUS Status;
-    PAGED_CODE();
 
-    ASSERT(FALSE);
+    PAGED_CODE();
+    DPRINT("NtCreateSection: Access %X, ObjAttributes %X, MaximumSize %p [%I64X], Protection %X, AllocAttributes %X, FileHandle %p\n",
+           DesiredAccess, ObjectAttributes, MaximumSize, (MaximumSize ? MaximumSize->QuadPart : 0), SectionPageProtection, AllocationAttributes, FileHandle);
 
     /* Check for non-existing flags */
-    if ((AllocationAttributes & ~(SEC_COMMIT | SEC_RESERVE | SEC_BASED |
-                                  SEC_LARGE_PAGES | SEC_IMAGE | SEC_NOCACHE |
-                                  SEC_NO_CHANGE)))
+    if (AllocationAttributes & ~(SEC_COMMIT | SEC_RESERVE | SEC_BASED |
+                                 SEC_LARGE_PAGES | SEC_IMAGE | SEC_NOCACHE |
+                                 SEC_NO_CHANGE))
     {
-        if (!(AllocationAttributes & 1))
-        {
-            DPRINT1("Bogus allocation attribute: %lx\n", AllocationAttributes);
-            return STATUS_INVALID_PARAMETER_6;
-        }
+        DPRINT1("NtCreateSection: Bogus allocation attribute %X\n", AllocationAttributes);
+        return STATUS_INVALID_PARAMETER_6;
     }
-
     /* Check for no allocation type */
     if (!(AllocationAttributes & (SEC_COMMIT | SEC_RESERVE | SEC_IMAGE)))
     {
-        DPRINT1("Missing allocation type in allocation attributes\n");
+        DPRINT1("NtCreateSection: Missing allocation type in allocation attributes\n");
         return STATUS_INVALID_PARAMETER_6;
     }
 
@@ -3496,14 +3497,14 @@ NtCreateSection(OUT PHANDLE SectionHandle,
         (AllocationAttributes & (SEC_COMMIT | SEC_RESERVE | SEC_LARGE_PAGES |
                                  SEC_NOCACHE | SEC_NO_CHANGE)))
     {
-        DPRINT1("Image allocation with invalid attributes\n");
+        DPRINT1("NtCreateSection: Image allocation with invalid attributes\n");
         return STATUS_INVALID_PARAMETER_6;
     }
 
     /* Check for allocation type is both commit and reserve */
     if ((AllocationAttributes & SEC_COMMIT) && (AllocationAttributes & SEC_RESERVE))
     {
-        DPRINT1("Commit and reserve in the same time\n");
+        DPRINT1("NtCreateSection: Commit and reserve in the same time\n");
         return STATUS_INVALID_PARAMETER_6;
     }
 
@@ -3513,12 +3514,15 @@ NtCreateSection(OUT PHANDLE SectionHandle,
         (SectionPageProtection & PAGE_GUARD) ||
         (SectionPageProtection & PAGE_NOACCESS))
     {
-        DPRINT1("Sections don't support these protections\n");
+        DPRINT1("NtCreateSection: Sections don't support these protections\n");
         return STATUS_INVALID_PAGE_PROTECTION;
     }
 
     /* Use a maximum size of zero, if none was specified */
-    SafeMaximumSize.QuadPart = 0;
+    if (MaximumSize == NULL)
+    {
+        SafeMaximumSize.QuadPart = 0;
+    }
 
     /* Check for user-mode caller */
     if (PreviousMode != KernelMode)
@@ -3527,7 +3531,11 @@ NtCreateSection(OUT PHANDLE SectionHandle,
         _SEH2_TRY
         {
             /* Safely check user-mode parameters */
-            if (MaximumSize) SafeMaximumSize = ProbeForReadLargeInteger(MaximumSize);
+            if (MaximumSize)
+            {
+                SafeMaximumSize = ProbeForReadLargeInteger(MaximumSize);
+            }
+
             MaximumSize = &SafeMaximumSize;
             ProbeForWriteHandle(SectionHandle);
         }
@@ -3538,24 +3546,56 @@ NtCreateSection(OUT PHANDLE SectionHandle,
         }
         _SEH2_END;
     }
-    else if (!MaximumSize) MaximumSize = &SafeMaximumSize;
+    else
+    {
+        if (MaximumSize)
+        {
+            SafeMaximumSize.QuadPart = MaximumSize->QuadPart;
+        }
+    }
 
-    /* Check that MaximumSize is valid if backed by paging file */
-    if ((!FileHandle) && (!MaximumSize->QuadPart))
-        return STATUS_INVALID_PARAMETER_4;
+    for (ix = 0; ; ix++)
+    {
+        ASSERT(KeGetCurrentIrql() < DISPATCH_LEVEL);
 
-    /* Create the section */
-    Status = MmCreateSection(&SectionObject,
-                             DesiredAccess,
-                             ObjectAttributes,
-                             MaximumSize,
-                             SectionPageProtection,
-                             AllocationAttributes,
-                             FileHandle,
-                             NULL);
-    if (!NT_SUCCESS(Status)) return Status;
+        /* Try create the section */
+        Status = MmCreateSection((PVOID *)&SectionObject,
+                                 DesiredAccess,
+                                 ObjectAttributes,
+                                 &SafeMaximumSize,
+                                 SectionPageProtection,
+                                 AllocationAttributes,
+                                 FileHandle,
+                                 NULL);
 
-    /* FIXME: Should zero last page for a file mapping */
+        ASSERT(KeGetCurrentIrql() < DISPATCH_LEVEL);
+
+        if (NT_SUCCESS(Status))
+        {
+            break;
+        }
+
+        if (Status == STATUS_FILE_LOCK_CONFLICT && ix < MaximumRetry)
+        {
+            DPRINT1("NtCreateSection: ix %X\n", ix);
+            KeDelayExecutionThread(KernelMode, FALSE, &MmHalfSecond);
+            continue;
+        }
+
+        DPRINT1("NtCreateSection: ix %X, Status %X\n", ix, Status);
+        return Status;
+    }
+
+    ControlArea = SectionObject->Segment->ControlArea;
+    if (ControlArea)
+    {
+        FileObject = ControlArea->FilePointer;
+        if (FileObject)
+        {
+            DPRINT1("NtCreateSection: FIXME CcZeroEndOfLastPage!\n");
+            //CcZeroEndOfLastPage(FileObject);
+        }
+    }
 
     /* Now insert the object */
     Status = ObInsertObject(SectionObject,
@@ -3564,20 +3604,23 @@ NtCreateSection(OUT PHANDLE SectionHandle,
                             0,
                             NULL,
                             &Handle);
-    if (NT_SUCCESS(Status))
+    if (!NT_SUCCESS(Status))
     {
-        /* Enter SEH */
-        _SEH2_TRY
-        {
-            /* Return the handle safely */
-            *SectionHandle = Handle;
-        }
-        _SEH2_EXCEPT(EXCEPTION_EXECUTE_HANDLER)
-        {
-            /* Nothing here */
-        }
-        _SEH2_END;
+        DPRINT1("NtCreateSection: Status %X\n", Status);
+        return Status;
     }
+
+    /* Enter SEH */
+    _SEH2_TRY
+    {
+        /* Return the handle safely */
+        *SectionHandle = Handle;
+    }
+    _SEH2_EXCEPT(EXCEPTION_EXECUTE_HANDLER)
+    {
+        /* Nothing here */
+    }
+    _SEH2_END;
 
     /* Return the status */
     return Status;

@@ -386,6 +386,8 @@ PFN_NUMBER MiNumberOfFreePages = 0;
 /* Timeout value for critical sections (2.5 minutes) */
 ULONG MmCritsectTimeoutSeconds = 150; // NT value: 720 * 60 * 60; (30 days)
 LARGE_INTEGER MmCriticalSectionTimeout;
+LARGE_INTEGER MmHalfSecond = {{(-500 * 10000), -1}}; // 0.5 second
+LARGE_INTEGER MmShortTime  = {{(-10 * 10000), -1}}; // 10 ms
 
 //
 // Throttling limits for Cc (in pages)
