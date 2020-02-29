@@ -205,6 +205,7 @@ MmInitSystem(IN ULONG Phase,
     PFN_NUMBER PageFrameNumber;
     PLIST_ENTRY ListEntry;
     PLDR_DATA_TABLE_ENTRY DataTableEntry;
+    NTSTATUS Status;
 
     /* Initialize the kernel address space */
     ASSERT(Phase == 1);
@@ -218,9 +219,6 @@ MmInitSystem(IN ULONG Phase,
 
     MmKernelAddressSpace = &PsIdleProcess->Vm;
 
-    /* Intialize system memory areas */
-    //MiInitSystemMemoryAreas();
-
     /* Dump the address space */
     MiDbgDumpAddressSpace();
 
@@ -228,7 +226,14 @@ MmInitSystem(IN ULONG Phase,
     MiInitializeUserPfnBitmap();
     MmInitializeMemoryConsumer(MC_USER, MmTrimUserMemory);
     MmInitializeRmapList();
-    MmInitSectionImplementation();
+
+    Status = MmInitSectionImplementation();
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("MmInitSystem: Status %X\n", Status);
+        return FALSE;
+    }
+
     MmInitPagingFile();
 
     //
