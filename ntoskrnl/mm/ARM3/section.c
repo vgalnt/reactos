@@ -429,7 +429,7 @@ MiAddMappedPtes(IN PMMPTE FirstPte,
                 IN PCONTROL_AREA ControlArea)
 {
     MMPTE TempPte;
-    PMMPTE PointerPte, ProtoPte, LastProtoPte, LastPte;
+    PMMPTE Pte, ProtoPte, LastProtoPte, LastPte;
     PSUBSECTION Subsection;
 
     ASSERT(FALSE);
@@ -449,7 +449,7 @@ MiAddMappedPtes(IN PMMPTE FirstPte,
     ASSERT(ControlArea->u.Flags.BeingPurged == 0);
 
     /* Get the PTEs for the actual mapping */
-    PointerPte = FirstPte;
+    Pte = FirstPte;
     LastPte = FirstPte + PteCount;
 
     /* Get the prototype PTEs that desribe the section mapping in the subsection */
@@ -458,7 +458,7 @@ MiAddMappedPtes(IN PMMPTE FirstPte,
     LastProtoPte = &Subsection->SubsectionBase[Subsection->PtesInSubsection];
 
     /* Loop the PTEs for the mapping */
-    while (PointerPte < LastPte)
+    while (Pte < LastPte)
     {
         /* We may have run out of prototype PTEs in this subsection */
         if (ProtoPte >= LastProtoPte)
@@ -468,14 +468,14 @@ MiAddMappedPtes(IN PMMPTE FirstPte,
         }
 
         /* The PTE should be completely clear */
-        ASSERT(PointerPte->u.Long == 0);
+        ASSERT(Pte->u.Long == 0);
 
         /* Build the prototype PTE and write it */
         MI_MAKE_PROTOTYPE_PTE(&TempPte, ProtoPte);
-        MI_WRITE_INVALID_PTE(PointerPte, TempPte);
+        MI_WRITE_INVALID_PTE(Pte, TempPte);
 
         /* Keep going */
-        PointerPte++;
+        Pte++;
         ProtoPte++;
     }
 
@@ -488,7 +488,7 @@ NTAPI
 MiFillSystemPageDirectory(IN PVOID Base,
                           IN SIZE_T NumberOfBytes)
 {
-    PMMPDE PointerPde, LastPde, SystemMapPde;
+    PMMPDE Pde, LastPde, SystemMapPde;
     MMPDE TempPde;
     PFN_NUMBER PageFrameIndex, ParentPage;
     KIRQL OldIrql;
@@ -497,20 +497,20 @@ MiFillSystemPageDirectory(IN PVOID Base,
     ASSERT(FALSE);
 
     /* Find the PDEs needed for this mapping */
-    PointerPde = MiAddressToPde(Base);
+    Pde = MiAddressToPde(Base);
     LastPde = MiAddressToPde((PVOID)((ULONG_PTR)Base + NumberOfBytes - 1));
 
 #if (_MI_PAGING_LEVELS == 2)
     /* Find the system double-mapped PDE that describes this mapping */
-    SystemMapPde = &MmSystemPagePtes[MiGetPdeOffset(PointerPde)];
+    SystemMapPde = &MmSystemPagePtes[MiGetPdeOffset(Pde)];
 #else
     /* We don't have a double mapping */
-    SystemMapPde = PointerPde;
+    SystemMapPde = Pde;
 #endif
 
     /* Use the PDE template and loop the PDEs */
     TempPde = ValidKernelPde;
-    while (PointerPde <= LastPde)
+    while (Pde <= LastPde)
     {
         /* Lock the PFN database */
         OldIrql = MiAcquirePfnLock();
@@ -526,30 +526,30 @@ MiFillSystemPageDirectory(IN PVOID Base,
             TempPde.u.Hard.PageFrameNumber = PageFrameIndex;
 
 #if (_MI_PAGING_LEVELS == 2)
-            ParentPage = MmSystemPageDirectory[MiGetPdIndex(PointerPde)];
+            ParentPage = MmSystemPageDirectory[MiGetPdIndex(Pde)];
 #else
-            ParentPage = MiPdeToPpe(PointerPde)->u.Hard.PageFrameNumber;
+            ParentPage = MiPdeToPpe(Pde)->u.Hard.PageFrameNumber;
 #endif
             /* Initialize its PFN entry, with the parent system page directory page table */
             MiInitializePfnForOtherProcess(PageFrameIndex,
-                                           (PMMPTE)PointerPde,
+                                           (PMMPTE)Pde,
                                            ParentPage);
 
             /* Make the system PDE entry valid */
             MI_WRITE_VALID_PDE(SystemMapPde, TempPde);
 
             /* The system PDE entry might be the PDE itself, so check for this */
-            if (PointerPde->u.Hard.Valid == 0)
+            if (Pde->u.Hard.Valid == 0)
             {
                 /* It's different, so make the real PDE valid too */
-                MI_WRITE_VALID_PDE(PointerPde, TempPde);
+                MI_WRITE_VALID_PDE(Pde, TempPde);
             }
         }
 
         /* Release the lock and keep going with the next PDE */
         MiReleasePfnLock(OldIrql);
         SystemMapPde++;
-        PointerPde++;
+        Pde++;
     }
 }
 
@@ -625,7 +625,7 @@ MiSegmentDelete(IN PSEGMENT Segment)
     PCONTROL_AREA ControlArea;
     SEGMENT_FLAGS SegmentFlags;
     PSUBSECTION Subsection;
-    PMMPTE PointerPte, LastPte, PteForProto;
+    PMMPTE Pte, LastPte, PteForProto;
     PMMPFN Pfn1;
     PFN_NUMBER PageFrameIndex;
     MMPTE TempPte;
@@ -649,38 +649,38 @@ MiSegmentDelete(IN PSEGMENT Segment)
 
     /* Get the subsection and PTEs for this segment */
     Subsection = (PSUBSECTION)(ControlArea + 1);
-    PointerPte = Subsection->SubsectionBase;
-    LastPte = PointerPte + Segment->NonExtendedPtes;
+    Pte = Subsection->SubsectionBase;
+    LastPte = Pte + Segment->NonExtendedPtes;
 
     /* Lock the PFN database */
     OldIrql = MiAcquirePfnLock();
 
     /* Check if the master PTE is invalid */
-    PteForProto = MiAddressToPte(PointerPte);
+    PteForProto = MiAddressToPte(Pte);
     if (!PteForProto->u.Hard.Valid)
     {
         /* Fault it in */
-        MiMakeSystemAddressValidPfn(PointerPte, OldIrql);
+        MiMakeSystemAddressValidPfn(Pte, OldIrql);
     }
 
     /* Loop all the segment PTEs */
-    while (PointerPte < LastPte)
+    while (Pte < LastPte)
     {
         /* Check if it's time to switch master PTEs if we passed a PDE boundary */
-        if (MiIsPteOnPdeBoundary(PointerPte) &&
-            (PointerPte != Subsection->SubsectionBase))
+        if (MiIsPteOnPdeBoundary(Pte) &&
+            (Pte != Subsection->SubsectionBase))
         {
             /* Check if the master PTE is invalid */
-            PteForProto = MiAddressToPte(PointerPte);
+            PteForProto = MiAddressToPte(Pte);
             if (!PteForProto->u.Hard.Valid)
             {
                 /* Fault it in */
-                MiMakeSystemAddressValidPfn(PointerPte, OldIrql);
+                MiMakeSystemAddressValidPfn(Pte, OldIrql);
             }
         }
 
         /* This should be a prototype PTE */
-        TempPte = *PointerPte;
+        TempPte = *Pte;
         ASSERT(SegmentFlags.LargePages == 0);
         ASSERT(TempPte.u.Hard.Valid == 0);
 
@@ -696,7 +696,7 @@ MiSegmentDelete(IN PSEGMENT Segment)
             if (TempPte.u.Soft.Transition == 1)
             {
                 /* We can give the page back for other use */
-                DPRINT("Releasing page for transition PTE %p\n", PointerPte);
+                DPRINT("Releasing page for transition PTE %p\n", Pte);
                 PageFrameIndex = PFN_FROM_PTE(&TempPte);
                 Pfn1 = MI_PFN_ELEMENT(PageFrameIndex);
 
@@ -731,8 +731,8 @@ MiSegmentDelete(IN PSEGMENT Segment)
         }
 
         /* Zero the PTE and keep going */
-        PointerPte->u.Long = 0;
-        PointerPte++;
+        Pte->u.Long = 0;
+        Pte++;
     }
 
     /* Release the PFN lock */
@@ -1305,7 +1305,7 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
     PFN_NUMBER PteOffset;
     NTSTATUS Status;
     ULONG QuotaCharge = 0, QuotaExcess = 0;
-    PMMPTE PointerPte, LastPte;
+    PMMPTE Pte, LastPte;
     MMPTE TempPte;
     ULONG Granularity = MM_VIRTMEM_GRANULARITY;
 
@@ -1439,19 +1439,19 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
     if (QuotaCharge)
     {
         /* Set the start and end PTE addresses, and pick the template PTE */
-        PointerPte = Vad->FirstPrototypePte;
-        LastPte = PointerPte + BYTES_TO_PAGES(CommitSize);
+        Pte = Vad->FirstPrototypePte;
+        LastPte = Pte + BYTES_TO_PAGES(CommitSize);
         TempPte = Segment->SegmentPteTemplate;
 
         /* Acquire the commit lock and loop all prototype PTEs to be committed */
         KeAcquireGuardedMutex(&MmSectionCommitMutex);
-        while (PointerPte < LastPte)
+        while (Pte < LastPte)
         {
             /* Make sure the PTE is already invalid */
-            if (PointerPte->u.Long == 0)
+            if (Pte->u.Long == 0)
             {
                 /* And write the invalid PTE */
-                MI_WRITE_INVALID_PTE(PointerPte, TempPte);
+                MI_WRITE_INVALID_PTE(Pte, TempPte);
             }
             else
             {
@@ -1460,7 +1460,7 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
             }
 
             /* Move to the next PTE */
-            PointerPte++;
+            Pte++;
         }
 
         /* Now check how many pages exactly we committed, and update accounting */
@@ -1554,7 +1554,7 @@ MiCreatePagingFileMap(OUT PSEGMENT *Segment,
 {
     SIZE_T SizeLimit;
     PFN_COUNT PteCount;
-    PMMPTE PointerPte;
+    PMMPTE Pte;
     MMPTE TempPte;
     PCONTROL_AREA ControlArea;
     PSEGMENT NewSegment;
@@ -1618,9 +1618,9 @@ MiCreatePagingFileMap(OUT PSEGMENT *Segment,
     Subsection->u.SubsectionFlags.Protection = ProtectionMask;
 
     /* Zero out the segment's prototype PTEs, and link it with the control area */
-    PointerPte = &NewSegment->ThePtes[0];
+    Pte = &NewSegment->ThePtes[0];
     RtlZeroMemory(NewSegment, sizeof(SEGMENT));
-    NewSegment->PrototypePte = PointerPte;
+    NewSegment->PrototypePte = Pte;
     NewSegment->ControlArea = ControlArea;
 
     /* Save some extra accounting data for the segment as well */
@@ -1630,7 +1630,7 @@ MiCreatePagingFileMap(OUT PSEGMENT *Segment,
     NewSegment->NonExtendedPtes = PteCount;
 
     /* The subsection's base address is the first Prototype PTE in the segment */
-    Subsection->SubsectionBase = PointerPte;
+    Subsection->SubsectionBase = Pte;
 
     /* Start with an empty PTE, unless this is a commit operation */
     TempPte.u.Long = 0;
@@ -1648,9 +1648,9 @@ MiCreatePagingFileMap(OUT PSEGMENT *Segment,
 
     /* Write out the prototype PTEs, for now they're simply demand zero */
 #ifdef _WIN64
-    RtlFillMemoryUlonglong(PointerPte, PteCount * sizeof(MMPTE), TempPte.u.Long);
+    RtlFillMemoryUlonglong(Pte, PteCount * sizeof(MMPTE), TempPte.u.Long);
 #else
-    RtlFillMemoryUlong(PointerPte, PteCount * sizeof(MMPTE), TempPte.u.Long);
+    RtlFillMemoryUlong(Pte, PteCount * sizeof(MMPTE), TempPte.u.Long);
 #endif
     return STATUS_SUCCESS;
 }
@@ -2015,7 +2015,7 @@ MiQueryMemorySectionName(IN HANDLE ProcessHandle,
 VOID
 NTAPI
 MiFlushTbAndCapture(IN PMMVAD FoundVad,
-                    IN PMMPTE PointerPte,
+                    IN PMMPTE Pte,
                     IN ULONG ProtectionMask,
                     IN PMMPFN Pfn1,
                     IN BOOLEAN UpdateDirty)
@@ -2029,13 +2029,13 @@ MiFlushTbAndCapture(IN PMMVAD FoundVad,
     //
     // User for sanity checking later on
     //
-    PreviousPte = *PointerPte;
+    PreviousPte = *Pte;
 
     //
     // Build the PTE and acquire the PFN lock
     //
     MI_MAKE_HARDWARE_PTE_USER(&TempPte,
-                              PointerPte,
+                              Pte,
                               ProtectionMask,
                               PreviousPte.u.Hard.PageFrameNumber);
     OldIrql = MiAcquirePfnLock();
@@ -2076,7 +2076,7 @@ MiFlushTbAndCapture(IN PMMVAD FoundVad,
     if (RebuildPte)
     {
         MI_MAKE_HARDWARE_PTE_USER(&TempPte,
-                                  PointerPte,
+                                  Pte,
                                   ProtectionMask,
                                   PreviousPte.u.Hard.PageFrameNumber);
     }
@@ -2084,7 +2084,7 @@ MiFlushTbAndCapture(IN PMMVAD FoundVad,
     //
     // Write the new PTE, making sure we are only changing the bits
     //
-    MI_UPDATE_VALID_PTE(PointerPte, TempPte);
+    MI_UPDATE_VALID_PTE(Pte, TempPte);
 
     //
     // Flush the TLB
@@ -2129,9 +2129,9 @@ MiSetProtectionOnSection(IN PEPROCESS Process,
                          IN ULONG DontCharge,
                          OUT PULONG Locked)
 {
-    PMMPTE PointerPte, LastPte;
+    PMMPTE Pte, LastPte;
     MMPTE TempPte, PteContents;
-    PMMPDE PointerPde;
+    PMMPDE Pde;
     PMMPFN Pfn1;
     ULONG ProtectionMask, QuotaCharge = 0;
     PETHREAD Thread = PsGetCurrentThread();
@@ -2169,15 +2169,15 @@ MiSetProtectionOnSection(IN PEPROCESS Process,
     // Get the PTE and PDE for the address, as well as the final PTE
     //
     MiLockProcessWorkingSetUnsafe(Process, Thread);
-    PointerPde = MiAddressToPde(StartingAddress);
-    PointerPte = MiAddressToPte(StartingAddress);
+    Pde = MiAddressToPde(StartingAddress);
+    Pte = MiAddressToPte(StartingAddress);
     LastPte = MiAddressToPte(EndingAddress);
 
     //
     // Make the PDE valid, and check the status of the first PTE
     //
-    MiMakePdeExistAndMakeValid(PointerPde, Process, MM_NOIRQL);
-    if (PointerPte->u.Long)
+    MiMakePdeExistAndMakeValid(Pde, Process, MM_NOIRQL);
+    if (Pte->u.Long)
     {
         //
         // Not supported in ARM3
@@ -2187,8 +2187,8 @@ MiSetProtectionOnSection(IN PEPROCESS Process,
         //
         // Capture the page protection and make the PDE valid
         //
-        *CapturedOldProtect = MiGetPageProtection(PointerPte);
-        MiMakePdeExistAndMakeValid(PointerPde, Process, MM_NOIRQL);
+        *CapturedOldProtect = MiGetPageProtection(Pte);
+        MiMakePdeExistAndMakeValid(Pde, Process, MM_NOIRQL);
     }
     else
     {
@@ -2206,36 +2206,36 @@ MiSetProtectionOnSection(IN PEPROCESS Process,
     //
     // Loop all the PTEs now
     //
-    MiMakePdeExistAndMakeValid(PointerPde, Process, MM_NOIRQL);
-    while (PointerPte <= LastPte)
+    MiMakePdeExistAndMakeValid(Pde, Process, MM_NOIRQL);
+    while (Pte <= LastPte)
     {
         //
         // Check if we've crossed a PDE boundary and make the new PDE valid too
         //
-        if (MiIsPteOnPdeBoundary(PointerPte))
+        if (MiIsPteOnPdeBoundary(Pte))
         {
-            PointerPde = MiPteToPde(PointerPte);
-            MiMakePdeExistAndMakeValid(PointerPde, Process, MM_NOIRQL);
+            Pde = MiPteToPde(Pte);
+            MiMakePdeExistAndMakeValid(Pde, Process, MM_NOIRQL);
         }
 
         //
         // Capture the PTE and see what we're dealing with
         //
-        PteContents = *PointerPte;
+        PteContents = *Pte;
         if (PteContents.u.Long == 0)
         {
             //
             // This used to be a zero PTE and it no longer is, so we must add a
             // reference to the pagetable.
             //
-            MiIncrementPageTableReferences(MiPteToAddress(PointerPte));
+            MiIncrementPageTableReferences(MiPteToAddress(Pte));
 
             //
             // Create the demand-zero prototype PTE
             //
             TempPte = PrototypePte;
             TempPte.u.Soft.Protection = ProtectionMask;
-            MI_WRITE_INVALID_PTE(PointerPte, TempPte);
+            MI_WRITE_INVALID_PTE(Pte, TempPte);
         }
         else if (PteContents.u.Hard.Valid == 1)
         {
@@ -2255,7 +2255,7 @@ MiSetProtectionOnSection(IN PEPROCESS Process,
             //
             Pfn1->OriginalPte.u.Soft.Protection = ProtectionMask;
             MiFlushTbAndCapture(FoundVad,
-                                PointerPte,
+                                Pte,
                                 ProtectionMask,
                                 Pfn1,
                                 TRUE);
@@ -2271,10 +2271,10 @@ MiSetProtectionOnSection(IN PEPROCESS Process,
             //
             // The PTE is already demand-zero, just update the protection mask
             //
-            PointerPte->u.Soft.Protection = ProtectionMask;
+            Pte->u.Soft.Protection = ProtectionMask;
         }
 
-        PointerPte++;
+        Pte++;
     }
 
     //
@@ -2296,8 +2296,8 @@ MiRemoveMappedPtes(IN PVOID BaseAddress,
                    IN PCONTROL_AREA ControlArea,
                    IN PMMSUPPORT Ws)
 {
-    PMMPTE PointerPte, ProtoPte;//, FirstPte;
-    PMMPDE PointerPde, SystemMapPde;
+    PMMPTE Pte, ProtoPte;//, FirstPte;
+    PMMPDE Pde, SystemMapPde;
     PMMPFN Pfn1, Pfn2;
     MMPTE PteContents;
     KIRQL OldIrql;
@@ -2308,19 +2308,19 @@ MiRemoveMappedPtes(IN PVOID BaseAddress,
     ASSERT(Ws == NULL);
 
     /* Get the PTE and loop each one */
-    PointerPte = MiAddressToPte(BaseAddress);
-    //FirstPte = PointerPte;
+    Pte = MiAddressToPte(BaseAddress);
+    //FirstPte = Pte;
     while (NumberOfPtes)
     {
         /* Check if the PTE is already valid */
-        PteContents = *PointerPte;
+        PteContents = *Pte;
         if (PteContents.u.Hard.Valid == 1)
         {
             /* Get the PFN entry */
             Pfn1 = MiGetPfnEntry(PFN_FROM_PTE(&PteContents));
 
             /* Get the PTE */
-            PointerPde = MiPteToPde(PointerPte);
+            Pde = MiPteToPde(Pte);
 
             /* Lock the PFN database and make sure this isn't a mapped file */
             OldIrql = MiAcquirePfnLock();
@@ -2331,15 +2331,15 @@ MiRemoveMappedPtes(IN PVOID BaseAddress,
                 Pfn1->u3.e1.Modified = 1;
 
             /* Was the PDE invalid */
-            if (PointerPde->u.Long == 0)
+            if (Pde->u.Long == 0)
             {
 #if (_MI_PAGING_LEVELS == 2)
                 /* Find the system double-mapped PDE that describes this mapping */
-                SystemMapPde = &MmSystemPagePtes[MiGetPdeOffset(PointerPde)];
+                SystemMapPde = &MmSystemPagePtes[MiGetPdeOffset(Pde)];
 
                 /* Make it valid */
                 ASSERT(SystemMapPde->u.Hard.Valid == 1);
-                MI_WRITE_VALID_PDE(PointerPde, *SystemMapPde);
+                MI_WRITE_VALID_PDE(Pde, *SystemMapPde);
 #else
                 DBG_UNREFERENCED_LOCAL_VARIABLE(SystemMapPde);
                 ASSERT(FALSE);
@@ -2347,8 +2347,8 @@ MiRemoveMappedPtes(IN PVOID BaseAddress,
             }
 
             /* Dereference the PDE and the PTE */
-            Pfn2 = MiGetPfnEntry(PFN_FROM_PTE(PointerPde));
-            MiDecrementShareCount(Pfn2, PFN_FROM_PTE(PointerPde));
+            Pfn2 = MiGetPfnEntry(PFN_FROM_PTE(Pde));
+            MiDecrementShareCount(Pfn2, PFN_FROM_PTE(Pde));
             DBG_UNREFERENCED_LOCAL_VARIABLE(Pfn2);
             MiDecrementShareCount(Pfn1, PFN_FROM_PTE(&PteContents));
 
@@ -2372,10 +2372,10 @@ MiRemoveMappedPtes(IN PVOID BaseAddress,
         }
 
         /* Make the PTE into a zero PTE */
-        PointerPte->u.Long = 0;
+        Pte->u.Long = 0;
 
         /* Move to the next PTE */
-        PointerPte++;
+        Pte++;
         NumberOfPtes--;
     }
 
@@ -3167,7 +3167,7 @@ MmCommitSessionMappedView(IN PVOID MappedBase,
     ULONG_PTR StartAddress, EndingAddress, Base;
     ULONG Hash, Count = 0, Size, QuotaCharge;
     PMMSESSION Session;
-    PMMPTE LastProtoPte, PointerPte, ProtoPte;
+    PMMPTE LastProtoPte, Pte, ProtoPte;
     PCONTROL_AREA ControlArea;
     PSEGMENT Segment;
     PSUBSECTION Subsection;
@@ -3274,11 +3274,11 @@ MmCommitSessionMappedView(IN PVOID MappedBase,
 
     /* Acquire the commit lock and count all the non-committed PTEs */
     KeAcquireGuardedMutexUnsafe(&MmSectionCommitMutex);
-    PointerPte = ProtoPte;
-    while (PointerPte < LastProtoPte)
+    Pte = ProtoPte;
+    while (Pte < LastProtoPte)
     {
-        if (PointerPte->u.Long) QuotaCharge--;
-        PointerPte++;
+        if (Pte->u.Long) QuotaCharge--;
+        Pte++;
     }
 
     /* Was everything committed already? */
@@ -3296,18 +3296,18 @@ MmCommitSessionMappedView(IN PVOID MappedBase,
     ASSERT(TempPte.u.Long != 0);
 
     /* Loop all prototype PTEs to be committed */
-    PointerPte = ProtoPte;
-    while (PointerPte < LastProtoPte)
+    Pte = ProtoPte;
+    while (Pte < LastProtoPte)
     {
         /* Make sure the PTE is already invalid */
-        if (PointerPte->u.Long == 0)
+        if (Pte->u.Long == 0)
         {
             /* And write the invalid PTE */
-            MI_WRITE_INVALID_PTE(PointerPte, TempPte);
+            MI_WRITE_INVALID_PTE(Pte, TempPte);
         }
 
         /* Move to the next PTE */
-        PointerPte++;
+        Pte++;
     }
 
     /* Check if we had at least one page charged */
