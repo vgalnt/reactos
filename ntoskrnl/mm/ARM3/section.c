@@ -3237,6 +3237,17 @@ MmForceSectionClosed(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
    return FALSE;
 }
 
+NTSTATUS
+NTAPI
+MmMapViewInSystemSpace(IN PVOID Section,
+                       OUT PVOID * MappedBase,
+                       OUT PSIZE_T ViewSize)
+{
+    PAGED_CODE();
+    DPRINT("MmMapViewInSystemSpace: Section %p, MappedBase %p, ViewSize %I64X\n", Section, (MappedBase?*MappedBase:0), (ViewSize?(ULONGLONG)(*ViewSize):0ull));
+    return MiMapViewInSystemSpace((PSECTION)Section, &MmSession, MappedBase, ViewSize);
+}
+
 /*
  * @implemented
  */

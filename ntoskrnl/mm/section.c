@@ -4976,6 +4976,7 @@ MmFlushImageSection (IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
 /*
  * @implemented
  */
+#if 0
 NTSTATUS NTAPI
 MmMapViewInSystemSpace (IN PVOID SectionObject,
                         OUT PVOID * MappedBase,
@@ -5030,6 +5031,7 @@ MmMapViewInSystemSpace (IN PVOID SectionObject,
 
     return Status;
 }
+#endif
 
 NTSTATUS
 NTAPI
