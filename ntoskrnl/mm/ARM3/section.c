@@ -490,18 +490,21 @@ MiFillSystemPageDirectory(IN PVOID Base,
                           IN SIZE_T NumberOfBytes)
 {
     PMMPDE Pde, LastPde, SystemMapPde;
+#if (_MI_PAGING_LEVELS <= 3)
+    PFN_NUMBER ParentPage;
+#endif
     MMPDE TempPde;
-    PFN_NUMBER PageFrameIndex, ParentPage;
+    PFN_NUMBER PageFrameIndex;
     KIRQL OldIrql;
-    PAGED_CODE();
 
-    ASSERT(FALSE);
+    PAGED_CODE();
+    DPRINT("MiFillSystemPageDirectory: Base %p, NumberOfBytes %X\n", Base, NumberOfBytes);
 
     /* Find the PDEs needed for this mapping */
     Pde = MiAddressToPde(Base);
     LastPde = MiAddressToPde((PVOID)((ULONG_PTR)Base + NumberOfBytes - 1));
 
-#if (_MI_PAGING_LEVELS == 2)
+#if (_MI_PAGING_LEVELS <= 3)
     /* Find the system double-mapped PDE that describes this mapping */
     SystemMapPde = &MmSystemPagePtes[MiGetPdeOffset(Pde)];
 #else
@@ -513,42 +516,62 @@ MiFillSystemPageDirectory(IN PVOID Base,
     TempPde = ValidKernelPde;
     while (Pde <= LastPde)
     {
+        /* Check if we don't already have this PDE mapped */
+        if (SystemMapPde->u.Hard.Valid)
+        {
+            goto Next;
+        }
+
         /* Lock the PFN database */
-        OldIrql = MiAcquirePfnLock();
+        OldIrql = MiLockPfnDb(APC_LEVEL);
 
         /* Check if we don't already have this PDE mapped */
-        if (SystemMapPde->u.Hard.Valid == 0)
+        if (SystemMapPde->u.Hard.Valid)
         {
-            /* Grab a page for it */
-            MI_SET_USAGE(MI_USAGE_PAGE_TABLE);
-            MI_SET_PROCESS2(PsGetCurrentProcess()->ImageFileName);
-            PageFrameIndex = MiRemoveZeroPage(MI_GET_NEXT_COLOR());
-            ASSERT(PageFrameIndex);
-            TempPde.u.Hard.PageFrameNumber = PageFrameIndex;
+            /* Release the lock and keep going with the next PDE */
+            MiUnlockPfnDb(OldIrql, APC_LEVEL);
+            goto Next;
+        }
 
-#if (_MI_PAGING_LEVELS == 2)
-            ParentPage = MmSystemPageDirectory[MiGetPdIndex(Pde)];
+        if (MmAvailablePages < 128)
+        {
+            DPRINT1("MiFillSystemPageDirectory: MmAvailablePages %X\n", MmAvailablePages);
+            DPRINT1("MiFillSystemPageDirectory: FIXME MiEnsureAvailablePageOrWait()\n");
+            ASSERT(FALSE);
+        }
+
+        //DPRINT("MiFillSystemPageDirectory: FIXME MiChargeCommitmentCantExpand()\n");
+
+        MI_SET_USAGE(MI_USAGE_PAGE_TABLE);
+        MI_SET_PROCESS2(PsGetCurrentProcess()->ImageFileName);
+
+        /* Grab a page for it */
+        PageFrameIndex = MiRemoveZeroPage(MI_GET_NEXT_COLOR());
+        ASSERT(PageFrameIndex);
+        TempPde.u.Hard.PageFrameNumber = PageFrameIndex;
+
+#if (_MI_PAGING_LEVELS <= 3)
+        /* Initialize its PFN entry, with the parent system page directory page table */
+        ParentPage = MmSystemPageDirectory[MiGetPdIndex(Pde)];
+        MiInitializePfnForOtherProcess(PageFrameIndex,
+                                       (PMMPTE)Pde,
+                                       ParentPage);
 #else
-            ParentPage = MiPdeToPpe(Pde)->u.Hard.PageFrameNumber;
+        MiInitializePfnAndMakePteValid(PageFrameIndex, Pde, TempPde);
 #endif
-            /* Initialize its PFN entry, with the parent system page directory page table */
-            MiInitializePfnForOtherProcess(PageFrameIndex,
-                                           (PMMPTE)Pde,
-                                           ParentPage);
+        /* Make the system PDE entry valid */
+        MI_WRITE_VALID_PDE(SystemMapPde, TempPde);
 
-            /* Make the system PDE entry valid */
-            MI_WRITE_VALID_PDE(SystemMapPde, TempPde);
-
-            /* The system PDE entry might be the PDE itself, so check for this */
-            if (Pde->u.Hard.Valid == 0)
-            {
-                /* It's different, so make the real PDE valid too */
-                MI_WRITE_VALID_PDE(Pde, TempPde);
-            }
+        /* The system PDE entry might be the PDE itself, so check for this */
+        if (Pde->u.Hard.Valid == 0)
+        {
+            /* It's different, so make the real PDE valid too */
+            MI_WRITE_VALID_PDE(Pde, TempPde);
         }
 
         /* Release the lock and keep going with the next PDE */
-        MiReleasePfnLock(OldIrql);
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+Next:
         SystemMapPde++;
         Pde++;
     }
