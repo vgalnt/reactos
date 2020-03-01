@@ -321,7 +321,7 @@ MiInsertInSystemSpace(IN PMMSESSION Session,
     PMMVIEW OldTable;
     PAGED_CODE();
 
-    ASSERT(FALSE);
+    DPRINT("MiInsertInSystemSpace: Session %p, Buckets %X, ControlArea %p\n", Session, Buckets, ControlArea);
 
     /* Stay within 4GB */
     ASSERT(Buckets < MI_SYSTEM_VIEW_BUCKET_SIZE);
@@ -559,27 +559,55 @@ NTAPI
 MiCheckPurgeAndUpMapCount(IN PCONTROL_AREA ControlArea,
                           IN BOOLEAN FailIfSystemViews)
 {
+    NTSTATUS Status;
     KIRQL OldIrql;
 
-    ASSERT(FALSE);
+    DPRINT("MiCheckPurgeAndUpMapCount: ControlArea %p, FailIfSystemViews %X\n", ControlArea, FailIfSystemViews);
 
-    /* Flag not yet supported */
-    ASSERT(FailIfSystemViews == FALSE);
+    if (FailIfSystemViews)
+    {
+        ASSERT(ControlArea->u.Flags.Image != 0);
+    }
 
     /* Lock the PFN database */
-    OldIrql = MiAcquirePfnLock();
+    OldIrql = MiLockPfnDb(APC_LEVEL);
 
     /* State not yet supported */
-    ASSERT(ControlArea->u.Flags.BeingPurged == 0);
+    if (ControlArea->u.Flags.BeingPurged)
+    {
+        DPRINT("MiCheckPurgeAndUpMapCount: FIXME! ControlArea->u.Flags.BeingPurged\n");
+        ASSERT(FALSE);
+    }
 
     /* Increase the reference counts */
     ControlArea->NumberOfMappedViews++;
     ControlArea->NumberOfUserReferences++;
     ASSERT(ControlArea->NumberOfSectionReferences != 0);
 
+    if (FailIfSystemViews &&
+        ControlArea->u.Flags.ImageMappedInSystemSpace &&
+        KeGetPreviousMode() != KernelMode)
+    {
+        /* Release the PFN lock and return success */
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+        DPRINT1("MiCheckPurgeAndUpMapCount: STATUS_CONFLICTING_ADDRESSES\n");
+        Status = STATUS_CONFLICTING_ADDRESSES;
+    }
+    else
+    {
+        /* Increase the reference counts */
+        ControlArea->NumberOfMappedViews++;
+        ControlArea->NumberOfUserReferences++;
+        ASSERT(ControlArea->NumberOfSectionReferences != 0);
+
+        /* Release the PFN lock and return success */
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+        Status = STATUS_SUCCESS;
+    }
+
     /* Release the PFN lock and return success */
     MiReleasePfnLock(OldIrql);
-    return STATUS_SUCCESS;
+    return Status;
 }
 
 PSUBSECTION
