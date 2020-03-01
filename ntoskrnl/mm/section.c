@@ -5108,6 +5108,7 @@ MiRosUnmapViewInSystemSpace(IN PVOID MappedBase)
  *
  * @implemented
  */
+#if 0
 NTSTATUS NTAPI
 MmCreateSection (OUT PVOID  * Section,
                  IN ACCESS_MASK  DesiredAccess,
@@ -5298,5 +5299,6 @@ MmCreateSection (OUT PVOID  * Section,
 
     return Status;
 }
+#endif
 
 /* EOF */

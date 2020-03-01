@@ -109,6 +109,7 @@ KGUARDED_MUTEX MmSectionCommitMutex;
 MM_AVL_TABLE MmSectionBasedRoot;
 KGUARDED_MUTEX MmSectionBasedMutex;
 PVOID MmHighSectionBase;
+ULONG MmUnusedSegmentCount = 0;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
@@ -163,7 +164,7 @@ MiMakeProtectionMask(IN ULONG Protect)
 {
     ULONG Mask1, Mask2, ProtectMask;
 
-    ASSERT(FALSE);
+    DPRINT("MiMakeProtectionMask: Protect %X\n", Protect);
 
     /* PAGE_EXECUTE_WRITECOMBINE is theoretically the maximum */
     if (Protect >= (PAGE_WRITECOMBINE * 2)) return MM_INVALID_PROTECTION;
@@ -2477,30 +2478,37 @@ MiUnmapViewInSystemSpace(IN PMMSESSION Session,
  */
 NTSTATUS
 NTAPI
-MmCreateArm3Section(OUT PVOID *SectionObject,
-                    IN ACCESS_MASK DesiredAccess,
-                    IN POBJECT_ATTRIBUTES ObjectAttributes OPTIONAL,
-                    IN PLARGE_INTEGER InputMaximumSize,
-                    IN ULONG SectionPageProtection,
-                    IN ULONG AllocationAttributes,
-                    IN HANDLE FileHandle OPTIONAL,
-                    IN PFILE_OBJECT FileObject OPTIONAL)
+MmCreateSection(OUT PVOID *SectionObject,
+                IN ACCESS_MASK DesiredAccess,
+                IN POBJECT_ATTRIBUTES ObjectAttributes OPTIONAL,
+                IN PLARGE_INTEGER InputMaximumSize,
+                IN ULONG SectionPageProtection,
+                IN ULONG AllocationAttributes,
+                IN HANDLE FileHandle OPTIONAL,
+                IN PFILE_OBJECT FileObject OPTIONAL)
 {
     SECTION Section;
     PSECTION NewSection;
     PSUBSECTION Subsection;
-    PSEGMENT NewSegment, Segment;
+    PSEGMENT Segment;
+    PSEGMENT NewSegment = NULL;
+    PEVENT_COUNTER event;
     NTSTATUS Status;
     PCONTROL_AREA ControlArea;
-    ULONG ProtectionMask, ControlAreaSize, Size, NonPagedCharge, PagedCharge;
+    PVOID NewControlArea = NULL;
+    ULONG ProtectionMask, ControlAreaSize;
+    ULONG SubsectionSize, NonPagedCharge, PagedCharge;
     KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
-    BOOLEAN FileLock = FALSE, KernelCall = FALSE;
+    BOOLEAN FileLock = FALSE;
     KIRQL OldIrql;
     PFILE_OBJECT File;
     BOOLEAN UserRefIncremented = FALSE;
     PVOID PreviousSectionPointer;
+    BOOLEAN IgnoreFileSizing = FALSE; // TRUE if CC call (FileObject != NULL)
+    BOOLEAN IsSectionSizeChanged = FALSE;
 
-    ASSERT(FALSE);
+    DPRINT("MmCreateSection: Access %X, ObjAttributes %X, MaxSize %I64X, Protection %X, AllocAttributes %X, FileHandle %p, FileObject %p\n",
+           DesiredAccess, ObjectAttributes, InputMaximumSize->QuadPart, SectionPageProtection, AllocationAttributes, FileHandle, FileObject);
 
     /* Make the same sanity checks that the Nt interface should've validated */
     ASSERT((AllocationAttributes & ~(SEC_COMMIT | SEC_RESERVE | SEC_BASED |
@@ -2521,42 +2529,96 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
 
     /* Check to make sure the protection is correct. Nt* does this already */
     ProtectionMask = MiMakeProtectionMask(SectionPageProtection);
-    if (ProtectionMask == MM_INVALID_PROTECTION) return STATUS_INVALID_PAGE_PROTECTION;
+    if (ProtectionMask == MM_INVALID_PROTECTION)
+    {
+        DPRINT1("MmCreateSection: STATUS_INVALID_PAGE_PROTECTION\n");
+        return STATUS_INVALID_PAGE_PROTECTION;
+    }
 
     /* Check if this is going to be a data or image backed file section */
     if ((FileHandle) || (FileObject))
     {
         /* These cannot be mapped with large pages */
-        if (AllocationAttributes & SEC_LARGE_PAGES) return STATUS_INVALID_PARAMETER_6;
-
-        /* For now, only support the mechanism through a file handle */
-        ASSERT(FileObject == NULL);
-
-        /* Reference the file handle to get the object */
-        Status = ObReferenceObjectByHandle(FileHandle,
-                                           MmMakeFileAccess[ProtectionMask],
-                                           IoFileObjectType,
-                                           PreviousMode,
-                                           (PVOID*)&File,
-                                           NULL);
-        if (!NT_SUCCESS(Status)) return Status;
-
-        /* Make sure Cc has been doing its job */
-        if (!File->SectionObjectPointer)
+        if (AllocationAttributes & SEC_LARGE_PAGES)
         {
-            /* This is not a valid file system-based file, fail */
-            ObDereferenceObject(File);
-            return STATUS_INVALID_FILE_FOR_SECTION;
+            DPRINT1("MmCreateSection: STATUS_INVALID_PARAMETER_6\n");
+            return STATUS_INVALID_PARAMETER_6;
         }
 
-        /* Image-file backed sections are not yet supported */
-        ASSERT((AllocationAttributes & SEC_IMAGE) == 0);
+        DPRINT("MmCreateSection: FileHandle %p, FileObject %p\n", FileHandle, FileObject);
 
-        /* Compute the size of the control area, and allocate it */
-        ControlAreaSize = sizeof(CONTROL_AREA) + sizeof(MSUBSECTION);
-        ControlArea = ExAllocatePoolWithTag(NonPagedPool, ControlAreaSize, 'aCmM');
-        if (!ControlArea)
+        if (FileHandle)
         {
+            /* This is the file-mapped section. */
+            ASSERT(!FileObject);
+
+            /* Reference the file handle to get the object */
+            Status = ObReferenceObjectByHandle(FileHandle,
+                                               MmMakeFileAccess[ProtectionMask],
+                                               IoFileObjectType,
+                                               PreviousMode,
+                                               (PVOID*)&File,
+                                               NULL);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("MmCreateSection: Status %X\n", Status);
+                return Status;
+            }
+
+            /* Make sure Cc has been doing its job */
+            if (!File->SectionObjectPointer)
+            {
+                /* This is not a valid system-based file, fail */
+                DPRINT1("MmCreateSection: STATUS_INVALID_FILE_FOR_SECTION\n");
+                ObDereferenceObject(File);
+                return STATUS_INVALID_FILE_FOR_SECTION;
+            }
+        }
+        else
+        {
+            /* This is the section used by the CC. */
+            ASSERT(!FileHandle);
+
+            IgnoreFileSizing = TRUE;
+            File = FileObject;
+
+            if (File->SectionObjectPointer->DataSectionObject)
+            {
+                OldIrql = MiLockPfnDb(APC_LEVEL);
+
+                ControlArea = (PCONTROL_AREA)(File->SectionObjectPointer->DataSectionObject);
+
+                if (ControlArea &&
+                    !ControlArea->u.Flags.BeingDeleted &&
+                    !ControlArea->u.Flags.BeingCreated)
+                {
+                    ASSERT(FALSE);
+                }
+
+                MiUnlockPfnDb(OldIrql, APC_LEVEL);
+            }
+
+            ObReferenceObject(File);
+        }
+
+        /* Compute the size of the control area */
+        if (AllocationAttributes & SEC_IMAGE)
+        {
+            /* Image-file backed section */
+            ControlAreaSize = sizeof(LARGE_CONTROL_AREA) + sizeof(SUBSECTION);
+            CcWaitForUninitializeCacheMap(File);
+        }
+        else
+        {
+            /* Data-file backed section */
+            ControlAreaSize = sizeof(CONTROL_AREA) + sizeof(MSUBSECTION);
+        }
+
+        /* Alocate the control area */
+        NewControlArea = ExAllocatePoolWithTag(NonPagedPool, ControlAreaSize, 'aCmM');
+        if (!NewControlArea)
+        {
+            DPRINT1("MmCreateSection: return STATUS_INSUFFICIENT_RESOURCES\n");
             ObDereferenceObject(File);
             return STATUS_INSUFFICIENT_RESOURCES;
         }
@@ -2572,12 +2634,14 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
             Status = FsRtlAcquireToCreateMappedSection(File, SectionPageProtection);
             if (!NT_SUCCESS(Status))
             {
-                ExFreePool(ControlArea);
+                DPRINT1("MmCreateSection: Status %X\n", Status);
+                ExFreePoolWithTag(NewControlArea, 'aCmM');
                 ObDereferenceObject(File);
                 return Status;
             }
 #else
             /* ReactOS doesn't support this API yet, so do nothing */
+            DPRINT("MmCreateSection: FIXME FsRtlAcquireToCreateMappedSection\n");
             Status = STATUS_SUCCESS;
 #endif
             /* Update the top-level IRP so that drivers know what's happening */
@@ -2585,8 +2649,10 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
             FileLock = TRUE;
         }
 
+        ASSERT(FALSE); if (IgnoreFileSizing){;}
+
         /* Lock the PFN database while we play with the section pointers */
-        OldIrql = MiAcquirePfnLock();
+        OldIrql = MiLockPfnDb(APC_LEVEL);
 
         /* Image-file backed sections are not yet supported */
         ASSERT((AllocationAttributes & SEC_IMAGE) == 0);
@@ -2602,7 +2668,7 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
         File->SectionObjectPointer->DataSectionObject = ControlArea;
 
         /* We can release the PFN lock now */
-        MiReleasePfnLock(OldIrql);
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
 
         /* We don't support previously-mapped file */
         ASSERT(NewSegment == NULL);
@@ -2616,11 +2682,11 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
                                      (PSIZE_T)InputMaximumSize,
                                      SectionPageProtection,
                                      AllocationAttributes,
-                                     KernelCall);
+                                     IgnoreFileSizing);
         if (!NT_SUCCESS(Status))
         {
             /* Lock the PFN database while we play with the section pointers */
-            OldIrql = MiAcquirePfnLock();
+            OldIrql = MiLockPfnDb(APC_LEVEL);
 
             /* Reset the waiting-for-deletion event */
             ASSERT(ControlArea->WaitingForDeletion == NULL);
@@ -2638,7 +2704,7 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
             ControlArea->u.Flags.BeingCreated = FALSE;
 
             /* We can release the PFN lock now */
-            MiReleasePfnLock(OldIrql);
+            MiUnlockPfnDb(OldIrql, APC_LEVEL);
 
             /* Check if we locked and set the IRP */
             if (FileLock)
@@ -2673,26 +2739,53 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
     }
     else
     {
-        /* A handle must be supplied with SEC_IMAGE, as this is the no-handle path */
-        if (AllocationAttributes & SEC_IMAGE) return STATUS_INVALID_FILE_FOR_SECTION;
+        /* If FileHandle and FileObject are null, then this is a pagefile-backed section. */
+        if (AllocationAttributes & SEC_IMAGE)
+        {
+            /* A handle must be supplied with SEC_IMAGE, as this is the no-handle path */
+            DPRINT1("MmCreateSection: STATUS_INVALID_FILE_FOR_SECTION\n");
+            return STATUS_INVALID_FILE_FOR_SECTION;
+        }
 
         /* Not yet supported */
         ASSERT((AllocationAttributes & SEC_LARGE_PAGES) == 0);
+        if (AllocationAttributes & SEC_LARGE_PAGES)
+        {
+            if (!(AllocationAttributes & SEC_COMMIT))
+            {
+                DPRINT1("MmCreateSection: STATUS_INVALID_PARAMETER_6\n");
+                return STATUS_INVALID_PARAMETER_6;
+            }
+
+            if (!SeSinglePrivilegeCheck(SeLockMemoryPrivilege, KeGetCurrentThread()->PreviousMode))
+            {
+                DPRINT1("MmCreateSection: STATUS_PRIVILEGE_NOT_HELD\n");
+                return STATUS_PRIVILEGE_NOT_HELD;
+            }
+        }
 
         /* So this must be a pagefile-backed section, create the mappings needed */
         Status = MiCreatePagingFileMap(&NewSegment,
-                                       (PSIZE_T)InputMaximumSize,
+                                       (PULONGLONG)InputMaximumSize,
                                        ProtectionMask,
                                        AllocationAttributes);
-        if (!NT_SUCCESS(Status)) return Status;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("MmCreateSection: Status %X\n", Status);
+            return Status;
+        }
 
         /* Set the size here, and read the control area */
         Section.SizeOfSection.QuadPart = NewSegment->SizeOfSegment;
+        DPRINT("MmCreateSection: Section.SizeOfSection.QuadPart %I64X\n", Section.SizeOfSection.QuadPart);
+
         ControlArea = NewSegment->ControlArea;
 
         /* MiCreatePagingFileMap increments user references */
         UserRefIncremented = TRUE;
     }
+
+    DPRINT("MmCreateSection: NewSegment %p\n", NewSegment);
 
     /* Did we already have a segment? */
     if (!NewSegment)
@@ -2701,20 +2794,45 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
         NewSegment = Segment;
         ASSERT(File != NULL);
 
-        /* Acquire the PFN lock while we set control area flags */
-        OldIrql = MiAcquirePfnLock();
+        /* Acquire the PFN lock while we set control area */
+        OldIrql = MiLockPfnDb(APC_LEVEL);
 
-        /* We don't support this race condition yet, so assume no waiters */
-        ASSERT(ControlArea->WaitingForDeletion == NULL);
+        /* Reset the waiting-for-deletion event */
+        event = ControlArea->WaitingForDeletion;
         ControlArea->WaitingForDeletion = NULL;
 
-        /* Image-file backed sections are not yet supported, nor ROM images */
-        ASSERT((AllocationAttributes & SEC_IMAGE) == 0);
-        ASSERT(Segment->ControlArea->u.Flags.Rom == 0);
+        if (AllocationAttributes & SEC_IMAGE)
+        {
+            /* Image-file backed section*/
+            DPRINT1("MmCreateSection: FIXME MiRemoveImageSectionObject \n");
+            ASSERT(FALSE);
+            DPRINT1("MmCreateSection: FIXME MiInsertImageSectionObject \n");
+            ASSERT(FALSE);
+            ControlArea = NewSegment->ControlArea;
+        }
+        else if (NewSegment->ControlArea->u.Flags.Rom)
+        {
+            /* ROM image sections */
+            ASSERT(File->SectionObjectPointer->DataSectionObject == NewControlArea);
+            File->SectionObjectPointer->DataSectionObject = NewSegment->ControlArea;
+            ControlArea = NewSegment->ControlArea;
+        }
 
         /* Take off the being created flag, and then release the lock */
-        ControlArea->u.Flags.BeingCreated = FALSE;
-        MiReleasePfnLock(OldIrql);
+        ControlArea->u.Flags.BeingCreated = 0;
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+
+        if ((AllocationAttributes & SEC_IMAGE) ||
+            NewSegment->ControlArea->u.Flags.Rom == 1)
+        {
+            /* Free the new control area */
+            ExFreePoolWithTag(NewControlArea, 'aCmM');
+        }
+
+        if (event)
+        {
+            KeSetEvent(&event->Event, 0, FALSE);
+        }
     }
 
     /* Check if we locked the file earlier */
@@ -2740,8 +2858,8 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
         (ControlArea->FilePointer))
     {
         /* Add a reference and set the flag */
-        Section.u.Flags.UserWritable = TRUE;
-        InterlockedIncrement((volatile LONG*)&ControlArea->WritableUserReferences);
+        Section.u.Flags.UserWritable = 1;
+        InterlockedIncrement((volatile PLONG)&ControlArea->WritableUserReferences);
     }
 
     /* Check for image mappings or page file mappings */
@@ -2749,28 +2867,35 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
     {
         /* Charge the segment size, and allocate a subsection */
         PagedCharge = sizeof(SECTION) + NewSegment->TotalNumberOfPtes * sizeof(MMPTE);
-        Size = sizeof(SUBSECTION);
+        SubsectionSize = sizeof(SUBSECTION);
     }
     else
     {
         /* Charge nothing, and allocate a mapped subsection */
         PagedCharge = 0;
-        Size = sizeof(MSUBSECTION);
+        SubsectionSize = sizeof(MSUBSECTION);
     }
 
-    /* Check if this is a normal CA */
-    ASSERT(ControlArea->u.Flags.GlobalOnlyPerSession == 0);
-    ASSERT(ControlArea->u.Flags.Rom == 0);
+    /* Check type and charge a CA and the get subsection pointer */
+    if (ControlArea->u.Flags.GlobalOnlyPerSession || ControlArea->u.Flags.Rom)
+    {
+        NonPagedCharge = sizeof(LARGE_CONTROL_AREA);
+        Subsection = (PSUBSECTION)((PLARGE_CONTROL_AREA)ControlArea + 1);
+    }
+    else
+    {
+        NonPagedCharge = sizeof(CONTROL_AREA);
+        Subsection = (PSUBSECTION)(ControlArea + 1);
+    }
 
-    /* Charge only a CA, and the subsection is right after */
-    NonPagedCharge = sizeof(CONTROL_AREA);
-    Subsection = (PSUBSECTION)(ControlArea + 1);
+    do
+    {
+        NonPagedCharge += SubsectionSize;
+        Subsection = Subsection->NextSubsection;
+    }
+    while (Subsection);
 
-    /* We only support single-subsection mappings */
-    NonPagedCharge += Size;
-    ASSERT(Subsection->NextSubsection == NULL);
-
-    /* Create the actual section object, with enough space for the prototype PTEs */
+    /* Create the actual section object, with enough space for the prototypes */
     Status = ObCreateObject(PreviousMode,
                             MmSectionObjectType,
                             ObjectAttributes,
@@ -2780,6 +2905,7 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
                             PagedCharge,
                             NonPagedCharge,
                             (PVOID*)&NewSection);
+    DPRINT("MmCreateSection: Status %X\n", Status);
     if (!NT_SUCCESS(Status))
     {
         /* Check if this is a user-mode read-write non-image file mapping */
@@ -2790,25 +2916,38 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
         {
             /* Remove a reference and check the flag */
             ASSERT(Section.u.Flags.UserWritable == 1);
-            InterlockedDecrement((volatile LONG*)&ControlArea->WritableUserReferences);
+            InterlockedDecrement((volatile PLONG)&ControlArea->WritableUserReferences);
+        }
+
+        /* Check if we locked and set the IRP */
+        if (FileLock)
+        {
+            /* Reset the top-level IRP and release the lock */
+            IoSetTopLevelIrp(NULL);
+            //FsRtlReleaseFile(File);
         }
 
         /* Check if a user reference was added */
         if (UserRefIncremented)
         {
             /* Acquire the PFN lock while we change counters */
-            OldIrql = MiAcquirePfnLock();
+            OldIrql = MiLockPfnDb(APC_LEVEL);
 
             /* Decrement the accounting counters */
             ControlArea->NumberOfSectionReferences--;
-            ASSERT((LONG)ControlArea->NumberOfUserReferences > 0);
-            ControlArea->NumberOfUserReferences--;
+
+            if (!IgnoreFileSizing)
+            {
+                ASSERT((LONG)ControlArea->NumberOfUserReferences > 0);
+                ControlArea->NumberOfUserReferences--;
+            }
 
             /* Check if we should destroy the CA and release the lock */
             MiCheckControlArea(ControlArea, OldIrql);
         }
 
         /* Return the failure code */
+        DPRINT1("MmCreateSection: Status %X\n", Status);
         return Status;
     }
 
@@ -2818,82 +2957,77 @@ MmCreateArm3Section(OUT PVOID *SectionObject,
     RtlCopyMemory(NewSection, &Section, sizeof(SECTION));
     NewSection->Address.StartingVpn = 0;
 
-    /* For now, only user calls are supported */
-    ASSERT(KernelCall == FALSE);
-    NewSection->u.Flags.UserReference = TRUE;
-
-    /* Is this a "based" allocation, in which all mappings are identical? */
-    if (AllocationAttributes & SEC_BASED)
+    if (!IgnoreFileSizing)
     {
-        /* Lock the VAD tree during the search */
-        KeAcquireGuardedMutex(&MmSectionBasedMutex);
+        /* Not CC call */
+        NewSection->u.Flags.UserReference = 1;
 
-        /* Is it a brand new ControArea ? */
-        if (ControlArea->u.Flags.BeingCreated == 1)
+        if (AllocationAttributes & SEC_NO_CHANGE)
         {
-            ASSERT(ControlArea->u.Flags.Based == 1);
+            NewSection->u.Flags.NoChange = 1;
+        }
+
+        if (!(SectionPageProtection & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE)))
+        {
+            NewSection->u.Flags.CopyOnWrite = 1;
+        }
+
+        /* Is this a "based" allocation, in which all mappings are identical? */
+        if (AllocationAttributes & SEC_BASED)
+        {
+            NTSTATUS status;
+
+            NewSection->u.Flags.Based = 1;
+
+            if ((ULONGLONG)NewSection->SizeOfSection.QuadPart > (ULONG_PTR)MmHighSectionBase)
+            {
+                DPRINT1("MmCreateSection: return STATUS_NO_MEMORY\n");
+                ObDereferenceObject(NewSection);
+                return STATUS_NO_MEMORY;
+            }
+
+            /* Lock the VAD tree during the search */
+            KeAcquireGuardedMutex(&MmSectionBasedMutex);
+
             /* Then we must find a global address, top-down */
-            Status = MiFindEmptyAddressRangeDownBasedTree((SIZE_T)ControlArea->Segment->SizeOfSegment,
+            status = MiFindEmptyAddressRangeDownBasedTree(NewSection->SizeOfSection.LowPart,
                                                           (ULONG_PTR)MmHighSectionBase,
                                                           _64K,
                                                           &MmSectionBasedRoot,
-                                                          (ULONG_PTR*)&ControlArea->Segment->BasedAddress);
-
-            if (!NT_SUCCESS(Status))
+                                                          &NewSection->Address.StartingVpn);
+            if (!NT_SUCCESS(status))
             {
                 /* No way to find a valid range. */
+                DPRINT1("MmCreateSection: status %X\n", status);
                 KeReleaseGuardedMutex(&MmSectionBasedMutex);
-                ControlArea->u.Flags.Based = 0;
-                NewSection->u.Flags.Based = 0;
                 ObDereferenceObject(NewSection);
-                return Status;
+                return status;
             }
 
             /* Compute the ending address and insert it into the VAD tree */
-            NewSection->Address.StartingVpn = (ULONG_PTR)ControlArea->Segment->BasedAddress;
-            NewSection->Address.EndingVpn = NewSection->Address.StartingVpn + NewSection->SizeOfSection.LowPart - 1;
+            NewSection->Address.EndingVpn = NewSection->Address.StartingVpn +
+                                            NewSection->SizeOfSection.LowPart - 1;
+
             MiInsertBasedSection(NewSection);
+            KeReleaseGuardedMutex(&MmSectionBasedMutex);
         }
-        else
-        {
-            /* FIXME : Should we deny section creation if SEC_BASED is not set ? Can we have two different section objects on the same based address ? Investigate !*/
-            ASSERT(FALSE);
-        }
-
-        KeReleaseGuardedMutex(&MmSectionBasedMutex);
     }
 
-    /* The control area is not being created anymore */
-    if (ControlArea->u.Flags.BeingCreated == 1)
+    /* Write flag if this a CC call */
+    ControlArea->u.Flags.WasPurged |= IgnoreFileSizing;
+
+    if ((ControlArea->u.Flags.WasPurged && !IgnoreFileSizing) &&
+        (!IsSectionSizeChanged ||
+         ((ULONGLONG)NewSection->SizeOfSection.QuadPart > NewSection->Segment->SizeOfSegment)))
     {
-        /* Acquire the PFN lock while we set control area flags */
-        OldIrql = MiAcquirePfnLock();
-
-        /* Take off the being created flag, and then release the lock */
-        ControlArea->u.Flags.BeingCreated = 0;
-        NewSection->u.Flags.BeingCreated = 0;
-
-        MiReleasePfnLock(OldIrql);
+        DPRINT1("MmCreateSection: FIXME MmExtendSection \n");
+        ASSERT(FALSE);
     }
-
-    /* Migrate the attribute into a flag */
-    if (AllocationAttributes & SEC_NO_CHANGE) NewSection->u.Flags.NoChange = TRUE;
-
-    /* If R/W access is not requested, this might eventually become a CoW mapping */
-    if (!(SectionPageProtection & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE)))
-    {
-        NewSection->u.Flags.CopyOnWrite = TRUE;
-    }
-
-    /* Write down if this was a kernel call */
-    ControlArea->u.Flags.WasPurged |= KernelCall;
-    ASSERT(ControlArea->u.Flags.WasPurged == FALSE);
-
-    /* Make sure the segment and the section are the same size, or the section is smaller */
-    ASSERT((ULONG64)NewSection->SizeOfSection.QuadPart <= NewSection->Segment->SizeOfSegment);
 
     /* Return the object and the creation status */
-    *SectionObject = (PVOID)NewSection;
+    *SectionObject = NewSection;
+
+    DPRINT("MmCreateSection: NewSection %p NewSegment %p\n", NewSection, NewSegment);
     return Status;
 }
 

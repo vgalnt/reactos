@@ -648,6 +648,7 @@ extern PVOID MmHighSectionBase;
 extern SIZE_T MmSystemLockPagesCount;
 extern ULONG_PTR MmSubsectionBase;
 extern LARGE_INTEGER MmCriticalSectionTimeout;
+extern ULONG MmUnusedSegmentCount;
 extern LARGE_INTEGER MmHalfSecond;
 extern LARGE_INTEGER MmShortTime;
 extern LIST_ENTRY MmWorkingSetExpansionHead;
