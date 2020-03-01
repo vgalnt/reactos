@@ -425,20 +425,36 @@ MiInsertInSystemSpace(IN PMMSESSION Session,
 
 NTSTATUS
 NTAPI
+MiAddViewsForSectionWithPfn(PMSUBSECTION StartMappedSubsection,
+                            ULONGLONG LastPteOffset)
+{
+    DPRINT("MiAddViewsForSectionWithPfn: StartMappedSubsection %p, LastPteOffset %I64X\n", StartMappedSubsection, LastPteOffset);
+    ASSERT(FALSE);
+    return 0;
+}
+
+NTSTATUS
+NTAPI
 MiAddMappedPtes(IN PMMPTE FirstPte,
                 IN PFN_NUMBER PteCount,
                 IN PCONTROL_AREA ControlArea)
 {
     MMPTE TempPte;
-    PMMPTE Pte, ProtoPte, LastProtoPte, LastPte;
+    PMMPTE Pte, SectionProto, LastProto, LastPte;
     PSUBSECTION Subsection;
+    NTSTATUS Status;
 
-    ASSERT(FALSE);
+    DPRINT("MiAddMappedPtes: FirstPte %X, PteCount %X\n", FirstPte, PteCount);
 
-    /* ARM3 doesn't support this yet */
-    ASSERT(ControlArea->u.Flags.GlobalOnlyPerSession == 0);
-    ASSERT(ControlArea->u.Flags.Rom == 0);
-    ASSERT(ControlArea->FilePointer == NULL);
+    if ((ControlArea->u.Flags.GlobalOnlyPerSession == 0) &&
+        (ControlArea->u.Flags.Rom == 0))
+    {
+        Subsection = (PSUBSECTION)&ControlArea[1];
+    }
+    else
+    {
+        Subsection = (PSUBSECTION)((PLARGE_CONTROL_AREA)ControlArea + 1);
+    }
 
     /* Sanity checks */
     ASSERT(PteCount != 0);
@@ -449,35 +465,47 @@ MiAddMappedPtes(IN PMMPTE FirstPte,
     ASSERT(ControlArea->u.Flags.BeingDeleted == 0);
     ASSERT(ControlArea->u.Flags.BeingPurged == 0);
 
+    if ((ControlArea->FilePointer != NULL) &&
+        (ControlArea->u.Flags.Image == 0) &&
+        (ControlArea->u.Flags.PhysicalMemory == 0))
+    {
+        Status = MiAddViewsForSectionWithPfn((PMSUBSECTION)Subsection, PteCount);
+        if (!NT_SUCCESS (Status))
+        {
+            DPRINT1("MiAddMappedPtes: Status %X\n", Status);
+            return Status;
+        }
+    }
+
     /* Get the PTEs for the actual mapping */
     Pte = FirstPte;
     LastPte = FirstPte + PteCount;
 
-    /* Get the prototype PTEs that desribe the section mapping in the subsection */
-    Subsection = (PSUBSECTION)(ControlArea + 1);
-    ProtoPte = Subsection->SubsectionBase;
-    LastProtoPte = &Subsection->SubsectionBase[Subsection->PtesInSubsection];
+    /* Get the section protos that desribe the section mapping in the subsection */
+    SectionProto = Subsection->SubsectionBase;
+    LastProto = &Subsection->SubsectionBase[Subsection->PtesInSubsection];
 
     /* Loop the PTEs for the mapping */
     while (Pte < LastPte)
     {
-        /* We may have run out of prototype PTEs in this subsection */
-        if (ProtoPte >= LastProtoPte)
+        /* We may have run out of section protos in this subsection */
+        if (SectionProto >= LastProto)
         {
-            /* But we don't handle this yet */
-            ASSERT(FALSE);
+            Subsection = Subsection->NextSubsection;
+            SectionProto = Subsection->SubsectionBase;
+            LastProto = &Subsection->SubsectionBase[Subsection->PtesInSubsection];
         }
 
         /* The PTE should be completely clear */
         ASSERT(Pte->u.Long == 0);
 
-        /* Build the prototype PTE and write it */
-        MI_MAKE_PROTOTYPE_PTE(&TempPte, ProtoPte);
+        /* Build the section proto and write it */
+        MI_MAKE_PROTOTYPE_PTE(&TempPte, SectionProto);
         MI_WRITE_INVALID_PTE(Pte, TempPte);
 
         /* Keep going */
         Pte++;
-        ProtoPte++;
+        SectionProto++;
     }
 
     /* No failure path */
