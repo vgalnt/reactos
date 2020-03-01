@@ -186,6 +186,14 @@ PFILE_OBJECT CcpFindOtherStreamFileObject(PFILE_OBJECT FileObject)
     return 0;
 }
 
+VOID
+NTAPI
+CcWaitForUninitializeCacheMap(IN PFILE_OBJECT FileObject)
+{
+    DPRINT("CcWaitForUninitializeCacheMap: FileObject %p\n", FileObject);
+    ASSERT(FALSE);
+}
+
 /* Thanks: http://windowsitpro.com/Windows/Articles/ArticleID/3864/pg/2/2.html */
 
 VOID

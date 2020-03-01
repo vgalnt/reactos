@@ -499,6 +499,12 @@ IsPointInRange(
     return DoRangesIntersect(Offset1, Length1, Point, 1);
 }
 
+VOID
+NTAPI
+CcWaitForUninitializeCacheMap(
+    IN PFILE_OBJECT FileObject
+);
+
 #define CcBugCheck(A, B, C) KeBugCheckEx(CACHE_MANAGER, BugCheckFileId | ((ULONG)(__LINE__)), A, B, C)
 
 #if DBG
