@@ -4005,7 +4005,7 @@ MmCreateImageSection(PROS_SECTION_OBJECT *SectionObject,
 }
 
 
-
+#if 0
 static NTSTATUS
 MmMapViewOfSegment(PMMSUPPORT AddressSpace,
                    PROS_SECTION_OBJECT Section,
@@ -4083,6 +4083,7 @@ MmMapViewOfSegment(PMMSUPPORT AddressSpace,
 
     return(STATUS_SUCCESS);
 }
+#endif
 
 
 static VOID
@@ -4625,6 +4626,7 @@ NtQuerySection(
  *
  * @implemented
  */
+#if 0
 NTSTATUS NTAPI
 MmMapViewOfSection(IN PVOID SectionObject,
                    IN PEPROCESS Process,
@@ -4845,6 +4847,7 @@ MmMapViewOfSection(IN PVOID SectionObject,
 
     return Status;
 }
+#endif
 
 /*
  * @unimplemented

@@ -120,7 +120,7 @@ MiIsProtectionCompatible(IN ULONG SectionPageProtection,
 {
     ULONG ProtectionMask, CompatibleMask;
 
-    ASSERT(FALSE);
+    DPRINT("MiIsProtectionCompatible: Protection %X, NewProtection %X\n", SectionPageProtection, NewSectionPageProtection);
 
     /* Calculate the protection mask and make sure it's valid */
     ProtectionMask = MiMakeProtectionMask(SectionPageProtection);
@@ -3180,16 +3180,16 @@ MmCreateSection(OUT PVOID *SectionObject,
  */
 NTSTATUS
 NTAPI
-MmMapViewOfArm3Section(IN PVOID SectionObject,
-                       IN PEPROCESS Process,
-                       IN OUT PVOID *BaseAddress,
-                       IN ULONG_PTR ZeroBits,
-                       IN SIZE_T CommitSize,
-                       IN OUT PLARGE_INTEGER SectionOffset OPTIONAL,
-                       IN OUT PSIZE_T ViewSize,
-                       IN SECTION_INHERIT InheritDisposition,
-                       IN ULONG AllocationType,
-                       IN ULONG Protect)
+MmMapViewOfSection(IN PVOID SectionObject,
+                   IN PEPROCESS Process,
+                   IN OUT PVOID *BaseAddress,
+                   IN ULONG_PTR ZeroBits,
+                   IN SIZE_T CommitSize,
+                   IN OUT PLARGE_INTEGER SectionOffset OPTIONAL,
+                   IN OUT PSIZE_T ViewSize,
+                   IN SECTION_INHERIT InheritDisposition,
+                   IN ULONG AllocationType,
+                   IN ULONG Protect)
 {
     KAPC_STATE ApcState;
     BOOLEAN Attached = FALSE;
@@ -3198,47 +3198,35 @@ MmMapViewOfArm3Section(IN PVOID SectionObject,
     ULONG ProtectionMask;
     NTSTATUS Status;
     ULONG64 CalculatedViewSize;
+
     PAGED_CODE();
+    DPRINT("MmMapViewOfSection: Section %p, Process %p, ZeroBits %X, CommitSize %X, AllocType %X, Protect %X\n", SectionObject, Process, ZeroBits, CommitSize, AllocationType, Protect);
 
-    ASSERT(FALSE);
-
-    /* Get the segment and control area */
+    /* Get Section */
     Section = (PSECTION)SectionObject;
-    ControlArea = Section->Segment->ControlArea;
 
-    /* These flags/states are not yet supported by ARM3 */
-    ASSERT(Section->u.Flags.Image == 0);
-    ASSERT(Section->u.Flags.NoCache == 0);
-    ASSERT(Section->u.Flags.WriteCombined == 0);
-    ASSERT(ControlArea->u.Flags.PhysicalMemory == 0);
-
-    /* FIXME */
-    if ((AllocationType & MEM_RESERVE) != 0)
+    if (Section->u.Flags.Image == 0)
     {
-        DPRINT1("MmMapViewOfArm3Section called with MEM_RESERVE, this is not implemented yet!!!\n");
-        return STATUS_NOT_IMPLEMENTED;
+        if (!MiIsProtectionCompatible(Section->InitialPageProtection, Protect))
+        {
+            DPRINT1("MmMapViewOfSection: return STATUS_SECTION_PROTECTION\n");
+            return STATUS_SECTION_PROTECTION;
+        }
     }
 
-    /* Check if the mapping protection is compatible with the create */
-    if (!MiIsProtectionCompatible(Section->InitialPageProtection, Protect))
-    {
-        DPRINT1("Mapping protection is incompatible\n");
-        return STATUS_SECTION_PROTECTION;
-    }
 
     /* Check if the offset and size would cause an overflow */
-    if (((ULONG64)SectionOffset->QuadPart + *ViewSize) <
-         (ULONG64)SectionOffset->QuadPart)
+    if (((ULONG64)SectionOffset->QuadPart + *ViewSize) < (ULONG64)SectionOffset->QuadPart)
     {
-        DPRINT1("Section offset overflows\n");
+        DPRINT1("MmMapViewOfSection: Section offset overflows\n");
         return STATUS_INVALID_VIEW_SIZE;
     }
 
     /* Check if the offset and size are bigger than the section itself */
-    if (((ULONG64)SectionOffset->QuadPart + *ViewSize) >
-         (ULONG64)Section->SizeOfSection.QuadPart)
+    if (((ULONG64)SectionOffset->QuadPart + *ViewSize) > (ULONG64)Section->SizeOfSection.QuadPart &&
+        !(AllocationType & MEM_RESERVE))
     {
-        DPRINT1("Section offset is larger than section\n");
+        DPRINT1("MmMapViewOfSection: Section offset is larger than section\n");
         return STATUS_INVALID_VIEW_SIZE;
     }
 
@@ -3246,46 +3234,59 @@ MmMapViewOfArm3Section(IN PVOID SectionObject,
     if (!(*ViewSize))
     {
         /* Compute it for the caller */
-        CalculatedViewSize = Section->SizeOfSection.QuadPart - 
-                             SectionOffset->QuadPart;
+        CalculatedViewSize = Section->SizeOfSection.QuadPart - SectionOffset->QuadPart;
 
         /* Check if it's larger than 4GB or overflows into kernel-mode */
         if (!NT_SUCCESS(RtlULongLongToSIZET(CalculatedViewSize, ViewSize)) ||
             (((ULONG_PTR)MM_HIGHEST_VAD_ADDRESS - (ULONG_PTR)*BaseAddress) < CalculatedViewSize))
         {
-            DPRINT1("Section view won't fit\n");
+            DPRINT1("MmMapViewOfSection: Section view won't fit\n");
             return STATUS_INVALID_VIEW_SIZE;
         }
     }
 
     /* Check if the commit size is larger than the view size */
-    if (CommitSize > *ViewSize)
+    if (CommitSize > *ViewSize && (AllocationType & MEM_RESERVE) == 0)
     {
-        DPRINT1("Attempting to commit more than the view itself\n");
+        DPRINT1("MmMapViewOfSection: Attempting to commit more than the view itself\n");
         return STATUS_INVALID_PARAMETER_5;
     }
 
     /* Check if the view size is larger than the section */
-    if (*ViewSize > (ULONG64)Section->SizeOfSection.QuadPart)
+    if (*ViewSize > (ULONG64)Section->SizeOfSection.QuadPart && !(AllocationType & MEM_RESERVE))
     {
-        DPRINT1("The view is larger than the section\n");
+        DPRINT1("MmMapViewOfSection: The view is larger than the section\n");
         return STATUS_INVALID_VIEW_SIZE;
+    }
+
+    /* Compute and validate the protection */
+    if (AllocationType & MEM_RESERVE &&
+        (!(Section->InitialPageProtection & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE))))
+    {
+        DPRINT1("MmMapViewOfSection: STATUS_SECTION_PROTECTION\n");
+        return STATUS_SECTION_PROTECTION;
+    }
+
+    if (Section->u.Flags.NoCache)
+    {
+        Protect = (Protect & ~PAGE_WRITECOMBINE) | PAGE_NOCACHE;
+    }
+
+    if (Section->u.Flags.WriteCombined)
+    {
+        Protect = (Protect & ~PAGE_NOCACHE) | PAGE_WRITECOMBINE;
     }
 
     /* Compute and validate the protection mask */
     ProtectionMask = MiMakeProtectionMask(Protect);
     if (ProtectionMask == MM_INVALID_PROTECTION)
     {
-        DPRINT1("The protection is invalid\n");
+        DPRINT1("MmMapViewOfSection: The protection is invalid\n");
         return STATUS_INVALID_PAGE_PROTECTION;
     }
 
-    /* We only handle pagefile-backed sections, which cannot be writecombined */
-    if (Protect & PAGE_WRITECOMBINE)
-    {
-        DPRINT1("Cannot write combine a pagefile-backed section\n");
-        return STATUS_INVALID_PARAMETER_10;
-    }
+    /* Get the control area */
+    ControlArea = Section->Segment->ControlArea;
 
     /* Start by attaching to the current process if needed */
     if (PsGetCurrentProcess() != Process)
@@ -3294,7 +3295,67 @@ MmMapViewOfArm3Section(IN PVOID SectionObject,
         Attached = TRUE;
     }
 
+    /* Lock the process address space */
+    KeAcquireGuardedMutex(&Process->AddressCreationLock);
+
+    if (Process->VmDeleted)
+    {
+        DPRINT1("MmMapViewOfSection: STATUS_PROCESS_IS_TERMINATING\n");
+        Status = STATUS_PROCESS_IS_TERMINATING;
+        goto Exit;
+    }
+
     /* Do the actual mapping */
+
+    if (ControlArea->u.Flags.PhysicalMemory)
+    {
+        Status = MiMapViewOfPhysicalSection(ControlArea,
+                                            Process,
+                                            BaseAddress,
+                                            SectionOffset,
+                                            ViewSize,
+                                            ProtectionMask,
+                                            ZeroBits,
+                                            AllocationType);
+        goto Exit;
+    }
+
+    if (ControlArea->u.Flags.Image)
+    {
+        if (AllocationType & MEM_RESERVE)
+        {
+            DPRINT1("MmMapViewOfSection: STATUS_INVALID_PARAMETER_9\n");
+            Status = STATUS_INVALID_PARAMETER_9;
+            goto Exit;
+        }
+
+        if (Protect & PAGE_WRITECOMBINE)
+        {
+            DPRINT1("MmMapViewOfSection: STATUS_INVALID_PARAMETER_10\n");
+            Status = STATUS_INVALID_PARAMETER_10;
+            goto Exit;
+        }
+
+        Status = MiMapViewOfImageSection(ControlArea,
+                                         Process,
+                                         BaseAddress,
+                                         SectionOffset,
+                                         ViewSize,
+                                         Section,
+                                         InheritDisposition,
+                                         ZeroBits,
+                                         AllocationType,
+                                         Section->Segment->u1.ImageCommitment);
+        goto Exit;
+    }
+
+    if (Protect & PAGE_WRITECOMBINE)
+    {
+        DPRINT1("MmMapViewOfSection: STATUS_INVALID_PARAMETER_10\n");
+        Status = STATUS_INVALID_PARAMETER_10;
+        goto Exit;
+    }
+
     Status = MiMapViewOfDataSection(ControlArea,
                                     Process,
                                     BaseAddress,
@@ -3306,9 +3367,22 @@ MmMapViewOfArm3Section(IN PVOID SectionObject,
                                     CommitSize,
                                     ZeroBits,
                                     AllocationType);
+Exit:
 
     /* Detach if needed, then return status */
-    if (Attached) KeUnstackDetachProcess(&ApcState);
+    if (Attached)
+    {
+        KeUnstackDetachProcess(&ApcState);
+    }
+
+    /* Release the address space lock */
+    KeReleaseGuardedMutex(&Process->AddressCreationLock);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("MmMapViewOfSection: Status %X\n", Status);
+    }
+
     return Status;
 }
 
