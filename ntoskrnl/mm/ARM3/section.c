@@ -1080,44 +1080,52 @@ _WARN("MiSessionCommitPageTables halfplemented for amd64")
 
 NTSTATUS
 NTAPI
-MiMapViewInSystemSpace(IN PVOID Section,
+MiMapViewInSystemSpace(IN PVOID SectionPointer,
                        IN PMMSESSION Session,
                        OUT PVOID *MappedBase,
                        IN OUT PSIZE_T ViewSize)
 {
+    PSECTION Section = SectionPointer;
     PVOID Base;
     PCONTROL_AREA ControlArea;
     ULONG Buckets, SectionSize;
     NTSTATUS Status;
+
     PAGED_CODE();
+    DPRINT("MiMapViewInSystemSpace: Section %p, Session %p, MappedBase %p, ViewSize %I64X\n", Section, Session, ((MappedBase == NULL) ? NULL : *MappedBase), ((ViewSize == 0) ? 0 : (ULONGLONG)*ViewSize));
 
-    ASSERT(FALSE);
-
-    /* Get the control area, check for any flags ARM3 doesn't yet support */
-    ControlArea = ((PSECTION)Section)->Segment->ControlArea;
-    ASSERT(ControlArea->u.Flags.Image == 0);
-    ASSERT(ControlArea->FilePointer == NULL);
-    ASSERT(ControlArea->u.Flags.GlobalOnlyPerSession == 0);
-    ASSERT(ControlArea->u.Flags.Rom == 0);
-    ASSERT(ControlArea->u.Flags.WasPurged == 0);
+    /* Get the control area */
+    ControlArea = Section->Segment->ControlArea;
 
     /* Increase the reference and map count on the control area, no purges yet */
     Status = MiCheckPurgeAndUpMapCount(ControlArea, FALSE);
-    ASSERT(NT_SUCCESS(Status));
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("MiMapViewInSystemSpace: Status %X\n", Status);
+        return Status;
+    }
 
     /* Get the section size at creation time */
-    SectionSize = ((PSECTION)Section)->SizeOfSection.LowPart;
+    SectionSize = Section->SizeOfSection.LowPart;
 
     /* If the caller didn't specify a view size, assume the whole section */
-    if (!(*ViewSize)) *ViewSize = SectionSize;
-
-    /* Check if the caller wanted a larger section than the view */
-    if (*ViewSize > SectionSize)
+    if (*ViewSize)
     {
-        /* Fail */
-        DPRINT1("View is too large\n");
-        MiDereferenceControlArea(ControlArea);
-        return STATUS_INVALID_VIEW_SIZE;
+        /* Check if the caller wanted a larger section than the view */
+        if (*ViewSize > SectionSize)
+        {
+            /* Fail */
+            DPRINT1("MiMapViewInSystemSpace: View is too large\n");
+            ASSERT(0);
+            MiDereferenceControlArea(ControlArea);
+            return STATUS_INVALID_VIEW_SIZE;
+        }
+    }
+    else
+    {
+        DPRINT("MiMapViewInSystemSpace: SectionSize %X\n", SectionSize);
+        ASSERT(SectionSize != 0);
+        *ViewSize = SectionSize;
     }
 
     /* Get the number of 64K buckets required for this mapping */
@@ -1128,7 +1136,7 @@ MiMapViewInSystemSpace(IN PVOID Section,
     if (Buckets >= MI_SYSTEM_VIEW_BUCKET_SIZE)
     {
         /* Fail */
-        DPRINT1("View is too large\n");
+        DPRINT1("MiMapViewInSystemSpace: View is too large\n");
         MiDereferenceControlArea(ControlArea);
         return STATUS_INVALID_VIEW_SIZE;
     }
@@ -1138,7 +1146,7 @@ MiMapViewInSystemSpace(IN PVOID Section,
     if (!Base)
     {
         /* Fail */
-        DPRINT1("Out of system space\n");
+        DPRINT1("MiMapViewInSystemSpace: Out of system space\n");
         MiDereferenceControlArea(ControlArea);
         return STATUS_NO_MEMORY;
     }
@@ -1148,7 +1156,6 @@ MiMapViewInSystemSpace(IN PVOID Section,
     {
         /* Create the PDEs needed for this mapping, and double-map them if needed */
         MiFillSystemPageDirectory(Base, Buckets * MI_SYSTEM_VIEW_BUCKET_SIZE);
-        Status = STATUS_SUCCESS;
     }
     else
     {
@@ -1156,18 +1163,30 @@ MiMapViewInSystemSpace(IN PVOID Section,
         Status = MiSessionCommitPageTables(Base,
                                            (PVOID)((ULONG_PTR)Base +
                                            Buckets * MI_SYSTEM_VIEW_BUCKET_SIZE));
-        ASSERT(NT_SUCCESS(Status));
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("MiMapViewInSystemSpace: Status %X\n", Status);
+            goto ErrorExit;
+        }
     }
 
     /* Create the actual prototype PTEs for this mapping */
     Status = MiAddMappedPtes(MiAddressToPte(Base),
                              BYTES_TO_PAGES(*ViewSize),
                              ControlArea);
-    ASSERT(NT_SUCCESS(Status));
+    if (NT_SUCCESS(Status))
+    {
+        *MappedBase = Base;
+        return STATUS_SUCCESS;
+    }
 
-    /* Return the base adress of the mapping and success */
-    *MappedBase = Base;
-    return STATUS_SUCCESS;
+    DPRINT1("MiMapViewInSystemSpace: Status %X\n", Status);
+
+ErrorExit:
+
+    ASSERT(FALSE);
+    MiDereferenceControlArea(ControlArea);
+    return Status;
 }
 
 VOID
