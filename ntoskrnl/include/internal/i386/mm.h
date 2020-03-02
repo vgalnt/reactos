@@ -72,7 +72,7 @@ C_ASSERT(PD_COUNT == 1);
                                                   MI_HYPERSPACE_PTES * PAGE_SIZE)
 #define MI_DUMMY_PTE                        (PMMPTE)((ULONG_PTR)MI_MAPPING_RANGE_END + \
                                                   PAGE_SIZE)
-#define MI_VAD_BITMAP                       (PMMPTE)((ULONG_PTR)MI_DUMMY_PTE + \
+#define MI_VAD_BITMAP                       (PULONG)((ULONG_PTR)MI_DUMMY_PTE + \
                                                   PAGE_SIZE)
 #define MI_WORKING_SET_LIST                 (PMMPTE)((ULONG_PTR)MI_VAD_BITMAP + \
                                                   PAGE_SIZE)

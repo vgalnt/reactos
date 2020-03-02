@@ -604,6 +604,74 @@ MiFindEmptyAddressRangeInTree(IN SIZE_T Length,
     return TableFoundNode;
 }
 
+#define MAXINDEX 0xFFFFFFFF
+
+NTSTATUS
+NTAPI
+MiFindEmptyAddressRange(IN SIZE_T Size,
+                        IN ULONG_PTR Alignment,
+                        IN ULONG ZeroBits,
+                        OUT PULONG_PTR OutBaseAddress)
+{
+    PEPROCESS Process;
+    ULONG StartVadBitmapValue;
+    ULONG StartBitIndex;
+    RTL_BITMAP BitMapHeader;
+
+    DPRINT("MiFindEmptyAddressRange: Size %X, Alignment %X, ZeroBits %X\n", Size, Alignment, ZeroBits);
+
+    Process = PsGetCurrentProcess();
+
+    if (ZeroBits || Alignment != MM_VIRTMEM_GRANULARITY)
+    {
+        DPRINT1("MiFindEmptyAddressRange: goto FindInTree\n");
+        goto FindInTree;
+    }
+
+    BitMapHeader.SizeOfBitMap = MiLastVadBit + 1;
+    BitMapHeader.Buffer = MI_VAD_BITMAP;
+
+    /* Mask null bit */
+    StartVadBitmapValue = *MI_VAD_BITMAP;
+    *(PULONG)MI_VAD_BITMAP |= 1;
+
+    /* Get starting bit index for a clear bit range of at least the requested size */
+    StartBitIndex = RtlFindClearBits(&BitMapHeader,
+                                     ((Size + (MM_VIRTMEM_GRANULARITY - 1)) / MM_VIRTMEM_GRANULARITY),
+                                     MmWorkingSetList->VadBitMapHint);
+
+    /* Unmask null bit */
+    *(PULONG)MI_VAD_BITMAP &= (StartVadBitmapValue | (~1));
+
+    if (StartBitIndex != MAXINDEX)
+    {
+        *OutBaseAddress = (ULONG_PTR)StartBitIndex * MM_VIRTMEM_GRANULARITY;
+        DPRINT("MiFindEmptyAddressRange: StartBitIndex %X, BaseAddress %X\n", StartBitIndex, *OutBaseAddress);
+        return STATUS_SUCCESS;
+    }
+
+    /* Cannot find a range within the MI_VAD_BITMAP */
+
+    if (Process->VadFreeHint == NULL)
+    {
+        DPRINT1("MiFindEmptyAddressRange: VadFreeHint == NULL\n");
+        goto FindInTree;
+    }
+    else
+    {
+        DPRINT1("MiFindEmptyAddressRange: FIXME!\n");
+        ASSERT(FALSE);
+    }
+
+FindInTree:
+
+    return MiFindEmptyAddressRangeInTree(Size,
+                                         Alignment,
+                                         &Process->VadRoot,
+                                         (PMMADDRESS_NODE *)&Process->VadFreeHint,
+                                         OutBaseAddress);
+}
+
 TABLE_SEARCH_RESULT
 NTAPI
 MiFindEmptyAddressRangeDownTree(IN SIZE_T Length,
