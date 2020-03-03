@@ -1151,5 +1151,66 @@ ErrorExit:
     return STATUS_COMMITMENT_LIMIT;
 }
 
+VOID
+NTAPI
+MiRemoveVadCharges(IN PMMVAD Vad,
+                   IN PEPROCESS Process)
+{
+    ULONG_PTR SizeVpn;
+    ULONG RealCharge;
+
+    DPRINT("MiRemoveVadCharges: Vad %p, Process %p\n", Vad, Process);
+
+    ASSERT(!MM_ANY_WS_LOCK_HELD(PsGetCurrentThread()));
+    ASSERT(Process == PsGetCurrentProcess());
+
+    if (Vad->u.VadFlags.CommitCharge != 0x7FFFF) // ?
+    {
+        PsReturnProcessNonPagedPoolQuota(Process, sizeof(MMVAD));
+
+        if (!Vad->u.VadFlags.PrivateMemory && Vad->ControlArea)
+        {
+            SizeVpn = Vad->EndingVpn - Vad->StartingVpn + 1;
+            PsReturnProcessPagedPoolQuota(Process, (SizeVpn * sizeof(MMPTE)));
+        }
+
+        RealCharge = Vad->u.VadFlags.CommitCharge;
+
+        if (RealCharge)
+        {
+            PsReturnProcessPageFileQuota(Process, Vad->u.VadFlags.CommitCharge);
+
+            ASSERT((SSIZE_T)(RealCharge) >= 0);
+            ASSERT(MmTotalCommittedPages >= RealCharge);
+
+            InterlockedExchangeAdd((volatile PLONG)&MmTotalCommittedPages, -RealCharge);
+
+            if (Process->JobStatus & 0x10) // ?
+            {
+                DPRINT1("MiRemoveVadCharges: FIXME PsChangeJobMemoryUsage()\n");
+                ASSERT(FALSE);
+            }
+
+            Process->CommitCharge -= RealCharge;
+        }
+    }
+
+    if (Vad->u.VadFlags.NoChange &&
+        Vad->u2.VadFlags2.MultipleSecured)
+    {
+        DPRINT1("MiRemoveVadCharges: FIXME MultipleSecured\n");
+        ASSERT(FALSE);
+    }
+
+    if (Process->VadFreeHint)
+    {
+        if (Vad == Process->VadFreeHint ||
+            Vad->StartingVpn < ((PMMVAD)(Process->VadFreeHint))->StartingVpn)
+        {
+            Process->VadFreeHint = MiGetPreviousNode((PMMADDRESS_NODE)Vad);
+        }
+    }
+}
+
 /* EOF */
 
