@@ -1386,9 +1386,9 @@ NTSTATUS
 NTAPI
 MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
                        IN PEPROCESS Process,
-                       IN PVOID *BaseAddress,
-                       IN PLARGE_INTEGER SectionOffset,
-                       IN PSIZE_T ViewSize,
+                       IN OUT PVOID *BaseAddress,
+                       IN OUT PLARGE_INTEGER SectionOffset,
+                       IN OUT PSIZE_T ViewSize,
                        IN PSECTION Section,
                        IN SECTION_INHERIT InheritDisposition,
                        IN ULONG ProtectionMask,
@@ -1396,59 +1396,79 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
                        IN ULONG_PTR ZeroBits,
                        IN ULONG AllocationType)
 {
-    PMMVAD_LONG Vad;
+    PETHREAD Thread;
+    PMMVAD Vad;
     ULONG_PTR StartAddress;
-    ULONG_PTR ViewSizeInPages;
+    ULONG_PTR EndAddress;
+    ULONG_PTR HighestAddress;
     PSUBSECTION Subsection;
     PSEGMENT Segment;
-    PFN_NUMBER PteOffset;
+    ULONGLONG PteOffset;
+    ULONGLONG LastPteOffset;
     NTSTATUS Status;
-    ULONG QuotaCharge = 0, QuotaExcess = 0;
-    PMMPTE Pte, LastPte;
+    ULONG QuotaCharge = 0;
+    ULONG QuotaExcess = 0;
+    ULONG VadSize;
+    PMMPTE Pte;
+    PMMPTE LastPte;
     MMPTE TempPte;
     ULONG Granularity = MM_ALLOCATION_GRANULARITY;
+    PMMEXTEND_INFO ExtendInfo;
+    PMMADDRESS_NODE Parent;
+    LARGE_INTEGER TotalNumberOfPtes;
+    BOOLEAN IsLargePages;
+    BOOLEAN IsFindEnabled;
 
-    DPRINT("Mapping ARM3 data section\n");
-
-    ASSERT(FALSE);
+    DPRINT("MiMapViewOfDataSection: Section %p, ControlArea %p, Process %p, ZeroBits %X, CommitSize %X, AllocType %X, ProtectionMask %X\n", Section, ControlArea, Process, ZeroBits, CommitSize, AllocationType, ProtectionMask);
 
     /* Get the segment for this section */
     Segment = ControlArea->Segment;
 
-#ifdef _M_IX86
-    /* ALlow being less restrictive on x86. */
-    if (AllocationType & MEM_DOS_LIM)
-        Granularity = PAGE_SIZE;
-#endif
-
     /* One can only reserve a file-based mapping, not shared memory! */
     if ((AllocationType & MEM_RESERVE) && !(ControlArea->FilePointer))
     {
+        DPRINT1("MiMapViewOfDataSection: STATUS_INVALID_PARAMETER_9\n");
         return STATUS_INVALID_PARAMETER_9;
+    }
+
+    if (AllocationType & MEM_DOS_LIM)
+    {
+        /* ALlow being less restrictive */
+        if ((*BaseAddress == NULL) || (AllocationType & MEM_RESERVE))
+        {
+            DPRINT1("MiMapViewOfDataSection: STATUS_INVALID_PARAMETER_3\n");
+            return STATUS_INVALID_PARAMETER_3;
+        }
+
+        Granularity = PAGE_SIZE;
     }
 
     /* First, increase the map count. No purging is supported yet */
     Status = MiCheckPurgeAndUpMapCount(ControlArea, FALSE);
-    if (!NT_SUCCESS(Status)) return Status;
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("MiMapViewOfDataSection: Status %X\n", Status);
+        return Status;
+    }
 
     /* Check if the caller specified the view size */
-    if (!(*ViewSize))
+    if (*ViewSize)
     {
-        /* The caller did not, so pick a 64K aligned view size based on the offset */
-        SectionOffset->LowPart &= ~(_64K - 1);
-        *ViewSize = (SIZE_T)(Section->SizeOfSection.QuadPart - SectionOffset->QuadPart);
+        /* A size was specified. Align it. */
+        *ViewSize += SectionOffset->LowPart & (Granularity - 1);
+
+        /* Align the offset as well to make this an aligned map */
+        SectionOffset->LowPart &= ~(Granularity - 1);
     }
     else
     {
-        /* A size was specified, align it to a 64K boundary */
-        *ViewSize += SectionOffset->LowPart & (_64K - 1);
-
-        /* Align the offset as well to make this an aligned map */
-        SectionOffset->LowPart &= ~((ULONG)_64K - 1);
+        /* The caller did not, so pick aligned view size based on the offset */
+        SectionOffset->LowPart &= ~(Granularity - 1);
+        *ViewSize = (SIZE_T)(Section->SizeOfSection.QuadPart - SectionOffset->QuadPart);
     }
 
-    /* We must be dealing with a 64KB aligned offset. This is a Windows ASSERT */
-    ASSERT((SectionOffset->LowPart & ((ULONG)_64K - 1)) == 0);
+    /* We must be dealing with aligned offset. This is a Windows ASSERT */
+    ASSERT((SectionOffset->LowPart & (Granularity - 1)) == 0);
 
     /* It's illegal to try to map more than overflows a LONG_PTR */
     if (*ViewSize >= MAXLONG_PTR)
@@ -1460,31 +1480,58 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
     /* Windows ASSERTs for this flag */
     ASSERT(ControlArea->u.Flags.GlobalOnlyPerSession == 0);
 
-    /* Get the subsection. We don't support LARGE_CONTROL_AREA in ARM3 */
-    ASSERT(ControlArea->u.Flags.Rom == 0);
-    Subsection = (PSUBSECTION)(ControlArea + 1);
-
-    /* Sections with extended segments are not supported in ARM3 */
-    ASSERT(Segment->SegmentFlags.TotalNumberOfPtes4132 == 0);
+    /* Get the subsection. */
+    if (ControlArea->u.Flags.Rom == 0)
+    {
+        Subsection = (PSUBSECTION)(ControlArea + 1);
+    }
+    else
+    {
+        Subsection = (PSUBSECTION)((PLARGE_CONTROL_AREA)ControlArea + 1);
+    }
 
     /* Within this section, figure out which PTEs will describe the view */
-    PteOffset = (PFN_NUMBER)(SectionOffset->QuadPart >> PAGE_SHIFT);
+    PteOffset = SectionOffset->QuadPart / PAGE_SIZE;
 
-    /* The offset must be in this segment's PTE chunk and it must be valid. Windows ASSERTs */
-    ASSERT(PteOffset < Segment->TotalNumberOfPtes);
-    ASSERT(((SectionOffset->QuadPart + *ViewSize + PAGE_SIZE - 1) >> PAGE_SHIFT) >= PteOffset);
+    TotalNumberOfPtes.LowPart = Segment->TotalNumberOfPtes;
+    TotalNumberOfPtes.HighPart = Segment->SegmentFlags.TotalNumberOfPtes4132;
 
-    /* In ARM3, only one subsection is used for now. It must contain these PTEs */
-    ASSERT(PteOffset < Subsection->PtesInSubsection);
+    /* The offset must be in this segment's PTE chunk and it must be valid. */
+    if (PteOffset >= (ULONGLONG)TotalNumberOfPtes.QuadPart)
+    {
+        MiDereferenceControlArea(ControlArea);
+        return STATUS_INVALID_VIEW_SIZE;
+    }
 
-    /* In ARM3, only page-file backed sections (shared memory) are supported now */
-    ASSERT(ControlArea->FilePointer == NULL);
+    LastPteOffset = ((SectionOffset->QuadPart + *ViewSize + (PAGE_SIZE - 1)) / PAGE_SIZE);
+    ASSERT(LastPteOffset >= PteOffset);
+
+    /* Subsection must contain these PTEs */
+    while (PteOffset >= (ULONGLONG)Subsection->PtesInSubsection)
+    {
+        PteOffset -= Subsection->PtesInSubsection;
+        LastPteOffset -= Subsection->PtesInSubsection;
+        Subsection = Subsection->NextSubsection;
+        ASSERT(Subsection != NULL);
+    }
+
+    if (ControlArea->FilePointer != NULL)
+    {
+        Status = MiAddViewsForSectionWithPfn((PMSUBSECTION)Subsection, LastPteOffset);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("MiMapViewOfDataSection: Status %X\n", Status);
+            MiDereferenceControlArea(ControlArea);
+            return Status;
+        }
+    }
 
     /* Windows ASSERTs for this too -- there must be a subsection base address */
     ASSERT(Subsection->SubsectionBase != NULL);
 
     /* Compute how much commit space the segment will take */
-    if ((CommitSize) && (Segment->NumberOfCommittedPages < Segment->TotalNumberOfPtes))
+    if (!ControlArea->FilePointer &&
+        (CommitSize) && (Segment->NumberOfCommittedPages < (ULONGLONG)TotalNumberOfPtes.QuadPart))
     {
         /* Charge for the maximum pages */
         QuotaCharge = BYTES_TO_PAGES(CommitSize);
@@ -1492,47 +1539,294 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
 
     /* ARM3 does not currently support large pages */
     ASSERT(Segment->SegmentFlags.LargePages == 0);
-
-    /* Calculate how many pages the region spans */
-    ViewSizeInPages = BYTES_TO_PAGES(*ViewSize);
-
-    /* A VAD can now be allocated. Do so and zero it out */
-    /* FIXME: we are allocating a LONG VAD for ReactOS compatibility only */
-    ASSERT((AllocationType & MEM_RESERVE) == 0); /* ARM3 does not support this */
-    Vad = ExAllocatePoolWithTag(NonPagedPool, sizeof(MMVAD_LONG), 'ldaV');
-    if (!Vad)
+    if (Segment->SegmentFlags.LargePages &&
+        (*ViewSize & (0x400000 - 1)) == 0 &&
+        !(AllocationType & MEM_RESERVE) &&
+        (KeFeatureBits & KF_LARGE_PAGE) &&
+        (ProtectionMask & MM_PROTECT_SPECIAL) != MM_GUARDPAGE &&
+        ProtectionMask != MM_NOACCESS &&
+        (ProtectionMask & MM_WRITECOPY) != MM_WRITECOPY)
     {
-        MiDereferenceControlArea(ControlArea);
-        return STATUS_INSUFFICIENT_RESOURCES;
+        IsLargePages = TRUE;
+    }
+    else
+    {
+        IsLargePages = FALSE;
     }
 
-    RtlZeroMemory(Vad, sizeof(MMVAD_LONG));
-    Vad->u4.Banked = (PVOID)(ULONG_PTR)0xDEADBABEDEADBABEULL;
+    /* Is it SEC_BASED, or did the caller manually specify an address? */
+    if (*BaseAddress || Section->Address.StartingVpn)
+    {
+        if (*BaseAddress)
+        {
+            /* Just align what the caller gave us */
+            StartAddress = ALIGN_DOWN_BY(*BaseAddress, Granularity);
+        }
+        else
+        {
+            /* It is a SEC_BASED mapping, use the address that was generated */
+            StartAddress = Section->Address.StartingVpn + SectionOffset->LowPart;
+        }
+
+        if ((ULONG_PTR)StartAddress & (0x400000 - 1))
+        {
+            IsLargePages = FALSE;
+        }
+
+        EndAddress = ((*ViewSize + StartAddress - 1) | (PAGE_SIZE - 1));
+
+        DPRINT1("MiMapViewOfDataSection: FIXME MiCheckForConflictingVadExistence()\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        /* No StartAddress. Find empty address range. */
+
+        IsFindEnabled = TRUE;
+
+        if ((AllocationType & MEM_TOP_DOWN) || (Process->VmTopDown))
+        {
+            HighestAddress = (ULONG_PTR)MM_HIGHEST_VAD_ADDRESS;
+
+            if (ZeroBits)
+            {
+                HighestAddress = ((ULONG_PTR)MI_HIGHEST_SYSTEM_ADDRESS >> ZeroBits);
+                if (HighestAddress > (ULONG_PTR)MM_HIGHEST_VAD_ADDRESS)
+                {
+                    HighestAddress = (ULONG_PTR)MM_HIGHEST_VAD_ADDRESS;
+                }
+            }
+
+            if (IsLargePages)
+            {
+                ASSERT(FALSE);
+                Status = MiFindEmptyAddressRangeDownTree(*ViewSize, HighestAddress, 0x400000, &Process->VadRoot, &StartAddress, &Parent);
+                if (!NT_SUCCESS (Status))
+                {
+                    DPRINT1("MiMapViewOfDataSection: Status %X\n", Status);
+                    IsLargePages = FALSE;
+                }
+                else
+                {
+                    IsFindEnabled = FALSE;
+                }
+            }
+
+            if (IsFindEnabled)
+            {
+                Status = MiFindEmptyAddressRangeDownTree(*ViewSize, HighestAddress, Granularity, &Process->VadRoot, &StartAddress, &Parent);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("MiMapViewOfDataSection: Status %X\n", Status);
+                    goto ErrorExit;
+                }
+            }
+        }
+        else
+        {
+            if (IsLargePages)
+            {
+                Status = MiFindEmptyAddressRange(*ViewSize, 0x400000, ZeroBits, &StartAddress);
+                if (!NT_SUCCESS (Status))
+                {
+                    DPRINT1("MiMapViewOfDataSection: Status %X\n", Status);
+                    IsLargePages = FALSE;
+                }
+                else
+                {
+                    IsFindEnabled = FALSE;
+                }
+            }
+
+            if (IsFindEnabled)
+            {
+                Status = MiFindEmptyAddressRange(*ViewSize, Granularity, ZeroBits, &StartAddress);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("MiMapViewOfDataSection: Status %X\n", Status);
+                    goto ErrorExit;
+                }
+            }
+        }
+
+        EndAddress = ((*ViewSize + StartAddress - 1) | (PAGE_SIZE - 1));
+
+        if (ZeroBits &&
+            (EndAddress > ((ULONG_PTR)MI_HIGHEST_SYSTEM_ADDRESS >> ZeroBits)))
+        {
+            DPRINT1("MiMapViewOfDataSection: STATUS_NO_MEMORY\n");
+            Status = STATUS_NO_MEMORY;
+            goto ErrorExit;
+        }
+    }
+
+    /* A VAD can now be allocated. Do so and zero it out */
+    if (AllocationType & MEM_RESERVE)
+    {
+        VadSize = sizeof(MMVAD_LONG);
+        Vad = ExAllocatePoolWithTag(NonPagedPool, VadSize, 'ldaV');
+    }
+    else
+    {
+        VadSize = sizeof(MMVAD);
+        Vad = ExAllocatePoolWithTag(NonPagedPool, VadSize, ' daV');
+    }
+
+    if (Vad == NULL)
+    {
+        DPRINT1("MiMapViewOfDataSection: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+
+    RtlZeroMemory(Vad, VadSize);
 
     /* Write all the data required in the VAD for handling a fault */
     Vad->ControlArea = ControlArea;
-    Vad->u.VadFlags.CommitCharge = 0;
     Vad->u.VadFlags.Protection = ProtectionMask;
     Vad->u2.VadFlags2.FileOffset = (ULONG)(SectionOffset->QuadPart >> 16);
     Vad->u2.VadFlags2.Inherit = (InheritDisposition == ViewShare);
+    Vad->u2.VadFlags2.CopyOnWrite = Section->u.Flags.CopyOnWrite;
+
     if ((AllocationType & SEC_NO_CHANGE) || (Section->u.Flags.NoChange))
     {
-        /* This isn't really implemented yet, but handle setting the flag */
+        /* Setting the flag */
         Vad->u.VadFlags.NoChange = 1;
         Vad->u2.VadFlags2.SecNoChange = 1;
     }
 
+    if (AllocationType & MEM_RESERVE)
+    {
+        Vad->u2.VadFlags2.LongVad = 1;
+
+        KeAcquireGuardedMutexUnsafe(&MmSectionBasedMutex);
+
+        ExtendInfo = Segment->ExtendInfo;
+        if (ExtendInfo)
+        {
+            ExtendInfo->ReferenceCount++;
+        }
+        else
+        {
+            ExtendInfo = ExAllocatePoolWithTag(NonPagedPool, sizeof(MMEXTEND_INFO), 'xCmM');
+            if (ExtendInfo == NULL)
+            {
+                KeReleaseGuardedMutexUnsafe(&MmSectionBasedMutex);
+
+                DPRINT1("MiMapViewOfDataSection: STATUS_INSUFFICIENT_RESOURCES\n");
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                goto ErrorExit;
+            }
+
+            ExtendInfo->ReferenceCount = 1;
+            ExtendInfo->CommittedSize = Segment->SizeOfSegment;
+            Segment->ExtendInfo = ExtendInfo;
+        }
+
+        if (ExtendInfo->CommittedSize < (ULONGLONG)Section->SizeOfSection.QuadPart)
+        {
+            ExtendInfo->CommittedSize = (ULONGLONG)Section->SizeOfSection.QuadPart;
+        }
+
+        KeReleaseGuardedMutexUnsafe(&MmSectionBasedMutex);
+
+        Vad->u2.VadFlags2.ExtendableFile = 1;
+
+        ASSERT(((PMMVAD_LONG)Vad)->u4.ExtendedInfo == NULL);
+        ((PMMVAD_LONG)Vad)->u4.ExtendedInfo = ExtendInfo;
+    }
+
+    if ((ProtectionMask & MM_WRITECOPY) == MM_WRITECOPY)
+    {
+        Vad->u.VadFlags.CommitCharge = BYTES_TO_PAGES(EndAddress - StartAddress);
+    }
+
     /* Finally, write down the first and last prototype PTE */
+    Vad->StartingVpn = StartAddress / PAGE_SIZE;
+    Vad->EndingVpn = EndAddress / PAGE_SIZE;
+
     Vad->FirstPrototypePte = &Subsection->SubsectionBase[PteOffset];
-    PteOffset += ViewSizeInPages - 1;
-    ASSERT(PteOffset < Subsection->PtesInSubsection);
-    Vad->LastContiguousPte = &Subsection->SubsectionBase[PteOffset];
+
+    PteOffset += (Vad->EndingVpn - Vad->StartingVpn);
+
+    if (PteOffset >= Subsection->PtesInSubsection)
+    {
+        Vad->LastContiguousPte = &Subsection->SubsectionBase[Subsection->PtesInSubsection - 1 + Subsection->UnusedPtes];
+    }
+    else
+    {
+        Vad->LastContiguousPte = &Subsection->SubsectionBase[PteOffset];
+    }
 
     /* Make sure the prototype PTE ranges make sense, this is a Windows ASSERT */
     ASSERT(Vad->FirstPrototypePte <= Vad->LastContiguousPte);
 
-    /* FIXME: Should setup VAD bitmap */
-    Status = STATUS_SUCCESS;
+    /* Check if anything was committed */
+    if (QuotaCharge)
+    {
+        DPRINT1("MiMapViewOfDataSection: FIXME MiChargeCommitment()\n");
+        ASSERT(FALSE);
+    }
+
+
+    /* Insert the VAD charges */
+    Status = MiInsertVadCharges(Vad, Process);
+    if (!NT_SUCCESS(Status))
+    {
+        if (ControlArea->FilePointer)
+        {
+            DPRINT1("MiMapViewOfDataSection: FIXME MiRemoveViewsFromSectionWithPfn()\n");
+            ASSERT(FALSE);
+        }
+
+        MiDereferenceControlArea(ControlArea);
+
+        if (AllocationType & MEM_RESERVE)
+        {
+            ExFreePoolWithTag(Vad, 'ldaV');
+        }
+        else
+        {
+            ExFreePoolWithTag(Vad, ' daV');
+        }
+
+        if (QuotaCharge)
+        {
+            ASSERT((SSIZE_T)(QuotaCharge) >= 0);
+            ASSERT(MmTotalCommittedPages >= (QuotaCharge));
+            InterlockedExchangeAdd((volatile PLONG)&MmTotalCommittedPages, -QuotaCharge);
+        }
+
+        DPRINT1("MiMapViewOfDataSection: Status %X\n", Status);
+        return Status;
+    }
+
+    /* Insert the VAD */
+    Thread = PsGetCurrentThread();
+    MiLockProcessWorkingSetUnsafe(Process, Thread);
+    MiInsertVad(Vad, &Process->VadRoot);
+    MiUnlockProcessWorkingSetUnsafe(Process, Thread);
+
+    if (IsLargePages == TRUE)
+    {
+        DPRINT1("MiMapViewOfDataSection: FIXME MiMapLargePageSection()\n");
+        ASSERT(FALSE);
+    }
+
+    /* Windows stores this for accounting purposes, do so as well */
+    if (!ControlArea->FilePointer)
+    {
+        if (!Segment->u2.FirstMappedVa)
+        {
+            Segment->u2.FirstMappedVa = (PVOID)StartAddress;
+        }
+    }
+
+    if (AllocationType & MEM_RESERVE)
+    {
+        ASSERT((EndAddress - StartAddress) <= 
+               (((ULONGLONG)Segment->SizeOfSegment + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1)));
+    }
 
     /* Check if anything was committed */
     if (QuotaCharge)
@@ -1543,7 +1837,7 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
         TempPte = Segment->SegmentPteTemplate;
 
         /* Acquire the commit lock and loop all prototype PTEs to be committed */
-        KeAcquireGuardedMutex(&MmSectionCommitMutex);
+        KeAcquireGuardedMutexUnsafe(&MmSectionCommitMutex);
         while (Pte < LastPte)
         {
             /* Make sure the PTE is already invalid */
@@ -1566,48 +1860,63 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
         ASSERT(QuotaCharge >= QuotaExcess);
         QuotaCharge -= QuotaExcess;
         Segment->NumberOfCommittedPages += QuotaCharge;
-        ASSERT(Segment->NumberOfCommittedPages <= Segment->TotalNumberOfPtes);
+        ASSERT(Segment->NumberOfCommittedPages <= (ULONGLONG)TotalNumberOfPtes.QuadPart);
 
         /* Now that we're done, release the lock */
-        KeReleaseGuardedMutex(&MmSectionCommitMutex);
-    }
+        KeReleaseGuardedMutexUnsafe(&MmSectionCommitMutex);
 
-    /* Is it SEC_BASED, or did the caller manually specify an address? */
-    if (*BaseAddress != NULL)
-    {
-        /* Just align what the caller gave us */
-        StartAddress = ALIGN_DOWN_BY((ULONG_PTR)*BaseAddress, Granularity);
-    }
-    else if (Section->Address.StartingVpn != 0)
-    {
-        /* It is a SEC_BASED mapping, use the address that was generated */
-        StartAddress = Section->Address.StartingVpn + SectionOffset->LowPart;
-    }
-    else
-    {
-        StartAddress = 0;
-    }
+        InterlockedExchangeAdd((volatile PLONG)&MmSharedCommit, QuotaCharge);
 
-    /* Insert the VAD */
-    Status = MiInsertVadEx((PMMVAD)Vad,
-                           &StartAddress,
-                           ViewSizeInPages * PAGE_SIZE,
-                           MAXULONG_PTR >> ZeroBits,
-                           Granularity,
-                           AllocationType);
-    if (!NT_SUCCESS(Status))
-    {
-        return Status;
+        if (QuotaExcess)
+        {
+            ASSERT((SSIZE_T)(QuotaCharge) >= 0);
+            ASSERT(MmTotalCommittedPages >= (QuotaCharge));
+            InterlockedExchangeAdd((volatile PLONG)&MmTotalCommittedPages, -QuotaExcess);
+        }
     }
-
-    /* Windows stores this for accounting purposes, do so as well */
-    if (!Segment->u2.FirstMappedVa) Segment->u2.FirstMappedVa = (PVOID)StartAddress;
 
     /* Finally, let the caller know where, and for what size, the view was mapped */
-    *ViewSize = ViewSizeInPages * PAGE_SIZE;
+    *ViewSize = EndAddress - StartAddress + 1;
     *BaseAddress = (PVOID)StartAddress;
-    DPRINT("Start and region: 0x%p, 0x%p\n", *BaseAddress, *ViewSize);
+
+    Process->VirtualSize += *ViewSize;
+    if (Process->VirtualSize > Process->PeakVirtualSize)
+    {
+        Process->PeakVirtualSize = Process->VirtualSize;
+    }
+
+    if ((ProtectionMask == MM_READWRITE || ProtectionMask == MM_EXECUTE_READWRITE) &&
+        ControlArea->FilePointer)
+    {
+        InterlockedIncrement((volatile PLONG)&ControlArea->WritableUserReferences);
+    }
+
     return STATUS_SUCCESS;
+
+ErrorExit:
+
+    if (ControlArea->FilePointer)
+    {
+        DPRINT1("MiMapViewOfDataSection: FIXME MiRemoveViewsFromSectionWithPfn()\n");
+        ASSERT(FALSE);
+    }
+
+    MiDereferenceControlArea(ControlArea);
+
+    if (Vad)
+    {
+        if (AllocationType & MEM_RESERVE)
+        {
+            ExFreePoolWithTag(Vad, 'ldaV');
+        }
+        else
+        {
+            ExFreePoolWithTag(Vad, ' daV');
+        }
+    }
+
+    DPRINT("MiMapViewOfDataSection: *BaseAddress %p, *ViewSize %p, Status %X\n", *BaseAddress, *ViewSize, Status);
+    return Status;
 }
 
 VOID
