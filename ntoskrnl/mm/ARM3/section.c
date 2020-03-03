@@ -4309,7 +4309,7 @@ NtOpenSection(OUT PHANDLE SectionHandle,
     KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
     PAGED_CODE();
 
-    ASSERT(FALSE);
+    DPRINT("NtOpenSection: Access %X, ObjectName '%wZ'\n", DesiredAccess, ObjectAttributes->ObjectName);
 
     /* Check for user-mode caller */
     if (PreviousMode != KernelMode)
@@ -4369,7 +4369,7 @@ NtMapViewOfSection(IN HANDLE SectionHandle,
     PVOID SafeBaseAddress;
     LARGE_INTEGER SafeSectionOffset;
     SIZE_T SafeViewSize;
-    PROS_SECTION_OBJECT Section;
+    PSECTION Section;
     PEPROCESS Process;
     NTSTATUS Status;
     ACCESS_MASK DesiredAccess;
@@ -4383,7 +4383,7 @@ NtMapViewOfSection(IN HANDLE SectionHandle,
             SEC_NO_CHANGE | MEM_RESERVE);
 #endif
 
-    ASSERT(FALSE);
+    DPRINT("NtMapViewOfSection: SectionHandle %p, ProcessHandle %p, ZeroBits %p, CommitSize %X, AllocationType %X, Protect %X\n", SectionHandle, ProcessHandle, ZeroBits, CommitSize, AllocationType, Protect);
 
     /* Check for invalid inherit disposition */
     if ((InheritDisposition > ViewUnmap) || (InheritDisposition < ViewShare))
@@ -4501,9 +4501,9 @@ NtMapViewOfSection(IN HANDLE SectionHandle,
         return Status;
     }
 
-    if (MiIsRosSectionObject(Section) &&
-        (Section->AllocationAttributes & SEC_PHYSICALMEMORY))
+    if (Section->Segment->ControlArea->u.Flags.PhysicalMemory)
     {
+        SafeSectionOffset.LowPart = (ULONG)PAGE_ALIGN(SafeSectionOffset.LowPart);
         if (PreviousMode == UserMode &&
             SafeSectionOffset.QuadPart + SafeViewSize > MmHighestPhysicalPage << PAGE_SHIFT)
         {
@@ -4550,8 +4550,7 @@ NtMapViewOfSection(IN HANDLE SectionHandle,
     if (NT_SUCCESS(Status))
     {
         /* Check if this is an image for the current process */
-        if (MiIsRosSectionObject(Section) &&
-            (Section->AllocationAttributes & SEC_IMAGE) &&
+        if (Section->Segment->ControlArea->u.Flags.Image &&
             (Process == PsGetCurrentProcess()) &&
             (Status != STATUS_IMAGE_NOT_AT_BASE))
         {
