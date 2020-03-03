@@ -1212,5 +1212,130 @@ MiRemoveVadCharges(IN PMMVAD Vad,
     }
 }
 
+VOID
+NTAPI
+MiReturnPageTablePageCommitment(IN ULONG_PTR StartingAddress,
+                                IN ULONG_PTR EndingAddress,
+                                IN PEPROCESS Process,
+                                IN PMMVAD PreviousVad,
+                                IN PMMVAD NextVad)
+{
+    RTL_BITMAP BitMapHeader;
+    ULONG_PTR EndPreviousVad;
+    ULONG_PTR StartNextVad;
+    ULONG StartingIndex;
+    ULONG EndingIndex;
+    ULONG NumberToClear;
+    ULONG StartPdeOffset;
+    ULONG EndPdeOffset;
+    LONG PreviousPage;
+    LONG NextPage;
+    ULONG BitNumber;
+    ULONG NumberToSet;
+
+    DPRINT("MiReturnPageTablePageCommitment: StartingAddress %p, EndingAddress %p, Process %p, PreviousVad %p, NextVad %p\n", StartingAddress, EndingAddress, Process, PreviousVad, NextVad);
+
+    ASSERT(StartingAddress != EndingAddress);
+
+    StartingIndex = StartingAddress / MM_ALLOCATION_GRANULARITY;
+    EndingIndex = EndingAddress / MM_ALLOCATION_GRANULARITY;
+
+    if (PreviousVad)
+    {
+        EndPreviousVad = PreviousVad->EndingVpn * PAGE_SIZE;
+        PreviousPage = MiAddressToPdeOffset(EndPreviousVad);
+
+        if ((StartingAddress & ~MM_ALLOCATION_GRANULARITY) == (EndPreviousVad & ~MM_ALLOCATION_GRANULARITY))
+        {
+            StartingIndex++;
+        }
+    }
+    else
+    {
+        PreviousPage = -1;
+    }
+
+    if (NextVad)
+    {
+        StartNextVad = NextVad->StartingVpn * PAGE_SIZE;
+        NextPage = MiAddressToPdeOffset(StartNextVad);
+
+        if ((EndingAddress & ~MM_ALLOCATION_GRANULARITY) == (StartNextVad & ~MM_ALLOCATION_GRANULARITY))
+        {
+            EndingIndex--;
+        }
+    }
+    else
+    {
+        NextPage = MiAddressToPdeOffset(MmHighestUserAddress) + 1;
+    }
+
+    ASSERT(PreviousPage <= NextPage);
+
+    StartPdeOffset = MiAddressToPdeOffset(StartingAddress);
+    EndPdeOffset = MiAddressToPdeOffset(EndingAddress);
+
+    if (PreviousPage == StartPdeOffset)
+    {
+        StartPdeOffset++;
+    }
+
+    if (NextPage == EndPdeOffset)
+    {
+        EndPdeOffset--;
+    }
+
+    if (StartingIndex <= EndingIndex)
+    {
+      #if (_MI_PAGING_LEVELS == 2)
+        RtlInitializeBitMap(&BitMapHeader, MI_VAD_BITMAP, (MiLastVadBit + 1)); 
+
+        NumberToSet = EndingIndex - StartingIndex + 1;
+        RtlClearBits(&BitMapHeader, StartingIndex, NumberToSet);
+      #else
+        #error FIXME struct _MMWSL for PAE and _M_AMD64
+        ASSERT(FALSE);
+      #endif
+
+        if (MmWorkingSetList->VadBitMapHint > StartingIndex)
+        {
+            MmWorkingSetList->VadBitMapHint = StartingIndex;
+        }
+    }
+
+  #if (_MI_PAGING_LEVELS == 2)
+    RtlInitializeBitMap(&BitMapHeader,
+                        MmWorkingSetList->CommittedPageTables,
+                        (MI_USED_PAGE_TABLES_MAX / (8 * sizeof(ULONG))));
+
+    for (BitNumber = StartPdeOffset; BitNumber <= EndPdeOffset; BitNumber++)
+    {
+        ASSERT(RtlTestBit(&BitMapHeader, BitNumber));
+        RtlClearBit(&BitMapHeader, BitNumber);
+    }
+  #else
+    #error FIXME struct _MMWSL for PAE and _M_AMD64
+    ASSERT(FALSE);
+  #endif
+
+    NumberToClear = EndPdeOffset - StartPdeOffset + 1;
+    MmWorkingSetList->NumberOfCommittedPageTables -= NumberToClear;
+
+    ASSERT((SSIZE_T)(NumberToClear) >= 0);
+    ASSERT(MmTotalCommittedPages >= (NumberToClear));
+
+    InterlockedExchangeAdd((volatile PLONG)&MmTotalCommittedPages, -NumberToClear);
+
+    PsReturnProcessPageFileQuota(Process, NumberToClear);
+
+    if (Process->JobStatus & 0x10) // ?
+    {
+        DPRINT1("MiReturnPageTablePageCommitment: FIXME PsChangeJobMemoryUsage()\n");
+        ASSERT(FALSE);
+    }
+
+    Process->CommitCharge -= NumberToClear;
+}
+
 /* EOF */
 
