@@ -768,6 +768,8 @@ MiCompleteProtoPteFault(IN BOOLEAN StoreInstruction,
     PMMPFN Pfn1, Pfn2;
     BOOLEAN OriginalProtection, DirtyPage;
 
+    DPRINT("MiCompleteProtoPteFault: Store %X, Address %p, Pte %p [%I64X], Proto %p [%I64X], OldIrql %X\n", StoreInstruction, Address, Pte, MiGetPteContents(Pte), SectionProto, MiGetPteContents(SectionProto), OldIrql);
+
     /* Must be called with an valid prototype PTE, with the PFN lock held */
     MI_ASSERT_PFN_LOCK_HELD();
     ASSERT(SectionProto->u.Hard.Valid == 1);
@@ -894,6 +896,8 @@ MiResolvePageFileFault(_In_ BOOLEAN StoreInstruction,
     ULONG_PTR PageFileOffset = TempPte.u.Soft.PageFileHigh;
     ULONG Protection = TempPte.u.Soft.Protection;
 
+    ASSERT(FALSE);
+
     /* Things we don't support yet */
     ASSERT(CurrentProcess > HYDRA_PROCESS);
     ASSERT(*OldIrql != MM_NOIRQL);
@@ -975,8 +979,8 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
     PMMPFN Pfn1;
     MMPTE TempPte;
     PMMPTE PointerToPteForProtoPage;
-    DPRINT("Transition fault on 0x%p with PTE 0x%p in process %s\n",
-            FaultingAddress, Pte, CurrentProcess->ImageFileName);
+
+    DPRINT("MiResolveTransitionFault: Address %p, PTE %p [%p], Process %s\n", FaultingAddress, Pte, Pte->u.Long, ((CurrentProcess>(PEPROCESS)2)?CurrentProcess->ImageFileName:" "));
 
     /* Windowss does this check */
     ASSERT(*InPageBlock == NULL);
@@ -992,7 +996,7 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
 
     /* Get the PFN and the PFN entry */
     PageFrameIndex = TempPte.u.Trans.PageFrameNumber;
-    DPRINT("Transition PFN: %lx\n", PageFrameIndex);
+    DPRINT("MiResolveTransitionFault:  PageFrameIndex %lx\n", PageFrameIndex);
     Pfn1 = MiGetPfnEntry(PageFrameIndex);
 
     /* One more transition fault! */
@@ -1005,11 +1009,11 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
     if ((Pfn1->u3.e1.ReadInProgress == 1)
             || ((Pfn1->u3.e1.WriteInProgress == 1) && StoreInstruction))
     {
-        DPRINT1("The page is currently in a page transition !\n");
+        DPRINT1("MiResolveTransitionFault: The page is currently in a page transition !\n");
         *InPageBlock = &Pfn1->u1.Event;
         if (Pte == Pfn1->PteAddress)
         {
-            DPRINT1("And this if for this particular PTE.\n");
+            DPRINT1("MiResolveTransitionFault: And this if for this particular PTE.\n");
             /* The PTE will be made valid by the thread serving the fault */
             return STATUS_SUCCESS; // FIXME: Maybe something more descriptive
         }
@@ -1026,7 +1030,7 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
     if (Pfn1->u3.e1.PageLocation == ActiveAndValid)
     {
         /* All Windows does here is a bunch of sanity checks */
-        DPRINT("Transition in active list\n");
+        DPRINT("MiResolveTransitionFault: Transition in active list\n");
         ASSERT((Pfn1->PteAddress >= MiAddressToPte(MmPagedPoolStart)) &&
                (Pfn1->PteAddress <= MiAddressToPte(MmPagedPoolEnd)));
         ASSERT(Pfn1->u2.ShareCount != 0);
@@ -1035,7 +1039,7 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
     else
     {
         /* Otherwise, the page is removed from its list */
-        DPRINT("Transition page in free/zero list\n");
+        DPRINT("MiResolveTransitionFault: Transition page in free/zero list\n");
         MiUnlinkPageFromList(Pfn1);
         MiReferenceUnusedPageAndBumpLockCount(Pfn1);
     }
@@ -1059,7 +1063,7 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
         if ((TempPte.u.Hard.Valid == 0) && (TempPte.u.Soft.Transition == 1))
         {
             /* This isn't yet supported */
-            DPRINT1("Double transition fault not yet supported\n");
+            DPRINT1("MiResolveTransitionFault: Double transition fault not yet supported\n");
             ASSERT(FALSE);
         }
     }
@@ -1114,6 +1118,8 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
     PKEVENT* InPageBlock = NULL;
     ULONG Protection;
 
+    DPRINT("MiResolveProtoPteFault: Store %X, Address %p, Pte %p, Proto %p [%p], Process %p, OldIrql %X, TrapInfo %p\n", StoreInstruction, Address, Pte, SectionProto, SectionProto->u.Long, Process, OldIrql, TrapInformation);
+
     /* Must be called with an invalid, prototype PTE, with the PFN lock held */
     MI_ASSERT_PFN_LOCK_HELD();
     ASSERT(Pte->u.Hard.Valid == 0);
@@ -1144,7 +1150,7 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
     if (TempPte.u.Long == 0)
     {
         /* Release the lock */
-        DPRINT1("Access on reserved section?\n");
+        DPRINT1("MiResolveProtoPteFault: Access on reserved section?\n");
         MiReleasePfnLock(OldIrql);
         return STATUS_ACCESS_VIOLATION;
     }
@@ -1382,7 +1388,7 @@ MiDispatchFault(IN ULONG FaultCode,
             {
                 /* One day, ReactOS will cluster faults */
                 ASSERT(Address <= MM_HIGHEST_USER_ADDRESS);
-                DPRINT("Should cluster fault, but won't\n");
+                DPRINT("MiDispatchFault: Should cluster fault, but won't\n");
             }
 
             /* Only one PTE to handle for now */
@@ -1414,7 +1420,7 @@ MiDispatchFault(IN ULONG FaultCode,
                 {
                     /* This is a standby page, bring it back from the cache */
                     PageFrameIndex = TempPte.u.Trans.PageFrameNumber;
-                    DPRINT("oooh, shiny, a soft fault! 0x%lx\n", PageFrameIndex);
+                    DPRINT("MiDispatchFault: oooh, shiny, a soft fault! 0x%lx\n", PageFrameIndex);
                     Pfn1 = MI_PFN_ELEMENT(PageFrameIndex);
                     ASSERT(Pfn1->u3.e1.PageLocation != ActiveAndValid);
 
