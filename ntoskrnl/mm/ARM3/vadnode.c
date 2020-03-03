@@ -130,13 +130,15 @@ MiInsertNode(IN PMM_AVL_TABLE Table,
              IN PMMADDRESS_NODE Parent,
              IN TABLE_SEARCH_RESULT Result)
 {
-    PMMVAD_LONG Vad;
+    //PMMVAD_LONG Vad;
 
-    ASSERT(FALSE);
+    DPRINT1("MiInsertNode: NewNode %p, Table %p, NewNode->StartingVpn %p, NewNode->EndingVpn %p\n", NewNode, Table, NewNode->StartingVpn, NewNode->EndingVpn);
 
     /* Insert it into the tree */
     RtlpInsertAvlTreeNode(Table, NewNode, Parent, Result);
+    DPRINT1("MiInsertNode: Result %X\n", Result);
 
+#if 0
     /* Now insert an ARM3 MEMORY_AREA for this node, unless the insert was already from the MEMORY_AREA code */
     Vad = (PMMVAD_LONG)NewNode;
     if (Vad->u.VadFlags.Spare == 0)
@@ -178,6 +180,7 @@ MiInsertNode(IN PMM_AVL_TABLE Table,
             Vad->u4.Banked = (PVOID)MemoryArea;
         }
     }
+#endif
 }
 
 VOID
