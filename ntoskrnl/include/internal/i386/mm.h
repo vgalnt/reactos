@@ -109,6 +109,13 @@ C_ASSERT(PD_COUNT == 1);
 #define MI_MAX_ZERO_BITS                        21
 #define SESSION_POOL_LOOKASIDES                 26
 
+/* Maximal count of PDEs for 3GB address space */
+#ifndef _PAE_
+#define MI_USED_PAGE_TABLES_MAX                 768
+#else
+#define MI_USED_PAGE_TABLES_MAX                 1536
+#endif
+
 /* MMPTE related defines */
 #define MM_EMPTY_PTE_LIST  ((ULONG)0xFFFFF)
 #define MM_EMPTY_LIST  ((ULONG_PTR)-1)

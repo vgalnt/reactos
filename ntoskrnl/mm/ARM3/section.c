@@ -1406,7 +1406,7 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
     ULONG QuotaCharge = 0, QuotaExcess = 0;
     PMMPTE Pte, LastPte;
     MMPTE TempPte;
-    ULONG Granularity = MM_VIRTMEM_GRANULARITY;
+    ULONG Granularity = MM_ALLOCATION_GRANULARITY;
 
     DPRINT("Mapping ARM3 data section\n");
 
@@ -4207,7 +4207,7 @@ NtMapViewOfSection(IN HANDLE SectionHandle,
     else if (!(AllocationType & MEM_DOS_LIM))
     {
         /* Check for non-allocation-granularity-aligned BaseAddress */
-        if (SafeBaseAddress != ALIGN_DOWN_POINTER_BY(SafeBaseAddress, MM_VIRTMEM_GRANULARITY))
+        if (SafeBaseAddress != ALIGN_DOWN_POINTER_BY(SafeBaseAddress, MM_ALLOCATION_GRANULARITY))
         {
             DPRINT("BaseAddress is not at 64-kilobyte address boundary.\n");
             ObDereferenceObject(Section);
@@ -4216,7 +4216,7 @@ NtMapViewOfSection(IN HANDLE SectionHandle,
         }
 
         /* Do the same for the section offset */
-        if (SafeSectionOffset.LowPart != ALIGN_DOWN_BY(SafeSectionOffset.LowPart, MM_VIRTMEM_GRANULARITY))
+        if (SafeSectionOffset.LowPart != ALIGN_DOWN_BY(SafeSectionOffset.LowPart, MM_ALLOCATION_GRANULARITY))
         {
             DPRINT("SectionOffset is not at 64-kilobyte address boundary.\n");
             ObDereferenceObject(Section);

@@ -21,10 +21,6 @@
 /* Number of pages in one unit of the system cache */
 #define MM_PAGES_PER_VACB  (VACB_MAPPING_GRANULARITY / PAGE_SIZE)
 
-/* Memory allocation unit size */
-#define MM_CLUSTER      (16 * PAGE_SIZE)
-#define MM_CLUSTER_MASK (MM_CLUSTER - 1)
-
 /* The area of virtual memory mapped with a single PDE. */
 #define PDE_MAPPED_VA  (PTE_PER_PAGE * PAGE_SIZE)
 
@@ -2378,6 +2374,13 @@ MiFindEmptyAddressRange(
     IN ULONG_PTR Alignment,
     IN ULONG ZeroBits,
     OUT PULONG_PTR OutBaseAddress
+);
+
+NTSTATUS
+NTAPI
+MiInsertVadCharges(
+    IN PMMVAD Vad,
+    IN PEPROCESS CurrentProcess
 );
 
 //

@@ -188,7 +188,7 @@ MiInsertVad(IN PMMVAD Vad,
     TABLE_SEARCH_RESULT Result;
     PMMADDRESS_NODE Parent = NULL;
 
-    DPRINT("MiInsertVad: ... \n");
+    DPRINT("MiInsertVad: Vad %p, VadRoot %p\n", Vad, VadRoot);
 
     /* Validate the VAD and set it as the current hint */
     ASSERT(Vad->EndingVpn >= Vad->StartingVpn);
@@ -622,7 +622,7 @@ MiFindEmptyAddressRange(IN SIZE_T Size,
 
     Process = PsGetCurrentProcess();
 
-    if (ZeroBits || Alignment != MM_VIRTMEM_GRANULARITY)
+    if (ZeroBits || Alignment != MM_ALLOCATION_GRANULARITY)
     {
         DPRINT1("MiFindEmptyAddressRange: goto FindInTree\n");
         goto FindInTree;
@@ -637,7 +637,7 @@ MiFindEmptyAddressRange(IN SIZE_T Size,
 
     /* Get starting bit index for a clear bit range of at least the requested size */
     StartBitIndex = RtlFindClearBits(&BitMapHeader,
-                                     ((Size + (MM_VIRTMEM_GRANULARITY - 1)) / MM_VIRTMEM_GRANULARITY),
+                                     ((Size + (MM_ALLOCATION_GRANULARITY - 1)) / MM_ALLOCATION_GRANULARITY),
                                      MmWorkingSetList->VadBitMapHint);
 
     /* Unmask null bit */
@@ -645,7 +645,7 @@ MiFindEmptyAddressRange(IN SIZE_T Size,
 
     if (StartBitIndex != MAXINDEX)
     {
-        *OutBaseAddress = (ULONG_PTR)StartBitIndex * MM_VIRTMEM_GRANULARITY;
+        *OutBaseAddress = (ULONG_PTR)StartBitIndex * MM_ALLOCATION_GRANULARITY;
         DPRINT("MiFindEmptyAddressRange: StartBitIndex %X, BaseAddress %X\n", StartBitIndex, *OutBaseAddress);
         return STATUS_SUCCESS;
     }
@@ -957,6 +957,195 @@ MiCheckSecuredVad(IN PMMVAD Vad,
 
     /* All good, allow the change */
     return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+MiInsertVadCharges(IN PMMVAD Vad,
+                   IN PEPROCESS Process)
+{
+    RTL_BITMAP BitMapHeader;
+    PMMVAD VadFreeHint;
+    ULONG StartingIndex;
+    ULONG EndingIndex;
+    ULONG StartPdeIndex;
+    ULONG EndPdeIndex;
+    ULONG PageCharge;
+    ULONG PagesReallyCharged;
+    ULONG RealCharge = 0;
+    ULONG BitNumber;
+    ULONG NumberToSet;
+    NTSTATUS Status;
+    BOOLEAN IsChangeJobMemoryUsage;
+
+    DPRINT("MiInsertVadCharges: Vad %p, Process %p, StartingVpn %X, EndingVpn %X\n", Vad, Process, Vad->StartingVpn, Vad->EndingVpn);
+
+    ASSERT(Vad->EndingVpn >= Vad->StartingVpn);
+    ASSERT(Process == PsGetCurrentProcess());
+
+    if (Vad->u.VadFlags.CommitCharge != 0x7FFFF) // ?
+    {
+        PageCharge = 0;
+        PagesReallyCharged = 0;
+        IsChangeJobMemoryUsage = FALSE;
+
+        Status = PsChargeProcessNonPagedPoolQuota(Process, sizeof(MMVAD));
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("MiInsertVadCharges: STATUS_COMMITMENT_LIMIT\n");
+            return STATUS_COMMITMENT_LIMIT;
+        }
+
+        if (Vad->u.VadFlags.PrivateMemory == 0)
+        {
+            if (Vad->ControlArea)
+            {
+                PagesReallyCharged = (Vad->EndingVpn - Vad->StartingVpn + 1) * sizeof(MMPTE);
+
+                Status = PsChargeProcessPagedPoolQuota(Process, PagesReallyCharged);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("MiInsertVadCharges: Status %X\n", Status);
+                    PagesReallyCharged = 0;
+                    goto ErrorExit;
+                }
+            }
+        }
+
+        StartPdeIndex = MiAddressToPdeOffset(Vad->StartingVpn * PAGE_SIZE);
+        EndPdeIndex = MiAddressToPdeOffset(Vad->EndingVpn * PAGE_SIZE);
+        DPRINT("MiInsertVadCharges: StartPdeIndex %X, EndPdeIndex %X\n", StartPdeIndex, EndPdeIndex);
+
+      #if (_MI_PAGING_LEVELS == 2)
+        RtlInitializeBitMap(&BitMapHeader,
+                            MmWorkingSetList->CommittedPageTables,
+                            (MI_USED_PAGE_TABLES_MAX / (8 * sizeof(ULONG)))); 
+
+        for (BitNumber = StartPdeIndex; BitNumber <= EndPdeIndex; BitNumber++)
+        {
+            if (!RtlCheckBit(&BitMapHeader, BitNumber))
+            {
+                PageCharge++;
+                //DPRINT("MiInsertVadCharges: PageCharge %X\n", PageCharge);
+            }
+        }
+      #else
+        #error FIXME struct _MMWSL for PAE and _M_AMD64
+        ASSERT(FALSE);
+      #endif
+
+        RealCharge = PageCharge + Vad->u.VadFlags.CommitCharge;
+
+        if (RealCharge)
+        {
+            Status = PsChargeProcessPageFileQuota(Process, RealCharge);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("MiInsertVadCharges: Status %X\n", Status);
+                RealCharge = 0;
+                goto ErrorExit;
+            }
+
+            if (Process->CommitChargeLimit &&
+                Process->CommitChargeLimit < (RealCharge + Process->CommitCharge))
+            {
+                DPRINT1("MiInsertVadCharges: error\n");
+                if (Process->Job)
+                {
+                    ASSERT(FALSE);//PsReportProcessMemoryLimitViolation();
+                }
+                goto ErrorExit;
+            }
+
+            if (Process->JobStatus & 0x10) // ?
+            {
+                ASSERT(FALSE);
+                IsChangeJobMemoryUsage = TRUE;
+            }
+
+            DPRINT1("MiInsertVadCharges: FIXME MiChargeCommitment \n");
+
+            Process->CommitCharge += RealCharge;
+            if (Process->CommitCharge > Process->CommitChargePeak)
+            {
+                Process->CommitChargePeak = Process->CommitCharge;
+            }
+
+            ASSERT(RealCharge == Vad->u.VadFlags.CommitCharge + PageCharge);
+        }
+
+        if (PageCharge)
+        {
+            PagesReallyCharged = 0;
+
+          #if (_MI_PAGING_LEVELS == 2)
+            for (BitNumber = StartPdeIndex; BitNumber <= EndPdeIndex; BitNumber++)
+            {
+                if (!RtlCheckBit(&BitMapHeader, BitNumber))
+                {
+                    RtlSetBit(&BitMapHeader, BitNumber);
+
+                    MmWorkingSetList->NumberOfCommittedPageTables++;
+                    ASSERT(MmWorkingSetList->NumberOfCommittedPageTables < (PD_COUNT * PDE_PER_PAGE));
+
+                    PagesReallyCharged++;
+                    //DPRINT("MiInsertVadCharges: PagesReallyCharged %X\n", PagesReallyCharged);
+                }
+            }
+          #else
+            #error FIXME struct _MMWSL for PAE and _M_AMD64
+            ASSERT(FALSE);
+          #endif
+            ASSERT(PageCharge == PagesReallyCharged);
+        }
+    }
+
+    StartingIndex = ((Vad->StartingVpn * PAGE_SIZE) / MM_ALLOCATION_GRANULARITY);
+    EndingIndex = ((Vad->EndingVpn * PAGE_SIZE) / MM_ALLOCATION_GRANULARITY);
+
+    NumberToSet = EndingIndex - StartingIndex + 1;
+    DPRINT("MiInsertVadCharges: StartingIndex %X NumberToSet %X\n", StartingIndex, NumberToSet);
+
+    RtlInitializeBitMap(&BitMapHeader, MI_VAD_BITMAP, (MiLastVadBit + 1)); 
+    RtlSetBits(&BitMapHeader, StartingIndex, NumberToSet);
+
+    if (MmWorkingSetList->VadBitMapHint == StartingIndex)
+    {
+        MmWorkingSetList->VadBitMapHint = EndingIndex + 1;
+    }
+
+    VadFreeHint = Process->VadFreeHint;
+
+    if (VadFreeHint &&
+        (VadFreeHint->EndingVpn + (MM_ALLOCATION_GRANULARITY / PAGE_SIZE)) >= Vad->StartingVpn)
+    {
+        Process->VadFreeHint = Vad;
+    }
+
+    return STATUS_SUCCESS;
+
+ErrorExit:
+
+    PsReturnProcessNonPagedPoolQuota(Process, sizeof(MMVAD));
+
+    if (PagesReallyCharged)
+    {
+        PsReturnProcessPagedPoolQuota(Process, PagesReallyCharged);
+    }
+
+    if (RealCharge)
+    {
+        PsReturnProcessPageFileQuota(Process, RealCharge);
+    }
+
+    if (IsChangeJobMemoryUsage == TRUE)
+    {
+        DPRINT1("MiInsertVadCharges: FIXME PsChangeJobMemoryUsage()\n");
+        ASSERT(FALSE);//PsChangeJobMemoryUsage((int)Process, 16, -RealCharge);
+    }
+
+    DPRINT1("MiInsertVadCharges: STATUS_COMMITMENT_LIMIT\n");
+    return STATUS_COMMITMENT_LIMIT;
 }
 
 /* EOF */
