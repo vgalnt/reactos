@@ -516,6 +516,23 @@ typedef struct _MM_SESSION_SPACE
     LONG ImageLoadingCount;
 } MM_SESSION_SPACE, *PMM_SESSION_SPACE;
 
+typedef struct _MM_PHYSICAL_VIEW
+{
+    union
+    {
+        LONG_PTR Balance:2;
+        PMMVAD Parent;
+    } u1;
+    PMMVAD LeftChild;
+    PMMVAD RightChild;
+    ULONG_PTR StartingVpn;
+    ULONG_PTR EndingVpn;
+    PMMVAD Vad;
+    ULONG VadType;
+    PVOID Reserved1;
+    PVOID Reserved2;
+} MM_PHYSICAL_VIEW, *PMM_PHYSICAL_VIEW;
+
 extern PMM_SESSION_SPACE MmSessionSpace;
 extern MMPTE HyperTemplatePte;
 extern MMPDE ValidKernelPde;
