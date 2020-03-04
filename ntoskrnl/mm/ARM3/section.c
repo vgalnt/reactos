@@ -2928,6 +2928,306 @@ MiUnmapViewInSystemSpace(IN PMMSESSION Session,
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+MiMapViewOfPhysicalSection(IN PCONTROL_AREA ControlArea,
+                           IN PEPROCESS Process,
+                           IN OUT PVOID * BaseAddress,
+                           IN PLARGE_INTEGER SectionOffset,
+                           IN OUT PSIZE_T ViewSize,
+                           IN ULONG ProtectionMask,
+                           IN ULONG_PTR ZeroBits,
+                           IN ULONG AllocationType)
+{
+    PMM_PHYSICAL_VIEW PhysicalView;
+    PMMADDRESS_NODE Parent;
+    PETHREAD Thread;
+    PMMVAD_LONG VadLong;
+    ULONG_PTR StartingAddress;
+    ULONG_PTR EndingAddress;
+    ULONG_PTR TmpStartingAddress;
+    ULONG_PTR HighestAddress;
+    PMMPTE Pde;
+    PMMPTE LastPte;
+    PMMPTE Pte;
+    MMPTE TempPte;
+    PFN_NUMBER StartPageNumber;
+    PFN_NUMBER CurrentPageNumber;
+    PFN_COUNT PagesCount;
+    PMMPFN Pfn;
+    PVOID UsedAddress;
+    MI_PFN_CACHE_ATTRIBUTE CacheAttribute;
+    MEMORY_CACHING_TYPE InputCacheType;
+    ULONG SizeOfRange;
+    ULONG Offset;
+    NTSTATUS Status;
+    BOOLEAN IsIoMapping;
+    KIRQL OldIrql;
+
+    DPRINT("MiMapViewOfPhysicalSection: ControlArea %p, Process %p, BaseAddress [%p], SectionOffset [%I64X], ViewSize [%I64X], ProtectMask %X, ZeroBits %X, AllocType %X\n", ControlArea, Process, (BaseAddress?*BaseAddress:NULL), (SectionOffset?SectionOffset->QuadPart:0), (ViewSize?(ULONGLONG)*ViewSize:0), ProtectionMask, ZeroBits, AllocationType);
+
+    if (AllocationType & (MEM_RESERVE | MEM_LARGE_PAGES))
+    {
+        DPRINT1("MiMapViewOfPhysicalSection: STATUS_INVALID_PARAMETER_9\n");
+        return STATUS_INVALID_PARAMETER_9;
+    }
+
+    if ((ProtectionMask & MM_PROTECT_SPECIAL) == MM_GUARDPAGE ||
+        ProtectionMask == MM_NOACCESS)
+    {
+        DPRINT1("MiMapViewOfPhysicalSection: STATUS_INVALID_PAGE_PROTECTION\n");
+        return STATUS_INVALID_PAGE_PROTECTION;
+    }
+
+    Offset = SectionOffset->LowPart & (MM_ALLOCATION_GRANULARITY - 1);
+
+    if (*BaseAddress)
+    {
+        StartingAddress = ALIGN_DOWN_BY(*BaseAddress, MM_ALLOCATION_GRANULARITY) + Offset;
+        EndingAddress = ((StartingAddress + *ViewSize - 1) | (PAGE_SIZE - 1));
+
+        DPRINT("MiMapViewOfPhysicalSection: Base %p, StartingAddress %p, EndingAddress %p\n", *BaseAddress, StartingAddress, EndingAddress);
+
+        if (MiCheckForConflictingVadExistence(Process, StartingAddress, EndingAddress))
+        {
+            DPRINT1("MiMapViewOfPhysicalSection: STATUS_CONFLICTING_ADDRESSES\n");
+            return STATUS_CONFLICTING_ADDRESSES;
+        }
+    }
+    else
+    {
+        ASSERT(SectionOffset->HighPart == 0);
+
+        SizeOfRange = Offset + *ViewSize;
+
+        if ((AllocationType & MEM_TOP_DOWN) || Process->VmTopDown)
+        {
+            if (ZeroBits)
+            {
+                HighestAddress = ((ULONG_PTR)MI_HIGHEST_SYSTEM_ADDRESS >> ZeroBits);
+                if (HighestAddress > (ULONG_PTR)MM_HIGHEST_VAD_ADDRESS)
+                {
+                    HighestAddress = (ULONG_PTR)MM_HIGHEST_VAD_ADDRESS;
+                }
+            }
+            else
+            {
+                HighestAddress = (ULONG_PTR)MM_HIGHEST_VAD_ADDRESS;
+            }
+
+            Status = MiFindEmptyAddressRangeDownTree(SizeOfRange, HighestAddress, MM_ALLOCATION_GRANULARITY, &Process->VadRoot, &TmpStartingAddress, &Parent);
+        }
+        else
+        {
+            Status = MiFindEmptyAddressRange(SizeOfRange, MM_ALLOCATION_GRANULARITY, ZeroBits, &TmpStartingAddress);
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("MiMapViewOfPhysicalSection: Status %X\n", Status);
+            return Status;
+        }
+
+        StartingAddress = TmpStartingAddress + Offset;
+        EndingAddress = (StartingAddress + *ViewSize - 1) | (PAGE_SIZE - 1);
+
+        DPRINT1("MiMapViewOfPhysicalSection: TmpStartingAddress %X, StartingAddress %X, EndingAddress %X\n", TmpStartingAddress, StartingAddress, EndingAddress);
+
+        if (ZeroBits && (EndingAddress > ((ULONG_PTR)MI_HIGHEST_SYSTEM_ADDRESS >> ZeroBits)))
+        {
+            DPRINT1("MiMapViewOfPhysicalSection: STATUS_NO_MEMORY\n");
+            return STATUS_NO_MEMORY;
+        }
+    }
+
+    Pde = MiAddressToPde((PVOID)StartingAddress);
+    Pte = MiAddressToPte((PVOID)StartingAddress);
+    LastPte = MiAddressToPte((PVOID)EndingAddress);
+
+    StartPageNumber = (PFN_NUMBER)(SectionOffset->QuadPart / PAGE_SIZE);
+    MI_MAKE_HARDWARE_PTE_USER(&TempPte, Pte, ProtectionMask, StartPageNumber);
+
+    if (TempPte.u.Hard.Write)
+    {
+        MI_MAKE_DIRTY_PAGE(&TempPte);
+    }
+
+    /* Is IO mapping */
+    IsIoMapping = TRUE;
+
+    if (StartPageNumber <= MmHighestPhysicalPage) // should be MmHighestPossiblePhysicalPage
+    {
+        if (MiGetPfnEntry(StartPageNumber) != NULL)
+        {
+            /* Is MEMORY mapping */
+            IsIoMapping = FALSE;
+        }
+    }
+
+    InputCacheType = MmCached;
+
+    if (((ProtectionMask & MM_WRITECOMBINE) == MM_WRITECOMBINE) &&
+        ((ProtectionMask & MM_PROTECT_ACCESS) != 0))
+    {
+        InputCacheType = MmWriteCombined;
+    }
+    else if ((ProtectionMask & MM_NOCACHE) == MM_NOCACHE)
+    {
+        InputCacheType = MmNonCached;
+    }
+
+    ASSERT(InputCacheType <= MmWriteCombined);
+
+    if (IsIoMapping)
+    {
+        CacheAttribute = MiPlatformCacheAttributes[IsIoMapping][InputCacheType];
+    }
+    else
+    {
+        CacheAttribute = MiPlatformCacheAttributes[IsIoMapping][InputCacheType];
+    }
+
+    PagesCount = LastPte - Pte + 1;
+
+    if (CacheAttribute != MiCached)
+    {
+        if (CacheAttribute == MiWriteCombined)
+        {
+            //ASSERT(MiWriteCombiningPtes);
+            TempPte.u.Hard.CacheDisable = 1;
+            TempPte.u.Hard.WriteThrough = 0;
+        }
+        else if (CacheAttribute == MiNonCached)
+        {
+            TempPte.u.Hard.CacheDisable = 1;
+            TempPte.u.Hard.WriteThrough = 1;
+        }
+
+        for (CurrentPageNumber = StartPageNumber;
+             CurrentPageNumber < (StartPageNumber + PagesCount);
+             CurrentPageNumber++)
+        {
+            DPRINT1("MiMapViewOfPhysicalSection: FIXME MiMustFrameBeCached\n");
+            ASSERT(FALSE);
+        }
+    }
+
+    if (Process->PhysicalVadRoot == NULL)
+    {
+        if (!MiCreatePhysicalVadRoot(Process, FALSE))
+        {
+            DPRINT1("MiMapViewOfPhysicalSection: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    PhysicalView = ExAllocatePoolWithTag(NonPagedPool, sizeof(MM_PHYSICAL_VIEW), 'vpmM');
+    if (PhysicalView == NULL)
+    {
+        DPRINT1("MiMapViewOfPhysicalSection: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    VadLong = ExAllocatePoolWithTag(NonPagedPool, sizeof(MMVAD_LONG), 'ldaV');
+    if (!VadLong)
+    {
+        DPRINT1("MiMapViewOfPhysicalSection: STATUS_INSUFFICIENT_RESOURCES\n");
+        ExFreePoolWithTag(PhysicalView, 'vpmM');
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlZeroMemory(VadLong, sizeof(MMVAD_LONG));
+
+    VadLong->ControlArea = ControlArea;
+    VadLong->StartingVpn = StartingAddress / PAGE_SIZE;
+    VadLong->EndingVpn = EndingAddress / PAGE_SIZE;
+
+    VadLong->u.VadFlags.VadType = VadDevicePhysicalMemory;
+    VadLong->u.VadFlags.Protection = ProtectionMask;
+
+    VadLong->u2.VadFlags2.Inherit = 0;
+    VadLong->u2.VadFlags2.LongVad = 1;
+
+    VadLong->LastContiguousPte = (PMMPTE)StartPageNumber;
+    VadLong->FirstPrototypePte = (PMMPTE)StartPageNumber;
+
+    PhysicalView->Vad = (PMMVAD)VadLong;
+    PhysicalView->StartingVpn = VadLong->StartingVpn;
+    PhysicalView->EndingVpn = VadLong->EndingVpn;
+    PhysicalView->VadType = VadDevicePhysicalMemory;
+
+    DPRINT1("MiMapViewOfPhysicalSection: FIXME MiCheckCacheAttributes\n");
+    //ASSERT(FALSE);
+
+    Thread = PsGetCurrentThread();
+
+    Status = MiInsertVadCharges((PMMVAD)VadLong, Process);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("MiMapViewOfPhysicalSection: Status %X\n", Status);
+        ExFreePoolWithTag(PhysicalView, 'vpmM');
+        ExFreePoolWithTag(VadLong, 'ldaV');
+        return Status;
+    }
+
+    MiLockProcessWorkingSetUnsafe(Process, Thread);
+
+    MiInsertVad((PMMVAD)VadLong, &Process->VadRoot);
+
+    if (CacheAttribute != MiCached)
+    {
+        DPRINT1("MiMapViewOfPhysicalSection: FIXME\n");
+        //MiFlushType[32]++;
+        KeFlushEntireTb(TRUE, TRUE);
+        KeInvalidateAllCaches();
+    }
+
+    MiMakePdeExistAndMakeValid(Pde, Process, MM_NOIRQL);
+
+    Pfn = MI_PFN_ELEMENT(Pde->u.Hard.PageFrameNumber);
+    UsedAddress = (PVOID)StartingAddress;
+
+    while (Pte <= LastPte)
+    {
+        if (!MiIsPteOnPdeBoundary(Pte))
+        {
+            Pde = MiAddressToPte(Pte);
+            MiMakePdeExistAndMakeValid (Pde, Process, MM_NOIRQL);
+
+            Pfn = MI_PFN_ELEMENT(Pde->u.Hard.PageFrameNumber);
+            UsedAddress = MiPteToAddress(Pte);
+        }
+
+        MiIncrementPageTableReferences(UsedAddress);
+
+        ASSERT(Pte->u.Long == 0);
+        MI_WRITE_VALID_PTE(Pte, TempPte);
+
+        OldIrql = MiLockPfnDb(APC_LEVEL);
+        Pfn->u2.ShareCount++;
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+
+        Pte++;
+        TempPte.u.Hard.PageFrameNumber++;
+    }
+
+    MiInsertPhysicalViewAndRefControlArea(Process, ControlArea, PhysicalView);
+
+    MiUnlockProcessWorkingSetUnsafe(Process, Thread);
+
+    *BaseAddress = (PVOID)StartingAddress;
+    *ViewSize = EndingAddress - StartingAddress + 1;
+    DPRINT1("MiMapViewOfPhysicalSection: Base %p, ViewSize %p\n", *BaseAddress, *ViewSize);
+
+    Process->VirtualSize += *ViewSize;
+    if (Process->VirtualSize > Process->PeakVirtualSize)
+    {
+        Process->PeakVirtualSize = Process->VirtualSize;
+    }
+
+    return STATUS_SUCCESS;
+}
+
 /* PUBLIC FUNCTIONS ***********************************************************/
 
 /*
