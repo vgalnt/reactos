@@ -1450,5 +1450,61 @@ MiCreatePhysicalVadRoot(IN PEPROCESS Process,
     return Process->PhysicalVadRoot;
 }
 
+TABLE_SEARCH_RESULT
+NTAPI
+MiFindNodeOrParent(IN PMM_AVL_TABLE Table,
+                   IN ULONG_PTR StartingVpn,
+                   OUT PMMADDRESS_NODE * OutNodeOrParent)
+{
+    PMMADDRESS_NODE Node;
+    PMMADDRESS_NODE ChildNode;
+    TABLE_SEARCH_RESULT SearchResult;
+    ULONG NumberCompares = 0;
+
+    if (!Table->NumberGenericTableElements)
+    {
+        return TableEmptyTree;
+    }
+
+    for (Node = Table->BalancedRoot.RightChild;
+         ;
+         Node = ChildNode)
+    {
+        NumberCompares++;
+        ASSERT(NumberCompares <= Table->DepthOfTree);
+
+        if (StartingVpn >= Node->StartingVpn)
+        {
+            if (StartingVpn <= Node->EndingVpn)
+            {
+                SearchResult = TableFoundNode;
+                break;
+            }
+
+            ChildNode = Node->RightChild;
+
+            if (!ChildNode)
+            {
+                SearchResult = TableInsertAsRight;
+                break;
+            }
+
+            continue;
+        }
+
+        ChildNode = Node->LeftChild;
+
+        if (!ChildNode)
+        {
+            SearchResult = TableInsertAsLeft;
+            break;
+        }
+    }
+
+    *OutNodeOrParent = Node;
+
+    return SearchResult;
+}
+
 /* EOF */
 
