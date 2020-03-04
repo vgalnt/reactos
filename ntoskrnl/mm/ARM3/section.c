@@ -924,26 +924,21 @@ MiUnmapViewOfSection(IN PEPROCESS Process,
                      IN PVOID BaseAddress,
                      IN ULONG Flags)
 {
-    PMEMORY_AREA MemoryArea;
     BOOLEAN Attached = FALSE;
     KAPC_STATE ApcState;
     PMMVAD Vad;
+    PMMVAD PreviousVad;
+    PMMVAD NextVad;
     PVOID DbgBase = NULL;
     SIZE_T RegionSize;
     NTSTATUS Status;
     PETHREAD CurrentThread = PsGetCurrentThread();
     PEPROCESS CurrentProcess = PsGetCurrentProcess();
+    ULONG_PTR StartingAddress;
+    ULONG_PTR EndingAddress;
+
     PAGED_CODE();
-
-    ASSERT(FALSE);
-
-    /* Check for Mm Region */
-    MemoryArea = MmLocateMemoryAreaByAddress(&Process->Vm, BaseAddress);
-    if ((MemoryArea) && (MemoryArea->Type != MEMORY_AREA_OWNED_BY_ARM3))
-    {
-        /* Call Mm API */
-        return MiRosUnmapViewOfSection(Process, BaseAddress, Process->ProcessExiting);
-    }
+    DPRINT("MiUnmapViewOfSection: Process %p, BaseAddress %p, Flags %X\n", Process, BaseAddress, Flags);
 
     /* Check if we should attach to the process */
     if (CurrentProcess != Process)
@@ -954,87 +949,170 @@ MiUnmapViewOfSection(IN PEPROCESS Process,
     }
 
     /* Check if we need to lock the address space */
-    if (!Flags) MmLockAddressSpace(&Process->Vm);
+    if (!(Flags & 1))
+    {
+        MmLockAddressSpace(&Process->Vm);
+    }
 
     /* Check if the process is already daed */
     if (Process->VmDeleted)
     {
         /* Fail the call */
-        DPRINT1("Process died!\n");
-        if (!Flags) MmUnlockAddressSpace(&Process->Vm);
+        DPRINT1("MiUnmapViewOfSection: STATUS_PROCESS_IS_TERMINATING\n");
+
+        if (!(Flags & 1))
+        {
+            MmUnlockAddressSpace(&Process->Vm);
+        }
+
         Status = STATUS_PROCESS_IS_TERMINATING;
-        goto Quickie;
+        goto Exit;
     }
 
     /* Find the VAD for the address and make sure it's a section VAD */
     Vad = MiLocateAddress(BaseAddress);
-    if (!(Vad) || (Vad->u.VadFlags.PrivateMemory))
+
+    if (!Vad || Vad->u.VadFlags.PrivateMemory)
     {
         /* Couldn't find it, or invalid VAD, fail */
-        DPRINT1("No VAD or invalid VAD\n");
-        if (!Flags) MmUnlockAddressSpace(&Process->Vm);
+        DPRINT1("MiUnmapViewOfSection: No VAD or invalid VAD\n");
+
+        if (!(Flags & 1))
+        {
+            MmUnlockAddressSpace(&Process->Vm);
+        }
+
         Status = STATUS_NOT_MAPPED_VIEW;
-        goto Quickie;
+        goto Exit;
     }
 
     /* We should be attached */
     ASSERT(Process == PsGetCurrentProcess());
 
+    StartingAddress = Vad->StartingVpn * PAGE_SIZE;
+    EndingAddress = (Vad->EndingVpn * PAGE_SIZE) | 0xFFF;
+
     /* We need the base address for the debugger message on image-backed VADs */
     if (Vad->u.VadFlags.VadType == VadImageMap)
     {
-        DbgBase = (PVOID)(Vad->StartingVpn >> PAGE_SHIFT);
+        DbgBase = (PVOID)StartingAddress;
     }
 
     /* Compute the size of the VAD region */
-    RegionSize = PAGE_SIZE + ((Vad->EndingVpn - Vad->StartingVpn) << PAGE_SHIFT);
+    RegionSize = (Vad->EndingVpn - Vad->StartingVpn + 1) * PAGE_SIZE;
 
     /* For SEC_NO_CHANGE sections, we need some extra checks */
     if (Vad->u.VadFlags.NoChange == 1)
     {
         /* Are we allowed to mess with this VAD? */
         Status = MiCheckSecuredVad(Vad,
-                                   (PVOID)(Vad->StartingVpn >> PAGE_SHIFT),
+                                   (PVOID)StartingAddress,
                                    RegionSize,
                                    MM_DELETE_CHECK);
         if (!NT_SUCCESS(Status))
         {
             /* We failed */
-            DPRINT1("Trying to unmap protected VAD!\n");
-            if (!Flags) MmUnlockAddressSpace(&Process->Vm);
-            goto Quickie;
+            DPRINT1("MiUnmapViewOfSection: Trying to unmap protected VAD! Status %X\n", Status);
+
+            if (!(Flags & 1))
+            {
+                MmUnlockAddressSpace(&Process->Vm);
+            }
+ 
+            goto Exit1;
         }
     }
 
-    /* Not currently supported */
-    ASSERT(Vad->u.VadFlags.VadType != VadRotatePhysical);
+    /* Get previous and next nodes */
+    PreviousVad = (PMMVAD)MiGetPreviousNode((PMMADDRESS_NODE)Vad);
+    NextVad = (PMMVAD)MiGetNextNode((PMMADDRESS_NODE)Vad);
 
-    /* FIXME: Remove VAD charges */
+    if (Vad->u.VadFlags.VadType != VadRotatePhysical)
+    {
+        /* Remove VAD charges */
+        MiRemoveVadCharges(Vad, Process);
 
-    /* Lock the working set */
-    MiLockProcessWorkingSetUnsafe(Process, CurrentThread);
+        /* Lock the working set */
+        MiLockProcessWorkingSetUnsafe(Process, CurrentThread);
+    }
+    else
+    {
+        if (Flags & 2)
+        {
+            /* Remove VAD charges */
+            MiRemoveVadCharges(Vad, Process);
+
+            /* Lock the working set */
+            MiLockProcessWorkingSetUnsafe(Process, CurrentThread);
+
+            /* Remove Physical View */
+            DPRINT("MiUnmapViewOfSection: FIXME MiPhysicalViewRemover\n");
+            ASSERT(FALSE);
+            //MiPhysicalViewRemover(Process, Vad);
+        }
+        else
+        {
+            if (!(Flags & 1))
+            {
+                MmUnlockAddressSpace(&Process->Vm);
+            }
+
+            Status = STATUS_NOT_MAPPED_VIEW;
+            DPRINT1("MiUnmapViewOfSection: STATUS_NOT_MAPPED_VIEW\n");
+            goto Exit1;
+        }
+    }
 
     /* Remove the VAD */
+    ASSERT(Process == PsGetCurrentProcess());
     ASSERT(Process->VadRoot.NumberGenericTableElements >= 1);
+
     MiRemoveNode((PMMADDRESS_NODE)Vad, &Process->VadRoot);
+
+    if (Process->VadRoot.NodeHint == Vad)
+    {
+        Process->VadRoot.NodeHint = Process->VadRoot.BalancedRoot.RightChild;
+
+        if (Process->VadRoot.NumberGenericTableElements == 0)
+        {
+            Process->VadRoot.NodeHint = NULL;
+        }
+    }
 
     /* Remove the PTEs for this view, which also releases the working set lock */
     MiRemoveMappedView(Process, Vad);
 
-    /* FIXME: Remove commitment */
+    /* Remove commitment */
+    MiReturnPageTablePageCommitment(StartingAddress, EndingAddress, Process, PreviousVad, NextVad);
 
     /* Update performance counter and release the lock */
     Process->VirtualSize -= RegionSize;
-    if (!Flags) MmUnlockAddressSpace(&Process->Vm);
+
+    if (!(Flags & 1))
+    {
+        MmUnlockAddressSpace(&Process->Vm);
+    }
 
     /* Destroy the VAD and return success */
     ExFreePool(Vad);
     Status = STATUS_SUCCESS;
 
     /* Failure and success case -- send debugger message, detach, and return */
-Quickie:
-    if (DbgBase) DbgkUnMapViewOfSection(DbgBase);
-    if (Attached) KeUnstackDetachProcess(&ApcState);
+
+Exit1:
+
+    if (DbgBase)
+    {
+        DbgkUnMapViewOfSection(DbgBase);
+    }
+
+Exit:
+
+    if (Attached)
+    {
+        KeUnstackDetachProcess(&ApcState);
+    }
+
     return Status;
 }
 
