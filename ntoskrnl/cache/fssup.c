@@ -74,6 +74,7 @@ typedef struct _NOCC_PRIVATE_CACHE_MAP
 } NOCC_PRIVATE_CACHE_MAP, *PNOCC_PRIVATE_CACHE_MAP;
 
 LIST_ENTRY CcpAllSharedCacheMaps;
+LIST_ENTRY CcCleanSharedCacheMapList;
 
 /* FUNCTIONS ******************************************************************/
 
@@ -81,28 +82,11 @@ BOOLEAN
 NTAPI
 CcInitializeCacheManager(VOID)
 {
-    int i;
+    DPRINT("CcInitializeCacheManager()\n");
 
-    DPRINT("Initialize\n");
-    for (i = 0; i < CACHE_NUM_SECTIONS; i++)
-    {
-        KeInitializeEvent(&CcCacheSections[i].ExclusiveWait,
-                          SynchronizationEvent,
-                          FALSE);
+    InitializeListHead(&CcCleanSharedCacheMapList);
 
-        InitializeListHead(&CcCacheSections[i].ThisFileList);
-    }
-
-    InitializeListHead(&CcpAllSharedCacheMaps);
-
-    KeInitializeEvent(&CcDeleteEvent, SynchronizationEvent, FALSE);
-    KeInitializeEvent(&CcFinalizeEvent, SynchronizationEvent, FALSE);
-    KeInitializeEvent(&CcpLazyWriteEvent, SynchronizationEvent, FALSE);
-
-    CcCacheBitmap->Buffer = ((PULONG)&CcCacheBitmap[1]);
-    CcCacheBitmap->SizeOfBitMap = ROUND_UP(CACHE_NUM_SECTIONS, 32);
-    DPRINT1("Cache has %d entries\n", CcCacheBitmap->SizeOfBitMap);
-    ExInitializeFastMutex(&CcMutex);
+    CcInitializeVacbs();
 
     return TRUE;
 }
