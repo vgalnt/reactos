@@ -424,9 +424,9 @@ NTAPI
 MiRemoveNode(IN PMMADDRESS_NODE Node,
              IN PMM_AVL_TABLE Table)
 {
-    PMMVAD_LONG Vad;
+    //PMMVAD_LONG Vad;
 
-    ASSERT(FALSE);
+    DPRINT("MiRemoveNode: Node %p, Table %p\n", Node, Table);
 
     /* Call the AVL code */
     RtlpDeleteAvlTreeNode(Table, Node);
@@ -442,6 +442,7 @@ MiRemoveNode(IN PMMADDRESS_NODE Node,
         else Table->NodeHint = Table->BalancedRoot.RightChild;
     }
 
+#if 0
     /* Free the node from ReactOS view as well */
     Vad = (PMMVAD_LONG)Node;
     if ((Table != &MmSectionBasedRoot) && (Vad->u.VadFlags.Spare == 0))
@@ -490,6 +491,7 @@ MiRemoveNode(IN PMMADDRESS_NODE Node,
             }
         }
     }
+#endif
 }
 
 PMMADDRESS_NODE
