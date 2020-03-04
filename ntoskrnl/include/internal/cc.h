@@ -53,6 +53,7 @@ extern LIST_ENTRY CcPostTickWorkQueue;
 extern NPAGED_LOOKASIDE_LIST CcTwilightLookasideList;
 extern LARGE_INTEGER CcIdleDelay;
 extern LIST_ENTRY CcCleanSharedCacheMapList;
+extern ULONG CcMaxVacbLevelsSeen;
 
 //
 // Counters

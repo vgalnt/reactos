@@ -42,6 +42,9 @@ extern SIZE_T MmtotalCommitLimitMaximum;
 extern PVOID MiDebugMapping; // internal
 extern PMMPTE MmDebugPte; // internal
 
+extern ULONG_PTR MmSizeOfSystemCacheInPages;
+extern ULONG MmSystemCacheDirtyPageThreshold;
+
 struct _KTRAP_FRAME;
 struct _EPROCESS;
 struct _MM_RMAP_ENTRY;

@@ -71,6 +71,10 @@ CcInitializeCacheManager(VOID);
 
 VOID
 NTAPI
+CcInitializeVacbs(VOID);
+
+VOID
+NTAPI
 CcShutdownSystem(VOID);
 
 VOID
@@ -139,6 +143,11 @@ extern KEVENT CcDeleteEvent;
 extern ULONG CcCacheClockHand;
 extern LIST_ENTRY CcPendingUnmap;
 extern KEVENT CcpLazyWriteEvent;
+
+extern PVACB CcVacbs;
+extern PVACB CcBeyondVacbs;
+extern LIST_ENTRY CcVacbLru;
+extern LIST_ENTRY CcVacbFreeList;
 
 #define CcpLock() _CcpLock(__FILE__,__LINE__)
 #define CcpUnlock() _CcpUnlock(__FILE__,__LINE__)

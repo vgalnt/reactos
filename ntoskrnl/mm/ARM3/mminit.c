@@ -244,6 +244,7 @@ PVOID MmSystemCacheStart = (PVOID)MI_SYSTEM_CACHE_START;
 PVOID MmSystemCacheEnd;
 ULONG_PTR MmSizeOfSystemCacheInPages;
 MMSUPPORT MmSystemCacheWs;
+ULONG MmSystemCacheDirtyPageThreshold = 0;
 
 //
 // This is where hyperspace ends (followed by the system cache working set)
