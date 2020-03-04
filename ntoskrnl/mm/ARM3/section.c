@@ -828,35 +828,162 @@ NTAPI
 MiCheckControlArea(IN PCONTROL_AREA ControlArea,
                    IN KIRQL OldIrql)
 {
-    BOOLEAN DeleteSegment = FALSE;
-    MI_ASSERT_PFN_LOCK_HELD();
+    PEVENT_COUNTER PurgeEvent = NULL;
+    ULONG CheckFlag = 0;
 
-    ASSERT(FALSE);
+    DPRINT("MiCheckControlArea: ControlArea %p, OldIrql %X\n", ControlArea, OldIrql);
+
+    MI_ASSERT_PFN_LOCK_HELD();
+    ASSERT(MmPfnOwner == KeGetCurrentThread());
 
     /* Check if this is the last reference or view */
-    if (!(ControlArea->NumberOfMappedViews) &&
-        !(ControlArea->NumberOfSectionReferences))
+    if (!ControlArea->NumberOfMappedViews &&
+        !ControlArea->NumberOfSectionReferences)
     {
         /* There should be no more user references either */
         ASSERT(ControlArea->NumberOfUserReferences == 0);
 
-        /* Not yet supported */
-        ASSERT(ControlArea->FilePointer == NULL);
+        if (ControlArea->FilePointer)
+        {
+            if (ControlArea->NumberOfPfnReferences)
+            {
+                if (!ControlArea->DereferenceList.Flink)
+                {
+                    MI_ASSERT_PFN_LOCK_HELD();
+                    ASSERT(MmPfnOwner == KeGetCurrentThread());
 
-        /* The control area is being destroyed */
-        ControlArea->u.Flags.BeingDeleted = TRUE;
-        DeleteSegment = TRUE;
+                    if (!ControlArea->u.Flags.Image &&
+                        ControlArea->FilePointer &&
+                        !ControlArea->u.Flags.PhysicalMemory)
+                    {
+                        /* Not yet supported */
+                        DPRINT1("MiCheckControlArea: FIXME MiConvertStaticSubsections\n");
+                        ASSERT(FALSE);
+                    }
+
+                    /* Not yet supported */
+                    DPRINT1("MiCheckControlArea: FIXME MmUnusedSegmentList\n");
+                    ASSERT(FALSE);
+
+                    MmUnusedSegmentCount++;
+                }
+
+                if (ControlArea->u.Flags.DeleteOnClose)
+                {
+                    CheckFlag = 1;
+                }
+
+                if (ControlArea->u.Flags.GlobalMemory)
+                {
+                    ASSERT(ControlArea->u.Flags.Image == 1);
+
+                    ControlArea->u.Flags.BeingPurged = 1;
+                    ControlArea->NumberOfMappedViews = 1;
+
+                    /* Not yet supported */
+                    DPRINT1("MiCheckControlArea: FIXME MiPurgeImageSection\n");
+                    ASSERT(FALSE);
+
+                    ControlArea->u.Flags.BeingPurged = 0;
+
+                    ControlArea->NumberOfMappedViews--;
+
+                    if (!ControlArea->NumberOfMappedViews &&
+                        !ControlArea->NumberOfSectionReferences &&
+                        !ControlArea->NumberOfPfnReferences)
+                    {
+                        CheckFlag |= 2;
+
+                        ControlArea->u.Flags.BeingDeleted = 1;
+                        ControlArea->u.Flags.FilePointerNull = 1;
+
+                        /* Not yet supported */
+                        DPRINT1("MiCheckControlArea: FIXME MiRemoveImageSectionObject\n");
+                        ASSERT(FALSE);
+                    }
+                    else
+                    {
+                        PurgeEvent = ControlArea->WaitingForDeletion;
+                        ControlArea->WaitingForDeletion = 0;
+                    }
+                }
+
+                if (CheckFlag == 1)
+                {
+                    ControlArea->u.Flags.BeingDeleted = 1;
+                    ControlArea->NumberOfMappedViews = 1;
+                }
+            }
+            else
+            {
+                ControlArea->u.Flags.BeingDeleted = 1;
+
+                CheckFlag = 2;
+
+                ASSERT(ControlArea->u.Flags.FilePointerNull == 0);
+                ControlArea->u.Flags.FilePointerNull = 1;
+
+                if (ControlArea->u.Flags.Image)
+                {
+                    /* Not yet supported */
+                    DPRINT1("MiCheckControlArea: FIXME MiRemoveImageSectionObject\n");
+                    ASSERT(FALSE);
+                }
+                else
+                {
+                    ASSERT(((PCONTROL_AREA)(ControlArea->FilePointer->SectionObjectPointer->DataSectionObject)) != NULL);
+                    ControlArea->FilePointer->SectionObjectPointer->DataSectionObject = NULL;
+                }
+            }
+        }
+        else
+        {
+            ControlArea->u.Flags.BeingDeleted = 1;
+            CheckFlag = 2;
+        }
+    }
+    else
+    {
+        /* Check if waiting for deletion */
+        if (ControlArea->WaitingForDeletion)
+        {
+            /* Get event */
+            PurgeEvent = ControlArea->WaitingForDeletion;
+            ControlArea->WaitingForDeletion = NULL;
+        }
     }
 
     /* Release the PFN lock */
-    MiReleasePfnLock(OldIrql);
+    MiUnlockPfnDb(OldIrql, APC_LEVEL);
 
-    /* Delete the segment if needed */
-    if (DeleteSegment)
+    if (!CheckFlag)
     {
-        /* No more user write references at all */
-        ASSERT(ControlArea->WritableUserReferences == 0);
+        if (PurgeEvent)
+        {
+            KeSetEvent(&PurgeEvent->Event, 0, FALSE);
+        }
+
+        /* Not yet supported */
+        DPRINT1("MiCheckControlArea: FIXME MmUnusedSegmentCleanup\n");
+        ASSERT(FALSE);
+        return;
+    }
+
+    /* No more user write references at all */
+    ASSERT(ControlArea->WritableUserReferences == 0);
+    ASSERT(PurgeEvent == NULL);
+
+    if (CheckFlag & 2)
+    {
+        /* Delete the segment if needed */
         MiSegmentDelete(ControlArea->Segment);
+    }
+    else
+    {
+        /* Clean the section */
+        /* Not yet supported */
+        DPRINT1("MiCheckControlArea: FIXME MiCleanSection\n");
+        ASSERT(FALSE);
     }
 }
 
