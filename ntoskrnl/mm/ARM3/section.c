@@ -1575,8 +1575,12 @@ MiMapViewOfDataSection(IN PCONTROL_AREA ControlArea,
 
         EndAddress = ((*ViewSize + StartAddress - 1) | (PAGE_SIZE - 1));
 
-        DPRINT1("MiMapViewOfDataSection: FIXME MiCheckForConflictingVadExistence()\n");
-        ASSERT(FALSE);
+        if (MiCheckForConflictingVadExistence(Process, StartAddress, EndAddress))
+        {
+            Status = STATUS_CONFLICTING_ADDRESSES;
+            DPRINT1("MiMapViewOfDataSection: STATUS_CONFLICTING_ADDRESSES\n");
+            goto ErrorExit;
+        }
     }
     else
     {

@@ -2417,6 +2417,14 @@ MiReturnPageTablePageCommitment(
     IN PMMVAD NextVad
 );
 
+BOOLEAN
+NTAPI
+MiCheckForConflictingVadExistence(
+    IN PEPROCESS Process,
+    IN ULONG_PTR StartingAddress,
+    IN ULONG_PTR EndingAddress
+);
+
 //
 // MiRemoveZeroPage will use inline code to zero out the page manually if only
 // free pages are available. In some scenarios, we don't/can't run that piece of

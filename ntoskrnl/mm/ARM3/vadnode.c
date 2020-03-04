@@ -123,6 +123,59 @@ MiCheckForConflictingNode(IN ULONG_PTR StartVpn,
     }
 }
 
+BOOLEAN
+NTAPI
+MiCheckForConflictingVadExistence(IN PEPROCESS Process,
+                                  IN ULONG_PTR StartingAddress,
+                                  IN ULONG_PTR EndingAddress)
+{
+    PMMADDRESS_NODE Node;
+    ULONG_PTR StartVpn;
+    ULONG_PTR EndVpn;
+
+    DPRINT("MiCheckForConflictingVadExistence: Process %p, StartingAddress %p, EndingAddress %p\n", Process, StartingAddress, EndingAddress);
+
+    StartVpn = StartingAddress / PAGE_SIZE;
+    EndVpn = EndingAddress / PAGE_SIZE;
+
+    /* If the tree is empty, there is no conflict */
+    if (!Process->VadRoot.NumberGenericTableElements)
+    {
+        return FALSE;
+    }
+
+    /* Start looping from the root node */
+    Node = Process->VadRoot.BalancedRoot.RightChild;
+    if (!Node)
+    {
+        /* If the tree is not empty, this should not be */
+        ASSERT(Node != NULL);
+        return FALSE;
+    }
+
+    while (Node)
+    {
+        /* This address comes after */
+        if (StartVpn > Node->EndingVpn)
+        {
+            Node = Node->RightChild;
+        }
+        else if (EndVpn < Node->StartingVpn)
+        {
+            /* This address ends before the node starts, search on the left */
+            Node = Node->LeftChild;
+        }
+        else
+        {
+            DPRINT("MiCheckForConflictingVadExistence: This address is part of this %p \n");
+            return TRUE;
+        }
+    }
+
+    /* There is no more child */
+    return FALSE;
+}
+
 VOID
 NTAPI
 MiInsertNode(IN PMM_AVL_TABLE Table,
