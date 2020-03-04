@@ -80,6 +80,9 @@
 #define MI_MAX_ZERO_BITS                        53
 #define SESSION_POOL_LOOKASIDES                 21
 
+/* Special IRQL value (found in assertions) */
+#define MM_NOIRQL (KIRQL)0x11
+
 /* MMPTE related defines */
 #define MM_EMPTY_PTE_LIST  ((ULONG64)0xFFFFFFFF)
 #define MM_EMPTY_LIST  ((ULONG_PTR)-1)

@@ -109,6 +109,9 @@ C_ASSERT(PD_COUNT == 1);
 #define MI_MAX_ZERO_BITS                        21
 #define SESSION_POOL_LOOKASIDES                 26
 
+/* Special IRQL value (found in assertions) */
+#define MM_NOIRQL (KIRQL)0x21
+
 /* Maximal count of PDEs for 3GB address space */
 #ifndef _PAE_
 #define MI_USED_PAGE_TABLES_MAX                 768
