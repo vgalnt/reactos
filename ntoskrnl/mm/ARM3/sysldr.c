@@ -2825,21 +2825,21 @@ MmLoadSystemImage(IN PUNICODE_STRING FileName,
     PIMAGE_NT_HEADERS NtHeader;
     UNICODE_STRING BaseName, BaseDirectory, PrefixName, UnicodeTemp;
     PLDR_DATA_TABLE_ENTRY LdrEntry = NULL;
-    ULONG EntrySize, DriverSize;
+    ULONG EntrySize;
     PLOAD_IMPORTS LoadedImports = MM_SYSLDR_NO_IMPORTS;
     PCHAR MissingApiName, Buffer;
     PWCHAR MissingDriverName;
     HANDLE SectionHandle;
     ACCESS_MASK DesiredAccess;
-    PVOID Section = NULL;
+    PSECTION Section = NULL;
     BOOLEAN LockOwned = FALSE;
     PLIST_ENTRY NextEntry;
     IMAGE_INFO ImageInfo;
     STRING AnsiTemp;
+    ULONG TotalNumberOfPtes;
 
     PAGED_CODE();
-    DPRINT("MmLoadSystemImage: FileName - %wZ, NamePrefix - %wZ, LoadedName - %wZ, Flags - %X\n", FileName, NamePrefix, LoadedName, Flags);
-    ASSERT(FALSE);
+    DPRINT1("MmLoadSystemImage: FileName %wZ, NamePrefix '%wZ', LoadedName '%wZ', Flags %X\n", FileName, NamePrefix, LoadedName, Flags);
 
     /* Detect session-load */
     if (Flags)
@@ -3051,7 +3051,7 @@ LoaderScan:
                                            SECTION_MAP_EXECUTE,
                                            MmSectionObjectType,
                                            KernelMode,
-                                           &Section,
+                                           (PVOID *)&Section,
                                            NULL);
         ZwClose(SectionHandle);
         if (!NT_SUCCESS(Status)) goto Quickie;
@@ -3074,7 +3074,7 @@ LoaderScan:
     }
 
     /* Load the image */
-    Status = MiLoadImageSection(&Section,
+    Status = MiLoadImageSection((PVOID *)&Section,
                                 &ModuleLoadBase,
                                 FileName,
                                 FALSE,
@@ -3082,7 +3082,7 @@ LoaderScan:
     ASSERT(Status != STATUS_ALREADY_COMMITTED);
 
     /* Get the size of the driver */
-    DriverSize = ((PROS_SECTION_OBJECT)Section)->ImageSection->ImageInformation.ImageFileSize;
+    TotalNumberOfPtes = Section->Segment->TotalNumberOfPtes;
 
     /* Make sure we're not being loaded into session space */
     if (!Flags)
@@ -3091,7 +3091,7 @@ LoaderScan:
         if (NT_SUCCESS(Status))
         {
             /* Support large pages for drivers */
-            MiUseLargeDriverPage(DriverSize / PAGE_SIZE,
+            MiUseLargeDriverPage(TotalNumberOfPtes,
                                  &ModuleLoadBase,
                                  &BaseName,
                                  TRUE);
@@ -3157,7 +3157,7 @@ LoaderScan:
     LdrEntry->DllBase = ModuleLoadBase;
     LdrEntry->EntryPoint = (PVOID)((ULONG_PTR)ModuleLoadBase +
                                    NtHeader->OptionalHeader.AddressOfEntryPoint);
-    LdrEntry->SizeOfImage = DriverSize;
+    LdrEntry->SizeOfImage = NtHeader->OptionalHeader.SizeOfImage;
     LdrEntry->CheckSum = NtHeader->OptionalHeader.CheckSum;
     LdrEntry->SectionPointer = Section;
 
