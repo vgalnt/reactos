@@ -528,7 +528,7 @@ typedef struct _MM_PHYSICAL_VIEW
     ULONG_PTR StartingVpn;
     ULONG_PTR EndingVpn;
     PMMVAD Vad;
-    ULONG VadType;
+    MI_VAD_TYPE VadType;
     PVOID Reserved1;
     PVOID Reserved2;
 } MM_PHYSICAL_VIEW, *PMM_PHYSICAL_VIEW;
@@ -2423,6 +2423,13 @@ MiCheckForConflictingVadExistence(
     IN PEPROCESS Process,
     IN ULONG_PTR StartingAddress,
     IN ULONG_PTR EndingAddress
+);
+
+PMM_AVL_TABLE
+NTAPI
+MiCreatePhysicalVadRoot(
+    IN PEPROCESS Process,
+    IN BOOLEAN IsLocked
 );
 
 //

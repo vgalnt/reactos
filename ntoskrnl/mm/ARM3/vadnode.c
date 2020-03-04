@@ -1390,5 +1390,63 @@ MiReturnPageTablePageCommitment(IN ULONG_PTR StartingAddress,
     Process->CommitCharge -= NumberToClear;
 }
 
+PMM_AVL_TABLE
+NTAPI
+MiCreatePhysicalVadRoot(IN PEPROCESS Process,
+                        IN BOOLEAN IsLocked)
+{
+    PMM_AVL_TABLE PhysicalVadRoot;
+    PETHREAD Thread;
+
+    DPRINT("MiCreatePhysicalVadRoot: Process %p, IsLocked %X\n", Process, IsLocked);
+
+    if (Process->PhysicalVadRoot)
+    {
+        DPRINT1("MiCreatePhysicalVadRoot: Process->PhysicalVadRoot %p\n", Process->PhysicalVadRoot);
+        return Process->PhysicalVadRoot;
+    }
+
+    PhysicalVadRoot = ExAllocatePoolWithTag(NonPagedPool, sizeof(MM_AVL_TABLE), 'rpmM');
+    if (!PhysicalVadRoot)
+    {
+        DPRINT1("MiCreatePhysicalVadRoot: allocate failed\n");
+        return NULL;
+    }
+
+    RtlZeroMemory(PhysicalVadRoot, sizeof(MM_AVL_TABLE));
+
+    ASSERT(PhysicalVadRoot->NumberGenericTableElements == 0);
+
+    Thread = PsGetCurrentThread();
+
+    PhysicalVadRoot->BalancedRoot.u1.Parent = &PhysicalVadRoot->BalancedRoot;
+
+    if (!IsLocked)
+    {
+        MiLockProcessWorkingSet(Process, Thread);
+    }
+
+    if (Process->PhysicalVadRoot)
+    {
+        if (!IsLocked)
+        {
+            MiUnlockProcessWorkingSet(Process, Thread);
+        }
+
+        ExFreePoolWithTag(PhysicalVadRoot, 'rpmM');
+    }
+    else
+    {
+        Process->PhysicalVadRoot = PhysicalVadRoot;
+
+        if (!IsLocked)
+        {
+            MiUnlockProcessWorkingSet(Process, Thread);
+        }
+    }
+
+    return Process->PhysicalVadRoot;
+}
+
 /* EOF */
 
