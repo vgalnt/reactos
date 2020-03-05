@@ -3797,7 +3797,7 @@ MmCreateSection(OUT PVOID *SectionObject,
         }
 
         /* Zero it out */
-        RtlZeroMemory(ControlArea, ControlAreaSize);
+        RtlZeroMemory(NewControlArea, ControlAreaSize);
 
         /* Did we get a handle, or an object? */
         if (FileHandle)
