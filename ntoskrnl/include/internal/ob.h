@@ -617,6 +617,12 @@ ObGetProcessHandleCount(
     IN PEPROCESS Process
 );
 
+VOID
+NTAPI
+ObDeleteCapturedInsertInfo(
+    IN PVOID Object
+);
+
 //
 // Global data inside the Object Manager
 //

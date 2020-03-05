@@ -580,7 +580,7 @@ CcCreateSharedCacheMap(IN PFILE_OBJECT FileObject,
     SharedMap = ExAllocatePoolWithTag(NonPagedPool, sizeof(SHARED_CACHE_MAP), 'cScC');
     if (!SharedMap)
     {
-        DPRINT1("MiMapViewOfDataSection: STATUS_INSUFFICIENT_RESOURCES\n");
+        DPRINT1("CcCreateSharedCacheMap: STATUS_INSUFFICIENT_RESOURCES\n");
         return SharedMap;
     }
 
@@ -628,67 +628,413 @@ CcInitializeCacheMap(IN PFILE_OBJECT FileObject,
                      IN PCACHE_MANAGER_CALLBACKS Callbacks,
                      IN PVOID LazyWriteContext)
 {
-    PNOCC_CACHE_MAP Map = FileObject->SectionObjectPointer->SharedCacheMap;
-    PNOCC_PRIVATE_CACHE_MAP PrivateCacheMap = FileObject->PrivateCacheMap;
+    PSHARED_CACHE_MAP SharedMap;
+    PSHARED_CACHE_MAP NewSharedMap = NULL;
+    PPRIVATE_CACHE_MAP PrivateMap;
+    PCACHE_UNINITIALIZE_EVENT UninitializeEvent;
+    PCACHE_UNINITIALIZE_EVENT NextUninitializeEvent;
+    PKEVENT CreateEvent;
+    CC_FILE_SIZES fileSizes;
+    PVOID NewMap = NULL;
+    NTSTATUS Status = STATUS_SUCCESS;
+    BOOLEAN IsLocked;
+    BOOLEAN IsNewSharedMap = FALSE;
+    BOOLEAN IsSectionInit = FALSE;
+    BOOLEAN IsReferenced = FALSE;
+    KIRQL OldIrql;
 
-    ASSERT(FALSE);
+    DPRINT("CcInitializeCacheMap: File %p, '%wZ'\n", FileObject, &FileObject->FileName);
 
-    CcpLock();
-    /* We don't have a shared cache map.  First find out if we have a sibling
-       stream file object we can take it from. */
-    if (!Map && FileObject->Flags & FO_STREAM_FILE)
+    RtlCopyMemory(&fileSizes, FileSizes, sizeof(fileSizes));
+
+    DPRINT("CcInitializeCacheMap: AllocationSize %I64X, FileSize %I64X, ValidDataLength %I64X\n", fileSizes.AllocationSize.QuadPart, fileSizes.FileSize.QuadPart, fileSizes.ValidDataLength.QuadPart);
+
+    if (!fileSizes.AllocationSize.QuadPart)
     {
-        PFILE_OBJECT IdenticalStreamFileObject = CcpFindOtherStreamFileObject(FileObject);
-        if (IdenticalStreamFileObject)
-            Map = IdenticalStreamFileObject->SectionObjectPointer->SharedCacheMap;
-        if (Map)
+        fileSizes.AllocationSize.QuadPart = 1;
+    }
+
+    if (FileObject->WriteAccess)
+    {
+        fileSizes.AllocationSize.QuadPart += (0x100000 - 1);
+        fileSizes.AllocationSize.LowPart &= ~(0x100000 - 1);
+    }
+    else
+    {
+        fileSizes.AllocationSize.QuadPart += (VACB_MAPPING_GRANULARITY - 1);
+        fileSizes.AllocationSize.LowPart &= ~(VACB_MAPPING_GRANULARITY - 1);
+    }
+
+    while (TRUE)
+    {
+        if (!FileObject->SectionObjectPointer->SharedCacheMap)
         {
-            DPRINT1("Linking SFO %x to previous SFO %x through cache map %x #\n",
-                    FileObject,
-                    IdenticalStreamFileObject,
-                    Map);
+            NewSharedMap = CcCreateSharedCacheMap(FileObject,
+                                                  &fileSizes,
+                                                  PinAccess,
+                                                  Callbacks,
+                                                  LazyWriteContext);
+            if (!NewSharedMap)
+            {
+                RtlRaiseStatus(STATUS_INSUFFICIENT_RESOURCES);
+                return;
+            }
+
+            NewMap = NewSharedMap;
+        }
+
+        OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+
+        if (FileObject->PrivateCacheMap)
+        {
+            KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+
+            if (NewSharedMap)
+            {
+                ExFreePoolWithTag(NewSharedMap, 'cScC');
+            }
+
+            return;
+        }
+
+        SharedMap = FileObject->SectionObjectPointer->SharedCacheMap;
+        if (SharedMap)
+        {
+            if (!(FileObject->Flags & FO_SEQUENTIAL_ONLY))
+            {
+                SharedMap->Flags &= ~SHARE_FL_SEQUENTIAL_ONLY;
+            }
+            break;
+        }
+
+        if (NewSharedMap)
+        {
+            InsertTailList(&CcCleanSharedCacheMapList, &NewSharedMap->SharedCacheMapLinks);
+
+            IsNewSharedMap = TRUE;
+            SharedMap = NewSharedMap;
+            NewMap = NULL;
+
+            FileObject->SectionObjectPointer->SharedCacheMap = SharedMap;
+            ObReferenceObject(FileObject);
+            break;
+        }
+
+        KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+    }
+
+    if (FileObject->Flags & FO_RANDOM_ACCESS)
+    {
+        SharedMap->Flags |= SHARE_FL_RANDOM_ACCESS;
+    }
+
+    SharedMap->Flags &= ~0x10;
+
+    if (SharedMap->Vacbs)
+    {
+        if (!(SharedMap->Flags & SHARE_FL_SECTION_INIT))
+        {
+            SharedMap->OpenCount++;
+            KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+            IsLocked = FALSE;
+            IsReferenced = TRUE;
         }
     }
-    /* We still don't have a shared cache map.  We need to create one. */
-    if (!Map)
+    else if (!(SharedMap->Flags & SHARE_FL_SECTION_INIT)) // SharedMap->Vacbs == 0
     {
-        DPRINT("Initializing file object for (%p) %wZ\n",
-               FileObject,
-               &FileObject->FileName);
+        SharedMap->OpenCount++;
+        SharedMap->Flags |= SHARE_FL_SECTION_INIT;
 
-        Map = ExAllocatePool(NonPagedPool, sizeof(NOCC_CACHE_MAP));
-        FileObject->SectionObjectPointer->SharedCacheMap = Map;
-        Map->FileSizes = *FileSizes;
-        Map->LazyContext = LazyWriteContext;
-        Map->ReadAheadGranularity = PAGE_SIZE;
-        RtlCopyMemory(&Map->Callbacks, Callbacks, sizeof(*Callbacks));
+        if (SharedMap->CreateEvent)
+        {
+            KeInitializeEvent(SharedMap->CreateEvent, NotificationEvent, FALSE);
+        }
 
-        /* For now ... */
-        DPRINT("FileSizes->ValidDataLength %I64x\n",
-               FileSizes->ValidDataLength.QuadPart);
+        KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+        IsLocked = FALSE;
 
-        InitializeListHead(&Map->AssociatedBcb);
-        InitializeListHead(&Map->PrivateCacheMaps);
-        InsertTailList(&CcpAllSharedCacheMaps, &Map->Entry);
-        DPRINT("New Map %p\n", Map);
+        IsReferenced = TRUE;
+        IsSectionInit = TRUE;
+
+        if (SharedMap->Section)
+        {
+            if (fileSizes.AllocationSize.QuadPart > SharedMap->SectionSize.QuadPart)
+            {
+                NTSTATUS status;
+
+                DPRINT1("CcInitializeCacheMap: FIXME MmExtendSection()\n");
+                ASSERT(FALSE);
+                status = 0;//MmExtendSection(SharedMap->Section, &fileSizes.AllocationSize, 1);
+                if (!NT_SUCCESS(status))
+                {
+                    Status = FsRtlNormalizeNtstatus(status, STATUS_UNEXPECTED_MM_EXTEND_ERR);
+                    goto ErrorExit;
+                }
+            }
+
+            DPRINT1("CcInitializeCacheMap: FIXME CcExtendVacbArray()\n");
+            ASSERT(FALSE);
+            Status = 0;//CcExtendVacbArray(SharedMap, fileSizes.AllocationSize);
+        }
+        else
+        {
+            PFSRTL_COMMON_FCB_HEADER Fcb;
+
+            SharedMap->Status = MmCreateSection(&SharedMap->Section,
+                                                (SECTION_QUERY | SECTION_MAP_WRITE | SECTION_MAP_READ),
+                                                NULL,
+                                                &fileSizes.AllocationSize,
+                                                PAGE_READWRITE,
+                                                SEC_COMMIT,
+                                                NULL,
+                                                FileObject);
+            if (!NT_SUCCESS(SharedMap->Status))
+            {
+                SharedMap->Section = NULL;
+                Status = FsRtlNormalizeNtstatus(SharedMap->Status, STATUS_UNEXPECTED_MM_CREATE_ERR);
+                goto ErrorExit;
+            }
+
+            ObDeleteCapturedInsertInfo(SharedMap->Section);
+
+            Fcb = FileObject->FsContext;
+
+            if (!(Fcb->Flags2 & FSRTL_FLAG2_DO_MODIFIED_WRITE) && !FileObject->FsContext2)
+            {
+                DPRINT1("CcInitializeCacheMap: FIXME MmDisableModifiedWriteOfSection()\n");
+                ASSERT(FALSE);
+                //MmDisableModifiedWriteOfSection(FileObject->SectionObjectPointer);
+                OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+                SharedMap->Flags |= SHARE_FL_MODIFIED_NO_WRITE;
+                KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+            }
+
+            DPRINT1("CcInitializeCacheMap: FIXME CcCreateVacbArray()\n");
+            ASSERT(FALSE);
+            Status = 0;//CcCreateVacbArray(SharedMap, fileSizes.AllocationSize);
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            goto ErrorExit;
+        }
+
+        OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+
+        SharedMap->Flags &= ~SHARE_FL_SECTION_INIT;
+
+        CreateEvent = SharedMap->CreateEvent;
+        if (CreateEvent)
+        {
+            KeSetEvent(CreateEvent, 0, FALSE);
+        }
+
+        KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+        IsSectionInit = FALSE;
     }
-    /* We don't have a private cache map.  Link it with the shared cache map
-       to serve as a held reference. When the list in the shared cache map
-       is empty, we know we can delete it. */
-    if (!PrivateCacheMap)
+    else // !(SharedMap->Vacbs) && (SharedMap->Flags & SHARE_FL_SECTION_INIT)
     {
-        PrivateCacheMap = ExAllocatePool(NonPagedPool,
-                                         sizeof(*PrivateCacheMap));
+        if (!SharedMap->CreateEvent)
+        {
+            SharedMap->CreateEvent = ExAllocatePoolWithTag(NonPagedPool, sizeof(KEVENT), 'vEcC');
+            if (!SharedMap->CreateEvent)
+            {
+                KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+                IsLocked = FALSE;
 
-        FileObject->PrivateCacheMap = PrivateCacheMap;
-        PrivateCacheMap->FileObject = FileObject;
-        ObReferenceObject(PrivateCacheMap->FileObject);
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                goto Exit;
+            }
+
+            KeInitializeEvent(SharedMap->CreateEvent, NotificationEvent, FALSE);
+        }
+
+        SharedMap->OpenCount++;
+
+        KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+        IsLocked = FALSE;
+        IsReferenced = TRUE;
+
+        KeWaitForSingleObject(SharedMap->CreateEvent, Executive, KernelMode, FALSE, NULL);
+        if (!NT_SUCCESS(SharedMap->Status))
+        {
+            Status = FsRtlNormalizeNtstatus(SharedMap->Status, STATUS_UNEXPECTED_MM_CREATE_ERR);
+            OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+            goto ErrorExit;
+        }
     }
 
-    PrivateCacheMap->Map = Map;
-    InsertTailList(&Map->PrivateCacheMaps, &PrivateCacheMap->ListEntry);
+    if (NewMap)
+    {
+        ExFreePoolWithTag(NewMap, 'cScC');
+        NewMap = NULL;
+    }
 
-    CcpUnlock();
+    PrivateMap = &SharedMap->PrivateCacheMap;
+    if (SharedMap->PrivateCacheMap.NodeTypeCode)
+    {
+        NewMap = ExAllocatePoolWithTag(NonPagedPool, sizeof(PRIVATE_CACHE_MAP), 'cPcC');
+        if (!NewMap)
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Exit;
+        }
+    }
+
+    while (TRUE)
+    {
+        OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+        IsLocked = TRUE;
+
+        if (FileObject->PrivateCacheMap)
+        {
+            ASSERT(SharedMap->OpenCount > 1);
+            SharedMap->OpenCount--;
+            SharedMap = NULL;
+            IsReferenced = FALSE;
+            break;
+        }
+
+        if (PrivateMap->NodeTypeCode)
+        {
+            if (!NewMap)
+            {
+                KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+                IsLocked = FALSE;
+
+                NewMap = ExAllocatePoolWithTag(NonPagedPool, sizeof(PRIVATE_CACHE_MAP), 'cPcC');
+                if (!NewMap)
+                {
+                    Status = STATUS_INSUFFICIENT_RESOURCES;
+                    break;
+                }
+
+                continue;
+            }
+
+            PrivateMap = NewMap;
+            NewMap = NULL;
+        }
+
+        RtlZeroMemory(PrivateMap, sizeof(*PrivateMap));
+
+        PrivateMap->NodeTypeCode = CC_TYPE_PRIVATE_MAP;
+        PrivateMap->FileObject = FileObject;
+        FileObject->PrivateCacheMap = PrivateMap;
+
+        PrivateMap->ReadAheadMask = (PAGE_SIZE - 1);
+        KeInitializeSpinLock(&PrivateMap->ReadAheadSpinLock);
+
+        InsertTailList(&SharedMap->PrivateList, &PrivateMap->PrivateLinks);
+
+        IsReferenced = FALSE;
+        break;
+    }
+
+Exit:
+
+    if (IsReferenced)
+    {
+        if (IsLocked)
+        {
+            goto ErrorExitLocked;
+        }
+
+ErrorExit:
+
+        OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+
+ErrorExitLocked:
+
+        if (IsSectionInit)
+        {
+            CreateEvent = SharedMap->CreateEvent;
+            if (CreateEvent)
+            {
+                KeSetEvent(CreateEvent, 0, FALSE);
+            }
+            SharedMap->Flags &= ~SHARE_FL_SECTION_INIT;
+        }
+
+        SharedMap->OpenCount--;
+
+        if (SharedMap->OpenCount == 0 &&
+            !(SharedMap->Flags & SHARE_FL_WRITE_QUEUED) &&
+            !SharedMap->DirtyPages)
+        {
+            DPRINT1("CcInitializeCacheMap: FIXME CcDeleteSharedCacheMap()\n");
+            ASSERT(FALSE);//CcDeleteSharedCacheMap(SharedMap, OldIrql, FALSE);
+        }
+        else
+        {
+            KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+        }
+
+        if (NewMap)
+        {
+            ExFreePoolWithTag(NewMap, 'cScC');
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            RtlRaiseStatus(Status);
+        }
+    }
+
+    if (SharedMap)
+    {
+        if (!IsLocked)
+        {
+            OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+            IsLocked = TRUE;
+        }
+
+        if (!IsNewSharedMap &&
+            !SharedMap->DirtyPages &&
+            SharedMap->OpenCount)
+        {
+            if (KdDebuggerEnabled && !KdDebuggerNotPresent &&
+                !SharedMap->OpenCount &&
+                !SharedMap->DirtyPages)
+            {
+                DPRINT1("CC: SharedMap->OpenCount == 0 && DirtyPages == 0 && going onto CleanList!\n");
+                DbgBreakPoint();
+            }
+
+            RemoveEntryList(&SharedMap->SharedCacheMapLinks);
+            InsertTailList(&CcCleanSharedCacheMapList, &SharedMap->SharedCacheMapLinks);
+        }
+
+        {
+            for (UninitializeEvent = SharedMap->UninitializeEvent;
+                 UninitializeEvent;
+                 UninitializeEvent = NextUninitializeEvent)
+            {
+                UninitializeEvent = (PCACHE_UNINITIALIZE_EVENT)((ULONG_PTR)UninitializeEvent & ~(1));
+                NextUninitializeEvent = UninitializeEvent->Next;
+
+                KeSetEvent(&UninitializeEvent->Event, 0, FALSE);
+            }
+        }
+
+        SharedMap->Flags &= ~SHARE_FL_WAITING_TEARDOWN;
+        SharedMap->UninitializeEvent = NULL;
+    }
+
+    if (IsLocked)
+    {
+        KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+    }
+
+    if (NewMap)
+    {
+        ExFreePoolWithTag(NewMap, 'cScC');
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        RtlRaiseStatus(Status);
+    }
 }
 
 /* EOF */
