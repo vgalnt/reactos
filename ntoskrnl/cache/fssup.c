@@ -567,6 +567,59 @@ CcGetFileObjectFromBcb(PVOID Bcb)
 
 /* Thanks: http://windowsitpro.com/Windows/Articles/ArticleID/3864/pg/2/2.html */
 
+PSHARED_CACHE_MAP
+NTAPI
+CcCreateSharedCacheMap(IN PFILE_OBJECT FileObject,
+                       IN PCC_FILE_SIZES FileSizes,
+                       IN BOOLEAN PinAccess,
+                       IN PCACHE_MANAGER_CALLBACKS Callbacks,
+                       IN PVOID LazyWriteContext)
+{
+    PSHARED_CACHE_MAP SharedMap;
+
+    SharedMap = ExAllocatePoolWithTag(NonPagedPool, sizeof(SHARED_CACHE_MAP), 'cScC');
+    if (!SharedMap)
+    {
+        DPRINT1("MiMapViewOfDataSection: STATUS_INSUFFICIENT_RESOURCES\n");
+        return SharedMap;
+    }
+
+    RtlZeroMemory(SharedMap, sizeof(SHARED_CACHE_MAP));
+
+    SharedMap->NodeTypeCode = CC_TYPE_SHARED_MAP;
+    SharedMap->NodeByteSize = sizeof(SHARED_CACHE_MAP);
+    SharedMap->FileObject = FileObject;
+
+    /* Set new file size for the file */
+    SharedMap->FileSize.QuadPart = FileSizes->FileSize.QuadPart;
+
+    /* Set new valid data length for the file */
+    SharedMap->ValidDataLength.QuadPart = FileSizes->ValidDataLength.QuadPart;
+    SharedMap->ValidDataGoal.QuadPart = FileSizes->ValidDataLength.QuadPart;
+
+    KeInitializeSpinLock(&SharedMap->ActiveVacbSpinLock);
+    KeInitializeSpinLock(&SharedMap->BcbSpinLock);
+    ExInitializePushLock((PEX_PUSH_LOCK)&SharedMap->VacbPushLock);
+
+    if (PinAccess)
+    {
+        SharedMap->Flags |= SHARE_FL_PIN_ACCESS;
+    }
+
+    if (FileObject->Flags & FO_SEQUENTIAL_ONLY)
+    {
+        SharedMap->Flags |= SHARE_FL_SEQUENTIAL_ONLY;
+    }
+
+    SharedMap->Callbacks = Callbacks;
+    SharedMap->LazyWriteContext = LazyWriteContext;
+
+    InitializeListHead(&SharedMap->BcbList);
+    InitializeListHead(&SharedMap->PrivateList);
+
+    return SharedMap;
+}
+
 VOID
 NTAPI
 CcInitializeCacheMap(IN PFILE_OBJECT FileObject,

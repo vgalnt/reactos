@@ -10,6 +10,16 @@
 //
 #define CC_API_DEBUG                                    0x01
 
+#define CC_TYPE_PRIVATE_MAP        0x02FE
+#define CC_TYPE_SHARED_MAP         0x02FF
+
+/* SharedCacheMap->Flags */
+#define SHARE_FL_PIN_ACCESS        0x00000004
+#define SHARE_FL_SEQUENTIAL_ONLY   0x00000040
+#define SHARE_FL_MODIFIED_NO_WRITE 0x00000200
+#define SHARE_FL_RANDOM_ACCESS     0x00001000
+#define SHARE_FL_WAITING_TEARDOWN  0x00010000
+
 //
 // Debug/Tracing support
 //
