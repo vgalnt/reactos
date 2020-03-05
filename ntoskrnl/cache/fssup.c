@@ -178,79 +178,6 @@ CcWaitForUninitializeCacheMap(IN PFILE_OBJECT FileObject)
     ASSERT(FALSE);
 }
 
-/* Thanks: http://windowsitpro.com/Windows/Articles/ArticleID/3864/pg/2/2.html */
-
-VOID
-NTAPI
-CcInitializeCacheMap(IN PFILE_OBJECT FileObject,
-                     IN PCC_FILE_SIZES FileSizes,
-                     IN BOOLEAN PinAccess,
-                     IN PCACHE_MANAGER_CALLBACKS Callbacks,
-                     IN PVOID LazyWriteContext)
-{
-    PNOCC_CACHE_MAP Map = FileObject->SectionObjectPointer->SharedCacheMap;
-    PNOCC_PRIVATE_CACHE_MAP PrivateCacheMap = FileObject->PrivateCacheMap;
-
-    ASSERT(FALSE);
-
-    CcpLock();
-    /* We don't have a shared cache map.  First find out if we have a sibling
-       stream file object we can take it from. */
-    if (!Map && FileObject->Flags & FO_STREAM_FILE)
-    {
-        PFILE_OBJECT IdenticalStreamFileObject = CcpFindOtherStreamFileObject(FileObject);
-        if (IdenticalStreamFileObject)
-            Map = IdenticalStreamFileObject->SectionObjectPointer->SharedCacheMap;
-        if (Map)
-        {
-            DPRINT1("Linking SFO %x to previous SFO %x through cache map %x #\n",
-                    FileObject,
-                    IdenticalStreamFileObject,
-                    Map);
-        }
-    }
-    /* We still don't have a shared cache map.  We need to create one. */
-    if (!Map)
-    {
-        DPRINT("Initializing file object for (%p) %wZ\n",
-               FileObject,
-               &FileObject->FileName);
-
-        Map = ExAllocatePool(NonPagedPool, sizeof(NOCC_CACHE_MAP));
-        FileObject->SectionObjectPointer->SharedCacheMap = Map;
-        Map->FileSizes = *FileSizes;
-        Map->LazyContext = LazyWriteContext;
-        Map->ReadAheadGranularity = PAGE_SIZE;
-        RtlCopyMemory(&Map->Callbacks, Callbacks, sizeof(*Callbacks));
-
-        /* For now ... */
-        DPRINT("FileSizes->ValidDataLength %I64x\n",
-               FileSizes->ValidDataLength.QuadPart);
-
-        InitializeListHead(&Map->AssociatedBcb);
-        InitializeListHead(&Map->PrivateCacheMaps);
-        InsertTailList(&CcpAllSharedCacheMaps, &Map->Entry);
-        DPRINT("New Map %p\n", Map);
-    }
-    /* We don't have a private cache map.  Link it with the shared cache map
-       to serve as a held reference. When the list in the shared cache map
-       is empty, we know we can delete it. */
-    if (!PrivateCacheMap)
-    {
-        PrivateCacheMap = ExAllocatePool(NonPagedPool,
-                                         sizeof(*PrivateCacheMap));
-
-        FileObject->PrivateCacheMap = PrivateCacheMap;
-        PrivateCacheMap->FileObject = FileObject;
-        ObReferenceObject(PrivateCacheMap->FileObject);
-    }
-
-    PrivateCacheMap->Map = Map;
-    InsertTailList(&Map->PrivateCacheMaps, &PrivateCacheMap->ListEntry);
-
-    CcpUnlock();
-}
-
 /*
 
 This function is used by NewCC's MM to determine whether any section objects
@@ -634,6 +561,81 @@ CcGetFileObjectFromBcb(PVOID Bcb)
     ASSERT(FALSE);
 
     return MmGetFileObjectForSection((PROS_SECTION_OBJECT)RealBcb->SectionObject);
+}
+
+/* PUBLIC FUNCTIONS ***********************************************************/
+
+/* Thanks: http://windowsitpro.com/Windows/Articles/ArticleID/3864/pg/2/2.html */
+
+VOID
+NTAPI
+CcInitializeCacheMap(IN PFILE_OBJECT FileObject,
+                     IN PCC_FILE_SIZES FileSizes,
+                     IN BOOLEAN PinAccess,
+                     IN PCACHE_MANAGER_CALLBACKS Callbacks,
+                     IN PVOID LazyWriteContext)
+{
+    PNOCC_CACHE_MAP Map = FileObject->SectionObjectPointer->SharedCacheMap;
+    PNOCC_PRIVATE_CACHE_MAP PrivateCacheMap = FileObject->PrivateCacheMap;
+
+    ASSERT(FALSE);
+
+    CcpLock();
+    /* We don't have a shared cache map.  First find out if we have a sibling
+       stream file object we can take it from. */
+    if (!Map && FileObject->Flags & FO_STREAM_FILE)
+    {
+        PFILE_OBJECT IdenticalStreamFileObject = CcpFindOtherStreamFileObject(FileObject);
+        if (IdenticalStreamFileObject)
+            Map = IdenticalStreamFileObject->SectionObjectPointer->SharedCacheMap;
+        if (Map)
+        {
+            DPRINT1("Linking SFO %x to previous SFO %x through cache map %x #\n",
+                    FileObject,
+                    IdenticalStreamFileObject,
+                    Map);
+        }
+    }
+    /* We still don't have a shared cache map.  We need to create one. */
+    if (!Map)
+    {
+        DPRINT("Initializing file object for (%p) %wZ\n",
+               FileObject,
+               &FileObject->FileName);
+
+        Map = ExAllocatePool(NonPagedPool, sizeof(NOCC_CACHE_MAP));
+        FileObject->SectionObjectPointer->SharedCacheMap = Map;
+        Map->FileSizes = *FileSizes;
+        Map->LazyContext = LazyWriteContext;
+        Map->ReadAheadGranularity = PAGE_SIZE;
+        RtlCopyMemory(&Map->Callbacks, Callbacks, sizeof(*Callbacks));
+
+        /* For now ... */
+        DPRINT("FileSizes->ValidDataLength %I64x\n",
+               FileSizes->ValidDataLength.QuadPart);
+
+        InitializeListHead(&Map->AssociatedBcb);
+        InitializeListHead(&Map->PrivateCacheMaps);
+        InsertTailList(&CcpAllSharedCacheMaps, &Map->Entry);
+        DPRINT("New Map %p\n", Map);
+    }
+    /* We don't have a private cache map.  Link it with the shared cache map
+       to serve as a held reference. When the list in the shared cache map
+       is empty, we know we can delete it. */
+    if (!PrivateCacheMap)
+    {
+        PrivateCacheMap = ExAllocatePool(NonPagedPool,
+                                         sizeof(*PrivateCacheMap));
+
+        FileObject->PrivateCacheMap = PrivateCacheMap;
+        PrivateCacheMap->FileObject = FileObject;
+        ObReferenceObject(PrivateCacheMap->FileObject);
+    }
+
+    PrivateCacheMap->Map = Map;
+    InsertTailList(&Map->PrivateCacheMaps, &PrivateCacheMap->ListEntry);
+
+    CcpUnlock();
 }
 
 /* EOF */
