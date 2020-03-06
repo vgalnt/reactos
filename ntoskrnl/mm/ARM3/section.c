@@ -3663,7 +3663,7 @@ MmCreateSection(OUT PVOID *SectionObject,
     SECTION Section;
     PSECTION NewSection;
     PSUBSECTION Subsection;
-    PSEGMENT Segment;
+    PSEGMENT Segment = NULL;
     PSEGMENT NewSegment = NULL;
     PEVENT_COUNTER event;
     NTSTATUS Status;
@@ -3677,7 +3677,7 @@ MmCreateSection(OUT PVOID *SectionObject,
     PFILE_OBJECT File;
     LARGE_INTEGER FileSize;
     BOOLEAN UserRefIncremented = FALSE;
-    PVOID PreviousSectionPointer;
+    PVOID PreviousSectionPointer = NULL;
     BOOLEAN IgnoreFileSizing = FALSE; // TRUE if CC call (FileObject != NULL)
     BOOLEAN IsSectionSizeChanged = FALSE;
 
@@ -3969,6 +3969,9 @@ MmCreateSection(OUT PVOID *SectionObject,
                 }
             }
         }
+
+        /* We can release the PFN lock now */
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
 
         if ((AllocationAttributes & SEC_IMAGE) && File && (File->FileName.Length > 4))
         {
