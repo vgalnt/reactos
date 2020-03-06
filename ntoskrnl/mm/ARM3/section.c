@@ -3675,6 +3675,7 @@ MmCreateSection(OUT PVOID *SectionObject,
     BOOLEAN FileLock = FALSE;
     KIRQL OldIrql;
     PFILE_OBJECT File;
+    LARGE_INTEGER FileSize;
     BOOLEAN UserRefIncremented = FALSE;
     PVOID PreviousSectionPointer;
     BOOLEAN IgnoreFileSizing = FALSE; // TRUE if CC call (FileObject != NULL)
@@ -3822,92 +3823,343 @@ MmCreateSection(OUT PVOID *SectionObject,
             FileLock = TRUE;
         }
 
-        ASSERT(FALSE); if (IgnoreFileSizing){;}
-
-        /* Lock the PFN database while we play with the section pointers */
-        OldIrql = MiLockPfnDb(APC_LEVEL);
-
-        /* Image-file backed sections are not yet supported */
-        ASSERT((AllocationAttributes & SEC_IMAGE) == 0);
-
-        /* There should not already be a control area for this file */
-        ASSERT(File->SectionObjectPointer->DataSectionObject == NULL);
-        NewSegment = NULL;
-
-        /* Write down that this CA is being created, and set it */
-        ControlArea->u.Flags.BeingCreated = TRUE;
-        ASSERT((AllocationAttributes & SEC_IMAGE) == 0);
-        PreviousSectionPointer = File->SectionObjectPointer;
-        File->SectionObjectPointer->DataSectionObject = ControlArea;
-
-        /* We can release the PFN lock now */
-        MiUnlockPfnDb(OldIrql, APC_LEVEL);
-
-        /* We don't support previously-mapped file */
-        ASSERT(NewSegment == NULL);
-
-        /* Image-file backed sections are not yet supported */
-        ASSERT((AllocationAttributes & SEC_IMAGE) == 0);
-
-        /* So we always create a data file map */
-        Status = MiCreateDataFileMap(File,
-                                     &Segment,
-                                     (PSIZE_T)InputMaximumSize,
-                                     SectionPageProtection,
-                                     AllocationAttributes,
-                                     IgnoreFileSizing);
-        if (!NT_SUCCESS(Status))
+        while (TRUE)
         {
             /* Lock the PFN database while we play with the section pointers */
             OldIrql = MiLockPfnDb(APC_LEVEL);
 
-            /* Reset the waiting-for-deletion event */
-            ASSERT(ControlArea->WaitingForDeletion == NULL);
-            ControlArea->WaitingForDeletion = NULL;
+            if (AllocationAttributes & SEC_IMAGE)
+            {
+                /* Find control area for image-file backed section */
+                DPRINT1("MmCreateSection: FIXME MiFindImageSectionObject \n");
+                ASSERT(FALSE);
+                ControlArea = NULL;//MiFindImageSectionObject(File, TRUE, &IsGlobal);
+            }
+            else
+            {
+                /* Get control area from file */
+                ControlArea = (PCONTROL_AREA)File->SectionObjectPointer->DataSectionObject;
+            }
 
-            /* Set the file pointer NULL flag */
-            ASSERT(ControlArea->u.Flags.FilePointerNull == 0);
-            ControlArea->u.Flags.FilePointerNull = TRUE;
+            if (!ControlArea)
+            {
+                /* Write down that this CA is being created, and set it */
+                ControlArea = NewControlArea;
+                ControlArea->u.Flags.BeingCreated = 1;
 
-            /* Delete the data section object */
-            ASSERT((AllocationAttributes & SEC_IMAGE) == 0);
-            File->SectionObjectPointer->DataSectionObject = NULL;
+                if (AllocationAttributes & SEC_IMAGE)
+                {
+                    DPRINT1("MmCreateSection: FIXME MiInsertImageSectionObject \n");
+                    ASSERT(FALSE);//MiInsertImageSectionObject(File, (PLARGE_CONTROL_AREA)NewControlArea);
+                }
+                else
+                {
+                    PreviousSectionPointer = File->SectionObjectPointer;
+                    File->SectionObjectPointer->DataSectionObject = ControlArea;
+                }
 
-            /* No longer being created */
-            ControlArea->u.Flags.BeingCreated = FALSE;
+                DPRINT("MmCreateSection: break\n");
+                break;
+            }
+            else
+            {
+                if ((ControlArea->u.Flags.BeingDeleted) ||
+                    (ControlArea->u.Flags.BeingCreated))
+                {
+                    if (ControlArea->WaitingForDeletion)
+                    {
+                        event = ControlArea->WaitingForDeletion;
+                        event->RefCount++;
+                    }
+                    else
+                    {
+                         DPRINT1("MmCreateSection: FIXME\n");
+                         ASSERT(FALSE);
+                    }
 
-            /* We can release the PFN lock now */
-            MiUnlockPfnDb(OldIrql, APC_LEVEL);
+                    MiUnlockPfnDb(OldIrql, APC_LEVEL);
+
+                    /* Check if we locked and set the IRP */
+                    if (FileLock)
+                    {
+                        /* Reset the top-level IRP and release the lock */
+                        IoSetTopLevelIrp(NULL);
+                        //FsRtlReleaseFile(File);
+                    }
+
+                    KeWaitForSingleObject(&event->Event, WrVirtualMemory, KernelMode, FALSE, NULL);
+
+                    DPRINT1("MmCreateSection: FIXME MiFreeEventCounter \n");
+                    ASSERT(FALSE);
+                    //MiFreeEventCounter(event);
+
+                    /* Check if we locked and set the IRP */
+                    if (FileLock)
+                    {
+                        /* We got a file handle so we have to lock down the file */
+#if 0
+                        Status = FsRtlAcquireToCreateMappedSection(File, SectionPageProtection);
+                        if (!NT_SUCCESS(Status))
+                        {
+                            DPRINT1("MmCreateSection: Status %X\n", Status);
+                            ExFreePoolWithTag(NewControlArea, 'aCmM');
+                            ObDereferenceObject(File);
+                            return Status;
+                        }
+#else
+                        /* ReactOS doesn't support this API yet, so do nothing */
+                        DPRINT("MmCreateSection: FIXME FsRtlAcquireToCreateMappedSection\n");
+                        Status = STATUS_SUCCESS;
+#endif
+                        /* Update the top-level IRP so that drivers know what's happening */
+                        IoSetTopLevelIrp((PIRP)FSRTL_FSP_TOP_LEVEL_IRP);
+                    }
+
+                    DPRINT("MmCreateSection: continue\n");
+                    continue;
+                }
+                else
+                {
+                    if (ControlArea->u.Flags.ImageMappedInSystemSpace &&
+                        (AllocationAttributes & SEC_IMAGE) &&
+                        KeGetCurrentThread()->PreviousMode != KernelMode)
+                    {
+                        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+
+                        /* Check if we locked and set the IRP */
+                        if (FileLock)
+                        {
+                            /* Reset the top-level IRP and release the lock */
+                            IoSetTopLevelIrp(NULL);
+                            //FsRtlReleaseFile(File);
+                        }
+
+                        DPRINT1("MmCreateSection: STATUS_CONFLICTING_ADDRESSES\n");
+                        ExFreePoolWithTag(NewControlArea, 'aCmM');
+                        ObDereferenceObject(File);
+                        return STATUS_CONFLICTING_ADDRESSES;
+                    }
+
+                    NewSegment = ControlArea->Segment;
+
+                    ControlArea->u.Flags.Accessed = 1;
+                    ControlArea->NumberOfSectionReferences++;
+
+                    if (ControlArea->DereferenceList.Flink)
+                    {
+                        RemoveEntryList(&ControlArea->DereferenceList);
+
+                        ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+                        ASSERT(MmPfnOwner == KeGetCurrentThread());
+                        MmUnusedSegmentCount--;
+
+                        ControlArea->DereferenceList.Flink = NULL;
+                        ControlArea->DereferenceList.Blink = NULL;
+                    }
+
+                    UserRefIncremented = TRUE;
+
+                    if (!IgnoreFileSizing)
+                    {
+                        ControlArea->NumberOfUserReferences++;
+                    }
+
+                    DPRINT("MmCreateSection: break\n");
+                    break;
+                }
+            }
+        }
+
+        if ((AllocationAttributes & SEC_IMAGE) && File && (File->FileName.Length > 4))
+        {
+            DPRINT("MmCreateSection: File %p '%wZ' \n", File, &File->FileName);
+        }
+
+        if (!NewSegment)
+        {
+            if (AllocationAttributes & SEC_IMAGE)
+            {
+                /* Create image-file backed sections */
+                DPRINT1("MmCreateSection: FIXME MiInsertImageSectionObject \n");
+                ASSERT(FALSE);
+                Status = 0;//MiCreateImageFileMap(File, &Segment);
+            }
+            else
+            {
+                /* So create a data file map */
+                Status = MiCreateDataFileMap(File,
+                                             &Segment,
+                                             (PSIZE_T)InputMaximumSize,
+                                             SectionPageProtection,
+                                             AllocationAttributes,
+                                             IgnoreFileSizing);
+                /*We expect this */
+                ASSERT(PreviousSectionPointer == File->SectionObjectPointer);
+            }
+
+            if (!NT_SUCCESS(Status))
+            {
+                /* Lock the PFN database while we undo */
+                OldIrql = MiLockPfnDb(APC_LEVEL);
+
+                /* Reset the waiting-for-deletion event */
+                event = ControlArea->WaitingForDeletion;
+                ControlArea->WaitingForDeletion = NULL;
+
+                /* Set the file pointer NULL flag */
+                ASSERT(ControlArea->u.Flags.FilePointerNull == 0);
+                ControlArea->u.Flags.FilePointerNull = 1;
+
+                /* Delete the section object */
+                if (AllocationAttributes & SEC_IMAGE)
+                {
+                    DPRINT1("MmCreateSection: FIXME MiRemoveImageSectionObject \n");
+                    ASSERT(FALSE);
+                    //MiRemoveImageSectionObject(File, (PLARGE_CONTROL_AREA)ControlArea);
+                }
+                else
+                {
+                    File->SectionObjectPointer->DataSectionObject = NULL;
+                }
+
+                /* No longer being created */
+                ControlArea->u.Flags.BeingCreated = 0;
+
+                /* We can release the PFN lock now */
+                MiUnlockPfnDb(OldIrql, APC_LEVEL);
+
+                /* Check if we locked and set the IRP */
+                if (FileLock)
+                {
+                    /* Reset the top-level IRP and release the lock */
+                    IoSetTopLevelIrp(NULL);
+                    //FsRtlReleaseFile(File);
+                }
+
+                /* Free the control area and de-ref the file object */
+                ExFreePoolWithTag(NewControlArea, 'aCmM');
+                ObDereferenceObject(File);
+
+                if (event)
+                {
+                    KeSetEvent(&event->Event, 0, FALSE);
+                }
+
+                /* All done */
+                DPRINT1("MmCreateSection: Status %X\n", Status);
+                return Status;
+            }
+
+            /* Check if a maximum size was specified */
+            if (!InputMaximumSize->QuadPart)
+            {
+                /* Nope, use the segment size */
+                Section.SizeOfSection.QuadPart = (LONGLONG)Segment->SizeOfSegment;
+                DPRINT("MmCreateSection: Section.SizeOfSection.QuadPart %I64X\n", Section.SizeOfSection.QuadPart);
+            }
+            else
+            {
+                /* Yep, use the entered size */
+                Section.SizeOfSection.QuadPart = InputMaximumSize->QuadPart;
+                DPRINT("MmCreateSection: Section.SizeOfSection.QuadPart %I64X\n", Section.SizeOfSection.QuadPart);
+            }
+        }
+        else
+        {
+            /* This is a previously mapped file. */
+            if (AllocationAttributes & SEC_IMAGE)
+            {
+                DPRINT1("MmCreateSection: FIXME MiFlushDataSection \n");
+                //MiFlushDataSection(File);
+            }
+
+            /* Free the new control area */
+            ExFreePoolWithTag(NewControlArea, 'aCmM');
+
+            if (IgnoreFileSizing || ControlArea->u.Flags.Image)
+            {
+                /* If it CC or image-file section get size from Segment */
+                FileSize.QuadPart = NewSegment->SizeOfSegment;
+            }
+            else
+            {
+                /* For data-file section get size from file */
+                Status = FsRtlGetFileSize(File, &FileSize);
+
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("MmCreateSection: Status %X\n", Status);
+
+                    /* Check if we locked and set the IRP */
+                    if (FileLock)
+                    {
+                        /* Reset the top-level IRP and release the lock */
+                        IoSetTopLevelIrp(NULL);
+                        //FsRtlReleaseFile(File);
+                        FileLock = FALSE;
+                    }
+
+                    /* De-ref the file object */
+                    ObDereferenceObject(File);
+                    goto ErrorExit;
+                }
+
+                if (!FileSize.QuadPart && !InputMaximumSize->QuadPart)
+                {
+                    DPRINT1("MmCreateSection: STATUS_MAPPED_FILE_SIZE_ZERO\n");
+
+                    /* Check if we locked and set the IRP */
+                    if (FileLock)
+                    {
+                        /* Reset the top-level IRP and release the lock */
+                        IoSetTopLevelIrp(NULL);
+                        //FsRtlReleaseFile(File);
+                        FileLock = FALSE;
+                    }
+
+                    ObDereferenceObject(File);
+                    Status = STATUS_MAPPED_FILE_SIZE_ZERO;
+                    goto ErrorExit;
+                }
+            }
 
             /* Check if we locked and set the IRP */
             if (FileLock)
             {
-                /* Undo */
+                /* Reset the top-level IRP and release the lock */
                 IoSetTopLevelIrp(NULL);
-                //FsRtlReleaseFile(File);
+                //FsRtlReleaseFile( File);
+                FileLock = FALSE;
             }
 
-            /* Free the control area and de-ref the file object */
-            ExFreePool(ControlArea);
+            /* De-ref the file object */
             ObDereferenceObject(File);
 
-            /* All done */
-            return Status;
-        }
+            /* Set sizeof for the section */
+            if (InputMaximumSize->QuadPart == 0)
+            {
+                Section.SizeOfSection.QuadPart = FileSize.QuadPart;
+                DPRINT("MmCreateSection: Section.SizeOfSection.QuadPart %I64X\n", Section.SizeOfSection.QuadPart);
+                IsSectionSizeChanged = TRUE;
+            }
+            else
+            {
+                Section.SizeOfSection.QuadPart = InputMaximumSize->QuadPart;
+                DPRINT("MmCreateSection: Section.SizeOfSection.QuadPart %I64X\n", Section.SizeOfSection.QuadPart);
 
-        /* On success, we expect this */
-        ASSERT(PreviousSectionPointer == File->SectionObjectPointer);
-
-        /* Check if a maximum size was specified */
-        if (!InputMaximumSize->QuadPart)
-        {
-            /* Nope, use the segment size */
-            Section.SizeOfSection.QuadPart = (LONGLONG)Segment->SizeOfSegment;
-        }
-        else
-        {
-            /* Yep, use the entered size */
-            Section.SizeOfSection.QuadPart = InputMaximumSize->QuadPart;
+                if (FileSize.QuadPart < InputMaximumSize->QuadPart)
+                {
+                    if (!(SectionPageProtection & (PAGE_READWRITE | PAGE_EXECUTE_READWRITE)))
+                    {
+                        Status = STATUS_SECTION_TOO_BIG;
+                        goto ErrorExit;
+                    }
+                }
+                else
+                {
+                    IsSectionSizeChanged = TRUE;
+                }
+            }
         }
     }
     else
@@ -4091,6 +4343,8 @@ MmCreateSection(OUT PVOID *SectionObject,
             ASSERT(Section.u.Flags.UserWritable == 1);
             InterlockedDecrement((volatile PLONG)&ControlArea->WritableUserReferences);
         }
+
+ErrorExit:
 
         /* Check if we locked and set the IRP */
         if (FileLock)
