@@ -2341,19 +2341,23 @@ ErrorExit:
 
 VOID
 NTAPI
-MiSubsectionConsistent(IN PSUBSECTION Subsection)
+MiSubsectionConsistent(PSUBSECTION Subsection)
 {
-    ASSERT(FALSE);
+    ULONG NumberOfFullSectors;
 
-    /* ReactOS only supports systems with 4K pages and 4K sectors */
-    ASSERT(Subsection->u.SubsectionFlags.SectorEndOffset == 0);
+    NumberOfFullSectors = Subsection->NumberOfFullSectors;
+    DPRINT("MiSubsectionConsistent: Subsection %p, NumberOfFullSectors %X\n", Subsection, NumberOfFullSectors);
+
+    if (Subsection->u.SubsectionFlags.SectorEndOffset)
+    {
+        NumberOfFullSectors++;
+    }
 
     /* Therefore, then number of PTEs should be equal to the number of sectors */
-    if (Subsection->NumberOfFullSectors != Subsection->PtesInSubsection)
+    if (NumberOfFullSectors != Subsection->PtesInSubsection)
     {
-        /* Break and warn if this is inconsistent */
-        DPRINT1("Mm: Subsection inconsistent (%x vs %x)\n",
-                Subsection->NumberOfFullSectors, Subsection->PtesInSubsection);
+        DPRINT1("Subsection inconsistent (%X vs %X)\n",
+                NumberOfFullSectors, Subsection->PtesInSubsection);
         DbgBreakPoint();
     }
 }
