@@ -1,5 +1,11 @@
 #pragma once
 
+/* Make the code cleaner with some definitions for size multiples */
+#define _1KB (1024u)
+#define _1MB (1024 * _1KB)
+#define _1GB (1024 * _1MB)
+#define _1TB (1024ull * _1GB)
+
 typedef struct _NOCC_BCB
 {
     /* Public part */
@@ -174,3 +180,9 @@ CcpPinMappedData(IN PNOCC_CACHE_MAP Map,
                  IN ULONG Length,
                  IN ULONG Flags,
                  IN OUT PVOID *Bcb);
+NTSTATUS
+NTAPI
+CcCreateVacbArray(IN PSHARED_CACHE_MAP SharedCacheMap,
+                  IN LARGE_INTEGER AllocationSize);
+
+/* EOF */

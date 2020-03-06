@@ -809,9 +809,7 @@ CcInitializeCacheMap(IN PFILE_OBJECT FileObject,
                 KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
             }
 
-            DPRINT1("CcInitializeCacheMap: FIXME CcCreateVacbArray()\n");
-            ASSERT(FALSE);
-            Status = 0;//CcCreateVacbArray(SharedMap, fileSizes.AllocationSize);
+            Status = CcCreateVacbArray(SharedMap, fileSizes.AllocationSize);
         }
 
         if (!NT_SUCCESS(Status))
