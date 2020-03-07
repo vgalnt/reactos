@@ -30,6 +30,18 @@ PMMWSLE MmSystemCacheWsle;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
+NTSTATUS
+NTAPI
+MmMapViewInSystemCache(IN PVOID SectionObject,
+                       IN OUT PVOID * BaseAddress,
+                       IN PLARGE_INTEGER SectionOffset,
+                       IN PULONG CapturedViewSize)
+{
+    DPRINT("MmMapViewInSystemCache: Section %p, BaseAddress [%p], Offset [%I64X], Size [%X]\n", Section, (BaseAddress ? *BaseAddress : NULL), (SectionOffset ? SectionOffset->QuadPart : 0), (CapturedViewSize ? *CapturedViewSize : 0));
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
+}
+
 VOID
 NTAPI
 MiInitializeSystemCache(IN ULONG MinimumWorkingSetSize,

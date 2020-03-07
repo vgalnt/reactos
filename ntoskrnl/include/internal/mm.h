@@ -1424,6 +1424,15 @@ VOID
 NTAPI
 MmFreeSectionSegments(PFILE_OBJECT FileObject);
 
+NTSTATUS
+NTAPI
+MmMapViewInSystemCache(
+    IN PVOID SectionObject,
+    IN OUT PVOID * BaseAddress,
+    IN PLARGE_INTEGER SectionOffset,
+    IN PULONG CapturedViewSize
+);
+
 /* sysldr.c ******************************************************************/
 
 INIT_FUNCTION
