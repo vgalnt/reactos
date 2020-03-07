@@ -50,6 +50,9 @@ struct _EPROCESS;
 struct _MM_RMAP_ENTRY;
 typedef ULONG_PTR SWAPENTRY;
 
+/* Maximal number of pages in the claster */
+#define MM_MAXIMUM_READ_CLUSTER_SIZE 15
+
 //
 // MmDbgCopyMemory Flags
 //

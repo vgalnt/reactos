@@ -1024,4 +1024,119 @@ CcUnpinDataForThread(IN PVOID Bcb,
     CcUnpinData(Bcb);
 }
 
+BOOLEAN
+NTAPI
+CcMapDataCommon(IN PFILE_OBJECT FileObject,
+                IN PLARGE_INTEGER FileOffset,
+                IN ULONG Length,
+                IN ULONG Flags,
+                OUT PVOID * OutBcb,
+                OUT PVOID * OutBuffer)
+{
+    ASSERT(FALSE);
+    return TRUE;
+}
+
+/* PUBLIC FUNCTIONS ***********************************************************/
+
+/* The CcMapData routine maps a specified byte range of a cached file to a buffer in memory. */
+/*
+    Flags:
+    MAP_WAIT - The caller can be put into a wait state until the data has been mapped.
+    MAP_NO_READ - Only pages that are already resident in memory are to be mapped. 
+
+    OutBcb:
+    On the first call this returns a pointer to a buffer control block (BCB).
+    This pointer must be supplied as input on all subsequent calls, for this buffer.
+*/
+BOOLEAN
+NTAPI
+CcMapData(IN PFILE_OBJECT FileObject,
+          IN PLARGE_INTEGER FileOffset,
+          IN ULONG Length,
+          IN ULONG Flags,
+          OUT PVOID * OutBcb,
+          OUT PVOID * OutBuffer)
+{
+    PETHREAD Thread = PsGetCurrentThread();
+    PVOID BaseAddress;
+    PVOID Bcb;
+    ULONG NumberOfPages;
+    ULONG OldReadClusterSize;
+    ULONG Size;
+    UCHAR OldForwardClusterOnly;
+    BOOLEAN Result;
+
+    DPRINT("CcMapData: File %p, Offset %I64X, Length %X, Flags %X\n", FileObject, (FileOffset ? FileOffset->QuadPart : 0), Length, Flags);
+   
+    /* Save previous values */
+    OldForwardClusterOnly = Thread->ForwardClusterOnly;
+    OldReadClusterSize = Thread->ReadClusterSize;
+
+    /* Calculates count pages */
+    Size = Length + BYTE_OFFSET(FileOffset->LowPart);
+    NumberOfPages = (Size + (PAGE_SIZE - 1)) / PAGE_SIZE;
+
+    /* Maps a file to a buffer */
+    Result = CcMapDataCommon(FileObject, FileOffset, Length, Flags, &Bcb, OutBuffer);
+    if (!Result)
+    {
+        DPRINT1("CcMapData: failed то map\n");
+        return Result;
+    }
+
+    /* Check flags */
+    if (!(Flags & MAP_NO_READ))
+    {
+        UCHAR Probe;
+
+        /* If the pages are not in memory, PageFault() will read them */
+        _SEH2_TRY
+        {
+            for (BaseAddress = *OutBuffer;
+                 NumberOfPages != 0;
+                 BaseAddress = (PVOID)((ULONG_PTR)BaseAddress + PAGE_SIZE))
+            {
+                /* Claster variables used in MiResolveMappedFileFault() */
+                Thread->ForwardClusterOnly = 1;
+                NumberOfPages--;
+
+                if (NumberOfPages <= MM_MAXIMUM_READ_CLUSTER_SIZE)
+                {
+                    Thread->ReadClusterSize = NumberOfPages;
+                }
+                else
+                {
+                    Thread->ReadClusterSize = MM_MAXIMUM_READ_CLUSTER_SIZE;
+                }
+
+                /* Test address */
+                *(PUCHAR)&Probe = *(PUCHAR)BaseAddress;
+            }
+        }
+        _SEH2_FINALLY
+        {
+            /* Restore claster variables */
+            Thread->ForwardClusterOnly = OldForwardClusterOnly;
+            Thread->ReadClusterSize = OldReadClusterSize;
+
+            if (_SEH2_AbnormalTermination())
+            {
+                if (Bcb)
+                {
+                    /* Releases cached file data that has been mapped or pinned */
+                    DPRINT1("CcMapData: FIXME CcUnpinFileDataEx()\n");
+                    ASSERT(FALSE);
+                }
+            }
+        }
+        _SEH2_END;
+    }
+
+    /* Windows does this */
+    *OutBcb = (PVOID)((ULONG_PTR)Bcb + 1);
+
+    return TRUE;
+}
+
 /* EOF */
