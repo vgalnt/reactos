@@ -115,9 +115,7 @@ MmMapViewInSystemCache(IN PVOID SectionObject,
 
     if (ControlArea->FilePointer)
     {
-        ULONG dummy;
-
-        Status = MiAddViewsForSection((PMSUBSECTION)SubSection, LastPage, OldIrql, &dummy);
+        Status = MiAddViewsForSection((PMSUBSECTION)SubSection, LastPage, OldIrql);
 
         ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
 

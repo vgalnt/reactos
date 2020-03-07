@@ -660,7 +660,10 @@ extern PVOID MmHighSectionBase;
 extern SIZE_T MmSystemLockPagesCount;
 extern ULONG_PTR MmSubsectionBase;
 extern LARGE_INTEGER MmCriticalSectionTimeout;
-extern ULONG MmUnusedSegmentCount;
+extern ULONG MmUnusedSubsectionCount;
+extern SIZE_T MiUnusedSubsectionPagedPool;
+extern ULONG MmUnusedSubsectionCountPeak;
+extern LIST_ENTRY MmUnusedSubsectionList;
 extern LARGE_INTEGER MmHalfSecond;
 extern LARGE_INTEGER MmShortTime;
 extern LIST_ENTRY MmWorkingSetExpansionHead;
@@ -2442,6 +2445,14 @@ MiCheckControlArea(
     IN KIRQL OldIrql
 );
 
+NTSTATUS
+NTAPI
+MiAddViewsForSection(
+    IN PMSUBSECTION StartMappedSubsection,
+    IN ULONGLONG LastPteOffset,
+    IN KIRQL OldIrql
+);
+
 //
 // MiRemoveZeroPage will use inline code to zero out the page manually if only
 // free pages are available. In some scenarios, we don't/can't run that piece of
@@ -2472,5 +2483,57 @@ MiSynchronizeSystemPde(PMMPDE PointerPde)
     return (PointerPde->u.Hard.Valid != 0);
 }
 #endif
+
+FORCEINLINE
+VOID
+AlloccatePoolForSubsectionPtes(ULONG PtesInSubsection)
+{
+    ULONG AlloccateSize;
+    ULONG SubsectionPagedPool;
+
+    MmUnusedSubsectionCount--;
+
+    AlloccateSize = PtesInSubsection * sizeof(MMPTE);
+
+    if (AlloccateSize <= (PAGE_SIZE - (2 * POOL_BLOCK_SIZE)))
+    {
+        SubsectionPagedPool = (AlloccateSize + POOL_BLOCK_SIZE + (POOL_BLOCK_SIZE - 1)) & ~(POOL_BLOCK_SIZE - 1);
+    }
+    else
+    {
+        SubsectionPagedPool = ROUND_TO_PAGES(AlloccateSize);
+    }
+
+    MiUnusedSubsectionPagedPool -= SubsectionPagedPool;
+}
+
+FORCEINLINE
+VOID
+FreePoolForSubsectionPtes(ULONG PtesInSubsection)
+{
+    ULONG AlloccateSize;
+    ULONG SubsectionPagedPool;
+
+    MmUnusedSubsectionCount++;
+
+    if (!(MmUnusedSubsectionCount < MmUnusedSubsectionCountPeak) &&
+        !(MmUnusedSubsectionCount == MmUnusedSubsectionCountPeak))
+    {
+        MmUnusedSubsectionCountPeak = MmUnusedSubsectionCount;
+    }
+
+    AlloccateSize = PtesInSubsection * sizeof(MMPTE);
+
+    if (AlloccateSize <= (PAGE_SIZE - (2 * POOL_BLOCK_SIZE)))
+    {
+        SubsectionPagedPool = (AlloccateSize + POOL_BLOCK_SIZE + (POOL_BLOCK_SIZE - 1)) & ~(POOL_BLOCK_SIZE - 1);
+    }
+    else
+    {
+        SubsectionPagedPool = ROUND_TO_PAGES(AlloccateSize);
+    }
+
+    MiUnusedSubsectionPagedPool += SubsectionPagedPool;
+}
 
 /* EOF */

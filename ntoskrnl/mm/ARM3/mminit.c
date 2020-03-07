@@ -2079,6 +2079,8 @@ MmArmInitSystem(IN ULONG Phase,
             }
         }
 
+        InitializeListHead(&MmUnusedSubsectionList);
+
         /* Look for large page cache entries that need caching */
         MiSyncCachedRanges();
 
