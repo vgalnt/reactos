@@ -487,7 +487,6 @@ ExpWorkerThreadBalanceManager(IN PVOID Context)
             PsTerminateSystemThread(STATUS_SYSTEM_SHUTDOWN);
         }
 
-// #ifdef _WINKD_
         /*
          * If WinDBG wants to attach or kill a user-mode process, and/or
          * page-in an address region, queue a debugger worker thread.
@@ -498,7 +497,6 @@ ExpWorkerThreadBalanceManager(IN PVOID Context)
              ExpDebuggerWork = WinKdWorkerInitialized;
              ExQueueWorkItem(&ExpDebuggerWorkItem, DelayedWorkQueue);
         }
-// #endif /* _WINKD_ */
     }
 }
 
