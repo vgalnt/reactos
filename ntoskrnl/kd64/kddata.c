@@ -127,9 +127,7 @@ BOOLEAN KdpContextSent;
 //
 // Debug Trap Handlers
 //
-#ifdef _WINKD_
 PKDEBUG_ROUTINE KiDebugRoutine = KdpStub;
-#endif
 PKDEBUG_SWITCH_ROUTINE KiDebugSwitchRoutine;
 
 //

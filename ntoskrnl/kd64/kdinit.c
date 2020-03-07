@@ -173,10 +173,8 @@ KdInitSystem(IN ULONG BootPhase,
     /* Check if we already initialized once */
     if (KdDebuggerEnabled) return TRUE;
 
-#ifdef _WINKD_
     /* Set the Debug Routine as the Stub for now */
     KiDebugRoutine = KdpStub;
-#endif
 
     /* Disable break after symbol load for now */
     KdBreakAfterSymbolLoad = FALSE;
@@ -370,10 +368,8 @@ KdInitSystem(IN ULONG BootPhase,
     /* Initialize the debugger if requested */
     if (EnableKd && (NT_SUCCESS(KdDebuggerInitialize0(LoaderBlock))))
     {
-#ifdef _WINKD_
         /* Now set our real KD routine */
         KiDebugRoutine = KdpTrap;
-#endif
 
         /* Check if we've already initialized our structures */
         if (!KdpDebuggerStructuresInitialized)
