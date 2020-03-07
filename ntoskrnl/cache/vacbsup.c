@@ -119,8 +119,90 @@ CcGetVirtualAddress(IN PSHARED_CACHE_MAP SharedCacheMap,
                     OUT PVACB * OutVacb,
                     OUT ULONG * OutReceivedLength)
 {
+    PVACB TempVacb;
+    KLOCK_QUEUE_HANDLE LockHandle;
+    ULONG VacbOffset;
+    BOOLEAN IsMmodifiedNoWrite = FALSE;
+
     DPRINT("CcGetVirtualAddress: SharedCacheMap %p, Offset %I64X\n", SharedCacheMap, FileOffset.QuadPart);
-    ASSERT(FALSE)
-    return NULL;
+
+    /* Calculate the offset in VACB */
+    VacbOffset = FileOffset.LowPart & (VACB_MAPPING_GRANULARITY - 1);
+
+    /* Lock */
+    ASSERT(KeGetCurrentIrql() < DISPATCH_LEVEL);
+    ExAcquirePushLockShared((PEX_PUSH_LOCK)&SharedCacheMap->VacbPushLock);
+
+    if (SharedCacheMap->Flags & SHARE_FL_MODIFIED_NO_WRITE)
+    {
+        IsMmodifiedNoWrite = TRUE;
+        KeAcquireInStackQueuedSpinLock(&SharedCacheMap->BcbSpinLock, &LockHandle);
+        KeAcquireQueuedSpinLockAtDpcLevel(&KeGetCurrentPrcb()->LockQueue[LockQueueVacbLock]);
+    }
+    else
+    {
+        LockHandle.OldIrql = KeAcquireQueuedSpinLock(LockQueueVacbLock);
+    }
+
+    ASSERT(FileOffset.QuadPart <= SharedCacheMap->SectionSize.QuadPart);
+
+    /* Get pointer to Vacb */
+    if (SharedCacheMap->SectionSize.QuadPart <= CACHE_OVERALL_SIZE)
+    {
+        /* Size of file < 32 MB*/
+        TempVacb = SharedCacheMap->Vacbs[FileOffset.LowPart / VACB_MAPPING_GRANULARITY];
+    }
+    else
+    {
+        /* This file is large (more than 32 MB) */
+        DPRINT1("CcGetVirtualAddress: FIXME CcGetVacbLargeOffset\n");
+        ASSERT(FALSE);
+        TempVacb = 0;
+    }
+
+    if (TempVacb)
+    {
+        /* Increment counters */
+        if (!TempVacb->Overlay.ActiveCount)
+        {
+            SharedCacheMap->VacbActiveCount++;
+        }
+
+        TempVacb->Overlay.ActiveCount++;
+    }
+    else
+    {
+        /* Vacb not found */
+        DPRINT1("CcGetVirtualAddress: FIXME CcGetVacbMiss\n");
+        ASSERT(FALSE);
+        TempVacb = 0;
+    }
+
+    /* Updating lists */
+    RemoveEntryList(&TempVacb->LruList);
+    InsertTailList(&CcVacbLru, &TempVacb->LruList);
+
+    /* Unlock */
+    if (IsMmodifiedNoWrite == FALSE)
+    {
+        KeReleaseQueuedSpinLock(LockQueueVacbLock, LockHandle.OldIrql);
+    }
+    else
+    {
+        KeReleaseQueuedSpinLockFromDpcLevel(&KeGetCurrentPrcb()->LockQueue[LockQueueVacbLock]);
+        KeReleaseInStackQueuedSpinLock(&LockHandle);
+    }
+
+    ExReleasePushLockShared((PEX_PUSH_LOCK)&SharedCacheMap->VacbPushLock);
+
+    *OutVacb = TempVacb;
+    *OutReceivedLength = VACB_MAPPING_GRANULARITY - VacbOffset;
+
+    ASSERT(KeGetCurrentIrql() < DISPATCH_LEVEL);
+    ASSERT(TempVacb->BaseAddress != NULL);
+
+    /* Add an offset to the base and return the virtual address */
+    return (PVOID)((ULONG_PTR)TempVacb->BaseAddress + VacbOffset);
 }
+
 /* EOF */
