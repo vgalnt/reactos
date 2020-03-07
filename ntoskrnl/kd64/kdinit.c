@@ -16,7 +16,6 @@
 
 /* UTILITY FUNCTIONS *********************************************************/
 
-#ifdef _WINKD_
 /*
  * Get the total size of the memory before
  * Mm is initialized, by counting the number
@@ -87,6 +86,7 @@ KdpPrintBanner(IN SIZE_T MemSizeMBs)
 
 /* FUNCTIONS *****************************************************************/
 
+#ifdef _WINKD_
 VOID
 NTAPI
 KdUpdateDataBlock(VOID)
@@ -141,7 +141,6 @@ KdRegisterDebuggerDataBlock(IN ULONG Tag,
     return TRUE;
 }
 
-#ifdef _WINKD_
 BOOLEAN
 NTAPI
 KdInitSystem(IN ULONG BootPhase,
@@ -174,8 +173,10 @@ KdInitSystem(IN ULONG BootPhase,
     /* Check if we already initialized once */
     if (KdDebuggerEnabled) return TRUE;
 
+#ifdef _WINKD_
     /* Set the Debug Routine as the Stub for now */
     KiDebugRoutine = KdpStub;
+#endif
 
     /* Disable break after symbol load for now */
     KdBreakAfterSymbolLoad = FALSE;
@@ -253,6 +254,7 @@ KdInitSystem(IN ULONG BootPhase,
                 /* Enable KD */
                 EnableKd = TRUE;
 
+#ifdef _WINKD_
                 /* Check if there are any options */
                 if (DebugLine[5] == '=')
                 {
@@ -334,6 +336,16 @@ KdInitSystem(IN ULONG BootPhase,
                         DebugOptionStart = DebugOptionEnd;
                     }
                 }
+#else
+		(VOID)DebugOptionStart;
+		(VOID)DebugOptionEnd;
+		(VOID)DebugOptionLength;
+                KdDebuggerNotPresent = FALSE;
+#ifdef KDBG
+                /* Get the KDBG Settings */
+                KdbpGetCommandLineSettings(LoaderBlock->LoadOptions);
+#endif
+#endif
             }
         }
         else
@@ -358,8 +370,10 @@ KdInitSystem(IN ULONG BootPhase,
     /* Initialize the debugger if requested */
     if (EnableKd && (NT_SUCCESS(KdDebuggerInitialize0(LoaderBlock))))
     {
+#ifdef _WINKD_
         /* Now set our real KD routine */
         KiDebugRoutine = KdpTrap;
+#endif
 
         /* Check if we've already initialized our structures */
         if (!KdpDebuggerStructuresInitialized)
@@ -442,9 +456,11 @@ KdInitSystem(IN ULONG BootPhase,
 
                 /* Load symbols for image */
                 RtlInitString(&ImageName, NameBuffer);
+#ifdef _WINKD_
                 DbgLoadImageSymbols(&ImageName,
                                     LdrEntry->DllBase,
                                     (ULONG_PTR)PsGetCurrentProcessId());
+#endif
 
                 /* Go to the next entry */
                 NextEntry = NextEntry->Flink;
@@ -464,4 +480,3 @@ KdInitSystem(IN ULONG BootPhase,
     /* Return initialized */
     return TRUE;
 }
-#endif
