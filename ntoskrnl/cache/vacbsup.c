@@ -112,4 +112,15 @@ CcCreateVacbArray(IN PSHARED_CACHE_MAP SharedCacheMap,
     return STATUS_SUCCESS;
 }
 
+PVOID
+NTAPI
+CcGetVirtualAddress(IN PSHARED_CACHE_MAP SharedCacheMap,
+                    IN LARGE_INTEGER FileOffset,
+                    OUT PVACB * OutVacb,
+                    OUT ULONG * OutReceivedLength)
+{
+    DPRINT("CcGetVirtualAddress: SharedCacheMap %p, Offset %I64X\n", SharedCacheMap, FileOffset.QuadPart);
+    ASSERT(FALSE)
+    return NULL;
+}
 /* EOF */

@@ -1033,7 +1033,34 @@ CcMapDataCommon(IN PFILE_OBJECT FileObject,
                 OUT PVOID * OutBcb,
                 OUT PVOID * OutBuffer)
 {
+    PSHARED_CACHE_MAP SharedMap;
+    ULONG ReceivedLength;
+    PVOID Bcb;
+
+    DPRINT("CcMapDataCommon: File %p, Offset %I64X, Length %X, Flags %X\n", FileObject, (FileOffset ? FileOffset->QuadPart : 0), Length, Flags);
+
+    if (Flags & MAP_WAIT)
+    {
+        CcMapDataWait++;
+
+        SharedMap = FileObject->SectionObjectPointer->SharedCacheMap;
+
+        *OutBuffer = CcGetVirtualAddress(SharedMap,
+                                         *FileOffset,
+                                         (PVACB *)&Bcb,
+                                         &ReceivedLength);
+
+        ASSERT(ReceivedLength >= Length);
+        goto Exit;
+    }
+
+    CcMapDataNoWait++;
+
     ASSERT(FALSE);
+
+Exit:
+
+    *OutBcb = Bcb;
     return TRUE;
 }
 

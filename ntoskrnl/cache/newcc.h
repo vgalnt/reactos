@@ -184,5 +184,11 @@ NTSTATUS
 NTAPI
 CcCreateVacbArray(IN PSHARED_CACHE_MAP SharedCacheMap,
                   IN LARGE_INTEGER AllocationSize);
+PVOID
+NTAPI
+CcGetVirtualAddress(IN PSHARED_CACHE_MAP SharedCacheMap,
+                    IN LARGE_INTEGER FileOffset,
+                    OUT PVACB * OutVacb,
+                    OUT ULONG * OutReceivedLength);
 
 /* EOF */
