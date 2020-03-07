@@ -671,6 +671,7 @@ extern PFN_NUMBER MmSystemPageDirectory[PD_COUNT];
 extern PMMPDE MmSystemPagePtes;
 #endif
 extern ULONG MiLastVadBit;
+extern volatile LONG KiTbFlushTimeStamp;
 
 FORCEINLINE
 BOOLEAN
@@ -2432,6 +2433,13 @@ NTAPI
 MiPhysicalViewRemover(
     IN PEPROCESS Process,
     IN PMMVAD Vad
+);
+
+VOID
+NTAPI
+MiCheckControlArea(
+    IN PCONTROL_AREA ControlArea,
+    IN KIRQL OldIrql
 );
 
 //
