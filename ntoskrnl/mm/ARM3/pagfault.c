@@ -648,7 +648,7 @@ MiResolveDemandZeroFault(IN PVOID Address,
     if (OldIrql == MM_NOIRQL)
     {
         /* Acquire it and remember we should release it after */
-        OldIrql = MiAcquirePfnLock();
+        OldIrql = MiLockPfnDb(APC_LEVEL);
         HaveLock = TRUE;
     }
 
@@ -705,7 +705,7 @@ MiResolveDemandZeroFault(IN PVOID Address,
     if (HaveLock)
     {
         /* Release it */
-        MiReleasePfnLock(OldIrql);
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
 
         /* Update performance counters */
         if (Process > HYDRA_PROCESS) Process->NumberOfPrivatePages++;
@@ -838,7 +838,7 @@ MiCompleteProtoPteFault(IN BOOLEAN StoreInstruction,
     }
 
     /* Release the PFN lock */
-    MiReleasePfnLock(OldIrql);
+    MiUnlockPfnDb(OldIrql, APC_LEVEL);
 
     /* Remove special/caching bits */
     Protection &= ~MM_PROTECT_SPECIAL;
@@ -943,7 +943,7 @@ MiResolvePageFileFault(_In_ BOOLEAN StoreInstruction,
     Status = MiReadPageFile(Page, PageFileIndex, PageFileOffset);
 
     /* Lock the PFN database again */
-    *OldIrql = MiAcquirePfnLock();
+    *OldIrql = MiLockPfnDb(APC_LEVEL);
 
     /* Nobody should have changed that while we were not looking */
     ASSERT(Pfn1->u3.e1.ReadInProgress == 1);
@@ -1542,7 +1542,7 @@ MiDispatchFault(IN ULONG FaultCode,
         if (Address >= MmSystemRangeStart)
         {
             /* Lock the PFN database */
-            LockIrql = MiAcquirePfnLock();
+            LockIrql = MiLockPfnDb(APC_LEVEL);
 
             /* Has the PTE been made valid yet? */
             if (!SuperProtoPte->u.Hard.Valid)
@@ -1593,7 +1593,7 @@ MiDispatchFault(IN ULONG FaultCode,
             ProcessedPtes = 0;
 
             /* Lock the PFN database */
-            LockIrql = MiAcquirePfnLock();
+            LockIrql = MiLockPfnDb(APC_LEVEL);
 
             /* We only handle the valid path */
             ASSERT(SuperProtoPte->u.Hard.Valid == 1);
@@ -1730,14 +1730,14 @@ MiDispatchFault(IN ULONG FaultCode,
             {
                 /* We had a locked PFN, so acquire the PFN lock to dereference it */
                 ASSERT(SectionProto != NULL);
-                OldIrql = MiAcquirePfnLock();
+                OldIrql = MiLockPfnDb(APC_LEVEL);
 
                 /* Dereference the locked PFN */
                 MiDereferencePfnAndDropLockCount(LockedProtoPfn);
                 ASSERT(LockedProtoPfn->u3.e2.ReferenceCount >= 1);
 
                 /* And now release the lock */
-                MiReleasePfnLock(OldIrql);
+                MiUnlockPfnDb(OldIrql, APC_LEVEL);
             }
 
             /* Complete this as a transition fault */
@@ -1758,7 +1758,7 @@ MiDispatchFault(IN ULONG FaultCode,
         ASSERT(FALSE);
 
         /* Lock the PFN database */
-        LockIrql = MiAcquirePfnLock();
+        LockIrql = MiLockPfnDb(APC_LEVEL);
 
         /* Resolve */
         Status = MiResolveTransitionFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode), Address, Pte, Process, LockIrql, &PageBlock);
@@ -1774,7 +1774,7 @@ MiDispatchFault(IN ULONG FaultCode,
         }
 
         /* And now release the lock and leave*/
-        MiReleasePfnLock(LockIrql);
+        MiUnlockPfnDb(LockIrql, APC_LEVEL);
 
         if (InPageBlock != NULL)
         {
@@ -1797,7 +1797,7 @@ MiDispatchFault(IN ULONG FaultCode,
     if (TempPte.u.Soft.PageFileHigh != 0)
     {
         /* Lock the PFN database */
-        LockIrql = MiAcquirePfnLock();
+        LockIrql = MiLockPfnDb(APC_LEVEL);
 
         /* Resolve */
         Status = MiResolvePageFileFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode),
@@ -1809,7 +1809,7 @@ MiDispatchFault(IN ULONG FaultCode,
                                         &LockIrql);
 
         /* And now release the lock and leave*/
-        MiReleasePfnLock(LockIrql);
+        MiUnlockPfnDb(LockIrql, APC_LEVEL);
 
         ASSERT(OldIrql == KeGetCurrentIrql());
         ASSERT(OldIrql <= APC_LEVEL);
