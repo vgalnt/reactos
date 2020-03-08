@@ -885,38 +885,38 @@ MI_MAKE_HARDWARE_PTE_USER(IN PMMPTE NewPte,
 
 #ifndef _M_AMD64
 
-/* Builds a Prototype PTE for the address of the PTE */
+/* Builds a Prototype PTE from the poiner to section proto structure */
 FORCEINLINE
 VOID
-MI_MAKE_PROTOTYPE_PTE(IN PMMPTE NewPte,
-                      IN PMMPTE PointerPte)
+MI_MAKE_PROTOTYPE_PTE(IN PMMPTE ProtoPte,
+                      IN PMMPTE SectionProto)
 {
     ULONG_PTR Offset;
 
     /* Mark this as a prototype */
-    NewPte->u.Long = 0;
-    NewPte->u.Proto.Prototype = 1;
+    ProtoPte->u.Long = 0;
+    ProtoPte->u.Proto.Prototype = 1;
 
 #if !defined(_X86PAE_)
     /*
-     * Prototype PTEs are only valid in paged pool by design, this little trick
+     * Section proto structures are only valid in paged pool by design, this little trick
      * lets us only use 30 bits for the adress of the PTE, as long as the area
      * stays 1024 MB at most.
      */
-    Offset = (ULONG_PTR)PointerPte - (ULONG_PTR)MmPagedPoolStart;
+    Offset = (ULONG_PTR)SectionProto - (ULONG_PTR)MmPagedPoolStart;
 
     /* 9 bits go in the "low" (we assume the bottom 2 are zero and trim it) */
     ASSERT((Offset % 4) == 0);
-    NewPte->u.Proto.ProtoAddressLow = (Offset & 0x1FF) >> 2;
+    ProtoPte->u.Proto.ProtoAddressLow = (Offset & 0x1FF) >> 2;
 
     /* and the other 21 bits go in the "high" field. */
-    NewPte->u.Proto.ProtoAddressHigh = (Offset & 0x3FFFFE00) >> 9;
+    ProtoPte->u.Proto.ProtoAddressHigh = (Offset & 0x3FFFFE00) >> 9;
 #else
-    NewPte->u.Proto.ProtoAddress = (ULONG_PTR)PointerPte;
+    ProtoPte->u.Proto.ProtoAddress = (ULONG_PTR)SectionProto;
 #endif
 }
 
-/* Decodes a Prototype PTE into the underlying PTE */
+/* Decodes a Prototype PTE into the poiner to section proto structure */
 FORCEINLINE
 PMMPTE
 MiGetProtoPtr(IN PMMPTE ProtoPte)
@@ -931,7 +931,7 @@ MiGetProtoPtr(IN PMMPTE ProtoPte)
 
     return (PMMPTE)((ULONG_PTR)MmPagedPoolStart + Offset);
 #else
-    return (PMMPTE)(OutPte->u.Proto.ProtoAddress);
+    return (PMMPTE)(ProtoPte->u.Proto.ProtoAddress);
 #endif
 }
 
