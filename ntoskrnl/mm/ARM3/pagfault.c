@@ -1251,12 +1251,13 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
                        IN KIRQL OldIrql,
                        IN PVOID TrapInformation)
 {
-    MMPTE TempPte, PteContents;
+    MMPTE TempProto, PteContents;
     PMMPFN Pfn1;
     PFN_NUMBER PageFrameIndex;
     NTSTATUS Status;
     ULONG Protection;
     PMI_PAGE_SUPPORT_BLOCK PageBlock = NULL;
+    BOOLEAN IsLocked = TRUE;
 
     DPRINT("MiResolveProtoPteFault: Store %X, Address %p, Pte %p, Proto %p [%p], Process %p, OldIrql %X, TrapInfo %p\n", StoreInstruction, Address, Pte, SectionProto, SectionProto->u.Long, Process, OldIrql, TrapInformation);
 
@@ -1266,11 +1267,11 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
     ASSERT(Pte->u.Soft.Prototype == 1);
 
     /* Read the prototype PTE and check if it's valid */
-    TempPte = *SectionProto;
-    if (TempPte.u.Hard.Valid == 1)
+    TempProto = *SectionProto;
+    if (TempProto.u.Hard.Valid == 1)
     {
         /* One more user of this mapped page */
-        PageFrameIndex = PFN_FROM_PTE(&TempPte);
+        PageFrameIndex = PFN_FROM_PTE(&TempProto);
         Pfn1 = MiGetPfnEntry(PageFrameIndex);
         Pfn1->u2.ShareCount++;
 
@@ -1287,155 +1288,207 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
     }
 
     /* Make sure there's some protection mask */
-    if (TempPte.u.Long == 0)
+    if (TempProto.u.Long == 0)
     {
         /* Release the lock */
         DPRINT1("MiResolveProtoPteFault: Access on reserved section?\n");
-        MiReleasePfnLock(OldIrql);
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
         return STATUS_ACCESS_VIOLATION;
     }
 
     /* There is no such thing as a decommitted prototype PTE */
-    ASSERT(TempPte.u.Long != MmDecommittedPte.u.Long);
+    ASSERT(TempProto.u.Long != MmDecommittedPte.u.Long);
 
     /* Check for access rights on the PTE proper */
     PteContents = *Pte;
     if (PteContents.u.Soft.PageFileHigh != MI_PTE_LOOKUP_NEEDED)
     {
-        if (!PteContents.u.Proto.ReadOnly)
-        {
-            Protection = TempPte.u.Soft.Protection;
-        }
-        else
+        if (PteContents.u.Proto.ReadOnly)
         {
             Protection = MM_READONLY;
         }
-        /* Check for page acess in software */
-        Status = MiAccessCheck(SectionProto,
-                               StoreInstruction,
-                               KernelMode,
-                               TempPte.u.Soft.Protection,
-                               TrapInformation,
-                               TRUE);
-        ASSERT(Status == STATUS_SUCCESS);
+        else
+        {
+            /* Check for page acess in software */
+            Status = MiAccessCheck(SectionProto,
+                                   StoreInstruction,
+                                   KernelMode,
+                                   TempProto.u.Soft.Protection,
+                                   TrapInformation,
+                                   TRUE);
+
+            if (Status != STATUS_SUCCESS)
+            {
+                DPRINT("MiResolveProtoPteFault: Status %X\n", Status);
+
+                if (StoreInstruction &&
+                    Address >= MmSessionBase &&
+                    Address < MiSessionSpaceEnd &&
+                    MmSessionSpace->ImageLoadingCount)
+                {
+                    PLIST_ENTRY Entry;
+                    for (Entry = MmSessionSpace->ImageList.Flink;
+                         Entry != &MmSessionSpace->ImageList;
+                         Entry = Entry->Flink)
+                    {
+                        ASSERT(FALSE);
+                    }
+                }
+
+                MiUnlockPfnDb(OldIrql, APC_LEVEL);
+                return Status;
+            }
+            DPRINT("MiResolveProtoPteFault: Status %X\n", Status);
+
+            Protection = TempProto.u.Soft.Protection;
+        }
     }
     else
     {
         Protection = PteContents.u.Soft.Protection;
     }
 
-    /* Check for writing copy on write page */
-    if (((Protection & MM_WRITECOPY) == MM_WRITECOPY) && StoreInstruction)
+    if ((Pte <= MiHighestUserPte) &&
+        (Process > (PEPROCESS)2) &&
+        (Process->CloneRoot))
     {
-        PFN_NUMBER PageFrameIndex, ProtoPageFrameIndex;
-        ULONG Color;
+        ASSERT(FALSE);
+        Protection = MM_WRITECOPY;
+    }
 
-        /* Resolve the proto fault as if it was a read operation */
-        Status = MiResolveProtoPteFault(FALSE,
-                                        Address,
-                                        Pte,
-                                        SectionProto,
-                                        LockedProtoPfn,
-                                        OutPageBlock,
-                                        PteValue,
-                                        Process,
-                                        OldIrql,
-                                        TrapInformation);
+    /* Check for writing copy on write page */
+    if (!MI_IS_MAPPED_PTE(&TempProto) && ((Protection & MM_WRITECOPY) == MM_WRITECOPY))
+    {
+        MMPTE NewPte;
 
-        if (!NT_SUCCESS(Status))
+        ASSERT(Process != NULL);
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+
+        DPRINT1("MiResolveProtoPteFault: DemandZero page with CopyOnWrite protection\n");
+
+        NewPte = DemandZeroPte;
+
+        ASSERT(PteContents.u.Hard.Valid == 0);
+
+        if (PteContents.u.Soft.PageFileHigh == MI_PTE_LOOKUP_NEEDED)//0xFFFFF
         {
-            return Status;
-        }
-
-        /* Lock again the PFN lock, MiResolveProtoPteFault unlocked it */
-        OldIrql = MiAcquirePfnLock();
-
-        /* And re-read the proto PTE */
-        TempPte = *SectionProto;
-        ASSERT(TempPte.u.Hard.Valid == 1);
-        ProtoPageFrameIndex = PFN_FROM_PTE(&TempPte);
-
-        /* Get a new page for the private copy */
-        if (Process > HYDRA_PROCESS)
-            Color = MI_GET_NEXT_PROCESS_COLOR(Process);
-        else
-            Color = MI_GET_NEXT_COLOR();
-
-        PageFrameIndex = MiRemoveAnyPage(Color);
-
-        /* Perform the copy */
-        MiCopyPfn(PageFrameIndex, ProtoPageFrameIndex);
-
-        /* This will drop everything MiResolveProtoPteFault referenced */
-        MiDeletePte(Pte, Address, Process, SectionProto);
-
-        /* Because now we use this */
-        Pfn1 = MI_PFN_ELEMENT(PageFrameIndex);
-        MiInitializePfn(PageFrameIndex, Pte, TRUE);
-
-        /* Fix the protection */
-        Protection &= ~MM_WRITECOPY;
-        Protection |= MM_READWRITE;
-        if (Address < MmSystemRangeStart)
-        {
-            /* Build the user PTE */
-            MI_MAKE_HARDWARE_PTE_USER(&PteContents, Pte, Protection, PageFrameIndex);
+            if (PteContents.u.Soft.Protection & MM_EXECUTE)
+            {
+                NewPte.u.Soft.Protection = MM_EXECUTE_READWRITE;
+            }
         }
         else
         {
-            /* Build the kernel PTE */
-            MI_MAKE_HARDWARE_PTE(&PteContents, Pte, Protection, PageFrameIndex);
+            if (TempProto.u.Soft.Protection & MM_EXECUTE)
+            {
+                NewPte.u.Soft.Protection = MM_EXECUTE_READWRITE;
+            }
         }
 
-        /* And finally, write the valid PTE */
-        MI_WRITE_VALID_PTE(Pte, PteContents);
+        Pte->u.Long = NewPte.u.Long;
 
-        /* The caller expects us to release the PFN lock */
-        MiReleasePfnLock(OldIrql);
+        Status = MiResolveDemandZeroFault(Address, Pte, Protection, Process, MM_NOIRQL);
+
+        DPRINT("MiResolveProtoPteFault: Status %X\n", Status);
         return Status;
     }
 
-    /* Check for clone PTEs */
-    if (Pte <= MiHighestUserPte) ASSERT(Process->CloneRoot == NULL);
+    if (TempProto.u.Soft.Prototype)
+    {
+        ASSERT(FALSE);
+        /* This is mapped file fault */
+/*
+        Status = MiResolveMappedFileFault(SectionProto,
+                                          OutPageBlock,
+                                          Process,
+                                          OldIrql);
+        if (Status == 0xC0033333)
+        {
+            *PteValue = *SectionProto;
 
-    /* We don't support mapped files yet */
-    ASSERT(TempPte.u.Soft.Prototype == 0);
-
-    /* We might however have transition PTEs */
-    if (TempPte.u.Soft.Transition == 1)
+            ASSERT(PteValue->u.Hard.Valid == 0);
+            ASSERT(PteValue->u.Soft.Prototype == 0);
+            ASSERT(PteValue->u.Soft.Transition == 1);
+        }
+*/
+    }
+    else if (TempProto.u.Soft.Transition == 1)
     {
         /* Resolve the transition fault */
         ASSERT(OldIrql != MM_NOIRQL);
         Status = MiResolveTransitionFault(StoreInstruction,
                                           Address,
-                                          Pte,
+                                          SectionProto,
                                           Process,
                                           OldIrql,
                                           &PageBlock);
         ASSERT(NT_SUCCESS(Status));
     }
+    else if (TempProto.u.Soft.PageFileHigh)
+    {
+        /* We don't support paged out pages */
+        ASSERT(TempProto.u.Soft.PageFileHigh == 0);
+        ASSERT(FALSE);
+/*
+        Status = MiResolvePageFileFault(Address,
+                                        SectionProto,
+                                        PteValue,
+                                        OutPageBlock,
+                                        Process,
+                                        OldIrql);
+*/
+        IsLocked = FALSE;
+
+        if (Status == 0xC0033333)
+        {
+            ASSERT(PteValue->u.Hard.Valid == 0);
+            ASSERT(PteValue->u.Soft.Prototype == 0);
+            ASSERT(PteValue->u.Soft.Transition == 1);
+        }
+
+        ASSERT(KeAreAllApcsDisabled() == TRUE);
+    }
     else
     {
-        /* We also don't support paged out pages */
-        ASSERT(TempPte.u.Soft.PageFileHigh == 0);
-
         /* Resolve the demand zero fault */
         Status = MiResolveDemandZeroFault(Address,
                                           SectionProto,
-                                          (ULONG)TempPte.u.Soft.Protection,
+                                          (ULONG)TempProto.u.Soft.Protection,
                                           Process,
                                           OldIrql);
+        DPRINT("MiResolveProtoPteFault: Status %X\n", Status);
         ASSERT(NT_SUCCESS(Status));
     }
 
-    /* Complete the prototype PTE fault -- this will release the PFN lock */
-    ASSERT(Pte->u.Hard.Valid == 0);
-    return MiCompleteProtoPteFault(StoreInstruction,
-                                   Address,
-                                   Pte,
-                                   SectionProto,
-                                   OldIrql,
-                                   LockedProtoPfn);
+    if (NT_SUCCESS(Status))
+    {
+        DPRINT("MiResolveProtoPteFault: Pte %p [%p]\n", Pte, Pte->u.Long);
+        ASSERT(Pte->u.Hard.Valid == 0);
+
+        /* Complete the prototype PTE fault -- this will release the PFN lock */
+        Status = MiCompleteProtoPteFault(StoreInstruction,
+                                         Address,
+                                         Pte,
+                                         SectionProto,
+                                         OldIrql,
+                                         LockedProtoPfn);
+    }
+    else
+    {
+        if (IsLocked)
+        {
+            MiUnlockPfnDb(OldIrql, APC_LEVEL);
+        }
+
+        ASSERT(KeAreAllApcsDisabled() == TRUE);
+    }
+
+    if (PageBlock)
+    {
+        MiFreeInPageSupportBlock(PageBlock);
+    }
+
+    return Status;
 }
 
 NTSTATUS
