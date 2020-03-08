@@ -528,6 +528,45 @@ typedef struct _MM_PHYSICAL_VIEW
     PVOID Reserved2;
 } MM_PHYSICAL_VIEW, *PMM_PHYSICAL_VIEW;
 
+typedef struct _MI_PAGE_SUPPORT_BLOCK_FLAGS
+{
+  #ifdef _M_AMD64
+     ULONGLONG InPageComplete : 1;
+     ULONGLONG ReservedBit1 : 1;
+     ULONGLONG ReservedBit2 : 1;
+     ULONGLONG PrefetchMdlHighBits : 61;
+  #else
+     ULONG InPageComplete : 1;
+     ULONG ReservedBit1 : 1;
+     ULONG ReservedBit2 : 1;
+     ULONG PrefetchMdlHighBits : 29;
+  #endif
+} MI_PAGE_SUPPORT_BLOCK_FLAGS;
+
+typedef struct _MI_PAGE_SUPPORT_BLOCK
+{
+    KEVENT Event;
+    IO_STATUS_BLOCK IoStatus;
+    LARGE_INTEGER StartingOffset;
+    ULONG WaitCount;
+    PETHREAD CurrentThread;
+    PFILE_OBJECT FilePointer;
+    PMMPTE StartProto;
+    PMMPFN Pfn;
+    union
+    {
+      #ifdef _M_AMD64
+        ULONGLONG LongFlags;
+      #else
+        ULONG LongFlags;
+      #endif
+        MI_PAGE_SUPPORT_BLOCK_FLAGS e1;
+    } u1;
+    MDL Mdl;
+    PFN_NUMBER MdlPages[16];
+    SINGLE_LIST_ENTRY ListEntry;
+} MI_PAGE_SUPPORT_BLOCK, *PMI_PAGE_SUPPORT_BLOCK;
+
 extern PMM_SESSION_SPACE MmSessionSpace;
 extern MMPTE HyperTemplatePte;
 extern MMPDE ValidKernelPde;
