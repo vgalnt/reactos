@@ -411,6 +411,13 @@ ULONG MiMaximumSystemCacheSizeExtra = 0;
 /* The maximal index in a Vad bitmap array (MI_VAD_BITMAP). */
 ULONG MiLastVadBit = 1;
 
+/* The read cluster size */
+ULONG MmReadClusterSize = 7;
+
+/* The page support stack S-LIST */
+SLIST_HEADER MmInPageSupportSListHead;
+
+
 /* PRIVATE FUNCTIONS **********************************************************/
 
 VOID
@@ -1585,21 +1592,39 @@ MiSetSystemSize(VOID)
     {
         /* Set small system */
         MmSystemSize = MmSmallSystem;
+
         MmMaximumDeadKernelStacks = 0;
+        MmInPageSupportMinimum = 2;
+
+        MmDataClusterSize = 0;
+        MmCodeClusterSize = 1;
+        MmReadClusterSize = 2;
     }
     else if (MmNumberOfPhysicalPages <= ((19 * _1MB) / PAGE_SIZE))
     {
         /* Set small system and add 100 pages for the cache */
         MmSystemSize = MmSmallSystem;
+
         MmSystemCacheWsMinimum += 100;
         MmMaximumDeadKernelStacks = 2;
+        MmInPageSupportMinimum = 3;
+
+        MmDataClusterSize = 1;
+        MmCodeClusterSize = 2;
+        MmReadClusterSize = 4;
     }
     else
     {
         /* Set medium system and add 400 pages for the cache */
         MmSystemSize = MmMediumSystem;
+
         MmSystemCacheWsMinimum += 400;
         MmMaximumDeadKernelStacks = 5;
+        MmInPageSupportMinimum = 4;
+
+        MmDataClusterSize = 3;
+        MmCodeClusterSize = 7;
+        MmReadClusterSize = 7;
     }
 
     /* Check for less than 24MB */
@@ -1876,6 +1901,9 @@ MmArmInitSystem(IN ULONG Phase,
 
         /* Initialize the dead stack S-LIST */
         InitializeSListHead(&MmDeadStackSListHead);
+
+        /* Initialize the page support stack S-LIST */
+        InitializeSListHead(&MmInPageSupportSListHead);
 
         //
         // Check if this is a machine with less than 19MB of RAM

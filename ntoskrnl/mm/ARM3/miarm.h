@@ -714,6 +714,10 @@ extern PMMPDE MmSystemPagePtes;
 #endif
 extern ULONG MiLastVadBit;
 extern volatile LONG KiTbFlushTimeStamp;
+extern SLIST_HEADER MmInPageSupportSListHead;
+extern ULONG MmInPageSupportMinimum;
+extern ULONG MmDataClusterSize;
+extern ULONG MmCodeClusterSize;
 
 FORCEINLINE
 BOOLEAN

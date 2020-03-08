@@ -22,6 +22,11 @@
 BOOLEAN UserPdeFault = FALSE;
 #endif
 
+ULONG MmDataClusterSize;
+ULONG MmCodeClusterSize;
+
+ULONG MmInPageSupportMinimum = 4;
+
 /* PRIVATE FUNCTIONS **********************************************************/
 
 static
