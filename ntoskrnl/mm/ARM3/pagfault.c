@@ -889,6 +889,8 @@ NTAPI
 MiResolvePageFileFault(_In_ BOOLEAN StoreInstruction,
                        _In_ PVOID FaultingAddress,
                        _In_ PMMPTE Pte,
+                       _Out_ MMPTE * PteValue,
+                       _Out_ PMI_PAGE_SUPPORT_BLOCK * OutPageBlock,
                        _In_ PEPROCESS CurrentProcess,
                        _Inout_ KIRQL *OldIrql)
 {
@@ -978,7 +980,7 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
                          IN PMMPTE Pte,
                          IN PEPROCESS CurrentProcess,
                          IN KIRQL OldIrql,
-                         OUT PKEVENT **InPageBlock)
+                         OUT PMI_PAGE_SUPPORT_BLOCK * OutPageBlock)
 {
     PFN_NUMBER PageFrameIndex;
     PMMPFN Pfn1;
@@ -988,7 +990,7 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
     DPRINT("MiResolveTransitionFault: Address %p, PTE %p [%p], Process %s\n", FaultingAddress, Pte, Pte->u.Long, ((CurrentProcess>(PEPROCESS)2)?CurrentProcess->ImageFileName:" "));
 
     /* Windowss does this check */
-    ASSERT(*InPageBlock == NULL);
+    ASSERT(*OutPageBlock == NULL);
 
     /* ARM3 doesn't support this path */
     ASSERT(OldIrql != MM_NOIRQL);
@@ -1015,7 +1017,6 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
             || ((Pfn1->u3.e1.WriteInProgress == 1) && StoreInstruction))
     {
         DPRINT1("MiResolveTransitionFault: The page is currently in a page transition !\n");
-        *InPageBlock = &Pfn1->u1.Event;
         if (Pte == Pfn1->PteAddress)
         {
             DPRINT1("MiResolveTransitionFault: And this if for this particular PTE.\n");
@@ -1243,8 +1244,8 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
                        IN PVOID Address,
                        IN PMMPTE Pte,
                        IN PMMPTE SectionProto,
-                       IN OUT PMMPFN *OutPfn,
-                       OUT PVOID *PageFileData,
+                       IN OUT PMMPFN *LockedProtoPfn,
+                       OUT PMI_PAGE_SUPPORT_BLOCK *OutPageBlock,
                        OUT PMMPTE PteValue,
                        IN PEPROCESS Process,
                        IN KIRQL OldIrql,
@@ -1254,8 +1255,8 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
     PMMPFN Pfn1;
     PFN_NUMBER PageFrameIndex;
     NTSTATUS Status;
-    PKEVENT* InPageBlock = NULL;
     ULONG Protection;
+    PMI_PAGE_SUPPORT_BLOCK PageBlock = NULL;
 
     DPRINT("MiResolveProtoPteFault: Store %X, Address %p, Pte %p, Proto %p [%p], Process %p, OldIrql %X, TrapInfo %p\n", StoreInstruction, Address, Pte, SectionProto, SectionProto->u.Long, Process, OldIrql, TrapInformation);
 
@@ -1282,7 +1283,7 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
                                        Pte,
                                        SectionProto,
                                        OldIrql,
-                                       OutPfn);
+                                       LockedProtoPfn);
     }
 
     /* Make sure there's some protection mask */
@@ -1334,8 +1335,8 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
                                         Address,
                                         Pte,
                                         SectionProto,
-                                        OutPfn,
-                                        PageFileData,
+                                        LockedProtoPfn,
+                                        OutPageBlock,
                                         PteValue,
                                         Process,
                                         OldIrql,
@@ -1407,10 +1408,10 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
         ASSERT(OldIrql != MM_NOIRQL);
         Status = MiResolveTransitionFault(StoreInstruction,
                                           Address,
-                                          SectionProto,
+                                          Pte,
                                           Process,
                                           OldIrql,
-                                          &InPageBlock);
+                                          &PageBlock);
         ASSERT(NT_SUCCESS(Status));
     }
     else
@@ -1434,7 +1435,7 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
                                    Pte,
                                    SectionProto,
                                    OldIrql,
-                                   OutPfn);
+                                   LockedProtoPfn);
 }
 
 NTSTATUS
@@ -1449,12 +1450,14 @@ MiDispatchFault(IN ULONG FaultCode,
                 IN PMMVAD Vad)
 {
     MMPTE TempPte;
+    MMPTE OriginalPte;
     KIRQL OldIrql, LockIrql;
     NTSTATUS Status;
     PMMPTE SuperProtoPte;
-    PMMPFN Pfn1, OutPfn = NULL;
+    PMMPFN Pfn1, LockedProtoPfn = NULL;
     PFN_NUMBER PageFrameIndex;
     PFN_COUNT PteCount, ProcessedPtes;
+    PMI_PAGE_SUPPORT_BLOCK PageBlock;
 
     DPRINT("MiDispatchFault: FaultCode %X, Address %p, Pte %p [%p], Proto %p [%I64X], Recursive %X, Process %p, TrapInfo %p, Vad %p\n", FaultCode, Address, Pte, Pte->u.Long, SectionProto, MiGetPteContents(SectionProto), Recursive, Process, TrapInformation, Vad);
 
@@ -1472,6 +1475,8 @@ MiDispatchFault(IN ULONG FaultCode,
     // Grab a copy of the PTE
     //
     TempPte = *Pte;
+
+    OriginalPte.u.Long = -1;
 
     /* Do we have a prototype PTE? */
     if (SectionProto)
@@ -1501,9 +1506,9 @@ MiDispatchFault(IN ULONG FaultCode,
                                             Address,
                                             Pte,
                                             SectionProto,
-                                            &OutPfn,
-                                            NULL,
-                                            NULL,
+                                            &LockedProtoPfn,
+                                            &PageBlock,
+                                            &OriginalPte,
                                             Process,
                                             LockIrql,
                                             TrapInformation);
@@ -1619,7 +1624,7 @@ MiDispatchFault(IN ULONG FaultCode,
                                             Pte,
                                             SectionProto,
                                             LockIrql,
-                                            &OutPfn);
+                                            &LockedProtoPfn);
 
                     /* THIS RELEASES THE PFN LOCK! */
                     break;
@@ -1647,9 +1652,9 @@ MiDispatchFault(IN ULONG FaultCode,
             }
 
             /* We did not -- PFN lock is still held, prepare to resolve prototype PTE fault */
-            OutPfn = MI_PFN_ELEMENT(SuperProtoPte->u.Hard.PageFrameNumber);
-            MiReferenceUsedPageAndBumpLockCount(OutPfn);
-            ASSERT(OutPfn->u3.e2.ReferenceCount > 1);
+            LockedProtoPfn = MI_PFN_ELEMENT(SuperProtoPte->u.Hard.PageFrameNumber);
+            MiReferenceUsedPageAndBumpLockCount(LockedProtoPfn);
+            ASSERT(LockedProtoPfn->u3.e2.ReferenceCount > 1);
             ASSERT(Pte->u.Hard.Valid == 0);
 
             /* Resolve the fault -- this will release the PFN lock */
@@ -1657,9 +1662,9 @@ MiDispatchFault(IN ULONG FaultCode,
                                             Address,
                                             Pte,
                                             SectionProto,
-                                            &OutPfn,
-                                            NULL,
-                                            NULL,
+                                            &LockedProtoPfn,
+                                            &PageBlock,
+                                            &OriginalPte,
                                             Process,
                                             LockIrql,
                                             TrapInformation);
@@ -1668,15 +1673,15 @@ MiDispatchFault(IN ULONG FaultCode,
             //ASSERT(Status != STATUS_PTE_CHANGED);
 
             /* Did the routine clean out the PFN or should we? */
-            if (OutPfn)
+            if (LockedProtoPfn)
             {
                 /* We had a locked PFN, so acquire the PFN lock to dereference it */
                 ASSERT(SectionProto != NULL);
                 OldIrql = MiAcquirePfnLock();
 
                 /* Dereference the locked PFN */
-                MiDereferencePfnAndDropLockCount(OutPfn);
-                ASSERT(OutPfn->u3.e2.ReferenceCount >= 1);
+                MiDereferencePfnAndDropLockCount(LockedProtoPfn);
+                ASSERT(LockedProtoPfn->u3.e2.ReferenceCount >= 1);
 
                 /* And now release the lock */
                 MiReleasePfnLock(OldIrql);
@@ -1697,11 +1702,13 @@ MiDispatchFault(IN ULONG FaultCode,
         PKEVENT PreviousPageEvent;
         KEVENT CurrentPageEvent;
 
+        ASSERT(FALSE);
+
         /* Lock the PFN database */
         LockIrql = MiAcquirePfnLock();
 
         /* Resolve */
-        Status = MiResolveTransitionFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode), Address, Pte, Process, LockIrql, &InPageBlock);
+        Status = MiResolveTransitionFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode), Address, Pte, Process, LockIrql, &PageBlock);
 
         ASSERT(NT_SUCCESS(Status));
 
@@ -1740,7 +1747,13 @@ MiDispatchFault(IN ULONG FaultCode,
         LockIrql = MiAcquirePfnLock();
 
         /* Resolve */
-        Status = MiResolvePageFileFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode), Address, Pte, Process, &LockIrql);
+        Status = MiResolvePageFileFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode),
+                                        Address,
+                                        Pte,
+                                        &OriginalPte,
+                                        &PageBlock,
+                                        Process,
+                                        &LockIrql);
 
         /* And now release the lock and leave*/
         MiReleasePfnLock(LockIrql);
@@ -1797,7 +1810,7 @@ MmAccessFault(IN ULONG FaultCode,
               IN KPROCESSOR_MODE Mode,
               IN PVOID TrapInformation)
 {
-    KIRQL OldIrql = KeGetCurrentIrql(), LockIrql;
+    KIRQL OldIrql = KeGetCurrentIrql(), WsLockIrql;
     PMMPTE ProtoPte = NULL;
     PMMPTE Pte = MiAddressToPte(Address);
     PMMPDE Pde = MiAddressToPde(Address);
@@ -1818,6 +1831,7 @@ MmAccessFault(IN ULONG FaultCode,
     ULONG Color;
     BOOLEAN IsSessionAddress;
     PMMPFN Pfn1;
+    KIRQL PfnLockIrql;
 
     DPRINT("MmAccessFault: Code %X, Address %p, Pde %p [%p], Pte %p [%p], Mode %X, TrapInfo %p\n", FaultCode, Address, Pde, Pde->u.Long, Pte, Pte->u.Long, Mode, TrapInformation);
 
@@ -2057,7 +2071,7 @@ _WARN("Session space stuff is not implemented yet!")
         }
 
         /* Acquire the working set lock */
-        KeRaiseIrql(APC_LEVEL, &LockIrql);
+        KeRaiseIrql(APC_LEVEL, &WsLockIrql);
         MiLockWorkingSet(CurrentThread, WorkingSet);
 
         /* Re-read PTE now that we own the lock */
@@ -2121,7 +2135,7 @@ _WARN("Session space stuff is not implemented yet!")
 
             /* Release the working set */
             MiUnlockWorkingSet(CurrentThread, WorkingSet);
-            KeLowerIrql(LockIrql);
+            KeLowerIrql(WsLockIrql);
 
             /* Otherwise, the PDE was probably invalid, and all is good now */
             return STATUS_SUCCESS;
@@ -2147,7 +2161,7 @@ _WARN("Session space stuff is not implemented yet!")
             }
 
             /* Get the prototype PTE! */
-            ProtoPte = MiProtoPteToPte(&TempPte);
+            ProtoPte = MiGetProtoPtr(&TempPte);
 
             /* Do we need to locate the prototype PTE in session space? */
             if ((IsSessionAddress) &&
@@ -2220,7 +2234,7 @@ _WARN("Session space stuff is not implemented yet!")
         /* Release the working set */
         ASSERT(KeAreAllApcsDisabled() == TRUE);
         MiUnlockWorkingSet(CurrentThread, WorkingSet);
-        KeLowerIrql(LockIrql);
+        KeLowerIrql(WsLockIrql);
 
         /* We are done! */
         DPRINT("MmAccessFault: Fault resolved with status: %lx\n", Status);
@@ -2365,7 +2379,7 @@ UserFault:
                 PFN_NUMBER PageFrameIndex, OldPageFrameIndex;
                 PMMPFN Pfn1;
 
-                LockIrql = MiAcquirePfnLock();
+                PfnLockIrql = MiAcquirePfnLock();
 
                 ASSERT(MmAvailablePages > 0);
 
@@ -2390,7 +2404,7 @@ UserFault:
 
                 MI_WRITE_VALID_PTE(Pte, TempPte);
 
-                MiReleasePfnLock(LockIrql);
+                MiReleasePfnLock(PfnLockIrql);
 
                 /* Return the status */
                 MiUnlockProcessWorkingSet(CurrentProcess, CurrentThread);
@@ -2610,7 +2624,7 @@ UserFault:
             else
             {
                 /* Get the prototype PTE! */
-                ProtoPte = MiProtoPteToPte(&TempPte);
+                ProtoPte = MiGetProtoPtr(&TempPte);
 
                 /* Is it read-only */
                 if (TempPte.u.Proto.ReadOnly)

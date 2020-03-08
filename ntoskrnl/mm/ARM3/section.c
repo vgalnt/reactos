@@ -3628,7 +3628,7 @@ MiRemoveMappedPtes(IN PVOID BaseAddress,
             if (PteContents.u.Soft.Prototype == 1)
             {
                 /* Get the prototype PTE */
-                ProtoPte = MiProtoPteToPte(&PteContents);
+                ProtoPte = MiGetProtoPtr(&PteContents);
 
                 /* We don't support anything else atm */
                 ASSERT(ProtoPte->u.Long == 0);

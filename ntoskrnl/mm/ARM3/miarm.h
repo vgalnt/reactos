@@ -919,7 +919,7 @@ MI_MAKE_PROTOTYPE_PTE(IN PMMPTE NewPte,
 /* Decodes a Prototype PTE into the underlying PTE */
 FORCEINLINE
 PMMPTE
-MiProtoPteToPte(IN PMMPTE ProtoPte)
+MiGetProtoPtr(IN PMMPTE ProtoPte)
 {
     ULONG_PTR Offset;
 

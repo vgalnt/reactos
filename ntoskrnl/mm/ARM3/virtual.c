@@ -1359,7 +1359,7 @@ MiGetPageProtection(IN PMMPTE PointerPte)
         }
 
         /* Get a pointer to the underlying shared PTE */
-        PointerPte = MiProtoPteToPte(&TempPte);
+        PointerPte = MiGetProtoPtr(&TempPte);
 
         /* Since the PTE we want to read can be paged out at any time, we need
            to release the working set lock first, so that it can be paged in */
