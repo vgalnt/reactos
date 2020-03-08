@@ -1102,6 +1102,140 @@ MiResolveTransitionFault(IN BOOLEAN StoreInstruction,
     return STATUS_PAGE_FAULT_TRANSITION;
 }
 
+PMI_PAGE_SUPPORT_BLOCK
+NTAPI
+MiGetInPageSupportBlock(IN KIRQL OldIrql,
+                        OUT NTSTATUS * OutStatus)
+{
+    PMI_PAGE_SUPPORT_BLOCK Support;
+    PSINGLE_LIST_ENTRY Entry;
+    KIRQL CurrentIrql;
+
+    DPRINT("MiGetInPageSupportBlock: OldIrql %X\n", OldIrql);
+
+    if (OldIrql != MM_NOIRQL)
+    {
+        CurrentIrql = KeGetCurrentIrql();
+        ASSERT(CurrentIrql == DISPATCH_LEVEL);
+        ASSERT(MmPfnOwner == KeGetCurrentThread());
+    }
+    else
+    {
+        ASSERT(KeGetCurrentIrql() < DISPATCH_LEVEL);
+    }
+
+    if (ExQueryDepthSList(&MmInPageSupportSListHead))
+    {
+        Entry = InterlockedPopEntrySList(&MmInPageSupportSListHead);
+
+        if (Entry)
+        {
+            Support = CONTAINING_RECORD(Entry, MI_PAGE_SUPPORT_BLOCK, ListEntry);
+            DPRINT("MiGetInPageSupportBlock: Support %p\n", Support);
+
+            ASSERT(Support->WaitCount == 1);
+            ASSERT(Support->u1.e1.PrefetchMdlHighBits == 0);
+            ASSERT(Support->u1.LongFlags == 0);
+            ASSERT(KeReadStateEvent(&Support->Event) == 0);
+          #ifdef _M_AMD64
+            ASSERT(Support->UsedPageTableEntries == 0);
+          #endif
+
+            Support->CurrentThread = PsGetCurrentThread();
+            Support->ListEntry.Next = NULL;
+
+            return Support;
+        }
+    }
+
+    if (OldIrql != MM_NOIRQL)
+    {
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+    }
+
+    Support = ExAllocatePoolWithTag(NonPagedPool, sizeof(MI_PAGE_SUPPORT_BLOCK), 'nImM');
+    if (!Support)
+    {
+        DPRINT("MiGetInPageSupportBlock: STATUS_INSUFFICIENT_RESOURCES\n");
+        *OutStatus = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    DPRINT("MiGetInPageSupportBlock: Support %p\n", Support);
+
+    KeInitializeEvent(&Support->Event, NotificationEvent, FALSE);
+ 
+    Support->WaitCount = 1;
+    Support->u1.LongFlags = 0;
+    Support->CurrentThread = NULL;
+
+    ASSERT(KeReadStateEvent(&Support->Event) == 0);
+
+    if (OldIrql == MM_NOIRQL)
+    {
+        DPRINT("MiGetInPageSupportBlock: return NULL\n");
+        return NULL;
+    }
+
+    InterlockedPushEntrySList(&MmInPageSupportSListHead, &Support->ListEntry);
+
+    *OutStatus = 0xC7303001; // ?
+
+Exit:
+
+    if (OldIrql != MM_NOIRQL)
+    {
+        OldIrql = MiLockPfnDb(APC_LEVEL);
+    }
+
+    DPRINT("MiGetInPageSupportBlock: return NULL\n");
+    return NULL;
+}
+
+VOID
+NTAPI
+MiFreeInPageSupportBlock(PMI_PAGE_SUPPORT_BLOCK Support)
+{
+    PMDL Mdl;
+
+    ASSERT(KeGetCurrentIrql() < DISPATCH_LEVEL);
+    ASSERT(Support->CurrentThread != NULL);
+    ASSERT(Support->WaitCount != 0);
+    ASSERT((Support->ListEntry.Next == NULL) ||
+           (Support->u1.e1.PrefetchMdlHighBits != 0));
+  
+    DPRINT("MiFreeInPageSupportBlock: Support %p\n", Support);
+
+    if (InterlockedDecrement((PLONG)&Support->WaitCount))
+    {
+        DPRINT("MiFreeInPageSupportBlock: Support->WaitCount %X\n", Support->WaitCount);
+        return;
+    }
+
+    if (Support->u1.e1.PrefetchMdlHighBits)
+    {
+        Mdl = (PMDL)(Support->u1.e1.PrefetchMdlHighBits << 3);
+        if (Mdl != &Support->Mdl)
+        {
+            ExFreePool(Mdl);
+        }
+    }
+
+    if (MmInPageSupportSListHead.Depth >= MmInPageSupportMinimum)
+    {
+        ExFreePoolWithTag(Support, 'nImM');
+        return;
+    }
+
+    Support->WaitCount = 1;
+    Support->u1.LongFlags = 0;
+    Support->CurrentThread = NULL;
+
+    KeClearEvent(&Support->Event);
+
+    InterlockedPushEntrySList(&MmInPageSupportSListHead, &Support->ListEntry);
+}
+
 static
 NTSTATUS
 NTAPI
