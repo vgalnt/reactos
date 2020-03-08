@@ -112,6 +112,28 @@ CcCreateVacbArray(IN PSHARED_CACHE_MAP SharedCacheMap,
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+SetVacb(IN PSHARED_CACHE_MAP SharedCacheMap,
+        IN LARGE_INTEGER SectionOffset,
+        IN PVACB Vacb)
+{
+    ULONG Index;
+
+    DPRINT("SetVacb: SharedCacheMap %p Offset %I64X, Vacb %p\n", SharedCacheMap, SectionOffset.QuadPart, Vacb);
+
+    if (SharedCacheMap->SectionSize.QuadPart <= CACHE_OVERALL_SIZE)
+    {
+        Index = SectionOffset.LowPart / VACB_MAPPING_GRANULARITY;
+        SharedCacheMap->Vacbs[Index] = Vacb;
+    }
+    else
+    {
+        DPRINT("SetVacb: FIXME CcSetVacbLargeOffset()\n");
+        ASSERT(FALSE);
+    }
+}
+
 PVACB
 NTAPI
 CcGetVacbMiss(IN PSHARED_CACHE_MAP SharedCacheMap,
@@ -155,8 +177,8 @@ CcGetVacbMiss(IN PSHARED_CACHE_MAP SharedCacheMap,
 
     if (Vacb->SharedCacheMap)
     {
-        DPRINT1("CcGetVacbMiss: FIXME SetVacb()\n");
-        ASSERT(FALSE);
+        SetVacb(Vacb->SharedCacheMap, Vacb->Overlay.FileOffset, NULL);
+        Vacb->SharedCacheMap = NULL;
     }
 
     Vacb->Overlay.ActiveCount = 1;
@@ -267,8 +289,7 @@ CcGetVacbMiss(IN PSHARED_CACHE_MAP SharedCacheMap,
         Vacb->Overlay.FileOffset.QuadPart = SectionOffset.QuadPart;
         Vacb->Overlay.ActiveCount = 1;
 
-        DPRINT1("CcGetVacbMiss: FIXME SetVacb()\n");
-        ASSERT(FALSE);
+        SetVacb(SharedCacheMap, SectionOffset, Vacb);
 
         return Vacb;
     }
