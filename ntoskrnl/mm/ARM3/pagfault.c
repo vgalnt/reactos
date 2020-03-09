@@ -1760,6 +1760,72 @@ MiResolveProtoPteFault(IN BOOLEAN StoreInstruction,
     return Status;
 }
 
+VOID
+NTAPI
+MiCompleteInPage(IN PVOID FaultAddress,
+                 IN PMI_PAGE_SUPPORT_BLOCK PageBlock,
+                 IN PMDL Mdl)
+{
+    ULONG ReadBytes;
+    ULONG ReadPageCount;
+    ULONG ReadOffset;
+    PPFN_NUMBER ReadEndPage;
+    ULONG MdlPageCount;
+    PPFN_NUMBER MdlEndPage;
+
+    ReadBytes = PageBlock->IoStatus.Information;
+    DPRINT("MiCompleteInPage: ReadBytes %X, Mdl->ByteCount %X\n", PageBlock->IoStatus.Information, Mdl->ByteCount);
+    ASSERT(ReadBytes);
+
+    if (!PageBlock->Pfn->OriginalPte.u.Soft.Prototype)
+    {
+        ASSERT(FALSE);
+    }
+
+    ReadPageCount = ((ReadBytes - 1) / PAGE_SIZE);
+    ReadEndPage = MmGetMdlPfnArray(Mdl) + ReadPageCount;
+
+    DPRINT("MiCompleteInPage: ReadPageCount %X, ReadEndPage %X\n", ReadPageCount, ReadEndPage);
+
+    ReadOffset = BYTE_OFFSET(ReadBytes);
+
+    if (ReadOffset)
+    {
+        PEPROCESS process = PsGetCurrentProcess();
+        PVOID startAddress;
+        PVOID endAddress;
+        KIRQL oldIrql;
+
+        DPRINT("MiCompleteInPage: FIXME ...InHyperSpaceAtDpc()\n");
+        ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+
+        startAddress = MiMapPageInHyperSpace(process, *ReadEndPage, &oldIrql);
+        endAddress = (PVOID)((ULONG_PTR)startAddress + ReadOffset);
+
+        RtlZeroMemory(endAddress, (PAGE_SIZE - ReadOffset));
+
+        MiUnmapPageInHyperSpace(process, startAddress, oldIrql);
+    }
+
+    MdlPageCount = ((Mdl->ByteCount - 1) / PAGE_SIZE);
+    MdlEndPage = MmGetMdlPfnArray(Mdl) + MdlPageCount;
+
+    DPRINT("MiCompleteInPage: MdlPageCount %X, MdlEndPage %X\n", MdlPageCount, MdlEndPage);
+
+    while (TRUE)
+    {
+        ReadEndPage++;
+
+        if (ReadEndPage > MdlEndPage)
+        {
+            break;
+        }
+
+        DPRINT("MiCompleteInPage: ReadEndPage %X, *ReadEndPage %X\n", ReadEndPage, *ReadEndPage);
+        MiZeroPhysicalPage(*ReadEndPage);
+    }
+}
+
 NTSTATUS
 NTAPI
 MiDispatchFault(IN ULONG FaultCode,
