@@ -2061,27 +2061,32 @@ MiDispatchFault(IN ULONG FaultCode,
     MMPTE OriginalPte;
     KIRQL OldIrql, LockIrql;
     NTSTATUS Status;
-    PMMPTE SuperProtoPte;
+    PMMPTE SectionProtoPte;
+    PMMPTE ReadPte = NULL;
+    PMMPTE StartProto;
     PMMPFN Pfn1, LockedProtoPfn = NULL;
     PFN_NUMBER PageFrameIndex;
     PFN_COUNT PteCount, ProcessedPtes;
+    PPFN_NUMBER MdlPages;
+    PFN_NUMBER PageNumber = -1;
     PMI_PAGE_SUPPORT_BLOCK PageBlock;
+    PETHREAD WsThread = PsGetCurrentThread();
+    PMMSUPPORT SessionWs = NULL;
+    ULONG Flags = 0;
+    ULONG MdlPageCount;
+    ULONG CacheAttribute;
 
     DPRINT("MiDispatchFault: FaultCode %X, Address %p, Pte %p [%p], Proto %p [%I64X], Recursive %X, Process %p, TrapInfo %p, Vad %p\n", FaultCode, Address, Pte, Pte->u.Long, SectionProto, MiGetPteContents(SectionProto), Recursive, Process, TrapInformation, Vad);
 
     /* Make sure the addresses are ok */
     ASSERT(Pte == MiAddressToPte(Address));
 
-    //
-    // Make sure APCs are off and we're not at dispatch
-    //
+    /* Make sure APCs are off and we're not at dispatch */
     OldIrql = KeGetCurrentIrql();
     ASSERT(OldIrql <= APC_LEVEL);
     ASSERT(KeAreAllApcsDisabled() == TRUE);
 
-    //
-    // Grab a copy of the PTE
-    //
+    /* Grab a copy of the PTE */
     TempPte = *Pte;
 
     OriginalPte.u.Long = -1;
@@ -2093,54 +2098,61 @@ MiDispatchFault(IN ULONG FaultCode,
         ASSERT(!MI_IS_PHYSICAL_ADDRESS(SectionProto));
 
         /* Check if this is a kernel-mode address */
-        SuperProtoPte = MiAddressToPte(SectionProto);
+        SectionProtoPte = MiAddressToPte(SectionProto);
         if (Address >= MmSystemRangeStart)
         {
             /* Lock the PFN database */
             LockIrql = MiLockPfnDb(APC_LEVEL);
 
             /* Has the PTE been made valid yet? */
-            if (!SuperProtoPte->u.Hard.Valid)
+            if (SectionProtoPte->u.Hard.Valid)
             {
-                ASSERT(FALSE);
-            }
-            else if (Pte->u.Hard.Valid == 1)
-            {
-                ASSERT(FALSE);
+                if (Pte->u.Hard.Valid)
+                {
+                    /* Release the lock and leave*/
+                    MiUnlockPfnDb(LockIrql, APC_LEVEL);
+                    DPRINT("MiDispatchFault: return STATUS_SUCCESS\n");
+                    return STATUS_SUCCESS;
+                }
+
+                goto ResolveProto;
             }
 
-            /* Resolve the fault -- this will release the PFN lock */
-            Status = MiResolveProtoPteFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode),
-                                            Address,
-                                            Pte,
-                                            SectionProto,
-                                            &LockedProtoPfn,
-                                            &PageBlock,
-                                            &OriginalPte,
-                                            Process,
-                                            LockIrql,
-                                            TrapInformation);
-            ASSERT(Status == STATUS_SUCCESS);
+            ASSERT((Process == NULL) || (Process == HYDRA_PROCESS));
 
-            /* Complete this as a transition fault */
-            ASSERT(OldIrql == KeGetCurrentIrql());
-            ASSERT(OldIrql <= APC_LEVEL);
-            ASSERT(KeAreAllApcsDisabled() == TRUE);
-            return Status;
+            /* Unlock the PFN database */
+            MiUnlockPfnDb(LockIrql, APC_LEVEL);
+
+            ASSERT(FALSE);
+
+            if (Process == HYDRA_PROCESS)
+            {
+                ASSERT(FALSE);
+
+                Process = NULL;
+                MiLockWorkingSet(WsThread, &MmSystemCacheWs);
+            }
+
+            goto OtherPteTypes;
         }
         else
         {
-            /* We only handle the lookup path */
-            ASSERT(Pte->u.Soft.PageFileHigh == MI_PTE_LOOKUP_NEEDED);
-
-            /* Is there a non-image VAD? */
-            if ((Vad) &&
-                (Vad->u.VadFlags.VadType != VadImageMap) &&
-                !(Vad->u2.VadFlags2.ExtendableFile))
+            if (Pte->u.Soft.PageFileHigh == MI_PTE_LOOKUP_NEEDED ||
+                Pte->u.Proto.ReadOnly)
             {
-                /* One day, ReactOS will cluster faults */
-                ASSERT(Address <= MM_HIGHEST_USER_ADDRESS);
-                DPRINT("MiDispatchFault: Should cluster fault, but won't\n");
+                /* Is there a non-image VAD? */
+                if ((Vad) &&
+                    (Vad->u.VadFlags.VadType != VadImageMap) &&
+                    !(Vad->u2.VadFlags2.ExtendableFile))
+                {
+                    /* One day, ReactOS will cluster faults */
+                    ASSERT(Address <= MM_HIGHEST_USER_ADDRESS);
+                    DPRINT("MiDispatchFault: Should cluster fault, but won't\n");
+                }
+            }
+            else
+            {
+                Flags = 4; // FIXME
             }
 
             /* Only one PTE to handle for now */
@@ -2151,95 +2163,103 @@ MiDispatchFault(IN ULONG FaultCode,
             LockIrql = MiLockPfnDb(APC_LEVEL);
 
             /* We only handle the valid path */
-            ASSERT(SuperProtoPte->u.Hard.Valid == 1);
+            ASSERT(SectionProtoPte->u.Hard.Valid == 1);
+
+            if (Recursive)
+            {
+                ASSERT(FALSE);
+            }
 
             /* Capture the PTE */
             TempPte = *SectionProto;
 
-            /* Loop to handle future case of clustered faults */
-            while (TRUE)
+            if (!(Flags & 4))
             {
-                /* For our current usage, this should be true */
-                if (TempPte.u.Hard.Valid == 1)
+                /* Loop to handle future case of clustered faults */
+                while (TRUE)
                 {
-                    /* Bump the share count on the PTE */
-                    PageFrameIndex = PFN_FROM_PTE(&TempPte);
-                    Pfn1 = MI_PFN_ELEMENT(PageFrameIndex);
-                    Pfn1->u2.ShareCount++;
-                }
-                else if ((TempPte.u.Soft.Prototype == 0) &&
-                         (TempPte.u.Soft.Transition == 1))
-                {
-                    /* This is a standby page, bring it back from the cache */
-                    PageFrameIndex = TempPte.u.Trans.PageFrameNumber;
-                    DPRINT("MiDispatchFault: oooh, shiny, a soft fault! 0x%lx\n", PageFrameIndex);
-                    Pfn1 = MI_PFN_ELEMENT(PageFrameIndex);
-                    ASSERT(Pfn1->u3.e1.PageLocation != ActiveAndValid);
-
-                    /* Should not yet happen in ReactOS */
-                    ASSERT(Pfn1->u3.e1.ReadInProgress == 0);
-                    ASSERT(Pfn1->u4.InPageError == 0);
-
-                    /* Get the page */
-                    MiUnlinkPageFromList(Pfn1);
-
-                    /* Bump its reference count */
-                    ASSERT(Pfn1->u2.ShareCount == 0);
-                    InterlockedIncrement16((PSHORT)&Pfn1->u3.e2.ReferenceCount);
-                    Pfn1->u2.ShareCount++;
-
-                    /* Make it valid again */
-                    /* This looks like another macro.... */
-                    Pfn1->u3.e1.PageLocation = ActiveAndValid;
-                    ASSERT(SectionProto->u.Hard.Valid == 0);
-                    ASSERT(SectionProto->u.Trans.Prototype == 0);
-                    ASSERT(SectionProto->u.Trans.Transition == 1);
-                    TempPte.u.Long = (SectionProto->u.Long & ~0xFFF) |
-                                     MmProtectToPteMask[SectionProto->u.Trans.Protection];
-                    TempPte.u.Hard.Valid = 1;
-                    MI_MAKE_ACCESSED_PAGE(&TempPte);
-
-                    /* Is the PTE writeable? */
-                    if ((Pfn1->u3.e1.Modified) &&
-                        MI_IS_PAGE_WRITEABLE(&TempPte) &&
-                        !MI_IS_PAGE_COPY_ON_WRITE(&TempPte))
+                    /* For our current usage, this should be true */
+                    if (TempPte.u.Hard.Valid)
                     {
-                        /* Make it dirty */
-                        MI_MAKE_DIRTY_PAGE(&TempPte);
+                        /* Bump the share count on the PTE */
+                        PageFrameIndex = PFN_FROM_PTE(&TempPte);
+                        Pfn1 = MI_PFN_ELEMENT(PageFrameIndex);
+                        Pfn1->u2.ShareCount++;
+                    }
+                    else if (!TempPte.u.Soft.Prototype &&
+                             TempPte.u.Soft.Transition)
+                    {
+                        /* This is a standby page, bring it back from the cache */
+                        PageFrameIndex = TempPte.u.Trans.PageFrameNumber;
+                        DPRINT("MiDispatchFault: oooh, shiny, a soft fault! 0x%lx\n", PageFrameIndex);
+                        Pfn1 = MI_PFN_ELEMENT(PageFrameIndex);
+                        ASSERT(Pfn1->u3.e1.PageLocation != ActiveAndValid);
+
+                        /* Should not yet happen in ReactOS */
+                        ASSERT(Pfn1->u3.e1.ReadInProgress == 0);
+                        ASSERT(Pfn1->u4.InPageError == 0);
+
+                        /* Get the page */
+                        MiUnlinkPageFromList(Pfn1);
+
+                        /* Bump its reference count */
+                        ASSERT(Pfn1->u2.ShareCount == 0);
+                        InterlockedIncrement16((PSHORT)&Pfn1->u3.e2.ReferenceCount);
+                        Pfn1->u2.ShareCount++;
+
+                        /* Make it valid again */
+                        /* This looks like another macro.... */
+                        Pfn1->u3.e1.PageLocation = ActiveAndValid;
+                        ASSERT(SectionProto->u.Hard.Valid == 0);
+                        ASSERT(SectionProto->u.Trans.Prototype == 0);
+                        ASSERT(SectionProto->u.Trans.Transition == 1);
+                        TempPte.u.Long = (SectionProto->u.Long & ~0xFFF) |
+                                         MmProtectToPteMask[SectionProto->u.Trans.Protection];
+                        TempPte.u.Hard.Valid = 1;
+                        MI_MAKE_ACCESSED_PAGE(&TempPte);
+
+                        /* Is the PTE writeable? */
+                        if (Pfn1->u3.e1.Modified &&
+                            MI_IS_PAGE_WRITEABLE(&TempPte) &&
+                            !MI_IS_PAGE_COPY_ON_WRITE(&TempPte))
+                        {
+                            /* Make it dirty */
+                            MI_MAKE_DIRTY_PAGE(&TempPte);
+                        }
+                        else
+                        {
+                            /* Make it clean */
+                            MI_MAKE_CLEAN_PAGE(&TempPte);
+                        }
+
+                        /* Write the valid PTE */
+                        MI_WRITE_VALID_PTE(SectionProto, TempPte);
+                        ASSERT(Pte->u.Hard.Valid == 0);
                     }
                     else
                     {
-                        /* Make it clean */
-                        MI_MAKE_CLEAN_PAGE(&TempPte);
+                        /* Page is invalid, get out of the loop */
+                        break;
                     }
 
-                    /* Write the valid PTE */
-                    MI_WRITE_VALID_PTE(SectionProto, TempPte);
-                    ASSERT(Pte->u.Hard.Valid == 0);
-                }
-                else
-                {
-                    /* Page is invalid, get out of the loop */
-                    break;
-                }
+                    /* One more done, was it the last? */
+                    if (++ProcessedPtes == PteCount)
+                    {
+                        /* Complete the fault */
+                        MiCompleteProtoPteFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode),
+                                                Address,
+                                                Pte,
+                                                SectionProto,
+                                                LockIrql,
+                                                &LockedProtoPfn);
 
-                /* One more done, was it the last? */
-                if (++ProcessedPtes == PteCount)
-                {
-                    /* Complete the fault */
-                    MiCompleteProtoPteFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode),
-                                            Address,
-                                            Pte,
-                                            SectionProto,
-                                            LockIrql,
-                                            &LockedProtoPfn);
+                        /* THIS RELEASES THE PFN LOCK! */
+                        break;
+                    }
 
-                    /* THIS RELEASES THE PFN LOCK! */
-                    break;
+                    /* No clustered faults yet */
+                    ASSERT(FALSE);
                 }
-
-                /* No clustered faults yet */
-                ASSERT(FALSE);
             }
 
             /* Did we resolve the fault? */
@@ -2256,14 +2276,18 @@ MiDispatchFault(IN ULONG FaultCode,
                 ASSERT(OldIrql == KeGetCurrentIrql());
                 ASSERT(OldIrql <= APC_LEVEL);
                 ASSERT(KeAreAllApcsDisabled() == TRUE);
+
+                DPRINT1("MiDispatchFault: return STATUS_PAGE_FAULT_TRANSITION\n");
                 return STATUS_PAGE_FAULT_TRANSITION;
             }
 
             /* We did not -- PFN lock is still held, prepare to resolve prototype PTE fault */
-            LockedProtoPfn = MI_PFN_ELEMENT(SuperProtoPte->u.Hard.PageFrameNumber);
+            LockedProtoPfn = MI_PFN_ELEMENT(SectionProtoPte->u.Hard.PageFrameNumber);
             MiReferenceUsedPageAndBumpLockCount(LockedProtoPfn);
             ASSERT(LockedProtoPfn->u3.e2.ReferenceCount > 1);
             ASSERT(Pte->u.Hard.Valid == 0);
+
+ResolveProto:
 
             /* Resolve the fault -- this will release the PFN lock */
             Status = MiResolveProtoPteFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode),
@@ -2276,81 +2300,58 @@ MiDispatchFault(IN ULONG FaultCode,
                                             Process,
                                             LockIrql,
                                             TrapInformation);
-            //ASSERT(Status != STATUS_ISSUE_PAGING_IO);
-            //ASSERT(Status != STATUS_REFAULT);
-            //ASSERT(Status != STATUS_PTE_CHANGED);
+            ReadPte = SectionProto;
 
-            /* Did the routine clean out the PFN or should we? */
-            if (LockedProtoPfn)
-            {
-                /* We had a locked PFN, so acquire the PFN lock to dereference it */
-                ASSERT(SectionProto != NULL);
-                OldIrql = MiLockPfnDb(APC_LEVEL);
-
-                /* Dereference the locked PFN */
-                MiDereferencePfnAndDropLockCount(LockedProtoPfn);
-                ASSERT(LockedProtoPfn->u3.e2.ReferenceCount >= 1);
-
-                /* And now release the lock */
-                MiUnlockPfnDb(OldIrql, APC_LEVEL);
-            }
-
-            /* Complete this as a transition fault */
-            ASSERT(OldIrql == KeGetCurrentIrql());
-            ASSERT(OldIrql <= APC_LEVEL);
+            ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
             ASSERT(KeAreAllApcsDisabled() == TRUE);
-            return Status;
+
+            goto Finish;
         }
     }
 
-    /* Is this a transition PTE */
+OtherPteTypes:
+
     if (TempPte.u.Soft.Transition)
     {
-        PKEVENT* InPageBlock = NULL;
-        PKEVENT PreviousPageEvent;
-        KEVENT CurrentPageEvent;
-
-        ASSERT(FALSE);
+        /* This is a transition PTE */
 
         /* Lock the PFN database */
         LockIrql = MiLockPfnDb(APC_LEVEL);
 
         /* Resolve */
-        Status = MiResolveTransitionFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode), Address, Pte, Process, LockIrql, &PageBlock);
-
+        Status = MiResolveTransitionFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode),
+                                          Address,
+                                          Pte,
+                                          Process,
+                                          LockIrql,
+                                          &PageBlock);
         ASSERT(NT_SUCCESS(Status));
 
-        if (InPageBlock != NULL)
+        if (PageBlock)
         {
             /* Another thread is reading or writing this page. Put us into the waiting queue. */
-            KeInitializeEvent(&CurrentPageEvent, NotificationEvent, FALSE);
-            PreviousPageEvent = *InPageBlock;
-            *InPageBlock = &CurrentPageEvent;
+            ASSERT(FALSE);
         }
 
         /* And now release the lock and leave*/
         MiUnlockPfnDb(LockIrql, APC_LEVEL);
 
-        if (InPageBlock != NULL)
+        if (PageBlock)
         {
-            KeWaitForSingleObject(&CurrentPageEvent, WrPageIn, KernelMode, FALSE, NULL);
-
-            /* Let's the chain go on */
-            if (PreviousPageEvent)
-            {
-                KeSetEvent(PreviousPageEvent, IO_NO_INCREMENT, FALSE);
-            }
+            ASSERT(FALSE);
         }
 
         ASSERT(OldIrql == KeGetCurrentIrql());
         ASSERT(OldIrql <= APC_LEVEL);
         ASSERT(KeAreAllApcsDisabled() == TRUE);
+
+        DPRINT("MiDispatchFault: return Status %X\n", Status);
         return Status;
     }
-
-    /* Should we page the data back in ? */
-    if (TempPte.u.Soft.PageFileHigh != 0)
+    else if (TempPte.u.Soft.PageFileHigh)
     {
+        /* We should page the data back in */
+
         /* Lock the PFN database */
         LockIrql = MiLockPfnDb(APC_LEVEL);
 
@@ -2362,6 +2363,7 @@ MiDispatchFault(IN ULONG FaultCode,
                                         &PageBlock,
                                         Process,
                                         &LockIrql);
+        ASSERT(FALSE);
 
         /* And now release the lock and leave*/
         MiUnlockPfnDb(LockIrql, APC_LEVEL);
@@ -2369,44 +2371,359 @@ MiDispatchFault(IN ULONG FaultCode,
         ASSERT(OldIrql == KeGetCurrentIrql());
         ASSERT(OldIrql <= APC_LEVEL);
         ASSERT(KeAreAllApcsDisabled() == TRUE);
+
+        DPRINT("MiDispatchFault: return Status %X\n", Status);
         return Status;
     }
+    else
+    {
+        // The PTE must be invalid but not completely empty. It must also not be a
+        // prototype a transition or a paged-out PTE as those scenarii should've been handled above.
+        // These are all Windows checks
+        ASSERT(TempPte.u.Hard.Valid == 0);
+        ASSERT(TempPte.u.Soft.Prototype == 0);
+        ASSERT(TempPte.u.Soft.Transition == 0);
+        ASSERT(TempPte.u.Soft.PageFileHigh == 0);
+        ASSERT(TempPte.u.Long != 0);
 
-    //
-    // The PTE must be invalid but not completely empty. It must also not be a
-    // prototype a transition or a paged-out PTE as those scenarii should've been handled above.
-    // These are all Windows checks
-    //
-    ASSERT(TempPte.u.Hard.Valid == 0);
-    ASSERT(TempPte.u.Soft.Prototype == 0);
-    ASSERT(TempPte.u.Soft.Transition == 0);
-    ASSERT(TempPte.u.Soft.PageFileHigh == 0);
-    ASSERT(TempPte.u.Long != 0);
+        // If we got this far, the PTE can only be a demand zero PTE, which is what we want. Go handle it!
+        Status = MiResolveDemandZeroFault(Address,
+                                          Pte,
+                                          (ULONG)TempPte.u.Soft.Protection,
+                                          Process,
+                                          MM_NOIRQL);
+        ASSERT(KeAreAllApcsDisabled() == TRUE);
+        if (NT_SUCCESS(Status))
+        {
+            // Make sure we're returning in a sane state and pass the status down
+            ASSERT(OldIrql == KeGetCurrentIrql());
+            ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
 
-    //
-    // If we got this far, the PTE can only be a demand zero PTE, which is what
-    // we want. Go handle it!
-    //
-    Status = MiResolveDemandZeroFault(Address,
-                                      Pte,
-                                      (ULONG)TempPte.u.Soft.Protection,
-                                      Process,
-                                      MM_NOIRQL);
+            DPRINT("MiDispatchFault: return Status %X\n", Status);
+            return Status;
+        }
+        // Generate an access fault
+        DPRINT1("MiDispatchFault: STATUS_ACCESS_VIOLATION\n");
+        return STATUS_ACCESS_VIOLATION;
+    }
+
+Finish:
+
     ASSERT(KeAreAllApcsDisabled() == TRUE);
+
+    DPRINT("MiDispatchFault: Status %X\n", Status);
+
     if (NT_SUCCESS(Status))
     {
-        //
-        // Make sure we're returning in a sane state and pass the status down
-        //
+        if (LockedProtoPfn)
+        {
+            ASSERT(SectionProto != NULL);
+
+            /* Lock the PFN database */
+            OldIrql = MiLockPfnDb(APC_LEVEL);
+
+            ASSERT(LockedProtoPfn->u3.e2.ReferenceCount >= 1);
+            MiDereferencePfnAndDropLockCount(LockedProtoPfn);
+
+            /* Unlock the PFN database */
+            MiUnlockPfnDb(OldIrql, APC_LEVEL);
+        }
+
+        if (SessionWs)
+        {
+            ASSERT(FALSE);
+        }
+
         ASSERT(OldIrql == KeGetCurrentIrql());
-        ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
+        ASSERT(KeAreAllApcsDisabled() == TRUE);
+
+        DPRINT("MiDispatchFault: return Status %X\n", Status);
         return Status;
     }
+    else if (Status == 0xC0033333) // ? FIXME
+    {
+        PMMPFN PageBlockPfn;
 
-    //
-    // Generate an access fault
-    //
-    return STATUS_ACCESS_VIOLATION;
+        ASSERT(ReadPte != NULL);
+        ASSERT(PageBlock != NULL);
+
+        if (SectionProto)
+        {
+            ASSERT(OriginalPte.u.Hard.Valid == 0);
+            ASSERT(OriginalPte.u.Soft.Prototype == 0);
+            ASSERT(OriginalPte.u.Soft.Transition == 1);
+        }
+        else
+        {
+            OriginalPte.u.Long = ReadPte->u.Long;
+        }
+
+        if (Process == HYDRA_PROCESS)
+        {
+            ASSERT(FALSE);
+        }
+        else if (Process)
+        {
+            PKTHREAD _Thread = &WsThread->Tcb;
+            KeEnterCriticalRegionThread(_Thread);
+            MiUnlockWorkingSet(WsThread, &Process->Vm);
+
+            Flags |= 0x10;
+        }
+        else
+        {
+            MiUnlockWorkingSet(WsThread, &MmSystemCacheWs);
+            ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
+            ASSERT(KeAreAllApcsDisabled() == TRUE);
+        }
+
+        ASSERT(PageBlock->u1.e1.PrefetchMdlHighBits == 0);
+
+        Status = IoPageRead(PageBlock->FilePointer,
+                            &PageBlock->Mdl,
+                            &PageBlock->StartingOffset,
+                            &PageBlock->Event,
+                            &PageBlock->IoStatus);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("MiDispatchFault: Status %X\n", Status);
+
+            PageBlock->IoStatus.Status = Status;
+            PageBlock->IoStatus.Information = 0;
+
+            KeSetEvent(&PageBlock->Event, 0, FALSE);
+        }
+
+        Status = MiWaitForInPageComplete(PageBlock->Pfn,
+                                         ReadPte,
+                                         Address,
+                                         &OriginalPte,
+                                         PageBlock,
+                                         Process);
+        WsThread->ActiveFaultCount--;
+
+        if (Flags & 0x10)
+        {
+            PKTHREAD _Thread = &WsThread->Tcb;
+            KeLeaveCriticalRegionThread(_Thread);
+        }
+
+        PageBlockPfn = PageBlock->Pfn;
+        MdlPages = PageBlock->MdlPages;
+        StartProto = PageBlock->StartProto;
+
+        if ((LONG)PageBlock->Mdl.ByteCount > 0)
+        {
+            for (MdlPageCount = ((PageBlock->Mdl.ByteCount - 1) / PAGE_SIZE) + 1;
+                 MdlPageCount;
+                 MdlPageCount--, MdlPages++, StartProto++)
+            {
+                if (StartProto == ReadPte)
+                {
+                    PageNumber = *MdlPages;
+                }
+                else
+                {
+                    PMMPFN PfnClusterPage;
+
+                    PfnClusterPage = &MmPfnDatabase[*MdlPages];
+                    ASSERT(PfnClusterPage->u4.PteFrame == PageBlockPfn->u4.PteFrame);
+
+                    if (PfnClusterPage->u4.InPageError)
+                    {
+                        ASSERT(Status != STATUS_SUCCESS);
+                    }
+
+                    if (PfnClusterPage->u3.e1.ReadInProgress)
+                    {
+                        ASSERT(PfnClusterPage->u4.PteFrame != 0x1FFEDCB);
+                        PfnClusterPage->u3.e1.ReadInProgress = 0;
+
+                        if (!PfnClusterPage->u4.InPageError)
+                        {
+                            PfnClusterPage->u1.Event = NULL;
+                        }
+                    }
+
+                    MiDereferencePfnAndDropLockCount(PfnClusterPage);
+                }
+            }
+        }
+
+        if (Status != STATUS_SUCCESS)
+        {
+            DPRINT("MiDispatchFault: PageNumber %X, Status %X\n", PageNumber, Status);
+
+            MiDereferencePfnAndDropLockCount(MI_PFN_ELEMENT(PageNumber));
+
+            if (Status != 0x87303000)
+            {
+                PMMPFN PfnClusterPage;
+
+                MdlPages = PageBlock->MdlPages;
+                if ((LONG)PageBlock->Mdl.ByteCount > 0)
+                {
+                    for (MdlPageCount = ((PageBlock->Mdl.ByteCount - 1) / PAGE_SIZE) + 1;
+                         MdlPageCount;
+                         MdlPageCount--, MdlPages++)
+                    {
+                        PfnClusterPage = &MmPfnDatabase[*MdlPages];
+                        if (PfnClusterPage->u4.InPageError)
+                        {
+                            if (!PfnClusterPage->u3.e2.ReferenceCount)
+                            {
+                                PfnClusterPage->u4.InPageError = 0;
+
+                                if (PfnClusterPage->u3.e1.PageLocation != FreePageList)
+                                {
+                                    ASSERT(PfnClusterPage->u3.e1.PageLocation == StandbyPageList);
+                                    MiUnlinkPageFromList(PfnClusterPage);
+                                    ASSERT(PfnClusterPage->u3.e2.ReferenceCount == 0);
+                                    ASSERT(0);//MiRestoreTransitionPte(PfnClusterPage);
+                                    MiInsertPageInFreeList(*MdlPages);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (LockedProtoPfn)
+            {
+                ASSERT(FALSE);
+            }
+
+            /* Unlock the PFN database */
+            MiUnlockPfnDb(LockIrql, APC_LEVEL);
+
+            if (SessionWs)
+            {
+                ASSERT(FALSE);
+            }
+
+            MiFreeInPageSupportBlock(PageBlock);
+
+            if (Status == 0x87303000)
+            {
+                Status = STATUS_SUCCESS;
+            }
+            else if (Status == 0xC7303001)
+            {
+                Status = STATUS_NO_MEMORY;
+            }
+
+            ASSERT(OldIrql == KeGetCurrentIrql());
+            DPRINT1("MiDispatchFault: return Status %X\n", Status);
+            return Status;
+        }
+
+        ASSERT(PageBlockPfn->u4.InPageError == 0);
+
+        if (!PageBlockPfn->u2.ShareCount)
+        {
+            MiDropLockCount(PageBlockPfn);
+        }
+
+        PageBlockPfn->u2.ShareCount++;
+        PageBlockPfn->u3.e1.PageLocation = ActiveAndValid;
+
+        /* Is MEMORY mapping */
+        if ((ReadPte->u.Soft.Protection & MM_WRITECOMBINE) == MM_WRITECOMBINE &&
+            ReadPte->u.Soft.Protection & MM_PROTECT_ACCESS)
+        {
+            CacheAttribute = MiPlatformCacheAttributes[0][MmWriteCombined];
+        }
+        else if ((ReadPte->u.Soft.Protection & MM_NOCACHE) == MM_NOCACHE)
+        {
+            CacheAttribute = MiPlatformCacheAttributes[0][MmNonCached];
+        }
+        else
+        {
+            CacheAttribute = MiCached;
+        }
+
+        if (PageBlockPfn->u3.e1.CacheAttribute != CacheAttribute)
+        {
+            DPRINT("MiDispatchFault: FIXME Flushing\n");
+            ASSERT(FALSE);
+            PageBlockPfn->u3.e1.CacheAttribute = CacheAttribute;
+        }
+
+        /* ReadPte is Transition PTE. Do it valid */
+        ASSERT((ReadPte->u.Hard.Valid == 0) &&
+               (ReadPte->u.Trans.Prototype == 0) &&
+               (ReadPte->u.Trans.Transition == 1));
+
+        MI_MAKE_HARDWARE_PTE(&TempPte,
+                             ReadPte,
+                             ReadPte->u.Trans.Protection,
+                             ReadPte->u.Trans.PageFrameNumber);
+
+        if (!MI_IS_NOT_PRESENT_FAULT(FaultCode) && TempPte.u.Hard.Write)
+        {
+            MI_MAKE_DIRTY_PAGE(&TempPte);
+        }
+
+        MI_WRITE_VALID_PTE (ReadPte, TempPte);
+
+        if (SectionProto)
+        {
+            ASSERT(Pte->u.Hard.Valid == 0);
+
+            Status = MiCompleteProtoPteFault(!MI_IS_NOT_PRESENT_FAULT(FaultCode),
+                                             Address,
+                                             Pte,
+                                             SectionProto,
+                                             OldIrql,
+                                             &LockedProtoPfn);
+
+            ASSERT(KeAreAllApcsDisabled() == TRUE);
+        }
+        else
+        {
+            ASSERT(FALSE);
+        }
+
+        MiFreeInPageSupportBlock(PageBlock);
+
+        if (Status == STATUS_SUCCESS)
+        {
+            Status = STATUS_PAGE_FAULT_PAGING_FILE;
+        }
+    }
+
+    if (Status == 0xC7303001 || Status == 0x87303000)
+    {
+        Status = STATUS_SUCCESS;
+    }
+
+    ASSERT(KeAreAllApcsDisabled() == TRUE);
+
+    if (SessionWs)
+    {
+        ASSERT(FALSE);
+    }
+
+    if (LockedProtoPfn)
+    {
+        ASSERT(SectionProto != NULL);
+
+        /* Lock the PFN database */
+        OldIrql = MiLockPfnDb(APC_LEVEL);
+
+        ASSERT(LockedProtoPfn->u3.e2.ReferenceCount >= 1);
+        MiDereferencePfnAndDropLockCount(LockedProtoPfn);
+
+        /* Unlock the PFN database */
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+    }
+
+    ASSERT(OldIrql == KeGetCurrentIrql());
+    ASSERT(KeAreAllApcsDisabled() == TRUE);
+
+    DPRINT("MiDispatchFault: return Status %X\n", Status);
+    return Status;
 }
 
 extern BOOLEAN Mmi386MakeKernelPageTableGlobal(PVOID Address);
