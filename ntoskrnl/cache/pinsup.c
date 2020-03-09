@@ -974,6 +974,7 @@ CcpUnpinData(IN PNOCC_BCB RealBcb, BOOLEAN ReleaseBit)
     return TRUE;
 }
 
+#if 0
 VOID
 NTAPI
 CcUnpinData(IN PVOID Bcb)
@@ -999,6 +1000,7 @@ CcUnpinData(IN PVOID Bcb)
         CcpUnlock();
     }
 }
+#endif
 
 VOID
 NTAPI
@@ -1088,6 +1090,30 @@ CcUnpinFileDataEx(IN PCC_BCB Bcb,
 }
 
 /* PUBLIC FUNCTIONS ***********************************************************/
+
+/* The CcUnpinData releases cached file data that was mapped or pinned by an earlier call */
+
+VOID
+NTAPI
+CcUnpinData(IN PVOID InBcb)
+{
+    PCC_BCB Bcb = InBcb;
+    BOOLEAN IsNoWrite;
+
+    DPRINT("CcUnpinData: Bcb %p, NodeTypeCode %X\n", Bcb, Bcb->NodeTypeCode);
+
+    if ((ULONG_PTR)Bcb & 1)
+    {
+        IsNoWrite = TRUE;
+        Bcb = (PCC_BCB)((ULONG_PTR)Bcb & ~(1));
+
+        CcUnpinFileDataEx(Bcb, IsNoWrite);
+
+        return;
+    }
+
+    ASSERT(FALSE);
+}
 
 /* The CcMapData routine maps a specified byte range of a cached file to a buffer in memory. */
 /*
