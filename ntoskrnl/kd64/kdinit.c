@@ -90,11 +90,9 @@ VOID
 NTAPI
 KdUpdateDataBlock(VOID)
 {
-#ifdef _WINKD_
     /* Update the KeUserCallbackDispatcher pointer */
     KdDebuggerDataBlock.KeUserCallbackDispatcher =
         (ULONG_PTR)KeUserCallbackDispatcher;
-#endif
 }
 
 BOOLEAN
@@ -252,7 +250,6 @@ KdInitSystem(IN ULONG BootPhase,
                 /* Enable KD */
                 EnableKd = TRUE;
 
-#ifdef _WINKD_
                 /* Check if there are any options */
                 if (DebugLine[5] == '=')
                 {
@@ -334,16 +331,6 @@ KdInitSystem(IN ULONG BootPhase,
                         DebugOptionStart = DebugOptionEnd;
                     }
                 }
-#else
-		(VOID)DebugOptionStart;
-		(VOID)DebugOptionEnd;
-		(VOID)DebugOptionLength;
-                KdDebuggerNotPresent = FALSE;
-#ifdef KDBG
-                /* Get the KDBG Settings */
-                KdbpGetCommandLineSettings(LoaderBlock->LoadOptions);
-#endif
-#endif
             }
         }
         else
@@ -452,11 +439,9 @@ KdInitSystem(IN ULONG BootPhase,
 
                 /* Load symbols for image */
                 RtlInitString(&ImageName, NameBuffer);
-#ifdef _WINKD_
                 DbgLoadImageSymbols(&ImageName,
                                     LdrEntry->DllBase,
                                     (ULONG_PTR)PsGetCurrentProcessId());
-#endif
 
                 /* Go to the next entry */
                 NextEntry = NextEntry->Flink;
