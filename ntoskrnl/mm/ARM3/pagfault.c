@@ -1240,6 +1240,147 @@ MiFreeInPageSupportBlock(PMI_PAGE_SUPPORT_BLOCK Support)
     InterlockedPushEntrySList(&MmInPageSupportSListHead, &Support->ListEntry);
 }
 
+static
+VOID
+NTAPI
+MiInitializeReadInProgressPfn(IN PMDL Mdl,
+                              IN PMMPTE BasePte,
+                              IN PKEVENT Event,
+                              IN BOOLEAN IsProto)
+{
+    PFN_NUMBER * MdlPages;
+    PMMPTE Pte = 0;
+    MMPTE TempPte;
+    PMMPFN Pfn;
+    PFN_NUMBER PageNumber = 0;
+    LONG ByteCount;
+    ULONG CacheAttribute;
+    SHORT NewRefCount;
+    BOOLEAN IsFlush = FALSE;
+    BOOLEAN IsCommit;
+
+    DPRINT("MiInitializeReadInProgressPfn: Mdl %p BasePte %p, IsProto %X\n", Mdl, BasePte, IsProto);
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    ASSERT(MmPfnOwner == KeGetCurrentThread());
+
+    MdlPages = MmGetMdlPfnArray(Mdl);
+
+    for (ByteCount = Mdl->ByteCount; ByteCount > 0; ByteCount -= PAGE_SIZE)
+    {
+        Pfn = &MmPfnDatabase[*MdlPages];
+        Pfn->u1.Event = Event;
+        Pfn->PteAddress = BasePte;
+        Pfn->OriginalPte.u.Long = BasePte->u.Long;
+
+        if (IsProto)
+        {
+            Pfn->u3.e1.PrototypePte = 1;
+        }
+
+        ASSERT(Pfn->u3.e2.ReferenceCount == 0);
+        ASSERT(Pfn->u2.ShareCount == 0);
+        ASSERT(Pfn->u3.e1.PageLocation != ActiveAndValid);
+
+        if (Pfn->u3.e1.PrototypePte &&
+            Pfn->OriginalPte.u.Soft.Prototype)
+        {
+            InterlockedIncrement((PLONG)&MmTotalCommittedPages);
+            IsCommit = TRUE;
+        }
+        else
+        {
+            IsCommit = FALSE;
+        }
+
+        InterlockedIncrementSizeT(&MmSystemLockPagesCount);
+        NewRefCount = InterlockedIncrement16((PSHORT)&Pfn->u3.e2.ReferenceCount);
+
+        if (NewRefCount != 1)
+        {
+            ASSERT(NewRefCount < 2500);
+
+            InterlockedDecrementSizeT(&MmSystemLockPagesCount);
+
+            if (IsCommit)
+            {
+                ASSERT(MmTotalCommittedPages >= 1);
+                InterlockedDecrement((PLONG)&MmTotalCommittedPages);
+            }
+        }
+
+        Pfn->u3.e1.ReadInProgress = 1;
+        Pfn->u2.ShareCount = 0;
+
+        if ((BasePte->u.Soft.Protection & MM_WRITECOMBINE) == MM_WRITECOMBINE &&
+            BasePte->u.Soft.Protection & MM_PROTECT_ACCESS)
+        {
+            CacheAttribute = MiPlatformCacheAttributes[0][MmWriteCombined];
+        }
+        else if ((BasePte->u.Soft.Protection & MM_NOCACHE) == MM_NOCACHE)
+        {
+            CacheAttribute = MiPlatformCacheAttributes[0][MmNonCached];
+        }
+        else
+        {
+            CacheAttribute = MiCached;
+        }
+
+        if (Pfn->u3.e1.CacheAttribute != CacheAttribute)
+        {
+            IsFlush = 1;
+            Pfn->u3.e1.CacheAttribute = CacheAttribute;
+        }
+
+        Pfn->u4.InPageError = 0;
+
+        if (!PageNumber)
+        {
+            Pte = MiAddressToPte(BasePte);
+        }
+        else if (MiIsPteOnPdeBoundary(BasePte))
+        {
+            Pte++;
+            ASSERT(Pte == MiAddressToPte(BasePte));
+        }
+
+        if (!PageNumber || (MiIsPteOnPdeBoundary(BasePte))
+        {
+            if (!Pte->u.Hard.Valid)
+            {
+                if (!NT_SUCCESS(MiCheckPdeForPagedPool(BasePte)))
+                {
+                    ASSERT(FALSE);
+                }
+            }
+
+            PageNumber = Pte->u.Hard.PageFrameNumber;
+            ASSERT(PageNumber != 0);
+        }
+
+        Pfn->u4.PteFrame = PageNumber;
+
+        MI_MAKE_TRANSITION_PTE(&TempPte, *MdlPages, BasePte->u.Soft.Protection);
+        MI_WRITE_INVALID_PTE(BasePte, TempPte);
+
+        ASSERT(PageNumber != 0);
+        MmPfnDatabase[PageNumber].u2.ShareCount++;
+
+        MdlPages++;
+        BasePte++;
+    }
+
+    if (IsFlush)
+    {
+        KeFlushEntireTb(TRUE, TRUE);
+
+        if (CacheAttribute != 1)
+        {
+            KeInvalidateAllCaches();
+        }
+    }
+}
+
 #define MM_SECTOR_SIZE (0x200)
 
 static
@@ -1499,7 +1640,7 @@ MiResolveMappedFileFault(IN PMMPTE SectionProto,
         ASSERT(FALSE);
     }
 
-    ASSERT(FALSE);
+    MiInitializeReadInProgressPfn(&PageBlock->Mdl, StartProto, &PageBlock->Event, TRUE);
 
     PageBlock->StartingOffset.QuadPart = StartingOffset.QuadPart;
     PageBlock->FilePointer = ControlArea->FilePointer;
