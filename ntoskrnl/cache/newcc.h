@@ -44,6 +44,23 @@ typedef struct _NOCC_CACHE_MAP
     ULONG ReadAheadGranularity;
 } NOCC_CACHE_MAP, *PNOCC_CACHE_MAP;
 
+typedef union _CC_BCB {
+    struct {
+        USHORT NodeTypeCode;
+        UCHAR Reserved1[2];
+        ULONG Length;
+        LARGE_INTEGER FileOffset;
+        LIST_ENTRY Link;
+        LARGE_INTEGER BeyondLastByte;
+        PVACB Vacb;
+        ULONG PinCount;
+        ERESOURCE BcbResource;
+        PSHARED_CACHE_MAP SharedCacheMap;
+        PVOID BaseAddress;
+    };
+    struct _MBCB Mbcb;
+} CC_BCB, *PCC_BCB;
+
 INIT_FUNCTION
 VOID
 NTAPI
