@@ -190,5 +190,8 @@ CcGetVirtualAddress(IN PSHARED_CACHE_MAP SharedCacheMap,
                     IN LARGE_INTEGER FileOffset,
                     OUT PVACB * OutVacb,
                     OUT ULONG * OutReceivedLength);
+VOID
+NTAPI
+CcFreeVirtualAddress(IN PVACB Vacb);
 
 /* EOF */

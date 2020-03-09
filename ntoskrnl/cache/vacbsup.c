@@ -300,6 +300,54 @@ CcGetVacbMiss(IN PSHARED_CACHE_MAP SharedCacheMap,
     return OutVacb;
 }
 
+VOID
+NTAPI
+CcFreeVirtualAddress(PVACB Vacb)
+{
+    PSHARED_CACHE_MAP SharedCacheMap;
+    KIRQL OldIrql;
+
+    DPRINT("CcFreeVirtualAddress: Vacb %p\n", Vacb);
+
+    OldIrql = KeAcquireQueuedSpinLock(LockQueueVacbLock);
+
+    ASSERT((Vacb->Overlay.ActiveCount) != 0);
+    Vacb->Overlay.ActiveCount--;
+
+    if (Vacb->Overlay.ActiveCount)
+    {
+        goto Finish;
+    }
+
+    SharedCacheMap = Vacb->SharedCacheMap;
+    if (!SharedCacheMap)
+    {
+        ASSERT(Vacb->BaseAddress == NULL);
+
+        RemoveEntryList(&Vacb->LruList);
+        InsertHeadList(&CcVacbFreeList, &Vacb->LruList);
+
+        KeReleaseQueuedSpinLock(LockQueueVacbLock, OldIrql);
+        return;
+    }
+
+    ASSERT((SharedCacheMap->VacbActiveCount) != 0);
+    SharedCacheMap->VacbActiveCount--;
+
+    if (SharedCacheMap->WaitOnActiveCount)
+    {
+        KeSetEvent(SharedCacheMap->WaitOnActiveCount, 0, FALSE);
+    }
+
+Finish:
+
+    RemoveEntryList(&Vacb->LruList);
+    InsertTailList(&CcVacbLru, &Vacb->LruList);
+
+    KeReleaseQueuedSpinLock(LockQueueVacbLock, OldIrql);
+    return;
+}
+
 PVOID
 NTAPI
 CcGetVirtualAddress(IN PSHARED_CACHE_MAP SharedCacheMap,
