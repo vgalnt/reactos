@@ -10,6 +10,7 @@
 //
 #define CC_API_DEBUG                                    0x01
 
+#define CC_TYPE_BCB                0x02FD
 #define CC_TYPE_PRIVATE_MAP        0x02FE
 #define CC_TYPE_SHARED_MAP         0x02FF
 

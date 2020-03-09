@@ -1064,6 +1064,29 @@ Exit:
     return TRUE;
 }
 
+VOID
+NTAPI
+CcUnpinFileDataEx(IN PCC_BCB Bcb,
+                  IN BOOLEAN IsNoWrite)
+{
+
+    DPRINT("CcUnpinFileDataEx: Bcb %p, IsNoWrite %X\n", Bcb, IsNoWrite);
+
+    if (Bcb->NodeTypeCode != CC_TYPE_BCB)
+    {
+        PVACB Vacb = (PVACB)Bcb;
+
+        ASSERT((Vacb >= CcVacbs) && (Vacb < CcBeyondVacbs));
+        ASSERT(Vacb->SharedCacheMap->NodeTypeCode == CC_TYPE_SHARED_MAP);
+
+        CcFreeVirtualAddress(Vacb);
+
+        return;
+    }
+
+    ASSERT(FALSE);
+}
+
 /* PUBLIC FUNCTIONS ***********************************************************/
 
 /* The CcMapData routine maps a specified byte range of a cached file to a buffer in memory. */
