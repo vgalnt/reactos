@@ -1828,6 +1828,170 @@ MiCompleteInPage(IN PVOID FaultAddress,
 
 NTSTATUS
 NTAPI
+MiWaitForInPageComplete(PMMPFN InPfn,
+                        PMMPTE ReadPte,
+                        PVOID Address,
+                        PMMPTE OriginalPte,
+                        PMI_PAGE_SUPPORT_BLOCK PageBlock,
+                        PEPROCESS Process)
+{
+    PETHREAD Thread = PsGetCurrentThread();
+    PMDL Mdl;
+    PMMPTE FaultingPte;
+    PMMPTE SectionProto;
+    PFN_NUMBER * CurrentPage;
+    PFN_NUMBER * EndPage;
+    PMMPFN CurrentPfn;
+    NTSTATUS Status;
+
+    DPRINT("MiWaitForInPageComplete: InPfn %p, ReadPte %p, Address %p, OriginalPte %p, PageBlock %p, Process %p\n", InPfn, ReadPte, Address, OriginalPte, PageBlock, Process);
+
+    KeWaitForSingleObject(&PageBlock->Event, WrPageIn, KernelMode, FALSE, NULL);
+
+    if (Process == HYDRA_PROCESS)
+    {
+        ASSERT(FALSE);
+    }
+    else if (Process == (PEPROCESS)2)
+    {
+        ASSERT(FALSE);
+    }
+    else if (Process != NULL)
+    {
+        MiLockWorkingSet(Thread, &Process->Vm);
+    }
+    else
+    {
+        MiLockWorkingSet(Thread, &MmSystemCacheWs);
+    }
+
+    MiLockPfnDb(APC_LEVEL);
+
+    ASSERT(InPfn->u3.e2.ReferenceCount != 0);
+
+    if (InPfn != PageBlock->Pfn)
+    {
+        ASSERT(InPfn->u4.PteFrame != 0x1FFEDCB);
+        InPfn->u3.e1.ReadInProgress = 0;
+    }
+
+    if (InPfn->u4.InPageError)
+    {
+        DPRINT1("MiWaitForInPageComplete: InPfn->u1.ReadStatus %X\n", InPfn->u1.ReadStatus);
+
+        ASSERT(!NT_SUCCESS(InPfn->u1.ReadStatus));
+        Status = InPfn->u1.ReadStatus;
+
+        if (Status == STATUS_INSUFFICIENT_RESOURCES ||
+            Status == STATUS_WORKING_SET_QUOTA ||
+            Status == STATUS_NO_MEMORY)
+        {
+            Status = 0xC7303001;
+        }
+
+        return Status;
+    }
+
+    if (!PageBlock->u1.e1.InPageComplete)
+    {
+        NTSTATUS ReadStatus;
+
+        ASSERT((PageBlock->Pfn->u3.e1.ReadInProgress == 1) ||
+               (PageBlock->Pfn->PteAddress == (PMMPTE)0x23452345));
+
+        PageBlock->u1.e1.InPageComplete = 1;
+
+        if (PageBlock->u1.e1.PrefetchMdlHighBits)
+        {
+            Mdl = (PMDL)((ULONG_PTR)PageBlock->u1.e1.PrefetchMdlHighBits << 3);
+        }
+        else
+        {
+            Mdl = &PageBlock->Mdl;
+        }
+
+        if (Mdl->MdlFlags & MDL_MAPPED_TO_SYSTEM_VA)
+        {
+            MmUnmapLockedPages(Mdl->MappedSystemVa, Mdl);
+        }
+
+        ASSERT(PageBlock->Pfn->u4.PteFrame != 0x1FFEDCB);
+
+        PageBlock->Pfn->u3.e1.ReadInProgress = 0;
+        PageBlock->Pfn->u1.Event = NULL;
+
+        ReadStatus = PageBlock->IoStatus.Status;
+
+        if (!NT_SUCCESS(ReadStatus))
+        {
+            DPRINT1("MiWaitForInPageComplete: ReadStatus %X\n", ReadStatus);
+
+            if (ReadStatus != STATUS_END_OF_FILE)
+            {
+                ASSERT(FALSE);
+                return Status;
+            }
+
+            /* ReadStatus == STATUS_END_OF_FILE */
+            ASSERT(FALSE);
+        }
+        else
+        {
+            if (PageBlock->IoStatus.Information != Mdl->ByteCount)
+            {
+                MiCompleteInPage(Address, PageBlock, Mdl);
+            }
+        }
+    }
+
+    if (Process == (PEPROCESS)2)
+    {
+        return STATUS_SUCCESS;
+    }
+
+    FaultingPte = MiFindActualFaultingPte(Address);
+    if (!FaultingPte)
+    {
+        return 0x87303000;
+    }
+
+    if (FaultingPte == ReadPte)
+    {
+        if (FaultingPte->u.Long != OriginalPte->u.Long)
+        {
+            return 0x87303000;
+        }
+
+        return STATUS_SUCCESS;
+    }
+
+    if (!FaultingPte->u.Soft.Prototype)
+    {
+        return 0x87303000;
+    }
+
+    if (FaultingPte->u.Soft.PageFileHigh == MI_PTE_LOOKUP_NEEDED)
+    {
+        ULONG dummyProtection;
+        PMMVAD dummyProtoVad;
+        SectionProto = MiCheckVirtualAddress(Address, &dummyProtection, &dummyProtoVad);
+    }
+    else
+    {
+        SectionProto = MiGetProtoPtr(FaultingPte);
+    }
+
+    if (SectionProto != ReadPte ||
+        SectionProto->u.Long != OriginalPte->u.Long)
+    {
+        return 0x87303000;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 MiDispatchFault(IN ULONG FaultCode,
                 IN PVOID Address,
                 IN PMMPTE Pte,
