@@ -1102,7 +1102,7 @@ CcUnpinData(IN PVOID InBcb)
     PCC_BCB Bcb = InBcb;
     BOOLEAN IsNoWrite;
 
-    DPRINT("CcUnpinData: Bcb %p, NodeTypeCode %X\n", Bcb, Bcb->NodeTypeCode);
+    DPRINT("CcUnpinData: Bcb %p\n", Bcb);
 
     if ((ULONG_PTR)Bcb & 1)
     {

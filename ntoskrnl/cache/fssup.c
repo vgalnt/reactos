@@ -272,6 +272,7 @@ to notify Mm that our section potentially changed size, which may mean
 truncating off data.
 
  */
+#if 0
 VOID
 NTAPI
 CcSetFileSizes(IN PFILE_OBJECT FileObject,
@@ -292,6 +293,138 @@ CcSetFileSizes(IN PFILE_OBJECT FileObject,
     DPRINT("FileSizes->AllocationSize %x\n", FileSizes->AllocationSize.LowPart);
     DPRINT("FileSizes->ValidDataLength %x\n", FileSizes->ValidDataLength.LowPart);
 }
+#else
+VOID
+NTAPI
+CcSetFileSizes(IN PFILE_OBJECT FileObject,
+               IN PCC_FILE_SIZES FileSizes)
+{
+    PSHARED_CACHE_MAP SharedCacheMap;
+    LARGE_INTEGER ValidDataLength;
+    LARGE_INTEGER AllocationSize;
+    LARGE_INTEGER FileSize;
+    PVACB ActiveVacb;
+    NTSTATUS Status=0;
+    KIRQL OldIrql;
+
+    DPRINT("CcSetFileSizes: FileObject %p FileSizes %X\n", FileObject, FileSizes);
+
+    AllocationSize = FileSizes->AllocationSize;
+    FileSize = FileSizes->FileSize;
+    ValidDataLength = FileSizes->ValidDataLength;
+
+    OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+
+    SharedCacheMap = FileObject->SectionObjectPointer->SharedCacheMap;
+
+    if (!SharedCacheMap || !SharedCacheMap->Section)
+    {
+        KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+
+        if (BYTE_OFFSET(FileSize.LowPart))
+        {
+            ASSERT(FALSE);
+        }
+
+        CcPurgeCacheSection(FileObject->SectionObjectPointer, &FileSize, 0, FALSE);
+        return;
+    }
+
+    if (AllocationSize.QuadPart > SharedCacheMap->SectionSize.QuadPart)
+    {
+        SharedCacheMap->OpenCount++;
+        KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+
+        AllocationSize.QuadPart += (0x100000 - 1);
+        AllocationSize.LowPart &= ~(0x100000 - 1);
+
+        ASSERT(FALSE);
+
+        OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+
+        SharedCacheMap->OpenCount--;
+
+        if (!SharedCacheMap->OpenCount &&
+            !(SharedCacheMap->Flags & SHARE_FL_WRITE_QUEUED) &&
+            !SharedCacheMap->DirtyPages)
+        {
+            ASSERT(FALSE);
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+            RtlRaiseStatus(Status);
+        }
+
+        SharedCacheMap = FileObject->SectionObjectPointer->SharedCacheMap;
+        if (!SharedCacheMap)
+        {
+            KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+            return;
+        }
+    }
+
+    SharedCacheMap->OpenCount++;
+
+    if (FileSize.QuadPart < SharedCacheMap->ValidDataGoal.QuadPart ||
+        FileSize.QuadPart < SharedCacheMap->FileSize.QuadPart)
+    {
+        KeAcquireSpinLockAtDpcLevel(&SharedCacheMap->ActiveVacbSpinLock);
+
+        ActiveVacb = SharedCacheMap->ActiveVacb;
+
+        if (SharedCacheMap->ActiveVacb)
+        {
+            SharedCacheMap->ActiveVacb = NULL;
+        }
+        else
+        {
+            ASSERT(FALSE);
+        }
+
+        KeReleaseSpinLockFromDpcLevel(&SharedCacheMap->ActiveVacbSpinLock);
+
+        if (ActiveVacb || SharedCacheMap->NeedToZero)
+        {
+            KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+            ASSERT(FALSE);
+            OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+        }
+    }
+
+    if (SharedCacheMap->ValidDataLength.QuadPart != MAXLONGLONG)
+    {
+        if (FileSize.QuadPart < SharedCacheMap->ValidDataLength.QuadPart)
+        {
+            SharedCacheMap->ValidDataLength.QuadPart = FileSize.QuadPart;
+        }
+
+        SharedCacheMap->ValidDataGoal.QuadPart = ValidDataLength.QuadPart;
+    }
+
+    if (FileSize.QuadPart < SharedCacheMap->FileSize.QuadPart &&
+        !(SharedCacheMap->Flags & SHARE_FL_PIN_ACCESS) &&
+        !SharedCacheMap->VacbActiveCount)
+    {
+        KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+        ASSERT(FALSE);
+        OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+    }
+
+    SharedCacheMap->OpenCount--;
+    SharedCacheMap->FileSize.QuadPart = FileSize.QuadPart;
+
+    if (!SharedCacheMap->OpenCount &&
+        !(SharedCacheMap->Flags & SHARE_FL_WRITE_QUEUED) &&
+        !SharedCacheMap->DirtyPages)
+    {
+        ASSERT(FALSE);
+    }
+
+    KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+}
+#endif
 
 BOOLEAN
 NTAPI
