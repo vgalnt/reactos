@@ -437,6 +437,7 @@ CcGetFileSizes(IN PFILE_OBJECT FileObject,
     return TRUE;
 }
 
+#if 0
 BOOLEAN
 NTAPI
 CcPurgeCacheSection(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
@@ -451,6 +452,101 @@ CcPurgeCacheSection(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
     if (!Map) return TRUE;
     CcpFlushCache(Map, NULL, 0, NULL, TRUE);
     return TRUE;
+}
+#endif
+
+BOOLEAN
+NTAPI
+CcPurgeCacheSection(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
+                    IN PLARGE_INTEGER FileOffset,
+                    IN ULONG Length,
+                    IN BOOLEAN UninitializeCacheMaps)
+{
+    PSHARED_CACHE_MAP SharedCacheMap;
+    PLIST_ENTRY Entry;
+    PVACB Vacb = NULL;
+    BOOLEAN Result;
+    KIRQL OldIrql;
+
+    DPRINT("CcPurgeCacheSection: SectionPtrs %X, Offset %X, Length %X, UninitializeMaps %X\n", SectionObjectPointer, FileOffset, Length, UninitializeCacheMaps);
+
+    ASSERT(!UninitializeCacheMaps || (Length == 0) || (Length >= PAGE_SIZE * 2));
+
+    OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+
+    SharedCacheMap = SectionObjectPointer->SharedCacheMap;
+
+    if (SharedCacheMap)
+    {
+        if (SharedCacheMap->Flags & 0x2000)
+        {
+            ASSERT(FALSE);
+        }
+
+        SharedCacheMap->OpenCount++;
+
+        KeAcquireSpinLockAtDpcLevel(&SharedCacheMap->ActiveVacbSpinLock);
+
+        Vacb = SharedCacheMap->ActiveVacb;
+
+        if (SharedCacheMap->ActiveVacb)
+        {
+            SharedCacheMap->ActiveVacb = NULL;
+        }
+
+        KeReleaseSpinLockFromDpcLevel(&SharedCacheMap->ActiveVacbSpinLock);
+    }
+
+    KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+
+    if (Vacb)
+    {
+        ASSERT(FALSE);
+    }
+
+    if (SharedCacheMap)
+    {
+        if (UninitializeCacheMaps)
+        {
+            PFILE_OBJECT FileObject;
+            PPRIVATE_CACHE_MAP PrivateMap;
+
+            for (Entry = &SharedCacheMap->PrivateList;
+                 !IsListEmpty(Entry);
+                 )
+            {
+                PrivateMap = CONTAINING_RECORD(Entry, PRIVATE_CACHE_MAP, PrivateLinks);
+                FileObject = PrivateMap->FileObject;
+                CcUninitializeCacheMap(FileObject, NULL, NULL);
+            }
+        }
+
+        while (SharedCacheMap->Vacbs &&
+               !CcUnmapVacbArray(SharedCacheMap, FileOffset, Length, FALSE))
+        {
+            ASSERT(FALSE);
+        }
+    }
+
+    ASSERT(FALSE);
+
+    if (SharedCacheMap)
+    {
+        OldIrql = KeAcquireQueuedSpinLock(LockQueueMasterLock);
+
+        SharedCacheMap->OpenCount--;
+
+        if (!SharedCacheMap->OpenCount &&
+            !(SharedCacheMap->Flags & SHARE_FL_WRITE_QUEUED) &&
+            !SharedCacheMap->DirtyPages)
+        {
+            ASSERT(FALSE);
+        }
+
+        KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
+    }
+
+    return Result;
 }
 
 VOID
