@@ -1381,8 +1381,6 @@ MiInitializeReadInProgressPfn(IN PMDL Mdl,
     }
 }
 
-#define MM_SECTOR_SIZE (0x200)
-
 static
 NTSTATUS
 NTAPI
@@ -1540,7 +1538,6 @@ MiResolveMappedFileFault(IN PMMPTE SectionProto,
 
             TempOffset.QuadPart = Subsection->StartingSector + Subsection->NumberOfFullSectors;
             TempOffset.QuadPart *= MM_SECTOR_SIZE;
-            TempOffset.QuadPart += Subsection->u.SubsectionFlags.SectorEndOffset;
         }
         else
         {
@@ -1555,8 +1552,9 @@ MiResolveMappedFileFault(IN PMMPTE SectionProto,
 
             TempOffset.QuadPart += Subsection->NumberOfFullSectors;
             TempOffset.QuadPart *= PAGE_SIZE;
-            TempOffset.QuadPart += Subsection->u.SubsectionFlags.SectorEndOffset;
         }
+
+        TempOffset.QuadPart += Subsection->u.SubsectionFlags.SectorEndOffset;
 
         ASSERT(StartingOffset.QuadPart < TempOffset.QuadPart);
         DPRINT("MiResolveMappedFileFault: StartingOffset %I64X, TempOffset %I64X\n", StartingOffset.QuadPart, TempOffset.QuadPart);

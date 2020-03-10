@@ -26,6 +26,9 @@
 /* The area of virtual memory mapped with a single PDE. */
 #define PDE_MAPPED_VA  (PTE_PER_PAGE * PAGE_SIZE)
 
+/* Number of bytes for subsection sector of image file */
+#define MM_SECTOR_SIZE (0x200)
+
 //
 // Protection Bits part of the internal memory manager Protection Mask, from:
 // http://reactos.org/wiki/Techwiki:Memory_management_in_the_Windows_XP_kernel
