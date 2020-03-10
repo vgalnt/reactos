@@ -966,6 +966,52 @@ MiSegmentDelete(IN PSEGMENT Segment)
 
 VOID
 NTAPI
+MiRemoveViewsFromSection(PMSUBSECTION MappedSubsection,
+                         ULONGLONG PtesInSubsection)
+{
+    DPRINT("MiRemoveViewsFromSection: MappedSubsection %p, PtesInSubsection %X\n", MappedSubsection, PtesInSubsection);
+
+    ASSERT((MappedSubsection->ControlArea->u.Flags.Image == 0) &&
+           (MappedSubsection->ControlArea->FilePointer != NULL) &&
+           (MappedSubsection->ControlArea->u.Flags.PhysicalMemory == 0));
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    ASSERT(MmPfnOwner == KeGetCurrentThread());
+
+    for (;
+         MappedSubsection;
+         MappedSubsection = (PMSUBSECTION)MappedSubsection->NextSubsection)
+    {
+        ASSERT(MappedSubsection->ControlArea->DereferenceList.Flink == NULL);
+        ASSERT(MappedSubsection->SubsectionBase != NULL);
+        ASSERT(MappedSubsection->DereferenceList.Flink == NULL);
+
+        ASSERT(((LONG_PTR)MappedSubsection->NumberOfMappedViews >= 1) ||
+               (MappedSubsection->u.SubsectionFlags.SubsectionStatic == 1));
+
+        MappedSubsection->NumberOfMappedViews--;
+
+        if (!MappedSubsection->NumberOfMappedViews &&
+            !MappedSubsection->u.SubsectionFlags.SubsectionStatic)
+        {
+            InsertTailList(&MmUnusedSubsectionList, &MappedSubsection->DereferenceList);
+            FreePoolForSubsectionPtes(MappedSubsection->PtesInSubsection + MappedSubsection->UnusedPtes);
+        }
+
+        if (PtesInSubsection)
+        {
+            if (PtesInSubsection <= (ULONGLONG)MappedSubsection->PtesInSubsection)
+            {
+                break;
+            }
+
+            PtesInSubsection -= MappedSubsection->PtesInSubsection;
+        }
+    }
+}
+
+VOID
+NTAPI
 MiCheckControlArea(IN PCONTROL_AREA ControlArea,
                    IN KIRQL OldIrql)
 {

@@ -2498,6 +2498,10 @@ MiAddViewsForSection(
     IN KIRQL OldIrql
 );
 
+VOID
+NTAPI
+MiRemoveViewsFromSection(PMSUBSECTION MappedSubsection,
+                         ULONGLONG PtesInSubsection);
 //
 // MiRemoveZeroPage will use inline code to zero out the page manually if only
 // free pages are available. In some scenarios, we don't/can't run that piece of
