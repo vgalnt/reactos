@@ -3734,6 +3734,31 @@ MiUnmapViewInSystemSpace(IN PMMSESSION Session,
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+MiInsertPhysicalViewAndRefControlArea(IN PEPROCESS Process,
+                                      IN PCONTROL_AREA ControlArea,
+                                      IN PMM_PHYSICAL_VIEW PhysicalView)
+{
+    KIRQL OldIrql;
+
+    DPRINT("MiInsertPhysicalViewAndRefControlArea: Process %p, ControlArea %p, PhysicalView %p\n", Process, ControlArea, PhysicalView);
+
+    ASSERT(PhysicalView->Vad->u.VadFlags.VadType == VadDevicePhysicalMemory);
+    ASSERT(Process->PhysicalVadRoot != NULL);
+
+    MiInsertVad((PMMVAD)PhysicalView, Process->PhysicalVadRoot);
+
+    OldIrql = MiLockPfnDb(APC_LEVEL);
+
+    ControlArea->NumberOfMappedViews++;
+    ControlArea->NumberOfUserReferences++;
+
+    ASSERT(ControlArea->NumberOfSectionReferences != 0);
+
+    MiUnlockPfnDb(OldIrql, APC_LEVEL);
+}
+
 NTSTATUS
 NTAPI
 MiMapViewOfPhysicalSection(IN PCONTROL_AREA ControlArea,
