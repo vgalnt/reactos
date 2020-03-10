@@ -4034,6 +4034,23 @@ MiMapViewOfPhysicalSection(IN PCONTROL_AREA ControlArea,
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+MiMapViewOfImageSection(IN PCONTROL_AREA ControlArea,
+                        IN PEPROCESS Process,
+                        IN OUT PVOID * OutBaseAddress,
+                        IN OUT LARGE_INTEGER * OutSectionOffset,
+                        IN OUT SIZE_T * OutViewSize,
+                        IN PSECTION Section,
+                        IN SECTION_INHERIT InheritDisposition,
+                        IN ULONG ZeroBits,
+                        IN ULONG AllocationType,
+                        IN SIZE_T ImageCommitment)
+{
+    DPRINT("MiMapViewOfImageSection: ControlArea %p, Process %p, OutBase [%p], Offset [%I64X], ViewSize [%p], Section %p, ZeroBits %X, AllocType %X, ImageCommitment %X\n", ControlArea, Process, (OutBaseAddress?*OutBaseAddress:NULL), (OutSectionOffset?OutSectionOffset->QuadPart:0), (OutViewSize?*OutViewSize:0), Section, ZeroBits, AllocationType, ImageCommitment);
+    ASSERT(FALSE); return 0;
+}
+
 /* PUBLIC FUNCTIONS ***********************************************************/
 
 /*

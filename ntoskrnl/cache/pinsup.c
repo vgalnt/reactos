@@ -705,6 +705,7 @@ cleanup:
     return Success;
 }
 
+#if 0
 BOOLEAN
 NTAPI
 CcMapData(IN PFILE_OBJECT FileObject,
@@ -740,6 +741,7 @@ CcMapData(IN PFILE_OBJECT FileObject,
 
     return Result;
 }
+#endif
 
 /* Used by functions that repin data, CcpPinMappedData does not alter the map,
    but finds the appropriate stripe and update the accounting. */

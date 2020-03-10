@@ -1344,7 +1344,7 @@ MiInitializeReadInProgressPfn(IN PMDL Mdl,
             ASSERT(Pte == MiAddressToPte(BasePte));
         }
 
-        if (!PageNumber || (MiIsPteOnPdeBoundary(BasePte))
+        if (!PageNumber || (MiIsPteOnPdeBoundary(BasePte)))
         {
             if (!Pte->u.Hard.Valid)
             {
@@ -2039,7 +2039,7 @@ MiWaitForInPageComplete(PMMPFN InPfn,
     PFN_NUMBER * CurrentPage;
     PFN_NUMBER * EndPage;
     PMMPFN CurrentPfn;
-    NTSTATUS Status;
+    NTSTATUS Status=0;
 
     DPRINT("MiWaitForInPageComplete: InPfn %p, ReadPte %p, Address %p, OriginalPte %p, PageBlock %p, Process %p\n", InPfn, ReadPte, Address, OriginalPte, PageBlock, Process);
 
