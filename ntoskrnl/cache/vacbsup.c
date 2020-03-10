@@ -31,6 +31,26 @@ ULONG CcMaxVacbLevelsSeen = 1;
 
 VOID
 NTAPI
+CcUnmapVacb(PVACB Vacb,
+            PSHARED_CACHE_MAP SharedCacheMap,
+            BOOLEAN FrontOfList)
+{
+    BOOLEAN frontOfList;
+
+    ASSERT(SharedCacheMap != NULL);
+    ASSERT(Vacb->BaseAddress != NULL);
+
+    DPRINT("CcUnmapVacb: Vacb %p, SharedCacheMap %p, FrontOfList %X\n", Vacb, SharedCacheMap, FrontOfList);
+
+    frontOfList = (FrontOfList && (SharedCacheMap->Flags & SHARE_FL_SEQUENTIAL_ONLY));
+
+    MmUnmapViewInSystemCache(Vacb->BaseAddress, (PSECTION)SharedCacheMap->Section, frontOfList);
+
+    Vacb->BaseAddress = NULL;
+}
+
+VOID
+NTAPI
 CcInitializeVacbs()
 {
     PVACB CurrentVacb;
