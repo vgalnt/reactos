@@ -211,4 +211,11 @@ VOID
 NTAPI
 CcFreeVirtualAddress(IN PVACB Vacb);
 
+BOOLEAN
+NTAPI
+CcUnmapVacbArray(IN PSHARED_CACHE_MAP SharedCacheMap,
+                 IN PLARGE_INTEGER FileOffset,
+                 IN ULONG Length,
+                 IN BOOLEAN FrontOfList);
+
 /* EOF */

@@ -134,6 +134,25 @@ SetVacb(IN PSHARED_CACHE_MAP SharedCacheMap,
     }
 }
 
+BOOLEAN
+NTAPI
+CcUnmapVacbArray(IN PSHARED_CACHE_MAP SharedCacheMap,
+                 IN PLARGE_INTEGER FileOffset,
+                 IN ULONG Length,
+                 IN BOOLEAN FrontOfList)
+{
+    DPRINT("CcUnmapVacbArray: SharedCacheMap %p FileOffset %I64X, Length %X, FrontOfList %X\n", SharedCacheMap, (FileOffset?FileOffset->QuadPart:0), Length, FrontOfList);
+
+    if (!SharedCacheMap->Vacbs)
+    {
+        return FALSE;
+    }
+
+    ASSERT(FALSE);
+
+    return TRUE;
+}
+
 PVACB
 NTAPI
 CcGetVacbMiss(IN PSHARED_CACHE_MAP SharedCacheMap,
