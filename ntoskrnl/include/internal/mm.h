@@ -1433,6 +1433,14 @@ MmMapViewInSystemCache(
     IN PULONG CapturedViewSize
 );
 
+VOID
+NTAPI
+MmUnmapViewInSystemCache(
+    IN PVOID BaseAddress,
+    IN PVOID SectionObject,
+    IN ULONG FrontOfList
+);
+
 /* sysldr.c ******************************************************************/
 
 INIT_FUNCTION

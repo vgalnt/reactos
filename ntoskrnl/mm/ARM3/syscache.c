@@ -30,6 +30,279 @@ PMMWSLE MmSystemCacheWsle;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
+VOID
+NTAPI
+MmUnmapViewInSystemCache(IN PVOID BaseAddress,
+                         IN PVOID SectionObject,
+                         IN ULONG FrontOfList)
+{
+    PSECTION Section = SectionObject;
+    PFILE_OBJECT FilePointer;
+    PCONTROL_AREA ControlArea;
+    PMSUBSECTION Subsection = NULL;
+    PETHREAD Thread;
+    PMMPTE Pte;
+    PMMPTE StartPte;
+    PMMPTE LastPte;
+    PMMPTE SectionProto = NULL;
+    PMMPTE ProtoPde;
+    MMPTE ProtoPte;
+    MMPTE TempProto;
+    MMPTE CacheChunkPte[MM_PAGES_PER_VACB];
+    PMMPFN StartPfn;
+    PMMPFN CurrentPfn;
+    PFN_NUMBER PageTableFrameIndex;
+    PFN_NUMBER PageNumber;
+    ULONG ix;
+    ULONG Idx;
+    BOOLEAN IsLocked = FALSE;
+    BOOLEAN IsFirstPrint = TRUE;
+    KIRQL OldIrql;
+
+    DPRINT("MmUnmapViewInSystemCache: BaseAddress %p, Section %p, SectionToUnmap %X\n", BaseAddress, Section, FrontOfList);
+
+    ASSERT(KeGetCurrentIrql() <= APC_LEVEL);
+    Thread = PsGetCurrentThread();
+
+    StartPte = MiAddressToPte(BaseAddress);
+    LastPte = StartPte + MM_PAGES_PER_VACB;
+    DPRINT("MmUnmapViewInSystemCache: StartPte %p, LastPte %p\n", StartPte, LastPte);
+
+    PageTableFrameIndex = (MiAddressToPte(StartPte))->u.Hard.PageFrameNumber;
+    StartPfn = MI_PFN_ELEMENT(PageTableFrameIndex);
+
+    ControlArea = Section->Segment->ControlArea;
+    FilePointer = ControlArea->FilePointer;
+
+    ASSERT((ControlArea->u.Flags.Image == 0) &&
+           (ControlArea->u.Flags.PhysicalMemory == 0) &&
+           (ControlArea->u.Flags.GlobalOnlyPerSession == 0));
+
+    Idx = 0;
+    for (Pte = StartPte; Pte < LastPte; Pte++, Idx++)
+    {
+        ProtoPte.u.Long = Pte->u.Long;
+        CacheChunkPte[Idx] = ProtoPte;
+
+        if (ProtoPte.u.Hard.Valid)
+        {
+            if (!IsLocked)
+            {
+                IsLocked = 1;
+                MiLockWorkingSet(Thread, &MmSystemCacheWs);
+                continue;
+            }
+
+            CurrentPfn = MI_PFN_ELEMENT(Pte->u.Hard.PageFrameNumber);
+
+            //FIXME MiTerminateWsle()
+
+            if (FilePointer)
+            {
+                ASSERT(CurrentPfn->u3.e1.PrototypePte);
+                ASSERT(CurrentPfn->OriginalPte.u.Soft.Prototype);
+
+                SectionProto = CurrentPfn->PteAddress;
+
+                if (!Subsection)
+                {
+                    Subsection = (PMSUBSECTION)MiSubsectionPteToSubsection(&CurrentPfn->OriginalPte);
+                }
+            }
+        }
+        else
+        {
+            if (ProtoPte.u.Soft.Prototype)
+            {
+                if (FilePointer)
+                {
+                    SectionProto = MiGetProtoPtr(&ProtoPte);
+
+                    if (!Subsection)
+                    {
+                        ProtoPde = MiAddressToPte(SectionProto);
+
+                        OldIrql = MiLockPfnDb(APC_LEVEL);
+
+                        if (!ProtoPde->u.Hard.Valid)
+                        {
+                            if (IsLocked)
+                            {
+                                DPRINT1("MmUnmapViewInSystemCache: FIXME MiMakeSystemAddressValidPfnSystemWs \n");
+                                ASSERT(FALSE);
+                            }
+                            else
+                            {
+                                DPRINT1("MmUnmapViewInSystemCache: FIXME MiMakeSystemAddressValidPfn \n");
+                                ASSERT(FALSE);
+                            }
+                        }
+
+                        TempProto.u.Long = SectionProto->u.Long;
+
+                        if (TempProto.u.Hard.Valid)
+                        {
+                            PageNumber = TempProto.u.Hard.PageFrameNumber;
+                            CurrentPfn = MI_PFN_ELEMENT(PageNumber);
+                            SectionProto = &CurrentPfn->OriginalPte;
+                        }
+                        else if (TempProto.u.Soft.Transition &&
+                                 !TempProto.u.Soft.Prototype)
+                        {
+                            PageNumber = TempProto.u.Trans.PageFrameNumber;
+                            CurrentPfn = MI_PFN_ELEMENT(PageNumber);
+                            SectionProto = &CurrentPfn->OriginalPte;
+                        }
+                        else
+                        {
+                            ASSERT(TempProto.u.Soft.Prototype == 1);
+                        }
+
+                        Subsection = (PMSUBSECTION)MiSubsectionPteToSubsection(SectionProto);
+
+                        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+                    }
+                }
+            }
+            else
+            {
+                ULONG size = (LastPte - Pte) * sizeof(MMPTE);
+                ASSERT(ProtoPte.u.Long == 0);
+                ASSERT(RtlCompareMemoryUlong(Pte, size, 0) == size);
+                break;
+            }
+        }
+
+        BaseAddress = (PCHAR)BaseAddress + PAGE_SIZE;
+
+        MI_ERASE_PTE(Pte);
+    }
+
+    if (IsLocked)
+    {
+        MiUnlockWorkingSet(Thread, &MmSystemCacheWs);
+    }
+
+    StartPte->u.List.NextEntry = MM_EMPTY_PTE_LIST;
+    StartPte[1].u.List.NextEntry = KiTbFlushTimeStamp;
+
+    if (Subsection && Subsection->ControlArea != ControlArea)
+    {
+        ASSERT(FALSE);
+    }
+
+    OldIrql = MiLockPfnDb(APC_LEVEL);
+
+    MmLastFreeSystemCache->u.List.NextEntry = (StartPte - MmSystemCachePteBase);
+    MmLastFreeSystemCache = StartPte;
+
+    for (ix = 0; ix < Idx; ix++)
+    {
+        if (!CacheChunkPte[ix].u.Hard.Valid)
+        {
+            continue;
+        }
+
+        PageNumber = CacheChunkPte[ix].u.Long / PAGE_SIZE;
+        CurrentPfn = &MmPfnDatabase[PageNumber];
+
+        ASSERT(KeGetCurrentIrql() > APC_LEVEL);
+
+        if (!CurrentPfn->u3.e1.Modified &&
+            CacheChunkPte[ix].u.Hard.Dirty)
+        {
+            ASSERT(CurrentPfn->u3.e1.Rom == 0);
+            CurrentPfn->u3.e1.Modified = 1;
+
+            if (!CurrentPfn->OriginalPte.u.Soft.Prototype &&
+                !CurrentPfn->u3.e1.WriteInProgress)
+            {
+                DPRINT1("MmUnmapViewInSystemCache: FIXME MiReleasePageFileSpace \n");
+                ASSERT(FALSE);
+                CurrentPfn->OriginalPte.u.Soft.PageFileHigh = 0;
+            }
+        }
+
+        if (StartPfn->u2.ShareCount == 1)
+        {
+            MiDecrementShareCount(StartPfn, PageTableFrameIndex);
+        }
+        else
+        {
+            ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+            ASSERT(MmPfnOwner == KeGetCurrentThread());
+            ASSERT(PageTableFrameIndex > 0);
+
+            ASSERT(MI_PFN_ELEMENT(PageTableFrameIndex) == StartPfn);
+            ASSERT(StartPfn->u2.ShareCount != 0);
+
+            if (StartPfn->u3.e1.PageLocation != ActiveAndValid &&
+                StartPfn->u3.e1.PageLocation != StandbyPageList)
+            {
+                ASSERT(FALSE);
+            }
+
+            StartPfn->u2.ShareCount--;
+            ASSERT(StartPfn->u2.ShareCount < 0xF000000);
+        }
+
+        if (ControlArea->NumberOfMappedViews == 1)
+        {
+            ASSERT(CurrentPfn->u2.ShareCount == 1);
+        }
+
+        if (CurrentPfn->u2.ShareCount == 1)
+        {
+            MiDecrementShareCount(CurrentPfn, PageNumber);
+        }
+        else
+        {
+            ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+            ASSERT(MmPfnOwner == KeGetCurrentThread());
+            ASSERT(PageNumber > 0);
+
+            ASSERT(MI_PFN_ELEMENT(PageNumber) == CurrentPfn);
+            ASSERT(CurrentPfn->u2.ShareCount != 0);
+
+            if (CurrentPfn->u3.e1.PageLocation != ActiveAndValid &&
+                CurrentPfn->u3.e1.PageLocation != StandbyPageList)
+            {
+                ASSERT(FALSE);
+            }
+
+            CurrentPfn->u2.ShareCount--;
+            ASSERT(CurrentPfn->u2.ShareCount < 0xF000000);
+        }
+    }
+
+    while (Subsection)
+    {
+        ASSERT(SectionProto != NULL);
+        ASSERT((Subsection->NumberOfMappedViews >= 1) || (Subsection->u.SubsectionFlags.SubsectionStatic == 1));
+
+        MiRemoveViewsFromSection(Subsection, Subsection->PtesInSubsection);
+
+        if (SectionProto >= Subsection->SubsectionBase &&
+            SectionProto < &Subsection->SubsectionBase[Subsection->PtesInSubsection])
+        {
+            break;
+        }
+
+        Subsection = (PMSUBSECTION)Subsection->NextSubsection;
+        if (!Subsection)
+        {
+            ASSERT(FALSE);
+        }
+
+        ASSERT(Subsection->ControlArea == ControlArea);
+    }
+
+    ControlArea->NumberOfMappedViews--;
+    ControlArea->NumberOfSystemCacheViews--;
+
+    MiCheckControlArea(ControlArea, OldIrql);
+}
+
 NTSTATUS
 NTAPI
 MmMapViewInSystemCache(IN PVOID SectionObject,
