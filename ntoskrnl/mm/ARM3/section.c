@@ -3823,6 +3823,96 @@ MiUnmapViewInSystemSpace(IN PMMSESSION Session,
 
 BOOLEAN
 NTAPI
+MiCheckControlAreaStatus(IN ULONG Type,
+                         IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
+                         IN BOOLEAN IsDeleteOnClose,
+                         OUT PCONTROL_AREA * OutControlArea,
+                         OUT KIRQL * OutOldIrql)
+{
+    PCONTROL_AREA ControlArea;
+    ULONG NumberOfReferences;
+    KIRQL OldIrql;
+
+    DPRINT("MiCheckControlAreaStatus: Type %X, SectionPointers %p, IsDeleteOnClose %X\n", Type, SectionObjectPointer, IsDeleteOnClose);
+
+    *OutControlArea = NULL;
+
+    // FIXME SegmentEvent!
+
+    OldIrql = MiLockPfnDb(APC_LEVEL);
+    
+    if (Type == 1) // ImageSection
+    {
+        ControlArea = (PCONTROL_AREA)SectionObjectPointer->ImageSectionObject;
+    }
+    else
+    {
+        ControlArea = (PCONTROL_AREA)SectionObjectPointer->DataSectionObject;
+    }
+
+    DPRINT("MiCheckControlAreaStatus: ControlArea %p\n", ControlArea);
+
+    if (ControlArea)
+    {
+        if (Type == 2) // UserReferences
+        {
+            NumberOfReferences = ControlArea->NumberOfUserReferences;
+        }
+        else
+        {
+            NumberOfReferences = ControlArea->NumberOfSectionReferences;
+        }
+    }
+    else if (Type == 3) // ImageSection + UserReferences
+    {
+        ControlArea = (PCONTROL_AREA)SectionObjectPointer->ImageSectionObject;
+        if (!ControlArea)
+        {
+            MiUnlockPfnDb(OldIrql, APC_LEVEL);
+            DPRINT("MiCheckControlAreaStatus: FIXME SegmentEvent! return TRUE\n");
+            return TRUE;
+        }
+        NumberOfReferences = ControlArea->NumberOfSectionReferences;
+    }
+    else
+    {
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+        DPRINT("MiCheckControlAreaStatus: FIXME SegmentEvent! return TRUE\n");
+        return TRUE;
+    }
+
+    DPRINT("MiCheckControlAreaStatus: NumberOfReferences %X\n", NumberOfReferences);
+
+    if (NumberOfReferences ||
+        ControlArea->NumberOfMappedViews ||
+        ControlArea->u.Flags.BeingCreated)
+    {
+        if (IsDeleteOnClose)
+        {
+            ControlArea->u.Flags.DeleteOnClose = 1;
+        }
+
+        MiUnlockPfnDb(OldIrql, APC_LEVEL);
+        DPRINT("MiCheckControlAreaStatus: FIXME SegmentEvent! return FALSE\n");
+        return FALSE;
+    }
+
+    if (!ControlArea->u.Flags.BeingDeleted)
+    {
+        *OutControlArea = ControlArea;
+        *OutOldIrql = OldIrql;
+
+        DPRINT("MiCheckControlAreaStatus: FIXME SegmentEvent! return FALSE\n");
+        return FALSE;
+    }
+
+    ASSERT(FALSE);
+
+    return TRUE;
+}
+
+BOOLEAN
+NTAPI
 MmFlushImageSection(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
                     IN MMFLUSH_TYPE FlushType)
 {
