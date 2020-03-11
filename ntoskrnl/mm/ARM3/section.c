@@ -3008,6 +3008,43 @@ MiCreatePagingFileMap(OUT PSEGMENT *Segment,
 
 NTSTATUS
 NTAPI
+MiCreateImageFileMap(PFILE_OBJECT FileObject,
+                     PSEGMENT *OutSegment)
+{
+    LARGE_INTEGER fileSize;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("MiCreateImageFileMap: FileObject %p\n", FileObject);
+
+    Status = FsRtlGetFileSize(FileObject, &fileSize);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("MiCreateImageFileMap: Status %X, File '%wZ'\n", Status, &FileObject->FileName);
+
+        if (Status != STATUS_FILE_IS_A_DIRECTORY)
+        {
+            ASSERT(FALSE);
+            return Status;
+        }
+
+        ASSERT(FALSE);
+        return STATUS_INVALID_FILE_FOR_SECTION;
+    }
+
+    if (fileSize.HighPart)
+    {
+        DPRINT1("MiCreateImageFileMap: return STATUS_INVALID_FILE_FOR_SECTION, File '%wZ'\n", Status, &FileObject->FileName);
+        ASSERT(FALSE);
+        return STATUS_INVALID_FILE_FOR_SECTION;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 MiGetFileObjectForSectionAddress(
     IN PVOID Address,
     OUT PFILE_OBJECT *FileObject)
