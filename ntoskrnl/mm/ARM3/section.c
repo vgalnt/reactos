@@ -3821,6 +3821,119 @@ MiUnmapViewInSystemSpace(IN PMMSESSION Session,
     return STATUS_SUCCESS;
 }
 
+BOOLEAN
+NTAPI
+MiCanFileBeTruncatedInternal(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
+                             IN OUT PLARGE_INTEGER FileOffset,
+                             IN BOOLEAN IsNotCheckUserReferences,
+                             OUT KIRQL * OutOldIrql)
+{
+    PCONTROL_AREA ControlArea;
+    PSUBSECTION Subsection;
+    LARGE_INTEGER TempOffset;
+    KIRQL OldIrql;
+
+    DPRINT("MiCanFileBeTruncatedInternal: SectionPointers %p, IsNotCheckUserReferences %X\n", SectionObjectPointer, IsNotCheckUserReferences);
+
+    if (!MmFlushImageSection(SectionObjectPointer, MmFlushForWrite))
+    {
+        DPRINT("MiCanFileBeTruncatedInternal: return FALSE\n");
+        return FALSE;
+    }
+
+    OldIrql = MiLockPfnDb(APC_LEVEL);
+
+    ControlArea = (PCONTROL_AREA)SectionObjectPointer->DataSectionObject;
+    if (!ControlArea)
+    {
+        DPRINT("MiCanFileBeTruncatedInternal: ControlArea == NULL\n");
+        *OutOldIrql = OldIrql;
+        return TRUE;
+    }
+
+    if (ControlArea->u.Flags.BeingCreated ||
+        ControlArea->u.Flags.BeingDeleted ||
+        ControlArea->u.Flags.Rom)
+    {
+        goto Exit;
+    }
+
+    if (!ControlArea->NumberOfUserReferences ||
+        (IsNotCheckUserReferences && !ControlArea->NumberOfMappedViews))
+    {
+        DPRINT("MiCanFileBeTruncatedInternal: return TRUE\n");
+        *OutOldIrql = OldIrql;
+        return TRUE;
+    }
+
+    if (!FileOffset)
+    {
+        goto Exit;
+    }
+
+    ASSERT(ControlArea->u.Flags.Image == 0);
+    ASSERT(ControlArea->u.Flags.GlobalOnlyPerSession == 0);
+
+    Subsection = (PSUBSECTION)&ControlArea[1];
+
+    if (ControlArea->FilePointer)
+    {
+        PSEGMENT Segment = ControlArea->Segment;
+
+        if (MiIsAddressValid(ControlArea->Segment))
+        {
+            if (Segment->u1.ImageCommitment)
+            {
+                Subsection = (PSUBSECTION)Segment->u1.ImageCommitment;
+            }
+        }
+    }
+
+    while (Subsection->NextSubsection)
+    {
+        Subsection = Subsection->NextSubsection;
+    }
+
+    ASSERT(Subsection->ControlArea == ControlArea);
+
+    if (Subsection->ControlArea->u.Flags.Image)
+    {
+        TempOffset.QuadPart = (Subsection->StartingSector + Subsection->NumberOfFullSectors);
+        TempOffset.QuadPart *= MM_SECTOR_SIZE;
+    }
+    else
+    {
+        TempOffset.HighPart = Subsection->u.SubsectionFlags.StartingSector4132;
+        TempOffset.LowPart = Subsection->StartingSector;
+
+        TempOffset.QuadPart += Subsection->NumberOfFullSectors;
+        TempOffset.QuadPart *= PAGE_SIZE;
+    }
+
+    TempOffset.QuadPart += Subsection->u.SubsectionFlags.SectorEndOffset;
+
+    if (FileOffset->QuadPart >= TempOffset.QuadPart)
+    {
+        TempOffset.QuadPart += PAGE_SIZE - 1;
+        TempOffset.LowPart &= ~(PAGE_SIZE - 1);
+
+        if ((ULONGLONG)FileOffset->QuadPart < (ULONGLONG)TempOffset.QuadPart)
+        {
+            *FileOffset = TempOffset;
+        }
+
+        DPRINT("MiCanFileBeTruncatedInternal: return TRUE\n");
+        *OutOldIrql = OldIrql;
+        return TRUE;
+    }
+
+Exit:
+
+    DPRINT("MiCanFileBeTruncatedInternal: return FALSE\n");
+    MiUnlockPfnDb(OldIrql, APC_LEVEL);
+    return FALSE;
+}
+
 VOID
 NTAPI
 MiInsertPhysicalViewAndRefControlArea(IN PEPROCESS Process,
