@@ -1195,6 +1195,47 @@ MiDereferenceControlArea(IN PCONTROL_AREA ControlArea)
 
 VOID
 NTAPI
+MiDecrementSubsections(PSUBSECTION FirstSubsection,
+                       PSUBSECTION LastSubsection)
+{
+    PMSUBSECTION MappedSubsection;
+
+    DPRINT("MiDecrementSubsections: FirstSubsection %p, LastSubsection %p\n", FirstSubsection, LastSubsection);
+
+    ASSERT((FirstSubsection->ControlArea->u.Flags.Image == 0) &&
+           (FirstSubsection->ControlArea->FilePointer != NULL) &&
+           (FirstSubsection->ControlArea->u.Flags.PhysicalMemory == 0));
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    ASSERT(MmPfnOwner == KeGetCurrentThread());
+
+    for (MappedSubsection = (PMSUBSECTION)FirstSubsection;
+         ;
+         MappedSubsection = (PMSUBSECTION)MappedSubsection->NextSubsection)
+    {
+        ASSERT(MappedSubsection->DereferenceList.Flink == NULL);
+        ASSERT(((LONG_PTR)MappedSubsection->NumberOfMappedViews >= 1) ||
+               (MappedSubsection->u.SubsectionFlags.SubsectionStatic == 1));
+
+        MappedSubsection->NumberOfMappedViews--;
+
+        if (!MappedSubsection->NumberOfMappedViews &&
+            !MappedSubsection->u.SubsectionFlags.SubsectionStatic)
+        {
+            InsertTailList(&MmUnusedSubsectionList, &MappedSubsection->DereferenceList);
+            FreePoolForSubsectionPtes(MappedSubsection->PtesInSubsection + MappedSubsection->UnusedPtes);
+        }
+
+        if ((LastSubsection && FirstSubsection == LastSubsection) ||
+            !MappedSubsection->NextSubsection)
+        {
+            break;
+        }
+    }
+}
+
+VOID
+NTAPI
 MiRemoveMappedView(IN PEPROCESS Process,
                    IN PMMVAD Vad)
 {
