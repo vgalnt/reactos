@@ -175,6 +175,12 @@ NTAPI
 CcWaitForUninitializeCacheMap(IN PFILE_OBJECT FileObject)
 {
     DPRINT("CcWaitForUninitializeCacheMap: FileObject %p\n", FileObject);
+
+    if (!FileObject->SectionObjectPointer->SharedCacheMap)
+    {
+        return;
+    }
+
     ASSERT(FALSE);
 }
 
@@ -465,7 +471,7 @@ CcPurgeCacheSection(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
     PSHARED_CACHE_MAP SharedCacheMap;
     PLIST_ENTRY Entry;
     PVACB Vacb = NULL;
-    BOOLEAN Result;
+    BOOLEAN Result=0;
     KIRQL OldIrql;
 
     DPRINT("CcPurgeCacheSection: SectionPtrs %X, Offset %X, Length %X, UninitializeMaps %X\n", SectionObjectPointer, FileOffset, Length, UninitializeCacheMaps);
