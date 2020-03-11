@@ -3823,6 +3823,33 @@ MiUnmapViewInSystemSpace(IN PMMSESSION Session,
 
 BOOLEAN
 NTAPI
+MmFlushImageSection(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
+                    IN MMFLUSH_TYPE FlushType)
+{
+    PCONTROL_AREA ControlArea;
+    BOOLEAN Result;
+    KIRQL OldIrql;
+
+    DPRINT("MmFlushImageSection: SectionPointers %p, FlushType %X\n", SectionObjectPointer, FlushType);
+
+    if (FlushType == MmFlushForDelete)
+    {
+        ASSERT(FALSE);
+    }
+
+    Result = MiCheckControlAreaStatus(1, SectionObjectPointer, FALSE, &ControlArea, &OldIrql);
+    if (!ControlArea)
+    {
+        return Result;
+    }
+
+    ASSERT(FALSE);
+
+    return TRUE;
+}
+
+BOOLEAN
+NTAPI
 MiCanFileBeTruncatedInternal(IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
                              IN OUT PLARGE_INTEGER FileOffset,
                              IN BOOLEAN IsNotCheckUserReferences,

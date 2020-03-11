@@ -4928,6 +4928,7 @@ MmCanFileBeTruncated (IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
 /*
  * @implemented
  */
+#if 0
 BOOLEAN NTAPI
 MmFlushImageSection (IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
                      IN MMFLUSH_TYPE   FlushType)
@@ -4975,6 +4976,7 @@ MmFlushImageSection (IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
     }
     return FALSE;
 }
+#endif
 
 /*
  * @implemented
