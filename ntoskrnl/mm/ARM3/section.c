@@ -5497,6 +5497,42 @@ MmDoesFileHaveUserWritableReferences(IN PSECTION_OBJECT_POINTERS SectionPointer)
     return 0;
 }
 
+BOOLEAN
+NTAPI
+MiReferenceSubsection(PMSUBSECTION MappedSubsection)
+{
+    DPRINT("MiReferenceSubsection: MappedSubsection %p, %p\n", MappedSubsection, MappedSubsection->SubsectionBase);
+
+    ASSERT((MappedSubsection->ControlArea->u.Flags.Image == 0) &&
+           (MappedSubsection->ControlArea->FilePointer != NULL) &&
+           (MappedSubsection->ControlArea->u.Flags.PhysicalMemory == 0));
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    ASSERT(MmPfnOwner == KeGetCurrentThread());
+
+    if (!MappedSubsection->SubsectionBase)
+    {
+        return FALSE;
+    }
+
+    MappedSubsection->NumberOfMappedViews++;
+
+    if (!MappedSubsection->DereferenceList.Flink)
+    {
+        goto Exit;
+    }
+
+    RemoveEntryList(&MappedSubsection->DereferenceList);
+    AlloccatePoolForSubsectionPtes(MappedSubsection->PtesInSubsection + MappedSubsection->UnusedPtes);
+
+    MappedSubsection->DereferenceList.Flink = NULL;
+
+Exit:
+
+    MappedSubsection->u2.SubsectionFlags2.SubsectionAccessed = 1;
+    return TRUE;
+}
+
 /* SYSTEM CALLS ***************************************************************/
 
 NTSTATUS
