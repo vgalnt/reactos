@@ -4467,6 +4467,59 @@ Exit:
     return (PCONTROL_AREA)LargeControlArea;
 }
 
+VOID
+NTAPI
+MiInsertImageSectionObject(IN PFILE_OBJECT FileObject,
+                           IN PLARGE_CONTROL_AREA ControlArea)
+{
+    PLARGE_CONTROL_AREA NextControlArea;
+    PLIST_ENTRY Header;
+    PLIST_ENTRY Entry;
+    ULONG SessionId;
+
+    DPRINT("MiFindImageSectionObject: File %p, ControlArea %p\n", FileObject, ControlArea);
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    ASSERT(MmPfnOwner == KeGetCurrentThread());
+
+    if (!FileObject->SectionObjectPointer->ImageSectionObject &&
+        !ControlArea->u.Flags.GlobalOnlyPerSession)
+    {
+        goto Exit;
+    }
+
+    ASSERT(ControlArea->u.Flags.GlobalOnlyPerSession == 1);
+
+    SessionId = MmGetSessionId(PsGetCurrentProcess());
+    ControlArea->SessionId = SessionId;
+
+    if (!FileObject->SectionObjectPointer->ImageSectionObject)
+    {
+        InitializeListHead(&ControlArea->UserGlobalList);
+        goto Exit;
+    }
+
+    ASSERT(ControlArea->u.Flags.BeingDeleted ||
+           ControlArea->u.Flags.BeingCreated ||
+           ControlArea->SessionId != (ULONG)-1);
+
+    Header = &(((PLARGE_CONTROL_AREA)FileObject->SectionObjectPointer->ImageSectionObject)->UserGlobalList);
+
+    for (Entry = Header->Flink;
+         Entry != Header;
+         Entry = Entry->Flink)
+    {
+        NextControlArea = CONTAINING_RECORD(Entry, LARGE_CONTROL_AREA, UserGlobalList);
+        ASSERT(NextControlArea->SessionId != (ULONG)-1 && NextControlArea->SessionId != ControlArea->SessionId);
+    }
+
+    InsertTailList(Header, &ControlArea->UserGlobalList);
+
+Exit:
+
+    FileObject->SectionObjectPointer->ImageSectionObject = ControlArea;
+}
+
 /* PUBLIC FUNCTIONS ***********************************************************/
 
 /*
