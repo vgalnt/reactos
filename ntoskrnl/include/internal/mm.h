@@ -1441,6 +1441,15 @@ MmUnmapViewInSystemCache(
     IN ULONG FrontOfList
 );
 
+BOOLEAN
+NTAPI
+MmPurgeSection(
+    IN PSECTION_OBJECT_POINTERS SectionObjectPointer,
+    IN PLARGE_INTEGER FileOffset,
+    IN ULONG Length,
+    IN BOOLEAN IsFullPurge
+);
+
 /* sysldr.c ******************************************************************/
 
 INIT_FUNCTION
