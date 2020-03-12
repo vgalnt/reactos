@@ -6998,7 +6998,7 @@ NtUnmapViewOfSection(IN HANDLE ProcessHandle,
     NTSTATUS Status;
     KPROCESSOR_MODE PreviousMode = ExGetPreviousMode();
 
-    ASSERT(FALSE);
+    DPRINT("NtUnmapViewOfSection: BaseAddress %p\n", BaseAddress);
 
     /* Don't allowing mapping kernel views */
     if ((PreviousMode == UserMode) && (BaseAddress > MM_HIGHEST_USER_ADDRESS))
