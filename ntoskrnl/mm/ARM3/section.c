@@ -1215,6 +1215,23 @@ MiDereferenceControlArea(IN PCONTROL_AREA ControlArea)
 
 VOID
 NTAPI
+MiDereferenceControlAreaBySection(IN PCONTROL_AREA ControlArea,
+                                  IN ULONG UserReference)
+{
+    KIRQL OldIrql;
+
+    DPRINT("MiDereferenceControlAreaBySection: ControlArea %p, UserReference %X\n", ControlArea, UserReference);
+
+    OldIrql = MiLockPfnDb(APC_LEVEL);
+
+    ControlArea->NumberOfSectionReferences--;
+    ControlArea->NumberOfUserReferences -= UserReference;
+
+    MiCheckControlArea(ControlArea, OldIrql);
+}
+
+VOID
+NTAPI
 MiDecrementSubsections(PSUBSECTION FirstSubsection,
                        PSUBSECTION LastSubsection)
 {
