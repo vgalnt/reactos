@@ -104,6 +104,26 @@ ULONG MmCompatibleProtectionMask[8] =
     PAGE_EXECUTE_READ | PAGE_EXECUTE_WRITECOPY
 };
 
+CHAR MmImageProtectionArray[16] =
+{
+    MM_NOACCESS,
+    MM_EXECUTE,
+    MM_READONLY,
+    MM_EXECUTE_READ,
+    MM_WRITECOPY,
+    MM_EXECUTE_WRITECOPY,
+    MM_WRITECOPY,
+    MM_EXECUTE_WRITECOPY,
+    MM_NOACCESS,
+    MM_EXECUTE,
+    MM_READONLY,
+    MM_EXECUTE_READ,
+    MM_READWRITE,
+    MM_EXECUTE_READWRITE,
+    MM_READWRITE,
+    MM_EXECUTE_READWRITE
+};
+
 MMSESSION MmSession;
 KGUARDED_MUTEX MmSectionCommitMutex;
 MM_AVL_TABLE MmSectionBasedRoot;
@@ -3004,6 +3024,31 @@ MiCreatePagingFileMap(OUT PSEGMENT *Segment,
     }
 
     return STATUS_SUCCESS;
+}
+
+CHAR
+NTAPI
+MiGetImageProtection(ULONG Characteristics)
+{
+    ULONG Index;
+
+    PAGED_CODE();
+
+    Index = 0;
+
+    if (Characteristics & IMAGE_SCN_MEM_EXECUTE)
+        Index = 1;
+
+    if (Characteristics & IMAGE_SCN_MEM_READ)
+        Index |= 2;
+
+    if (Characteristics & IMAGE_SCN_MEM_WRITE)
+        Index |= 4;
+
+    if (Characteristics & IMAGE_SCN_MEM_SHARED)
+        Index |= 8;
+
+    return MmImageProtectionArray[Index];
 }
 
 NTSTATUS
