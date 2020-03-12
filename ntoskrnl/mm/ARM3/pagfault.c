@@ -247,7 +247,7 @@ MiCheckVirtualAddress(IN PVOID VirtualAddress,
                       OUT PMMVAD *ProtoVad)
 {
     PMMVAD Vad;
-    PMMPTE Pte;
+    PMMPTE SectionProto;
 
     /* No prototype/section support for now */
     *ProtoVad = NULL;
@@ -298,21 +298,49 @@ MiCheckVirtualAddress(IN PVOID VirtualAddress,
         }
         else
         {
-            /* ReactOS does not supoprt these VADs yet */
-            ASSERT(Vad->u.VadFlags.VadType != VadImageMap);
-            ASSERT(Vad->u2.VadFlags2.ExtendableFile == 0);
+            ULONG_PTR Vpn = ((ULONG_PTR)VirtualAddress / PAGE_SIZE);
 
-            /* Return the proto VAD */
-            *ProtoVad = Vad;
+            if (Vad->u.VadFlags.VadType == VadImageMap)
+            {
+                *ProtectCode = 0x100;
+            }
+            else
+            {
+                /* Return the Prototype PTE and the protection for the page mapping */
+                *ProtectCode = Vad->u.VadFlags.Protection;
 
-            /* Get the prototype PTE for this page */
-            Pte = (((ULONG_PTR)VirtualAddress >> PAGE_SHIFT) - Vad->StartingVpn) + Vad->FirstPrototypePte;
-            ASSERT(Pte != NULL);
-            ASSERT(Pte <= Vad->LastContiguousPte);
+                if (!Vad->u2.VadFlags2.ExtendableFile)
+                {
+                    /* Return the proto VAD */
+                    *ProtoVad = Vad;
+                }
+            }
 
-            /* Return the Prototype PTE and the protection for the page mapping */
-            *ProtectCode = (ULONG)Vad->u.VadFlags.Protection;
-            return Pte;
+            /* Get the section proto for this page */
+            if (((ULONG_PTR)Vad->FirstPrototypePte + ((Vpn - Vad->StartingVpn) * sizeof(MMPTE))) <= (ULONG_PTR)Vad->LastContiguousPte)
+            {
+                SectionProto = &Vad->FirstPrototypePte[Vpn - Vad->StartingVpn];
+            }
+            else
+            {
+                ASSERT(FALSE);
+                SectionProto = NULL;
+            }
+
+            if (!SectionProto)
+            {
+                *ProtectCode = MM_NOACCESS;
+            }
+
+            if (Vad->u2.VadFlags2.ExtendableFile)
+            {
+                if ((Vpn - Vad->StartingVpn) > (ULONG_PTR)((((PMMVAD_LONG)Vad)->u4.ExtendedInfo->CommittedSize - 1) / PAGE_SIZE))
+                {
+                    *ProtectCode = MM_NOACCESS;
+                }
+            }
+
+            return SectionProto;
         }
     }
     else if (MI_IS_PAGE_TABLE_ADDRESS(VirtualAddress))
@@ -2034,9 +2062,9 @@ MiWaitForInPageComplete(PMMPFN InPfn,
     PMDL Mdl;
     PMMPTE FaultingPte;
     PMMPTE SectionProto;
-    PFN_NUMBER * CurrentPage;
-    PFN_NUMBER * EndPage;
-    PMMPFN CurrentPfn;
+    //PFN_NUMBER * CurrentPage;
+    //PFN_NUMBER * EndPage;
+    //PMMPFN CurrentPfn;
     NTSTATUS Status=0;
 
     DPRINT("MiWaitForInPageComplete: InPfn %p, ReadPte %p, Address %p, OriginalPte %p, PageBlock %p, Process %p\n", InPfn, ReadPte, Address, OriginalPte, PageBlock, Process);
