@@ -1501,7 +1501,7 @@ HRESULT CMenuSFToolbar::InternalPopupItem(INT iItem, INT index, DWORD_PTR dwData
     if (FAILED_UNEXPECTEDLY(hr))
         return hr;
 
-    hr = shellMenu->SetShellFolder(childFolder, NULL, NULL, 0);
+    hr = shellMenu->SetShellFolder(childFolder, NULL, NULL, SMSET_TOP);
     if (FAILED_UNEXPECTEDLY(hr))
         return hr;
 
