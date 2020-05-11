@@ -127,10 +127,10 @@ wWinMain(HINSTANCE hThisInstance,
 #if 0
 		WCHAR szFileName[MAX_PATH] = L"";
 		OPENFILENAMEW fontOpen;
-        WCHAR filter[MAX_PATH*2], dialogTitle[MAX_PATH];
+        WCHAR filter[MAX_PATH*2] = {0}, dialogTitle[MAX_PATH];
 
 		LoadStringW(NULL, IDS_OPEN, dialogTitle, ARRAYSIZE(dialogTitle));
-		LoadStringW(NULL, IDS_FILTER_LIST, filter, ARRAYSIZE(filter));
+		LoadStringW(NULL, IDS_FILTER_LIST, filter, ARRAYSIZE(filter) - 1);
 
 		/* Clears out any values of fontOpen before we use it */
 		ZeroMemory(&fontOpen, sizeof(fontOpen));
