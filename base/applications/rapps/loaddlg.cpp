@@ -56,6 +56,14 @@
 #define CERT_SUBJECT_INFO "rapps.reactos.org"
 #endif
 
+
+enum DownloadType
+{
+    DLTYPE_APPLICATION,
+    DLTYPE_DBUPDATE,
+    DLTYPE_DBUPDATE_UNOFFICIAL
+};
+
 enum DownloadStatus
 {
     DLSTATUS_WAITING = IDS_STATUS_WAITING,
@@ -77,13 +85,15 @@ struct DownloadInfo
 {
     DownloadInfo() {}
     DownloadInfo(const CAvailableApplicationInfo& AppInfo)
-        : szUrl(AppInfo.m_szUrlDownload)
+        : DLType(DLTYPE_APPLICATION)
+        , szUrl(AppInfo.m_szUrlDownload)
         , szName(AppInfo.m_szName)
         , szSHA1(AppInfo.m_szSHA1)
         , SizeInBytes(AppInfo.m_SizeBytes)
     {
     }
 
+    DownloadType DLType;
     ATL::CStringW szUrl;
     ATL::CStringW szName;
     ATL::CStringW szSHA1;
@@ -552,7 +562,6 @@ unsigned int WINAPI CDownloadManager::ThreadFunc(LPVOID param)
     ULONG dwStatusLen = sizeof(dwStatus);
 
     BOOL bTempfile = FALSE;
-    BOOL bCab = FALSE;
 
     HINTERNET hOpen = NULL;
     HINTERNET hFile = NULL;
@@ -588,9 +597,8 @@ unsigned int WINAPI CDownloadManager::ThreadFunc(LPVOID param)
         }
 
         // is this URL an update package for RAPPS? if so store it in a different place
-        if (InfoArray[iAppId].szUrl == APPLICATION_DATABASE_URL)
+        if (InfoArray[iAppId].DLType != DLTYPE_APPLICATION)
         {
-            bCab = TRUE;
             if (!GetStorageDirectory(Path))
             {
                 ShowLastError(hMainWnd, GetLastError());
@@ -599,19 +607,23 @@ unsigned int WINAPI CDownloadManager::ThreadFunc(LPVOID param)
         }
         else
         {
-            bCab = FALSE;
             Path = SettingsInfo.szDownloadDir;
         }
 
         // Change caption to show the currently downloaded app
-        if (!bCab)
+        switch(InfoArray[iAppId].DLType)
         {
+        case DLTYPE_APPLICATION:
             szNewCaption.Format(szCaption, InfoArray[iAppId].szName.GetString());
-        }
-        else
-        {
+            break;
+        case DLTYPE_DBUPDATE:
             szNewCaption.LoadStringW(IDS_DL_DIALOG_DB_DOWNLOAD_DISP);
+            break;
+        case DLTYPE_DBUPDATE_UNOFFICIAL:
+            szNewCaption.LoadStringW(IDS_DL_DIALOG_DB_UNOFFICIAL_DOWNLOAD_DISP);
+            break;
         }
+        
 
         if (!IsWindow(hDlg)) goto end;
         SetWindowTextW(hDlg, szNewCaption.GetString());
@@ -649,7 +661,7 @@ unsigned int WINAPI CDownloadManager::ThreadFunc(LPVOID param)
         Path += L"\\";
         Path += (LPWSTR) (p + 1);
 
-        if (!bCab && InfoArray[iAppId].szSHA1[0] && GetFileAttributesW(Path.GetString()) != INVALID_FILE_ATTRIBUTES)
+        if ((InfoArray[iAppId].DLType == DLTYPE_APPLICATION) && InfoArray[iAppId].szSHA1[0] && GetFileAttributesW(Path.GetString()) != INVALID_FILE_ATTRIBUTES)
         {
             // only open it in case of total correctness
             if (VerifyInteg(InfoArray[iAppId].szSHA1.GetString(), Path))
@@ -768,7 +780,7 @@ unsigned int WINAPI CDownloadManager::ThreadFunc(LPVOID param)
 #ifdef USE_CERT_PINNING
         // are we using HTTPS to download the RAPPS update package? check if the certificate is original
         if ((urlComponents.nScheme == INTERNET_SCHEME_HTTPS) &&
-            (wcscmp(InfoArray[iAppId].szUrl, APPLICATION_DATABASE_URL) == 0))
+            (InfoArray[iAppId].DLType == DLTYPE_DBUPDATE))
         {
             CLocalPtr subjectName, issuerName;
             CStringA szMsgText;
@@ -848,7 +860,7 @@ unsigned int WINAPI CDownloadManager::ThreadFunc(LPVOID param)
 
         /* if this thing isn't a RAPPS update and it has a SHA-1 checksum
         verify its integrity by using the native advapi32.A_SHA1 functions */
-        if (!bCab && InfoArray[iAppId].szSHA1[0] != 0)
+        if ((InfoArray[iAppId].DLType == DLTYPE_APPLICATION) && InfoArray[iAppId].szSHA1[0] != 0)
         {
             ATL::CStringW szMsgText;
 
@@ -882,7 +894,7 @@ run:
         DownloadsListView.SetDownloadStatus(iAppId, DLSTATUS_WAITING_INSTALL);
 
         // run it
-        if (!bCab)
+        if (InfoArray[iAppId].DLType == DLTYPE_APPLICATION)
         {
             SHELLEXECUTEINFOW shExInfo = {0};
             shExInfo.cbSize = sizeof(shExInfo);
@@ -921,7 +933,7 @@ end:
 
         if (bTempfile)
         {
-            if (bCancelled || (SettingsInfo.bDelInstaller && !bCab))
+            if (bCancelled || (SettingsInfo.bDelInstaller && (InfoArray[iAppId].DLType == DLTYPE_APPLICATION)))
                 DeleteFileW(Path.GetString());
         }
 
@@ -983,11 +995,12 @@ BOOL DownloadApplication(CAvailableApplicationInfo* pAppInfo, BOOL bIsModal)
     return TRUE;
 }
 
-VOID DownloadApplicationsDB(LPCWSTR lpUrl)
+VOID DownloadApplicationsDB(LPCWSTR lpUrl, BOOL IsOfficial)
 {
     static DownloadInfo DatabaseDLInfo;
     DatabaseDLInfo.szUrl = lpUrl;
     DatabaseDLInfo.szName.LoadStringW(IDS_DL_DIALOG_DB_DISP);
+    DatabaseDLInfo.DLType = IsOfficial ? DLTYPE_DBUPDATE : DLTYPE_DBUPDATE_UNOFFICIAL;
     CDownloadManager::Download(DatabaseDLInfo, TRUE);
 }
 
