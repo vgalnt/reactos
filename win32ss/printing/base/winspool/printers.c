@@ -1112,6 +1112,8 @@ Cleanup:
 BOOL WINAPI
 GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD pcbNeeded)
 {
+    DWORD dwErrorCode;
+    BOOL bResult;
     PPRINTER_INFO_1A ppi1a = (PPRINTER_INFO_1A)pPrinter;
     PPRINTER_INFO_1W ppi1w = (PPRINTER_INFO_1W)pPrinter;
     PPRINTER_INFO_2A ppi2a = (PPRINTER_INFO_2A)pPrinter;
@@ -1123,23 +1125,21 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
     PPRINTER_INFO_7A ppi7a = (PPRINTER_INFO_7A)pPrinter;
     PPRINTER_INFO_7W ppi7w = (PPRINTER_INFO_7W)pPrinter;
     DWORD cch;
-    BOOL bReturnValue = FALSE;
 
     TRACE("GetPrinterA(%p, %lu, %p, %lu, %p)\n", hPrinter, Level, pPrinter, cbBuf, pcbNeeded);
 
     // Check for invalid levels here for early error return. Should be 1-9.
     if (Level <  1 || Level > 9)
     {
-        SetLastError(ERROR_INVALID_LEVEL);
+        dwErrorCode = ERROR_INVALID_LEVEL;
         ERR("Invalid Level!\n");
         goto Cleanup;
     }
 
-    bReturnValue = GetPrinterW(hPrinter, Level, pPrinter, cbBuf, pcbNeeded);
-
-    if (!bReturnValue)
+    bResult = GetPrinterW(hPrinter, Level, pPrinter, cbBuf, pcbNeeded);
+    if (!bResult)
     {
-        TRACE("GetPrinterW failed!\n");
+        dwErrorCode = GetLastError();
         goto Cleanup;
     }
 
@@ -1157,7 +1157,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszDescription = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszDescription)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1178,7 +1178,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1199,7 +1199,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszComment = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszComment)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1224,7 +1224,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszServerName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszServerName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1245,7 +1245,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszPrinterName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszPrinterName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1266,7 +1266,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszShareName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszShareName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1287,7 +1287,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszPortName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszPortName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1308,7 +1308,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszDriverName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszDriverName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1329,7 +1329,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszComment = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszComment)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1350,7 +1350,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszLocation = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszLocation)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1371,7 +1371,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszSepFile = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszSepFile)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1392,7 +1392,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszPrintProcessor = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszPrintProcessor)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1413,7 +1413,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszDatatype = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszDatatype)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1434,7 +1434,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszParameters = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszParameters)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1459,7 +1459,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszPrinterName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszPrinterName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1480,7 +1480,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszServerName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszServerName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1505,7 +1505,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszPrinterName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszPrinterName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1526,7 +1526,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszPortName = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszPortName)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1551,7 +1551,7 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
                 pszaObjectGUID = HeapAlloc(hProcessHeap, 0, (cch + 1) * sizeof(CHAR));
                 if (!pszaObjectGUID)
                 {
-                    SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                    dwErrorCode = ERROR_NOT_ENOUGH_MEMORY;
                     ERR("HeapAlloc failed!\n");
                     goto Cleanup;
                 }
@@ -1565,8 +1565,11 @@ GetPrinterA(HANDLE hPrinter, DWORD Level, LPBYTE pPrinter, DWORD cbBuf, LPDWORD 
         }
     }       // switch
 
+    dwErrorCode = ERROR_SUCCESS;
+
 Cleanup:
-    return bReturnValue;
+    SetLastError(dwErrorCode);
+    return (dwErrorCode == ERROR_SUCCESS);
 }
 
 BOOL WINAPI
