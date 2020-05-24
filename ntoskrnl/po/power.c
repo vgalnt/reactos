@@ -2141,11 +2141,14 @@ NtPowerInformation(
             if (OutputBufferLength < sizeof(PROCESSOR_POWER_INFORMATION))
                 return STATUS_BUFFER_TOO_SMALL;
 
+            /* FIXME: return structures for all processors */
+
             _SEH2_TRY
             {
+                /* FIXME: some values are hardcoded */
                 PowerInformation->Number = 0;
                 PowerInformation->MaxMhz = 1000;
-                PowerInformation->CurrentMhz = 1000;
+                PowerInformation->CurrentMhz = KeGetCurrentPrcb()->MHz;
                 PowerInformation->MhzLimit = 1000;
                 PowerInformation->MaxIdleState = 0;
                 PowerInformation->CurrentIdleState = 0;
