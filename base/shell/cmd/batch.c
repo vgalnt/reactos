@@ -66,6 +66,10 @@
 BATCH_TYPE BatType = NONE;
 PBATCH_CONTEXT bc = NULL;
 
+#ifdef MSCMD_BATCH_ECHO
+BOOL bBcEcho = TRUE;
+#endif
+
 BOOL bEcho = TRUE;  /* The echo flag */
 
 /* Buffer for reading Batch file lines */
@@ -189,8 +193,10 @@ VOID ExitBatch(VOID)
     UndoRedirection(bc->RedirList, NULL);
     FreeRedirection(bc->RedirList);
 
+#ifndef MSCMD_BATCH_ECHO
     /* Preserve echo state across batch calls */
     bEcho = bc->bEcho;
+#endif
 
     while (bc->setlocal)
         cmd_endlocal(_T(""));
@@ -207,6 +213,10 @@ VOID ExitBatch(VOID)
     {
         CheckCtrlBreak(BREAK_OUTOFBATCH);
         BatType = NONE;
+
+#ifdef MSCMD_BATCH_ECHO
+        bEcho = bBcEcho;
+#endif
     }
 }
 
@@ -346,7 +356,9 @@ INT Batch(LPTSTR fullname, LPTSTR firstword, LPTSTR param, PARSED_COMMAND *Cmd)
     }
 
     bc->mempos = 0;    /* Go to the beginning of the batch file */
+#ifndef MSCMD_BATCH_ECHO
     bc->bEcho = bEcho; /* Preserve echo across batch calls */
+#endif
     for (i = 0; i < 10; i++)
         bc->shiftlevel[i] = i;
 
@@ -375,6 +387,10 @@ INT Batch(LPTSTR fullname, LPTSTR firstword, LPTSTR param, PARSED_COMMAND *Cmd)
         {
             BatType = CMD_TYPE;
         }
+
+#ifdef MSCMD_BATCH_ECHO
+        bBcEcho = bEcho;
+#endif
     }
 
     /* Check if this is a "CALL :label" */
@@ -418,6 +434,10 @@ INT Batch(LPTSTR fullname, LPTSTR firstword, LPTSTR param, PARSED_COMMAND *Cmd)
     {
         /* Reset the top-level batch context type */
         BatType = NONE;
+
+#ifdef MSCMD_BATCH_ECHO
+        bEcho = bBcEcho;
+#endif
     }
 
     /* Restore the FOR variables */
