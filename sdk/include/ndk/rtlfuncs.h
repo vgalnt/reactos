@@ -4624,6 +4624,7 @@ RtlGetVersion(
         PRTL_OSVERSIONINFOW lpVersionInformation
 );
 
+_IRQL_requires_max_(PASSIVE_LEVEL)
 NTSYSAPI
 BOOLEAN
 NTAPI
