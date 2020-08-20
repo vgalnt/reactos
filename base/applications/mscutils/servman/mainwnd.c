@@ -381,7 +381,7 @@ MainWndCommand(PMAIN_WND_INFO Info,
                HWND hControl)
 {
     WCHAR szAppName[256];
-    WCHAR szAppAuthors[256];    
+    WCHAR szAppAuthors[256];
     HICON hIcon;
 
     UNREFERENCED_PARAMETER(hControl);
@@ -596,7 +596,7 @@ MainWndCommand(PMAIN_WND_INFO Info,
         case ID_ABOUT:
             LoadStringW(hInstance, IDS_APPNAME, szAppName, _countof(szAppName));
             LoadStringW(hInstance, IDS_APPAUTHORS, szAppAuthors, _countof(szAppAuthors));
-            
+
             hIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_SM_ICON));
             ShellAboutW(Info->hMainWnd, szAppName, szAppAuthors, hIcon);
             DestroyIcon(hIcon);
