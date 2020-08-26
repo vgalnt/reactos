@@ -467,6 +467,7 @@ static VOID GetSystemInformation(HWND hwnd)
         {
             SetRegTextData(hwnd, hKey, _T("Identifier"), CurMachineLine);
             CurMachineLine++;
+            RegCloseKey(hKey);
         }
     }
     /*
@@ -488,6 +489,7 @@ static VOID GetSystemInformation(HWND hwnd)
 
         SetProcSpeed(hwnd, hKey, _T("~MHz"), CurMachineLine);
         CurMachineLine++;
+        RegCloseKey(hKey);
     }
 
     /* Get total physical RAM */
