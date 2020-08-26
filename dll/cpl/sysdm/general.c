@@ -444,6 +444,7 @@ static VOID SetProcSpeed(HWND hwnd, HKEY hKey, LPTSTR Value, UINT uID)
 static VOID GetSystemInformation(HWND hwnd)
 {
     HKEY hKey;
+    TCHAR SysKey[] = _T("HARDWARE\\DESCRIPTION\\System");
     TCHAR ProcKey[] = _T("HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0");
     MEMORYSTATUSEX MemStat;
     TCHAR Buf[32];
@@ -458,6 +459,15 @@ static VOID GetSystemInformation(HWND hwnd)
     {
         SetDlgItemText(hwnd, CurMachineLine, SMBiosName);
         CurMachineLine++;
+    }
+    else
+    {
+        /* If SMBIOS is not available, use System Identifier */
+        if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, SysKey, 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+        {
+            SetRegTextData(hwnd, hKey, _T("Identifier"), CurMachineLine);
+            CurMachineLine++;
+        }
     }
     /*
      * Get Processor information
