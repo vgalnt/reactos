@@ -1453,7 +1453,7 @@ TOOLBAR_WrapToolbar(TOOLBAR_INFO *infoPtr)
     if( !(infoPtr->dwStyle & TBSTYLE_WRAPABLE) &&
 	!(infoPtr->dwExStyle & TBSTYLE_EX_VERTICAL) )  return;
 
-#ifdef __REACTOS__ /* workaround CORE-16169 part 1 of 2 */
+#ifdef __REACTOS__ /* workaround CORE-17244 part 1 of 2 */
     /* if width is zero then return */
     if (infoPtr->client_rect.right == 0) return;
 #endif
@@ -3208,7 +3208,7 @@ TOOLBAR_AutoSize (TOOLBAR_INFO *infoPtr)
     TRACE("auto sizing, style=%#x\n", infoPtr->dwStyle);
     TRACE("nRows: %d, infoPtr->nButtonHeight: %d\n", infoPtr->nRows, infoPtr->nButtonHeight);
 
-#ifdef __REACTOS__ /* workaround CORE-16169 part 2 of 2 */
+#ifdef __REACTOS__ /* workaround CORE-17244 part 2 of 2 */
     if ((infoPtr->dwStyle & TBSTYLE_WRAPABLE) || (infoPtr->dwExStyle & TBSTYLE_EX_VERTICAL))
     {
         TOOLBAR_LayoutToolbar(infoPtr);
@@ -6602,10 +6602,6 @@ TOOLBAR_Paint (TOOLBAR_INFO *infoPtr, WPARAM wParam)
     hdc = wParam==0 ? BeginPaint(infoPtr->hwndSelf, &ps) : (HDC)wParam;
 
     TRACE("psrect=(%s)\n", wine_dbgstr_rect(&ps.rcPaint));
-
-#ifdef __REACTOS__
-    TOOLBAR_EraseBackground(infoPtr, (WPARAM)hdc, (LPARAM) 0);
-#endif
 
     TOOLBAR_Refresh (infoPtr, hdc, &ps);
     if (!wParam) EndPaint (infoPtr->hwndSelf, &ps);
