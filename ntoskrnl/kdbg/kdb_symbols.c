@@ -371,6 +371,7 @@ KdbpSymLoadModuleSymbols(
     HANDLE FileHandle;
     NTSTATUS Status;
     IO_STATUS_BLOCK IoStatusBlock;
+    BOOLEAN Result;
 
     /* Allow KDB to break on module load */
     KdbModuleLoaded(FileName);
@@ -412,13 +413,14 @@ KdbpSymLoadModuleSymbols(
 
     DPRINT("Loading symbols from %wZ...\n", FileName);
 
-    if (!RosSymCreateFromFile(&FileHandle, RosSymInfo))
+    Result = RosSymCreateFromFile(&FileHandle, RosSymInfo);
+    ZwClose(FileHandle);
+    
+    if (!Result)
     {
         DPRINT("Failed to load symbols from %wZ\n", FileName);
         return;
     }
-
-    ZwClose(FileHandle);
 
     DPRINT("Symbols loaded.\n");
 
