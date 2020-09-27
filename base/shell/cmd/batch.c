@@ -473,6 +473,11 @@ INT Batch(LPTSTR fullname, LPTSTR firstword, LPTSTR param, PARSED_COMMAND *Cmd)
         ret = ExecuteCommandWithEcho(Cmd);
         FreeCommand(Cmd);
     }
+    if (bExit)
+    {
+        /* Stop all execution */
+        ExitAllBatches();
+    }
 
     /* Perform top-level batch cleanup */
     if (!bc || bTopLevel)
