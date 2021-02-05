@@ -202,7 +202,7 @@ typedef struct _TOKEN
     LUID ParentTokenId;                               /* 0x20 */
     LARGE_INTEGER ExpirationTime;                     /* 0x28 */
     PERESOURCE TokenLock;                             /* 0x30 */
-    SEP_AUDIT_POLICY AuditPolicy;                     /* 0x38 */
+    SEP_AUDIT_POLICY  AuditPolicy;                    /* 0x38 */
     LUID ModifiedId;                                  /* 0x40 */
     ULONG SessionId;                                  /* 0x48 */
     ULONG UserAndGroupCount;                          /* 0x4C */
