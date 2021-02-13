@@ -863,7 +863,6 @@ NetValidateName(
 }
 
 
-#if 0
 NET_API_STATUS
 WINAPI
 NetWkstaGetInfo(
@@ -885,7 +884,7 @@ NetWkstaGetInfo(
     {
         status = NetrWkstaGetInfo(servername,
                                   level,
-                                  (LPWKSTA_INFO)bufptr);
+                                  (LPWKSTA_INFO*)bufptr);
     }
     RpcExcept(EXCEPTION_EXECUTE_HANDLER)
     {
@@ -895,7 +894,6 @@ NetWkstaGetInfo(
 
     return status;
 }
-#endif
 
 
 NET_API_STATUS
