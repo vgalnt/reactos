@@ -1042,6 +1042,7 @@ NetWkstaTransportEnum(
 
     return status;
 }
+#endif
 
 
 NET_API_STATUS
@@ -1115,6 +1116,7 @@ NetWkstaUserEnum(
 }
 
 
+#if 0
 NET_API_STATUS
 WINAPI
 NetWkstaUserGetInfo(
