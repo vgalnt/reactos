@@ -265,7 +265,7 @@ KdpDebugLogInit(PKD_DISPATCH_TABLE DispatchTable,
                                    NULL);
 
         /* Create the log file */
-        Status = NtCreateFile(&KdpLogFileHandle,
+        Status = ZwCreateFile(&KdpLogFileHandle,
                               FILE_APPEND_DATA | SYNCHRONIZE,
                               &ObjectAttributes,
                               &Iosb,
@@ -280,7 +280,10 @@ KdpDebugLogInit(PKD_DISPATCH_TABLE DispatchTable,
         RtlFreeUnicodeString(&FileName);
 
         if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("Failed to open log file: 0x%08x\n", Status);
             return;
+        }
 
         KeInitializeEvent(&KdpLoggerThreadEvent, SynchronizationEvent, TRUE);
 
@@ -294,12 +297,12 @@ KdpDebugLogInit(PKD_DISPATCH_TABLE DispatchTable,
                                       NULL);
         if (!NT_SUCCESS(Status))
         {
-            NtClose(KdpLogFileHandle);
+            ZwClose(KdpLogFileHandle);
             return;
         }
 
         Priority = 7;
-        NtSetInformationThread(ThreadHandle,
+        ZwSetInformationThread(ThreadHandle,
                                ThreadPriority,
                                &Priority,
                                sizeof(Priority));
