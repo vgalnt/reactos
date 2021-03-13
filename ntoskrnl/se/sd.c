@@ -25,6 +25,7 @@ PSECURITY_DESCRIPTOR SePublicOpenSd = NULL;
 PSECURITY_DESCRIPTOR SePublicOpenUnrestrictedSd = NULL;
 PSECURITY_DESCRIPTOR SeSystemDefaultSd = NULL;
 PSECURITY_DESCRIPTOR SeUnrestrictedSd = NULL;
+PSECURITY_DESCRIPTOR SeSystemAnonymousLogonSd = NULL;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
@@ -109,6 +110,19 @@ SepInitSDs(VOID)
     RtlSetDaclSecurityDescriptor(SeUnrestrictedSd,
                                  TRUE,
                                  SeUnrestrictedDacl,
+                                 FALSE);
+
+    /* Create SystemAnonymousLogonSd */
+    SeSystemAnonymousLogonSd = ExAllocatePoolWithTag(PagedPool,
+                                                     sizeof(SECURITY_DESCRIPTOR), TAG_SD);
+    if (SeSystemAnonymousLogonSd == NULL)
+        return FALSE;
+
+    RtlCreateSecurityDescriptor(SeSystemAnonymousLogonSd,
+                                SECURITY_DESCRIPTOR_REVISION);
+    RtlSetDaclSecurityDescriptor(SeSystemAnonymousLogonSd,
+                                 TRUE,
+                                 SeSystemAnonymousLogonDacl,
                                  FALSE);
 
     return TRUE;
