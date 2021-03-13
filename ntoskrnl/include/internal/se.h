@@ -341,6 +341,12 @@ PTOKEN
 NTAPI
 SepCreateSystemProcessToken(VOID);
 
+PTOKEN
+SepCreateSystemAnonymousLogonToken(VOID);
+
+PTOKEN
+SepCreateSystemAnonymousLogonTokenNoEveryone(VOID);
+
 BOOLEAN
 NTAPI
 SeDetailedAuditingWithToken(IN PTOKEN Token);
