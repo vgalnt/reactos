@@ -1139,6 +1139,15 @@ Quit:
     return Status;
 }
 
+/**
+ * @brief
+ * Creates the system process token.
+ *
+ * @return
+ * Returns the system process token if the operations have
+ * completed successfully.
+ */
+CODE_SEG("INIT")
 PTOKEN
 NTAPI
 SepCreateSystemProcessToken(VOID)
