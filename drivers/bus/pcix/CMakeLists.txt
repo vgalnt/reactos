@@ -46,6 +46,13 @@ add_library(pci MODULE
 
 set_module_type(pci kernelmodedriver)
 target_link_libraries(pci wdmguid arbiter)
+if(MSVC)
+    #target_link_options(pci PRIVATE /SECTION:.rsrc,!D)
+    add_target_link_flags(pci "/SECTION:.rsrc,!D")
+else()
+    add_custom_command(TARGET pci POST_BUILD
+        COMMAND native-pefixup --section:.rsrc,!D $<TARGET_FILE:pci>)
+endif()
 add_importlibs(pci ntoskrnl hal)
 add_pch(pci pci.h SOURCE)
 add_dependencies(pci pciclass)
