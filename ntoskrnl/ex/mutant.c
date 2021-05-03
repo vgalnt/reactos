@@ -247,7 +247,8 @@ NtQueryMutant(IN HANDLE MutantHandle,
                                          MutantInformationLength,
                                          ResultLength,
                                          NULL,
-                                         PreviousMode);
+                                         PreviousMode,
+                                         TRUE);
     if(!NT_SUCCESS(Status))
     {
         DPRINT("NtQueryMutant() failed, Status: 0x%x\n", Status);
