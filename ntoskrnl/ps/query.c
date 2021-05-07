@@ -2472,6 +2472,7 @@ NtSetInformationThread(IN HANDLE ThreadHandle,
             {
                 /* Fail */
                 Status = STATUS_INVALID_PARAMETER;
+                ObDereferenceObject(Thread);
                 break;
             }
 
