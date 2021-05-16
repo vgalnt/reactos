@@ -3946,7 +3946,7 @@ NtCreateToken(
                             CapturedUser,
                             GroupCount,
                             CapturedGroups,
-                            0, // FIXME: Should capture
+                            GroupsLength,
                             PrivilegeCount,
                             CapturedPrivileges,
                             CapturedOwnerSid,
