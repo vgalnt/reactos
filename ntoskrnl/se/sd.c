@@ -966,6 +966,7 @@ SeSetSecurityDescriptorInfoEx(
         Current += SaclLength;
     }
 
+    NewSd->Control |= Control;
     *ObjectsSecurityDescriptor = NewSd;
     return STATUS_SUCCESS;
 }
