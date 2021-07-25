@@ -266,27 +266,27 @@ SeTokenCanImpersonate(
     _In_ SECURITY_IMPERSONATION_LEVEL ImpersonationLevel);
 
 /* Functions */
-INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 SeInitSystem(VOID);
 
-INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 SepInitPrivileges(VOID);
 
-INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 SepInitSecurityIDs(VOID);
 
-INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 SepInitDACLs(VOID);
 
-INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 SepInitSDs(VOID);
@@ -353,18 +353,33 @@ SepCreateImpersonationTokenDacl(
     _Out_ PACL* Dacl
 );
 
-INIT_FUNCTION
+NTSTATUS
+NTAPI
+SepRmInsertLogonSessionIntoToken(
+    _Inout_ PTOKEN Token
+);
+
+NTSTATUS
+NTAPI
+SepRmRemoveLogonSessionFromToken(
+    _Inout_ PTOKEN Token
+);
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 SepInitializeTokenImplementation(VOID);
 
+CODE_SEG("INIT")
 PTOKEN
 NTAPI
 SepCreateSystemProcessToken(VOID);
 
+CODE_SEG("INIT")
 PTOKEN
 SepCreateSystemAnonymousLogonToken(VOID);
 
+CODE_SEG("INIT")
 PTOKEN
 SepCreateSystemAnonymousLogonTokenNoEveryone(VOID);
 
