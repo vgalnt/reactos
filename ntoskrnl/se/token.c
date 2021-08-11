@@ -12,16 +12,11 @@
 #define NDEBUG
 #include <debug.h>
 
-#if defined (ALLOC_PRAGMA)
-#pragma alloc_text(INIT, SepInitializeTokenImplementation)
-#endif
-
 #include <ntlsa.h>
 
 /* GLOBALS ********************************************************************/
 
 POBJECT_TYPE SeTokenObjectType = NULL;
-ERESOURCE SepTokenLock; // FIXME: Global lock!
 
 TOKEN_SOURCE SeSystemTokenSource = {"*SYSTEM*", {0}};
 LUID SeSystemAuthenticationId = SYSTEM_LUID;
@@ -77,12 +72,226 @@ static const INFORMATION_CLASS_INFO SeTokenInformationClass[] = {
 
 /* FUNCTIONS *****************************************************************/
 
-static NTSTATUS
-SepCompareTokens(IN PTOKEN FirstToken,
-                 IN PTOKEN SecondToken,
-                 OUT PBOOLEAN Equal)
+/**
+ * @brief
+ * Creates a lock for the token.
+ *
+ * @param[in,out] Token
+ * A token which lock has to be created.
+ *
+ * @return
+ * STATUS_SUCCESS if the pool allocation and resource initialisation have
+ * completed successfully, otherwise STATUS_INSUFFICIENT_RESOURCES on a
+ * pool allocation failure.
+ */
+static
+NTSTATUS
+SepCreateTokenLock(
+    _Inout_ PTOKEN Token)
+{
+    PAGED_CODE();
+
+    Token->TokenLock = ExAllocatePoolWithTag(NonPagedPool,
+                                             sizeof(ERESOURCE),
+                                             TAG_SE_TOKEN_LOCK);
+    if (Token->TokenLock == NULL)
+    {
+        DPRINT1("SepCreateTokenLock(): Failed to allocate memory!\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    ExInitializeResourceLite(Token->TokenLock);
+    return STATUS_SUCCESS;
+}
+
+/**
+ * @brief
+ * Deletes a lock of a token.
+ *
+ * @param[in,out] Token
+ * A token which contains the lock.
+ *
+ * @return
+ * Nothing.
+ */
+static
+VOID
+SepDeleteTokenLock(
+    _Inout_ PTOKEN Token)
+{
+    PAGED_CODE();
+
+    ExDeleteResourceLite(Token->TokenLock);
+    ExFreePoolWithTag(Token->TokenLock, TAG_SE_TOKEN_LOCK);
+}
+
+/**
+ * @brief
+ * Compares the elements of SID arrays provided by tokens.
+ * The elements that are being compared for equality are
+ * the SIDs and their attributes.
+ *
+ * @param[in] SidArrayToken1
+ * SID array from the first token.
+ *
+ * @param[in] CountSidArray1
+ * SID count array from the first token.
+ *
+ * @param[in] SidArrayToken2
+ * SID array from the second token.
+ *
+ * @param[in] CountSidArray2
+ * SID count array from the second token.
+ *
+ * @return
+ * Returns TRUE if the elements match from either arrays,
+ * FALSE otherwise.
+ */
+static
+BOOLEAN
+SepCompareSidAndAttributesFromTokens(
+    _In_ PSID_AND_ATTRIBUTES SidArrayToken1,
+    _In_ ULONG CountSidArray1,
+    _In_ PSID_AND_ATTRIBUTES SidArrayToken2,
+    _In_ ULONG CountSidArray2)
+{
+    ULONG FirstCount, SecondCount;
+    PSID_AND_ATTRIBUTES FirstSidArray, SecondSidArray;
+    PAGED_CODE();
+
+    /* Bail out if index counters provided are not equal */
+    if (CountSidArray1 != CountSidArray2)
+    {
+        DPRINT("SepCompareSidAndAttributesFromTokens(): Index counters are not the same!\n");
+        return FALSE;
+    }
+
+    /* Loop over the SID arrays and compare them */
+    for (FirstCount = 0; FirstCount < CountSidArray1; FirstCount++)
+    {
+        for (SecondCount = 0; SecondCount < CountSidArray2; SecondCount++)
+        {
+            FirstSidArray = &SidArrayToken1[FirstCount];
+            SecondSidArray = &SidArrayToken2[SecondCount];
+
+            if (RtlEqualSid(FirstSidArray->Sid, SecondSidArray->Sid) &&
+                FirstSidArray->Attributes == SecondSidArray->Attributes)
+            {
+                break;
+            }
+        }
+
+        /* We've exhausted the array of the second token without finding this one */
+        if (SecondCount == CountSidArray2)
+        {
+            DPRINT("SepCompareSidAndAttributesFromTokens(): No matching elements could be found in either token!\n");
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/**
+ * @brief
+ * Compares the elements of privilege arrays provided by tokens.
+ * The elements that are being compared for equality are
+ * the privileges and their attributes.
+ *
+ * @param[in] PrivArrayToken1
+ * Privilege array from the first token.
+ *
+ * @param[in] CountPrivArray1
+ * Privilege count array from the first token.
+ *
+ * @param[in] PrivArrayToken2
+ * Privilege array from the second token.
+ *
+ * @param[in] CountPrivArray2
+ * Privilege count array from the second token.
+ *
+ * @return
+ * Returns TRUE if the elements match from either arrays,
+ * FALSE otherwise.
+ */
+static
+BOOLEAN
+SepComparePrivilegeAndAttributesFromTokens(
+    _In_ PLUID_AND_ATTRIBUTES PrivArrayToken1,
+    _In_ ULONG CountPrivArray1,
+    _In_ PLUID_AND_ATTRIBUTES PrivArrayToken2,
+    _In_ ULONG CountPrivArray2)
+{
+    ULONG FirstCount, SecondCount;
+    PLUID_AND_ATTRIBUTES FirstPrivArray, SecondPrivArray;
+    PAGED_CODE();
+
+    /* Bail out if index counters provided are not equal */
+    if (CountPrivArray1 != CountPrivArray2)
+    {
+        DPRINT("SepComparePrivilegeAndAttributesFromTokens(): Index counters are not the same!\n");
+        return FALSE;
+    }
+
+    /* Loop over the privilege arrays and compare them */
+    for (FirstCount = 0; FirstCount < CountPrivArray1; FirstCount++)
+    {
+        for (SecondCount = 0; SecondCount < CountPrivArray2; SecondCount++)
+        {
+            FirstPrivArray = &PrivArrayToken1[FirstCount];
+            SecondPrivArray = &PrivArrayToken2[SecondCount];
+
+            if (RtlEqualLuid(&FirstPrivArray->Luid, &SecondPrivArray->Luid) &&
+                FirstPrivArray->Attributes == SecondPrivArray->Attributes)
+            {
+                break;
+            }
+        }
+
+        /* We've exhausted the array of the second token without finding this one */
+        if (SecondCount == CountPrivArray2)
+        {
+            DPRINT("SepComparePrivilegeAndAttributesFromTokens(): No matching elements could be found in either token!\n");
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+/**
+ * @brief
+ * Compares tokens if they're equal based on all the following properties. If all
+ * of the said conditions are met then the tokens are deemed as equal.
+ *
+ * - Every SID that is present in either token is also present in the other one.
+ * - Both or none of the tokens are restricted.
+ * - If both tokens are restricted, every SID that is restricted in either token is
+ *   also restricted in the other one.
+ * - Every privilege present in either token is also present in the other one.
+ *
+ * @param[in] FirstToken
+ * The first token.
+ *
+ * @param[in] SecondToken
+ * The second token.
+ *
+ * @param[out] Equal
+ * The retrieved value which determines if the tokens are
+ * equal or not.
+ *
+ * @return
+ * Returns STATUS_SUCCESS.
+ */
+static
+NTSTATUS
+SepCompareTokens(
+    _In_ PTOKEN FirstToken,
+    _In_ PTOKEN SecondToken,
+    _Out_ PBOOLEAN Equal)
 {
     BOOLEAN Restricted, IsEqual = FALSE;
+    PAGED_CODE();
 
     ASSERT(FirstToken != SecondToken);
 
@@ -90,21 +299,53 @@ SepCompareTokens(IN PTOKEN FirstToken,
     SepAcquireTokenLockShared(FirstToken);
     SepAcquireTokenLockShared(SecondToken);
 
-    /* FIXME: Check if every SID that is present in either token is also present in the other one */
-
-    Restricted = SeTokenIsRestricted(FirstToken);
-    if (Restricted == SeTokenIsRestricted(SecondToken))
+    /* Check if every SID that is present in either token is also present in the other one */
+    if (!SepCompareSidAndAttributesFromTokens(FirstToken->UserAndGroups,
+                                              FirstToken->UserAndGroupCount,
+                                              SecondToken->UserAndGroups,
+                                              SecondToken->UserAndGroupCount))
     {
-        if (Restricted)
-        {
-            /* FIXME: Check if every SID that is restricted in either token is also restricted in the other one */
-        }
-
-        /* FIXME: Check if every privilege that is present in either token is also present in the other one */
-        DPRINT1("FIXME: Pretending tokens are equal!\n");
-        IsEqual = TRUE;
+        goto Quit;
     }
 
+    /* Is one token restricted but the other isn't? */
+    Restricted = SeTokenIsRestricted(FirstToken);
+    if (Restricted != SeTokenIsRestricted(SecondToken))
+    {
+        /* If that's the case then bail out */
+        goto Quit;
+    }
+
+    /*
+     * If both tokens are restricted check if every SID
+     * that is restricted in either token is also restricted
+     * in the other one.
+     */
+    if (Restricted)
+    {
+        if (!SepCompareSidAndAttributesFromTokens(FirstToken->RestrictedSids,
+                                                  FirstToken->RestrictedSidCount,
+                                                  SecondToken->RestrictedSids,
+                                                  SecondToken->RestrictedSidCount))
+        {
+            goto Quit;
+        }
+    }
+
+    /* Check if every privilege present in either token is also present in the other one */
+    if (!SepComparePrivilegeAndAttributesFromTokens(FirstToken->Privileges,
+                                                    FirstToken->PrivilegeCount,
+                                                    SecondToken->Privileges,
+                                                    SecondToken->PrivilegeCount))
+    {
+        goto Quit;
+    }
+
+    /* If we're here then the tokens are equal */
+    IsEqual = TRUE;
+    DPRINT("SepCompareTokens(): Tokens are equal!\n");
+
+Quit:
     /* Unlock the tokens */
     SepReleaseTokenLock(SecondToken);
     SepReleaseTokenLock(FirstToken);
@@ -226,6 +467,22 @@ SepImpersonateAnonymousToken(
     return Status;
 }
 
+/**
+ * @brief
+ * Updates the token's flags based upon the privilege that the token
+ * has been granted. The flag can either be taken out or given to the token
+ * if the attributes of the specified privilege is enabled or not.
+ *
+ * @param[in,out] Token
+ * The token where the flags are to be changed.
+ *
+ * @param[in] Index
+ * The index count which represents the total sum of privileges. The count in question
+ * MUST NOT exceed the expected privileges count of the token.
+ *
+ * @return
+ * Nothing.
+ */
 static
 VOID
 SepUpdateSinglePrivilegeFlagToken(
@@ -277,6 +534,18 @@ SepUpdateSinglePrivilegeFlagToken(
     }
 }
 
+/**
+ * @brief
+ * Updates the token's flags based upon the privilege that the token
+ * has been granted. The function uses the private helper, SepUpdateSinglePrivilegeFlagToken,
+ * in order to update the flags of a token.
+ *
+ * @param[in,out] Token
+ * The token where the flags are to be changed.
+ *
+ * @return
+ * Nothing.
+ */
 static
 VOID
 SepUpdatePrivilegeFlagsToken(
@@ -287,11 +556,25 @@ SepUpdatePrivilegeFlagsToken(
     /* Loop all privileges */
     for (i = 0; i < Token->PrivilegeCount; i++)
     {
-        /* Updates the flags dor this privilege */
+        /* Updates the flags for this privilege */
         SepUpdateSinglePrivilegeFlagToken(Token, i);
     }
 }
 
+/**
+ * @brief
+ * Removes a privilege from the token.
+ *
+ * @param[in,out] Token
+ * The token where the privilege is to be removed.
+ *
+ * @param[in] Index
+ * The index count which represents the number position of the privilege
+ * we want to remove.
+ *
+ * @return
+ * Nothing.
+ */
 static
 VOID
 SepRemovePrivilegeToken(
@@ -315,6 +598,17 @@ SepRemovePrivilegeToken(
     Token->PrivilegeCount--;
 }
 
+/**
+ * @unimplemented
+ * @brief
+ * Frees (de-allocates) the proxy data memory block of a token. 
+ *
+ * @param[in,out] ProxyData
+ * The proxy data to be freed.
+ *
+ * @return
+ * Nothing.
+ */
 VOID
 NTAPI
 SepFreeProxyData(PVOID ProxyData)
@@ -322,6 +616,20 @@ SepFreeProxyData(PVOID ProxyData)
     UNIMPLEMENTED;
 }
 
+/**
+ * @unimplemented
+ * @brief
+ * Copies the proxy data from the source into the destination of a token. 
+ *
+ * @param[out] Dest
+ * The destination path where the proxy data is to be copied to.
+ * 
+ * @param[out] Src
+ * The source path where the proxy data is be copied from.
+ *
+ * @return
+ * To be added...
+ */
 NTSTATUS
 NTAPI
 SepCopyProxyData(PVOID* Dest,
@@ -331,6 +639,27 @@ SepCopyProxyData(PVOID* Dest,
     return STATUS_NOT_IMPLEMENTED;
 }
 
+/**
+ * @brief
+ * Replaces the old access token of a process (pointed by the EPROCESS kernel structure) with a
+ * new access token. The new access token must be a primary token for use.
+ *
+ * @param[in] Process
+ * The process instance where its access token is about to be replaced.
+ * 
+ * @param[in] NewAccessToken
+ * The new token that it's going to replace the old one.
+ * 
+ * @param[out] OldAccessToken
+ * The returned old token that's been replaced, which the caller can do anything.
+ *
+ * @return
+ * Returns STATUS_SUCCESS if the exchange operation between tokens has completed successfully.
+ * STATUS_BAD_TOKEN_TYPE is returned if the new token is not a primary one so that we cannot
+ * exchange it with the old one from the process. STATUS_TOKEN_ALREADY_IN_USE is returned if
+ * both tokens aren't equal which means one of them has different properties (groups, privileges, etc.)
+ * and as such one of them is currently in use. A failure NTSTATUS code is returned otherwise.
+ */
 NTSTATUS
 NTAPI
 SeExchangePrimaryToken(
@@ -411,6 +740,16 @@ SeExchangePrimaryToken(
     return STATUS_SUCCESS;
 }
 
+/**
+ * @brief
+ * Removes the primary token of a process.
+ *
+ * @param[in, out] Process
+ * The process instance with the access token to be removed.
+ *
+ * @return
+ * Nothing.
+ */
 VOID
 NTAPI
 SeDeassignPrimaryToken(PEPROCESS Process)
@@ -427,6 +766,19 @@ SeDeassignPrimaryToken(PEPROCESS Process)
     ObDereferenceObject(OldToken);
 }
 
+/**
+ * @brief
+ * Computes the length size of a SID.
+ *
+ * @param[in] Count
+ * Total count of entries that have SIDs in them (that being PSID_AND_ATTRIBUTES in this context).
+ * 
+ * @param[in] Src
+ * Source that points to the attributes and SID entry structure.
+ *
+ * @return
+ * Returns the total length of a SID size.
+ */
 static ULONG
 RtlLengthSidAndAttributes(ULONG Count,
                           PSID_AND_ATTRIBUTES Src)
@@ -443,7 +795,35 @@ RtlLengthSidAndAttributes(ULONG Count,
     return uLength;
 }
 
-
+/**
+ * @brief
+ * Finds the primary group and default owner entity based on the submitted primary group instance
+ * and an access token.
+ *
+ * @param[in] Token
+ * Access token to begin the search query of primary group and default owner.
+ * 
+ * @param[in] PrimaryGroup
+ * A primary group SID to be used for search query, determining if user & groups of a token
+ * and the submitted primary group do match.
+ * 
+ * @param[in] DefaultOwner
+ * The default owner. If specified, it's used to determine if the token belongs to the actual user,
+ * that is, being the owner himself.
+ * 
+ * @param[out] PrimaryGroupIndex
+ * Returns the primary group index.
+ * 
+ * @param[out] DefaultOwnerIndex
+ * Returns the default owner index.
+ *
+ * @return
+ * Returns STATUS_SUCCESS if the find query operation has completed successfully and that at least one
+ * search result is requested by the caller. STATUS_INVALID_PARAMETER is returned if the caller hasn't requested
+ * any search result. STATUS_INVALID_OWNER is returned if the specified default user owner does not match with the other
+ * user from the token. STATUS_INVALID_PRIMARY_GROUP is returned if the specified default primary group does not match with the
+ * other group from the token.
+ */
 static NTSTATUS
 SepFindPrimaryGroupAndDefaultOwner(
     _In_ PTOKEN Token,
@@ -538,7 +918,37 @@ SepFindPrimaryGroupAndDefaultOwner(
     return STATUS_SUCCESS;
 }
 
-
+/**
+ * @brief
+ * Duplicates an access token, from an existing valid token.
+ *
+ * @param[in] Token
+ * Access token to duplicate.
+ * 
+ * @param[in] ObjectAttributes
+ * Object attributes for the new token.
+ * 
+ * @param[in] EffectiveOnly
+ * If set to TRUE, the function removes all the disabled privileges and groups of the token
+ * to duplicate.
+ * 
+ * @param[in] TokenType
+ * Type of token.
+ * 
+ * @param[in] Level
+ * Security impersonation level of a token.
+ * 
+ * @param[in] PreviousMode
+ * The processor request level mode.
+ * 
+ * @param[out] NewAccessToken
+ * The duplicated token.
+ *
+ * @return
+ * Returns STATUS_SUCCESS if the token has been duplicated. STATUS_INSUFFICIENT_RESOURCES is returned
+ * if memory pool allocation of the dynamic part of the token for duplication has failed due to the lack
+ * of memory resources. A failure NTSTATUS code is returned otherwise.
+ */
 NTSTATUS
 NTAPI
 SepDuplicateToken(
@@ -585,7 +995,13 @@ SepDuplicateToken(
     AccessToken->TokenType = TokenType;
     AccessToken->ImpersonationLevel = Level;
 
-    AccessToken->TokenLock = &SepTokenLock; // FIXME: Global lock!
+    /* Initialise the lock for the access token */
+    Status = SepCreateTokenLock(AccessToken);
+    if (!NT_SUCCESS(Status))
+    {
+        ObDereferenceObject(AccessToken);
+        return Status;
+    }
 
     /* Copy the immutable fields */
     RtlCopyLuid(&AccessToken->TokenSource.SourceIdentifier,
@@ -598,7 +1014,6 @@ SepDuplicateToken(
     AccessToken->ParentTokenId = Token->ParentTokenId;
     AccessToken->ExpirationTime = Token->ExpirationTime;
     AccessToken->OriginatingLogonSession = Token->OriginatingLogonSession;
-
 
     /* Lock the source token and copy the mutable fields */
     SepAcquireTokenLockExclusive(Token);
@@ -778,6 +1193,27 @@ Quit:
     return Status;
 }
 
+/**
+ * @brief
+ * Subtracts a token in exchange of duplicating a new one.
+ *
+ * @param[in] ParentToken
+ * The parent access token for duplication.
+ * 
+ * @param[out] Token
+ * The new duplicated token.
+ * 
+ * @param[in] InUse
+ * Set this to TRUE if the token is about to be used immediately after the call execution
+ * of this function, FALSE otherwise.
+ * 
+ * @param[in] SessionId
+ * Session ID for the token to be assigned.
+ *
+ * @return
+ * Returns STATUS_SUCCESS if token subtracting and duplication have completed successfully.
+ * A failure NTSTATUS code is returned otherwise.
+ */
 NTSTATUS
 NTAPI
 SeSubProcessToken(IN PTOKEN ParentToken,
@@ -822,6 +1258,21 @@ SeSubProcessToken(IN PTOKEN ParentToken,
     return Status;
 }
 
+/**
+ * @brief
+ * Checks if the token is a child of the other token
+ * of the current process that the calling thread is invoking this function.
+ *
+ * @param[in] Token
+ * An access token to determine if it's a child or not.
+ * 
+ * @param[out] IsChild
+ * The returned boolean result.
+ *
+ * @return
+ * Returns STATUS_SUCCESS when the function finishes its operation. STATUS_UNSUCCESSFUL is
+ * returned if primary token of the current calling process couldn't be referenced otherwise.
+ */
 NTSTATUS
 NTAPI
 SeIsTokenChild(IN PTOKEN Token,
@@ -855,6 +1306,21 @@ SeIsTokenChild(IN PTOKEN Token,
     return STATUS_SUCCESS;
 }
 
+/**
+ * @brief
+ * Checks if the token is a sibling of the other token of
+ * the current process that the calling thread is invoking this function.
+ *
+ * @param[in] Token
+ * An access token to determine if it's a sibling or not.
+ * 
+ * @param[out] IsSibling
+ * The returned boolean result.
+ *
+ * @return
+ * Returns STATUS_SUCCESS when the function finishes its operation. STATUS_UNSUCCESSFUL is
+ * returned if primary token of the current calling process couldn't be referenced otherwise.
+ */
 NTSTATUS
 NTAPI
 SeIsTokenSibling(IN PTOKEN Token,
@@ -894,6 +1360,26 @@ SeIsTokenSibling(IN PTOKEN Token,
     return STATUS_SUCCESS;
 }
 
+/**
+ * @brief
+ * Copies an existing access token (technically duplicating a new one).
+ *
+ * @param[in] Token
+ * Token to copy.
+ * 
+ * @param[in] Level
+ * Impersonation security level to assign to the newly copied token.
+ * 
+ * @param[in] PreviousMode
+ * Processor request level mode.
+ * 
+ * @param[out] NewToken
+ * The newly copied token.
+ *
+ * @return
+ * Returns STATUS_SUCCESS when token copying has finished successfully. A failure
+ * NTSTATUS code is returned otherwise.
+ */
 NTSTATUS
 NTAPI
 SeCopyClientToken(IN PACCESS_TOKEN Token,
@@ -923,6 +1409,18 @@ SeCopyClientToken(IN PACCESS_TOKEN Token,
     return Status;
 }
 
+/**
+ * @brief
+ * Internal function that deals with access token object destruction and deletion.
+ * The function is used solely by the object manager mechanism that handles the life
+ * management of a token object.
+ *
+ * @param[in] ObjectBody
+ * The object body that represents an access token object.
+ *
+ * @return
+ * Nothing.
+ */
 VOID
 NTAPI
 SepDeleteToken(PVOID ObjectBody)
@@ -948,21 +1446,30 @@ SepDeleteToken(PVOID ObjectBody)
     if ((AccessToken->TokenFlags & TOKEN_SESSION_NOT_REFERENCED) == 0)
         SepRmDereferenceLogonSession(&AccessToken->AuthenticationId);
 
+    /* Delete the token lock */
+    if (AccessToken->TokenLock)
+        SepDeleteTokenLock(AccessToken);
+
     /* Delete the dynamic information area */
     if (AccessToken->DynamicPart)
         ExFreePoolWithTag(AccessToken->DynamicPart, TAG_TOKEN_DYNAMIC);
 }
 
-
+/**
+ * @brief
+ * Internal function that initializes critical kernel data for access
+ * token implementation in SRM.
+ *
+ * @return
+ * Nothing.
+ */
+CODE_SEG("INIT")
 VOID
-INIT_FUNCTION
 NTAPI
 SepInitializeTokenImplementation(VOID)
 {
     UNICODE_STRING Name;
     OBJECT_TYPE_INITIALIZER ObjectTypeInitializer;
-
-    ExInitializeResource(&SepTokenLock); // FIXME: Global lock!
 
     DPRINT("Creating Token Object Type\n");
 
@@ -981,6 +1488,19 @@ SepInitializeTokenImplementation(VOID)
     ObCreateObjectType(&Name, &ObjectTypeInitializer, NULL, &SeTokenObjectType);
 }
 
+/**
+ * @brief
+ * Assigns a primary access token to a given process.
+ *
+ * @param[in] Process
+ * Process where the token is about to be assigned.
+ * 
+ * @param[in] Token
+ * The token to be assigned.
+ * 
+ * @return
+ * Nothing.
+ */
 VOID
 NTAPI
 SeAssignPrimaryToken(IN PEPROCESS Process,
@@ -1001,6 +1521,80 @@ SeAssignPrimaryToken(IN PEPROCESS Process,
     ObInitializeFastReference(&Process->Token, Token);
 }
 
+/**
+ * @brief
+ * Internal function responsible for access token object creation in the kernel.
+ * A fully created token objected is inserted into the token handle, thus the handle
+ * becoming a valid handle to an access token object and ready for use.
+ *
+ * @param[out] TokenHandle
+ * Valid token handle that's ready for use after token creation and object insertion.
+ * 
+ * @param[in] PreviousMode
+ * Processor request level mode.
+ * 
+ * @param[in] DesiredAccess
+ * Desired access right for the token object to be granted. This kind of access right
+ * impacts how the token can be used and who.
+ * 
+ * @param[in] ObjectAttributes
+ * Object attributes for the token to be created.
+ * 
+ * @param[in] TokenType
+ * Type of token to assign upon creation.
+ * 
+ * @param[in] ImpersonationLevel
+ * Security impersonation level of token to assign upon creation.
+ * 
+ * @param[in] AuthenticationId
+ * Authentication ID that represents the authentication information of the token.
+ * 
+ * @param[in] ExpirationTime
+ * Expiration time of the token to assign. A value of -1 means that the token never
+ * expires and its life depends upon the amount of references this token object has.
+ * 
+ * @param[in] User
+ * User entry to assign to the token.
+ * 
+ * @param[in] GroupCount
+ * The total number of groups count for the token.
+ * 
+ * @param[in] Groups
+ * The group entries for the token.
+ * 
+ * @param[in] GroupsLength
+ * The length size of the groups array, pointed by the Groups parameter.
+ * 
+ * @param[in] PrivilegeCount
+ * The total number of priivleges that the newly created token has.
+ * 
+ * @param[in] Privileges
+ * The privileges for the token.
+ * 
+ * @param[in] Owner
+ * The main user (or also owner) that represents the token that we create.
+ * 
+ * @param[in] PrimaryGroup
+ * The main group that represents the token that we create.
+ * 
+ * @param[in] DefaultDacl
+ * A discretionary access control list for the token.
+ * 
+ * @param[in] TokenSource
+ * Source (or the origin) of the access token that creates it.
+ * 
+ * @param[in] SystemToken
+ * If set to TRUE, the newly created token is a system token and only in charge
+ * by the internal system. The function directly returns a pointer to the
+ * created token object for system kernel use. Otherwise if set to FALSE, the
+ * function inserts the object to a handle making it a regular access token.
+ * 
+ * @return
+ * Returns STATUS_SUCCESS if token creation has completed successfully.
+ * STATUS_INSUFFICIENT_RESOURCES is returned if the dynamic area of memory of the
+ * token hasn't been allocated because of lack of memory resources. A failure
+ * NTSTATUS code is returned otherwise.
+ */
 NTSTATUS
 NTAPI
 SepCreateToken(
@@ -1105,7 +1699,10 @@ SepCreateToken(
     AccessToken->TokenType = TokenType;
     AccessToken->ImpersonationLevel = ImpersonationLevel;
 
-    AccessToken->TokenLock = &SepTokenLock; // FIXME: Global lock!
+    /* Initialise the lock for the access token */
+    Status = SepCreateTokenLock(AccessToken);
+    if (!NT_SUCCESS(Status))
+        goto Quit;
 
     RtlCopyLuid(&AccessToken->TokenSource.SourceIdentifier,
                 &TokenSource->SourceIdentifier);
@@ -1553,8 +2150,33 @@ SepCreateSystemAnonymousLogonTokenNoEveryone(VOID)
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 
-/*
+/**
  * @unimplemented
+ * @brief
+ * Filters an access token from an existing token, making it more restricted
+ * than the previous one.
+ * 
+ * @param[in] ExistingToken
+ * An existing token for filtering.
+ * 
+ * @param[in] Flags
+ * Privilege flag options. This parameter argument influences how the token
+ * is filtered. Such parameter can be 0.
+ * 
+ * @param[in] SidsToDisable
+ * Array of SIDs to disable.
+ * 
+ * @param[in] PrivilegesToDelete
+ * Array of privileges to delete.
+ * 
+ * @param[in] RestrictedSids
+ * An array of restricted SIDs for the new filtered token.
+ * 
+ * @param[out] FilteredToken
+ * The newly filtered token, returned to the caller.
+ *
+ * @return
+ * To be added...
  */
 NTSTATUS
 NTAPI
@@ -1938,8 +2560,18 @@ SeQueryInformationToken(
     return Status;
 }
 
-/*
- * @implemented
+/**
+ * @brief
+ * Queries the session ID of an access token.
+ * 
+ * @param[in] Token
+ * A valid access token where the session ID has to be gathered.
+ * 
+ * @param[out] pSessionId
+ * The returned pointer to a session ID to the caller.
+ *
+ * @return
+ * Returns STATUS_SUCCESS.
  */
 NTSTATUS
 NTAPI
@@ -1959,8 +2591,18 @@ SeQuerySessionIdToken(IN PACCESS_TOKEN Token,
     return STATUS_SUCCESS;
 }
 
-/*
- * @implemented
+/**
+ * @brief
+ * Queries the authentication ID of an access token.
+ * 
+ * @param[in] Token
+ * A valid access token where the authentication ID has to be gathered.
+ * 
+ * @param[out] pSessionId
+ * The returned pointer to an authentication ID to the caller.
+ *
+ * @return
+ * Returns STATUS_SUCCESS.
  */
 NTSTATUS
 NTAPI
@@ -1974,9 +2616,15 @@ SeQueryAuthenticationIdToken(IN PACCESS_TOKEN Token,
     return STATUS_SUCCESS;
 }
 
-
-/*
- * @implemented
+/**
+ * @brief
+ * Gathers the security impersonation level of an access token.
+ * 
+ * @param[in] Token
+ * A valid access token where the impersonation level has to be gathered.
+ *
+ * @return
+ * Returns the security impersonation level from a valid token.
  */
 SECURITY_IMPERSONATION_LEVEL
 NTAPI
@@ -1987,9 +2635,16 @@ SeTokenImpersonationLevel(IN PACCESS_TOKEN Token)
     return ((PTOKEN)Token)->ImpersonationLevel;
 }
 
-
-/*
- * @implemented
+/**
+ * @brief
+ * Gathers the token type of an access token. A token ca be either
+ * a primary token or impersonation token.
+ * 
+ * @param[in] Token
+ * A valid access token where the token type has to be gathered.
+ *
+ * @return
+ * Returns the token type from a valid token.
  */
 TOKEN_TYPE NTAPI
 SeTokenType(IN PACCESS_TOKEN Token)
@@ -1999,9 +2654,18 @@ SeTokenType(IN PACCESS_TOKEN Token)
     return ((PTOKEN)Token)->TokenType;
 }
 
-
-/*
- * @implemented
+/**
+ * @brief
+ * Determines if a token is either an admin token or not. Such
+ * condition is checked based upon TOKEN_HAS_ADMIN_GROUP flag,
+ * which means if the respective access token belongs to an
+ * administrator group or not.
+ * 
+ * @param[in] Token
+ * A valid access token to determine if such token is admin or not.
+ *
+ * @return
+ * Returns TRUE if the token is an admin one, FALSE otherwise.
  */
 BOOLEAN
 NTAPI
@@ -2014,8 +2678,16 @@ SeTokenIsAdmin(IN PACCESS_TOKEN Token)
     return (((PTOKEN)Token)->TokenFlags & TOKEN_HAS_ADMIN_GROUP) != 0;
 }
 
-/*
- * @implemented
+/**
+ * @brief
+ * Determines if a token is restricted or not, based upon the token
+ * flags.
+ * 
+ * @param[in] Token
+ * A valid access token to determine if such token is restricted.
+ *
+ * @return
+ * Returns TRUE if the token is restricted, FALSE otherwise.
  */
 BOOLEAN
 NTAPI
@@ -2026,10 +2698,20 @@ SeTokenIsRestricted(IN PACCESS_TOKEN Token)
     return (((PTOKEN)Token)->TokenFlags & TOKEN_IS_RESTRICTED) != 0;
 }
 
-/*
- * @implemented
- * @note First introduced in NT 5.1 SP2 x86 (5.1.2600.2622), absent in NT 5.2,
- *       then finally re-introduced in Vista+.
+/**
+ * @brief
+ * Determines if a token is write restricted, that is, nobody can write anything
+ * to it.
+ * 
+ * @param[in] Token
+ * A valid access token to determine if such token is write restricted.
+ *
+ * @return
+ * Returns TRUE if the token is write restricted, FALSE otherwise.
+ * 
+ * @remarks
+ * First introduced in NT 5.1 SP2 x86 (5.1.2600.2622), absent in NT 5.2,
+ * then finally re-introduced in Vista+.
  */
 BOOLEAN
 NTAPI
@@ -2142,8 +2824,37 @@ Quit:
 
 /* SYSTEM CALLS ***************************************************************/
 
-/*
- * @implemented
+/**
+ * @brief
+ * Queries a specific type of information in regard of an access token based upon
+ * the information class. The calling thread must have specific access rights in order
+ * to obtain specific information about the token.
+ * 
+ * @param[in] TokenHandle
+ * A handle of a token where information is to be gathered.
+ * 
+ * @param[in] TokenInformationClass
+ * Token information class.
+ * 
+ * @param[out] TokenInformation
+ * A returned output buffer with token information, which information is arbitrarily upon
+ * the information class chosen.
+ * 
+ * @param[in] TokenInformationLength
+ * Length of the token information buffer, in bytes.
+ * 
+ * @param[out] ReturnLength
+ * If specified in the call, the function returns the total length size of the token
+ * information buffer..
+ *
+ * @return
+ * Returns STATUS_SUCCESS if information querying has completed successfully.
+ * STATUS_BUFFER_TOO_SMALL is returned if the information length that represents
+ * the token information buffer is not greater than the required length.
+ * STATUS_INVALID_HANDLE is returned if the token handle is not a valid one.
+ * STATUS_INVALID_INFO_CLASS is returned if the information class is not a valid
+ * one (that is, the class doesn't belong to TOKEN_INFORMATION_CLASS). A failure
+ * NTSTATUS code is returned otherwise.
  */
 _Must_inspect_result_
 __kernel_entry
@@ -2715,11 +3426,37 @@ NtQueryInformationToken(
     return Status;
 }
 
-
-/*
- * NtSetTokenInformation: Partly implemented.
- * Unimplemented:
- *  TokenOrigin, TokenDefaultDacl
+/**
+ * @unimplemented
+ * @brief
+ * Sets (modifies) some specific information in regard of an access token. The
+ * calling thread must have specific access rights in order to modify token's
+ * information data.
+ * 
+ * @param[in] TokenHandle
+ * A handle of a token where information is to be modified.
+ * 
+ * @param[in] TokenInformationClass
+ * Token information class.
+ * 
+ * @param[in] TokenInformation
+ * An arbitrary pointer to a buffer with token information to set. Such
+ * arbitrary buffer depends on the information class chosen that the caller
+ * wants to modify such information data of a token.
+ * 
+ * @param[in] TokenInformationLength
+ * Length of the token information buffer, in bytes.
+ *
+ * @return
+ * Returns STATUS_SUCCESS if information setting has completed successfully.
+ * STATUS_INFO_LENGTH_MISMATCH is returned if the information length of the
+ * buffer is less than the required length. STATUS_INSUFFICIENT_RESOURCES is
+ * returned if memory pool allocation has failed. STATUS_PRIVILEGE_NOT_HELD
+ * is returned if the calling thread hasn't the required privileges to perform
+ * the operation in question. A failure NTSTATUS code is returned otherwise.
+ * 
+ * @remarks
+ * The function is partly implemented, mainly TokenOrigin and TokenDefaultDacl.
  */
 _Must_inspect_result_
 __kernel_entry
@@ -3243,11 +3980,37 @@ Cleanup:
     return Status;
 }
 
-
-/*
- * @implemented
+/**
+ * @brief
+ * Duplicates a token.
+ * 
+ * @param[in] ExistingTokenHandle
+ * An existing token to duplicate.
+ * 
+ * @param[in] DesiredAccess
+ * The desired access rights for the new duplicated token.
+ * 
+ * @param[in] ObjectAttributes
+ * Object attributes for the new duplicated token.
+ * 
+ * @param[in] EffectiveOnly
+ * If set to TRUE, the function removes all the disabled privileges and groups
+ * of the token to duplicate.
+ * 
+ * @param[in] TokenType
+ * Type of token to assign to the duplicated token.
+ * 
+ * @param[out] NewTokenHandle
+ * The returned duplicated token handle.
  *
- * NOTE: Some sources claim 4th param is ImpersonationLevel, but on W2K
+ * @return
+ * STATUS_SUCCESS is returned if token duplication has completed successfully.
+ * STATUS_BAD_IMPERSONATION_LEVEL is returned if the caller erroneously wants
+ * to raise the impersonation level even though the conditions do not permit
+ * it. A failure NTSTATUS code is returned otherwise.
+ * 
+ * @remarks
+ * Some sources claim 4th param is ImpersonationLevel, but on W2K
  * this is certainly NOT true, although I can't say for sure that EffectiveOnly
  * is correct either. -Gunnar
  * This is true. EffectiveOnly overrides SQOS.EffectiveOnly. - IAI
@@ -3399,6 +4162,36 @@ NtDuplicateToken(
     return Status;
 }
 
+/**
+ * @brief
+ * Changes the groups list of SIDs of a token.
+ * 
+ * @param[in] TokenHandle
+ * Token handle where the list of groups SIDs are to be adjusted.
+ * 
+ * @param[in] ResetToDefault
+ * If set to TRUE, the function resets the list of groups SIDs to default.
+ * All the rest of parameters are ignored.
+ * 
+ * @param[in] NewState
+ * A new list of groups SIDs that the function will use it accordingly to
+ * modify the current list of groups SIDs of a token.
+ * 
+ * @param[in] BufferLength
+ * The length size of the buffer that is pointed by the NewState parameter
+ * argument, in bytes.
+ * 
+ * @param[out] PreviousState
+ * If specified, the function will return to the caller the old list of groups
+ * SIDs.
+ * 
+ * @param[out] ReturnLength
+ * If specified, the function will return the total size length of the old list
+ * of groups SIDs, in bytes.
+ *
+ * @return
+ * To be added...
+ */
 NTSTATUS NTAPI
 NtAdjustGroupsToken(IN HANDLE TokenHandle,
                     IN BOOLEAN ResetToDefault,
@@ -3411,7 +4204,43 @@ NtAdjustGroupsToken(IN HANDLE TokenHandle,
     return STATUS_NOT_IMPLEMENTED;
 }
 
-
+/**
+ * @brief
+ * Removes a certain amount of privileges of a token based upon the request
+ * by the caller.
+ * 
+ * @param[in,out] Token
+ * Token handle where the privileges are about to be modified.
+ * 
+ * @param[in] DisableAllPrivileges
+ * If set to TRUE, the function disables all the privileges.
+ * 
+ * @param[in] NewState
+ * A new list of privileges that the function will use it accordingly to
+ * either disable or enable the said privileges and change them.
+ * 
+ * @param[in] NewStateCount
+ * The new total number count of privileges.
+ * 
+ * @param[out] PreviousState
+ * If specified, the function will return the previous state list of privileges.
+ * 
+ * @param[in] ApplyChanges
+ * If set to TRUE, the function will immediatelly apply the changes onto the
+ * token's privileges.
+ * 
+ * @param[out] ChangedPrivileges
+ * The returned count number of changed privileges.
+ * 
+ * @param[out] ChangesMade
+ * If TRUE, the function has made changes to the token's privileges. FALSE
+ * otherwise.
+ *
+ * @return
+ * Returns STATUS_SUCCESS if the function has successfully changed the list
+ * of privileges. STATUS_NOT_ALL_ASSIGNED is returned if not every privilege
+ * has been changed.
+ */
 static
 NTSTATUS
 SepAdjustPrivileges(
@@ -3528,9 +4357,42 @@ SepAdjustPrivileges(
     return STATUS_SUCCESS;
 }
 
-
-/*
- * @implemented
+/**
+ * @brief
+ * Removes a certain amount of privileges of a token based upon the request
+ * by the caller.
+ * 
+ * @param[in,out] Token
+ * Token handle where the privileges are about to be modified.
+ * 
+ * @param[in] DisableAllPrivileges
+ * If set to TRUE, the function disables all the privileges.
+ * 
+ * @param[in] NewState
+ * A new list of privileges that the function will use it accordingly to
+ * either disable or enable the said privileges and change them.
+ * 
+ * @param[in] NewStateCount
+ * The new total number count of privileges.
+ * 
+ * @param[out] PreviousState
+ * If specified, the function will return the previous state list of privileges.
+ * 
+ * @param[in] ApplyChanges
+ * If set to TRUE, the function will immediatelly apply the changes onto the
+ * token's privileges.
+ * 
+ * @param[out] ChangedPrivileges
+ * The returned count number of changed privileges.
+ * 
+ * @param[out] ChangesMade
+ * If TRUE, the function has made changes to the token's privileges. FALSE
+ * otherwise.
+ *
+ * @return
+ * Returns STATUS_SUCCESS if the function has successfully changed the list
+ * of privileges. STATUS_NOT_ALL_ASSIGNED is returned if not every privilege
+ * has been changed.
  */
 _Must_inspect_result_
 __kernel_entry
@@ -3734,6 +4596,54 @@ Cleanup:
     return Status;
 }
 
+/**
+ * @brief
+ * Creates an access token.
+ * 
+ * @param[out] TokenHandle
+ * The returned created token handle to the caller.
+ * 
+ * @param[in] DesiredAccess
+ * The desired access rights for the token that we're creating.
+ * 
+ * @param[in] ObjectAttributes
+ * The object attributes for the token object that we're creating.
+ * 
+ * @param[in] TokenType
+ * The type of token to assign for the newly created token.
+ * 
+ * @param[in] AuthenticationId
+ * Authentication ID that represents the token's identity.
+ * 
+ * @param[in] ExpirationTime
+ * Expiration time for the token. If set to -1, the token never expires.
+ * 
+ * @param[in] TokenUser
+ * The main user entity for the token to assign.
+ * 
+ * @param[in] TokenGroups
+ * Group list of SIDs for the token to assign.
+ * 
+ * @param[in] TokenPrivileges
+ * Privileges for the token.
+ * 
+ * @param[in] TokenOwner
+ * The main user that owns the newly created token.
+ * 
+ * @param[in] TokenPrimaryGroup
+ * The primary group that represents as the main group of the token.
+ * 
+ * @param[in] TokenDefaultDacl
+ * Discretionary access control list for the token. This limits on how
+ * the token can be used, accessed and used by whom.
+ * 
+ * @param[in] TokenSource
+ * The source origin of the token who creates it.
+ *
+ * @return
+ * Returns STATUS_SUCCESS if the function has successfully created the token.
+ * A failure NTSTATUS code is returned otherwise.
+ */
 __kernel_entry
 NTSTATUS
 NTAPI
@@ -4007,8 +4917,32 @@ Cleanup:
     return Status;
 }
 
-/*
- * @implemented
+/**
+ * @brief
+ * Opens a token that is tied to a thread handle.
+ * 
+ * @param[out] ThreadHandle
+ * Thread handle where the token is about to be opened.
+ * 
+ * @param[in] DesiredAccess
+ * The request access right for the token.
+ * 
+ * @param[in] OpenAsSelf
+ * If set to TRUE, the access check will be made with the security context
+ * of the process of the calling thread (opening as self). Otherwise the access
+ * check will be made with the security context of the calling thread instead.
+ * 
+ * @param[in] HandleAttributes
+ * Handle attributes for the opened thread token handle.
+ * 
+ * @param[out] TokenHandle
+ * The opened token handle returned to the caller for use.
+ *
+ * @return
+ * Returns STATUS_SUCCESS if the function has successfully opened the thread
+ * token. STATUS_CANT_OPEN_ANONYMOUS is returned if a token has SecurityAnonymous
+ * as impersonation level and we cannot open it. A failure NTSTATUS code is returned
+ * otherwise.
  */
 NTSTATUS
 NTAPI
@@ -4190,8 +5124,26 @@ NtOpenThreadTokenEx(IN HANDLE ThreadHandle,
     return Status;
 }
 
-/*
- * @implemented
+/**
+ * @brief
+ * Opens a token that is tied to a thread handle.
+ * 
+ * @param[out] ThreadHandle
+ * Thread handle where the token is about to be opened.
+ * 
+ * @param[in] DesiredAccess
+ * The request access right for the token.
+ * 
+ * @param[in] OpenAsSelf
+ * If set to TRUE, the access check will be made with the security context
+ * of the process of the calling thread (opening as self). Otherwise the access
+ * check will be made with the security context of the calling thread instead.
+ * 
+ * @param[out] TokenHandle
+ * The opened token handle returned to the caller for use.
+ *
+ * @return
+ * See NtOpenThreadTokenEx.
  */
 NTSTATUS NTAPI
 NtOpenThreadToken(IN HANDLE ThreadHandle,
@@ -4203,14 +5155,29 @@ NtOpenThreadToken(IN HANDLE ThreadHandle,
                                TokenHandle);
 }
 
-/*
- * @unimplemented
+/**
+ * @brief
+ * Compares tokens if they're equal or not.
+ *
+ * @param[in] FirstToken
+ * The first token.
+ *
+ * @param[in] SecondToken
+ * The second token.
+ *
+ * @param[out] Equal
+ * The retrieved value which determines if the tokens are
+ * equal or not.
+ *
+ * @return
+ * Returns STATUS_SUCCESS, otherwise it returns a failure NTSTATUS code.
  */
 NTSTATUS
 NTAPI
-NtCompareTokens(IN HANDLE FirstTokenHandle,
-                IN HANDLE SecondTokenHandle,
-                OUT PBOOLEAN Equal)
+NtCompareTokens(
+    _In_ HANDLE FirstTokenHandle,
+    _In_ HANDLE SecondTokenHandle,
+    _Out_ PBOOLEAN Equal)
 {
     KPROCESSOR_MODE PreviousMode;
     PTOKEN FirstToken, SecondToken;
@@ -4242,7 +5209,10 @@ NtCompareTokens(IN HANDLE FirstTokenHandle,
                                        (PVOID*)&FirstToken,
                                        NULL);
     if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ObReferenceObjectByHandle() failed (Status 0x%lx)\n", Status);
         return Status;
+    }
 
     Status = ObReferenceObjectByHandle(SecondTokenHandle,
                                        TOKEN_QUERY,
@@ -4252,6 +5222,7 @@ NtCompareTokens(IN HANDLE FirstTokenHandle,
                                        NULL);
     if (!NT_SUCCESS(Status))
     {
+        DPRINT1("ObReferenceObjectByHandle() failed (Status 0x%lx)\n", Status);
         ObDereferenceObject(FirstToken);
         return Status;
     }
@@ -4286,6 +5257,33 @@ NtCompareTokens(IN HANDLE FirstTokenHandle,
     return Status;
 }
 
+/**
+ * @unimplemented
+ * @brief
+ * Opens a token that is tied to a thread handle.
+ * 
+ * @param[in] ExistingTokenHandle
+ * An existing token for filtering.
+ * 
+ * @param[in] Flags
+ * Privilege flag options. This parameter argument influences how the token
+ * is filtered. Such parameter can be 0.
+ * 
+ * @param[in] SidsToDisable
+ * Array of SIDs to disable.
+ * 
+ * @param[in] PrivilegesToDelete
+ * Array of privileges to delete.
+ * 
+ * @param[in] RestrictedSids
+ * An array of restricted SIDs for the new filtered token.
+ * 
+ * @param[out] NewTokenHandle
+ * The newly filtered token, returned to the caller.
+ *
+ * @return
+ * To be added...
+ */
 NTSTATUS
 NTAPI
 NtFilterToken(IN HANDLE ExistingTokenHandle,
