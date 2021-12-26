@@ -32,7 +32,6 @@ ULONG_PTR KiBugCheckData[5];
 
 PKNMI_HANDLER_CALLBACK KiNmiCallbackListHead = NULL;
 KSPIN_LOCK KiNmiCallbackListLock;
-#define TAG_KNMI 'IMNK'
 
 /* Bugzilla Reporting */
 UNICODE_STRING KeRosProcessorName, KeRosBiosDate, KeRosBiosVersion;
