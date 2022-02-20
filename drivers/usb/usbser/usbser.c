@@ -14,6 +14,10 @@
 
 /* DATA ***********************************************************************/
 
+KSPIN_LOCK GlobalSpinLock;
+UCHAR Slots[0x100];
+ULONG NumDevices;
+
 /* GLOBALS ********************************************************************/
 
 /* FUNCTIONS ******************************************************************/
@@ -69,7 +73,7 @@ UsbSerMajorNotSupported(IN PDEVICE_OBJECT DeviceObject,
 {
     PIO_STACK_LOCATION IoStack = IoGetCurrentIrpStackLocation(Irp);
 
-    DPRINT("UsbSerMajorNotSupported: Device %p, Irp %p, Major %X\n", Device, Irp, IoStack->MajorFunction);
+    DPRINT("UsbSerMajorNotSupported: Device %p, Irp %p, Major %X\n", DeviceObject, Irp, IoStack->MajorFunction);
     PAGED_CODE();
 
     Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
@@ -157,10 +161,125 @@ NTAPI
 UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
                    IN PDEVICE_OBJECT TargetDevice)
 {
-    DPRINT("UsbSerPnPAddDevice: DriverObject %p, TargetDevice %p\n", DriverObject, TargetDevice);
+    PUSBSER_DEVICE_EXTENSION Extension;
+    NTSTATUS Status;
+    ULONG FreeIdx;
+    KIRQL Irql;
+    PDEVICE_OBJECT NewDevice = NULL;
+    WCHAR CharName[64];
+    UNICODE_STRING DeviceName;
+    WCHAR CharSymLink[64];
+    UNICODE_STRING SymLinkName;
+    ULONG ExtSize;
+
     PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    DPRINT("UsbSerPnPAddDevice: DriverObject %p, TargetDevice %p\n", DriverObject, TargetDevice);
+
+    KeAcquireSpinLock(&GlobalSpinLock, &Irql);
+    for (FreeIdx = 0; FreeIdx < USBSER_MAX_SLOT; FreeIdx++)
+    {
+        /* Find free record */
+        if (!Slots[FreeIdx])
+            break;
+    }
+    KfReleaseSpinLock(&GlobalSpinLock, Irql);
+
+    if (FreeIdx == USBSER_MAX_SLOT)
+    {
+        DPRINT1("UsbSer_PnPAddDevice: FreeIdx == USBSER_MAX_SLOT\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    /* Construct device name */
+    RtlStringCbPrintfW(CharName, sizeof(CharName), L"\\Device\\USBSER%03d", FreeIdx);
+    RtlInitUnicodeString(&DeviceName, CharName);
+
+    /* Create device */
+    ExtSize = sizeof(USBSER_DEVICE_EXTENSION);
+
+    Status = IoCreateDevice(DriverObject,
+                            ExtSize,
+                            &DeviceName,
+                            FILE_DEVICE_MODEM,
+                            0,
+                            TRUE,
+                            &NewDevice);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("UsbSer_PnPAddDevice: Status %X\n", Status);
+        goto Exit;
+    }
+
+    /* Create symbolic link */
+    RtlStringCbPrintfW(CharSymLink, sizeof(CharSymLink), L"\\DosDevices\\USBSER%03d", FreeIdx);
+    RtlInitUnicodeString(&SymLinkName, CharSymLink);
+
+    Status = IoCreateUnprotectedSymbolicLink(&SymLinkName, &DeviceName);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT("UsbSer_PnPAddDevice: Status %X\n", Status);
+        goto Exit;
+    }
+
+    Extension = NewDevice->DeviceExtension;
+    RtlZeroMemory(Extension, ExtSize);
+
+    Extension->DeviceName.Length = DeviceName.Length;
+    Extension->DeviceName.MaximumLength = DeviceName.MaximumLength;
+
+    Extension->DeviceName.Buffer = ExAllocatePool(PagedPool, Extension->DeviceName.MaximumLength);
+    if (!Extension->DeviceName.Buffer)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        DPRINT("UsbSer_PnPAddDevice: Status %X\n", Status);
+        goto Exit;
+    }
+
+    RtlCopyMemory(&Extension->DeviceName.Buffer, DeviceName.Buffer, Extension->DeviceName.MaximumLength);
+
+    Extension->DeviceIndex = FreeIdx;
+
+    KeAcquireSpinLock(&GlobalSpinLock, &Irql);
+    NumDevices++;
+    Slots[FreeIdx] = 1;
+    KeReleaseSpinLock(&GlobalSpinLock, Irql);
+
+    if (!TargetDevice)
+    {
+        DPRINT1("UsbSer_PnPAddDevice: TargetDevice is NULL\n");
+        goto Exit;
+    }
+
+    Extension->PhysicalDevice = TargetDevice;
+    Extension->LowerDevice = IoAttachDeviceToDeviceStack(NewDevice, TargetDevice);
+
+    if (!Extension->LowerDevice)
+    {
+        DPRINT1("UsbSer_PnPAddDevice: STATUS_NO_SUCH_DEVICE. Extension->LowerDevice is NULL\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    DPRINT("UsbSer_PnPAddDevice: TargetDevice %p, LowerDevice %p\n", TargetDevice, Extension->LowerDevice);
+
+    NewDevice->StackSize = (Extension->LowerDevice->StackSize + 1);
+
+    NewDevice->Flags |= DO_BUFFERED_IO; // IO system copies the users data to and from system supplied buffers
+    NewDevice->Flags |= DO_POWER_PAGABLE;
+    NewDevice->Flags &= ~DO_DEVICE_INITIALIZING;
+
+Exit:
+
+    RtlFreeUnicodeString(&DeviceName);
+    RtlFreeUnicodeString(&SymLinkName);
+
+    if (Status != STATUS_SUCCESS && NewDevice)
+    {
+        DPRINT("UsbSer_PnPAddDevice: Status %X, delete Device %p\n", Status, NewDevice);
+        IoDeleteDevice(NewDevice);
+    }
+
+    return Status;
 }
 
 NTSTATUS
@@ -191,6 +310,8 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject,
     DriverObject->MajorFunction[IRP_MJ_POWER] = UsbSerProcessPowerIrp;
     DriverObject->MajorFunction[IRP_MJ_SYSTEM_CONTROL] = UsbSerSystemControlDispatch;
     DriverObject->MajorFunction[IRP_MJ_PNP] = UsbSerPnP;
+
+    KeInitializeSpinLock(&GlobalSpinLock);
 
     return Status;
 }

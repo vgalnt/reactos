@@ -10,11 +10,16 @@
 
 #include <ntddk.h>
 #include <stdio.h>
+#include <ntstrsafe.h>
+
+#define USBSER_MAX_SLOT 256
 
 typedef struct _USBSER_DEVICE_EXTENSION
 {
     PDEVICE_OBJECT PhysicalDevice;
     PDEVICE_OBJECT LowerDevice;
+    UNICODE_STRING DeviceName;
+    ULONG DeviceIndex;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
