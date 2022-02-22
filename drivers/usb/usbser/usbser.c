@@ -76,10 +76,10 @@ UsbSerMajorNotSupported(IN PDEVICE_OBJECT DeviceObject,
     DPRINT("UsbSerMajorNotSupported: Device %p, Irp %p, Major %X\n", DeviceObject, Irp, IoStack->MajorFunction);
     PAGED_CODE();
 
-    Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
     IofCompleteRequest(Irp, IO_NO_INCREMENT);
 
-    return STATUS_NOT_IMPLEMENTED;
+    return STATUS_NOT_SUPPORTED;
 }
 
 NTSTATUS
