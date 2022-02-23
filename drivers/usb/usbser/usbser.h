@@ -23,4 +23,28 @@ typedef struct _USBSER_DEVICE_EXTENSION
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
+
+/* ioctl.c */
+
+/* pnp.c */
+
+NTSTATUS
+NTAPI
+UsbSerPnP(
+    PDEVICE_OBJECT DeviceObject,
+    PIRP Irp
+);
+
+/* power.c */
+
+/* serial.c */
+
+/* usb.c */
+
+/* usbser.c */
+
+/* utils.c */
+
+/* wmi.c */
+
 #endif // _USBSTOR_H_

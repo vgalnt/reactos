@@ -77,7 +77,7 @@ UsbSerMajorNotSupported(IN PDEVICE_OBJECT DeviceObject,
     PAGED_CODE();
 
     Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
-    IofCompleteRequest(Irp, IO_NO_INCREMENT);
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
     return STATUS_NOT_SUPPORTED;
 }
@@ -132,17 +132,6 @@ UsbSerSystemControlDispatch(IN PDEVICE_OBJECT DeviceObject,
                             IN PIRP Irp)
 {
     DPRINT("UsbSerSystemControlDispatch: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
-    PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS
-NTAPI
-UsbSerPnP(IN PDEVICE_OBJECT DeviceObject,
-          IN PIRP Irp)
-{
-    DPRINT("UsbSerPnP: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
     PAGED_CODE();
     UNIMPLEMENTED;
     return STATUS_NOT_IMPLEMENTED;
