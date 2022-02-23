@@ -18,5 +18,18 @@
 
 /* FUNCTIONS *****************************************************************/
 
+NTSTATUS
+NTAPI
+UsbSerSyncCompletion(IN PDEVICE_OBJECT DeviceObject,
+                     IN PIRP Irp,
+                     IN PVOID Context)
+{
+    PKEVENT Event = Context;
+
+    DPRINT("UsbSerSyncCompletion: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+
+    KeSetEvent(Event, IO_NO_INCREMENT, FALSE);
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
 
 /* EOF */

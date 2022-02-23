@@ -11,6 +11,8 @@
 #include <ntddk.h>
 #include <stdio.h>
 #include <ntstrsafe.h>
+#include <usb.h>
+#include <usbioctl.h>
 
 #define USBSER_MAX_SLOT 256
 
@@ -41,9 +43,24 @@ UsbSerPnP(
 
 /* usb.c */
 
+NTSTATUS
+NTAPI
+CallUSBD(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PURB Urb
+);
+
 /* usbser.c */
 
 /* utils.c */
+
+NTSTATUS
+NTAPI
+UsbSerSyncCompletion(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp,
+    IN PVOID Context
+);
 
 /* wmi.c */
 
