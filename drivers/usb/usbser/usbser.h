@@ -15,7 +15,7 @@
 #include <usbioctl.h>
 
 #define USBSER_MAX_SLOT 256
-#define USB_HUB_TAG 'CBSU'
+#define USBSER_TAG 'CBSU'
 
 typedef struct _USBSER_DEVICE_EXTENSION
 {
@@ -56,6 +56,12 @@ CallUSBD(
 NTSTATUS
 NTAPI
 GetDeviceDescriptor(
+    IN PDEVICE_OBJECT DeviceObject
+);
+
+NTSTATUS
+NTAPI
+ConfigureDevice(
     IN PDEVICE_OBJECT DeviceObject
 );
 

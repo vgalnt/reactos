@@ -148,4 +148,102 @@ GetDeviceDescriptor(IN PDEVICE_OBJECT DeviceObject)
     return Status;
 }
 
+NTSTATUS
+NTAPI
+ConfigureDevice(IN PDEVICE_OBJECT DeviceObject)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    struct _URB_CONTROL_DESCRIPTOR_REQUEST * Urb;
+    PUSB_CONFIGURATION_DESCRIPTOR Descriptor;
+    ULONG Length;
+    UCHAR Index;
+    NTSTATUS Status;
+
+    DPRINT("ConfigureDevice: DeviceObject %p\n", DeviceObject);
+    PAGED_CODE();
+
+    Urb = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Urb), USBSER_TAG);
+    if (!Urb)
+    {
+        DPRINT1("ConfigureDevice: Status %X\n", STATUS_INSUFFICIENT_RESOURCES);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Extension = DeviceObject->DeviceExtension;
+    if (!Extension->DeviceDescriptor->bNumConfigurations)
+    {
+        DPRINT1("ConfigureDevice: bNumConfigurations is 0\n");
+        goto Exit;
+    }
+
+    DPRINT("ConfigureDevice: bNumConfigurations %X\n", Extension->DeviceDescriptor->bNumConfigurations);
+
+    Length = sizeof(USB_CONFIGURATION_DESCRIPTOR) + 0x100; // ?
+
+    for (Index = 0;
+         Index < Extension->DeviceDescriptor->bNumConfigurations;
+        )
+    {
+        DPRINT("ConfigureDevice: Index %X\n", Index);
+
+        Descriptor = ExAllocatePoolWithTag(NonPagedPool, Length, USBSER_TAG);
+        if (!Descriptor)
+        {
+            DPRINT1("ConfigureDevice: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            Index++;
+            continue;
+        }
+
+        Urb->Hdr.Function = URB_FUNCTION_GET_DESCRIPTOR_FROM_DEVICE;
+        Urb->Hdr.Length = sizeof(*Urb);
+
+        Urb->DescriptorType = USB_CONFIGURATION_DESCRIPTOR_TYPE;
+        Urb->TransferBufferLength = Length;
+        Urb->TransferBuffer = Descriptor;
+        Urb->TransferBufferMDL = NULL;
+
+        Urb->Index = Index;
+        Urb->LanguageId = 0;
+        Urb->UrbLink = NULL;
+
+        Status = CallUSBD(DeviceObject, (PURB)Urb);
+        if (Urb->TransferBufferLength && Length < Descriptor->wTotalLength)
+        {
+            DPRINT("ConfigureDevice: Length %X, wTotalLength %X\n", Length, Descriptor->wTotalLength);
+            Length = Descriptor->wTotalLength;
+            ExFreePoolWithTag(Descriptor, USBSER_TAG);
+            continue;
+        }
+
+        if (NT_SUCCESS(Status))
+        {
+            DPRINT1("ConfigureDevice: FIXME SelectInterface()\n");
+#if 0
+            Status = SelectInterface(DeviceObject, Descriptor);
+#endif
+        }
+        else
+        {
+            DPRINT1("ConfigureDevice: Status %X\n", Status);
+        }
+
+        ExFreePoolWithTag(Descriptor, USBSER_TAG);
+
+        if (NT_SUCCESS(Status))
+        {
+            break;
+        }
+
+        DPRINT1("ConfigureDevice: Status %X\n", Status);
+
+        Index++;
+    }
+
+Exit:
+
+    ExFreePoolWithTag(Urb, USBSER_TAG);
+    return Status;
+}
+
 /* EOF */

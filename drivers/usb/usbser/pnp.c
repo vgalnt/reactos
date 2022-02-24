@@ -59,6 +59,18 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
         goto Exit;
     }
 
+    Status = ConfigureDevice(DeviceObject);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("StartDevice: Status %X\n", Status);
+        goto Exit;
+    }
+
+    DPRINT1("StartDevice: FIXME ResetDevice()\n");
+#if 0
+    ResetDevice(DeviceObject);
+#endif
+
 
 Exit:
 
