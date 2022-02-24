@@ -23,9 +23,48 @@ NTAPI
 StartDevice(IN PDEVICE_OBJECT DeviceObject,
             IN PIRP Irp)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE);
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension;
+    KEVENT Event;
+    NTSTATUS Status;
+
+    DPRINT("StartDevice: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    Extension = DeviceObject->DeviceExtension;
+
+    KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    IoSetCompletionRoutine(Irp, UsbSerSyncCompletion, &Event, TRUE, TRUE, TRUE);
+
+    Status = IoCallDriver(Extension->LowerDevice, Irp);
+    DPRINT("StartDevice: Status %X\n", Status);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Suspended, KernelMode, FALSE, NULL);
+    }
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        DPRINT1("StartDevice: Status %X\n", Irp->IoStatus.Status);
+        goto Exit;
+    }
+
+    Status = GetDeviceDescriptor(DeviceObject);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("StartDevice: Status %X\n", Status);
+        goto Exit;
+    }
+
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return Status;
 }
 
 NTSTATUS
