@@ -15,6 +15,7 @@
 #include <usbioctl.h>
 
 #define USBSER_MAX_SLOT 256
+#define USB_HUB_TAG 'CBSU'
 
 typedef struct _USBSER_DEVICE_EXTENSION
 {
@@ -22,6 +23,8 @@ typedef struct _USBSER_DEVICE_EXTENSION
     PDEVICE_OBJECT LowerDevice;
     UNICODE_STRING DeviceName;
     ULONG DeviceIndex;
+    KSPIN_LOCK SpinLock;
+    PUSB_DEVICE_DESCRIPTOR DeviceDescriptor;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
@@ -48,6 +51,12 @@ NTAPI
 CallUSBD(
     IN PDEVICE_OBJECT DeviceObject,
     IN PURB Urb
+);
+
+NTSTATUS
+NTAPI
+GetDeviceDescriptor(
+    IN PDEVICE_OBJECT DeviceObject
 );
 
 /* usbser.c */

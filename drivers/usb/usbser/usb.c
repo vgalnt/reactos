@@ -78,4 +78,74 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+GetDeviceDescriptor(IN PDEVICE_OBJECT DeviceObject)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    struct _URB_CONTROL_DESCRIPTOR_REQUEST * Urb;
+    PUSB_DEVICE_DESCRIPTOR Descriptor;
+    PUSB_DEVICE_DESCRIPTOR OldDescriptor;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("GetDeviceDescriptor: DeviceObject %p\n", DeviceObject);
+
+    Extension = DeviceObject->DeviceExtension;
+    Urb = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Urb), USBSER_TAG);
+    if (!Urb)
+    {
+        DPRINT1("GetDeviceDescriptor: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Descriptor = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Descriptor), USBSER_TAG);
+    if (!Descriptor)
+    {
+        DPRINT1("GetDeviceDescriptor: STATUS_INSUFFICIENT_RESOURCES\n");
+        ExFreePoolWithTag(Urb, USBSER_TAG);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Urb->Hdr.Function = URB_FUNCTION_GET_DESCRIPTOR_FROM_DEVICE;
+    Urb->Hdr.Length = sizeof(*Urb);
+
+    Urb->DescriptorType = USB_DEVICE_DESCRIPTOR_TYPE;
+    Urb->TransferBufferLength = sizeof(*Descriptor);
+    Urb->TransferBuffer = Descriptor;
+    Urb->TransferBufferMDL = NULL;
+
+    Urb->Index = 0;
+    Urb->LanguageId = 0;
+    Urb->UrbLink = NULL;
+
+    Status = CallUSBD(DeviceObject, (PURB)Urb);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("GetDeviceDescriptor: Status %X\n", Status);
+
+        if (Descriptor)
+            ExFreePoolWithTag(Descriptor, USBSER_TAG);
+
+        ExFreePoolWithTag(Urb, USBSER_TAG);
+
+        return Status;
+    }
+
+    OldDescriptor = NULL;
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    if (Extension->DeviceDescriptor)
+        OldDescriptor = Extension->DeviceDescriptor;
+    Extension->DeviceDescriptor = Descriptor;
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    if (OldDescriptor)
+        ExFreePoolWithTag(OldDescriptor, USBSER_TAG);
+
+    ExFreePoolWithTag(Urb, USBSER_TAG);
+
+    return Status;
+}
+
 /* EOF */
