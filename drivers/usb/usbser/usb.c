@@ -150,6 +150,124 @@ GetDeviceDescriptor(IN PDEVICE_OBJECT DeviceObject)
 
 NTSTATUS
 NTAPI
+SelectInterface(IN PDEVICE_OBJECT DeviceObject,
+                IN PUSB_CONFIGURATION_DESCRIPTOR Descriptor)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PUSBD_INTERFACE_INFORMATION Interface;
+    PUSBD_INTERFACE_INFORMATION InterfaceArray[2];
+    PUSB_INTERFACE_DESCRIPTOR iDesc;
+    PURB Urb = NULL;
+    ULONG ix;
+    USHORT Size;
+    BOOLEAN InterfaceFound = FALSE;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("SelectInterface: DeviceObject %p, Descriptor %p\n", DeviceObject, Descriptor);
+
+    Urb = USBD_CreateConfigurationRequest(Descriptor, &Size);
+    if (!Urb)
+    {
+        DPRINT1("SelectInterface: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    Interface = &Urb->UrbSelectConfiguration.Interface;
+
+    for (ix = 0; ix < Descriptor->bNumInterfaces; ix++)
+    {
+        iDesc = USBD_ParseConfigurationDescriptor(Descriptor, ix, 0);
+
+        Interface->Length = (sizeof(USBD_INTERFACE_INFORMATION) +
+                            (sizeof(USBD_PIPE_INFORMATION) * (iDesc->bNumEndpoints - 1)));
+
+        Interface->InterfaceNumber = iDesc->bInterfaceNumber;
+        Interface->AlternateSetting = iDesc->bAlternateSetting;
+
+        InterfaceArray[ix] = Interface;
+
+        for (ix = 0; ix < Interface->NumberOfPipes; ix++)
+        {
+            if (USB_ENDPOINT_DIRECTION_IN(Interface->Pipes[ix].EndpointAddress))
+            {
+                if (Interface->Pipes[ix].PipeType == UsbdPipeTypeBulk)
+                {
+                    Interface->Pipes[ix].MaximumTransferSize = 0x1000;
+                }
+            }
+            else if (Interface->Pipes[ix].PipeType == UsbdPipeTypeBulk)
+            {
+                Interface->Pipes[ix].MaximumTransferSize = 0x2000;
+            }
+        }
+
+        Interface = (PUSBD_INTERFACE_INFORMATION)((ULONG_PTR)Interface + Interface->Length);
+    }
+
+    Urb->UrbHeader.Function = URB_FUNCTION_SELECT_CONFIGURATION;
+    Urb->UrbHeader.Length = Size;
+    Urb->UrbSelectConfiguration.ConfigurationDescriptor = Descriptor;
+
+    Status = CallUSBD(DeviceObject, (PURB)Urb);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("SelectInterface: Status %X\n", Status);
+        ExFreePoolWithTag(Urb, USBSER_TAG);
+        return Status;
+    }
+
+    Extension = DeviceObject->DeviceExtension;
+    Extension->ConfigurationHandle = Urb->UrbSelectConfiguration.ConfigurationHandle;
+
+    for (ix = 0; ix < Descriptor->bNumInterfaces; ix++)
+    {
+        Interface = InterfaceArray[ix];
+
+        if (Interface->Class == USB_DEVICE_CLASS_COMMUNICATIONS)
+        {
+            DPRINT1("SelectInterface: find interface number %X\n", Interface->InterfaceNumber);
+            InterfaceFound = TRUE;
+            Extension->InterfaceNumber = Interface->InterfaceNumber;
+        }
+
+        for (ix = 0; ix < Interface->NumberOfPipes; ix++)
+        {
+            if (USB_ENDPOINT_DIRECTION_IN(Interface->Pipes[ix].EndpointAddress))
+            {
+                if (Interface->Pipes[ix].PipeType == UsbdPipeTypeBulk)
+                {
+                    Extension->DataInPipeHandle = Interface->Pipes[ix].PipeHandle;
+                }
+                else if (Interface->Pipes[ix].PipeType == UsbdPipeTypeInterrupt)
+                {
+                    Extension->NotifyPipeHandle = Interface->Pipes[ix].PipeHandle;
+                }
+            }
+            else if (Interface->Pipes[ix].PipeType == UsbdPipeTypeBulk)
+            {
+                Extension->DataOutPipeHandle = Interface->Pipes[ix].PipeHandle;
+            }
+        }
+    }
+
+Exit:
+
+    if (Urb)
+        ExFreePoolWithTag(Urb, USBSER_TAG);
+
+    if (!InterfaceFound)
+    {
+        DPRINT1("SelectInterface: interface not found!\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+    }
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 ConfigureDevice(IN PDEVICE_OBJECT DeviceObject)
 {
     PUSBSER_DEVICE_EXTENSION Extension;
@@ -218,10 +336,7 @@ ConfigureDevice(IN PDEVICE_OBJECT DeviceObject)
 
         if (NT_SUCCESS(Status))
         {
-            DPRINT1("ConfigureDevice: FIXME SelectInterface()\n");
-#if 0
             Status = SelectInterface(DeviceObject, Descriptor);
-#endif
         }
         else
         {

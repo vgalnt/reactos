@@ -13,6 +13,8 @@
 #include <ntstrsafe.h>
 #include <usb.h>
 #include <usbioctl.h>
+#include <usbdlib.h>
+#include <ntddser.h>
 
 #define USBSER_MAX_SLOT 256
 #define USBSER_TAG 'CBSU'
@@ -69,6 +71,11 @@ typedef struct _USBSER_DEVICE_EXTENSION
     ULONG DeviceIndex;
     KSPIN_LOCK SpinLock;
     PUSB_DEVICE_DESCRIPTOR DeviceDescriptor;
+    USBD_CONFIGURATION_HANDLE ConfigurationHandle;
+    USBD_PIPE_HANDLE DataInPipeHandle;
+    USBD_PIPE_HANDLE DataOutPipeHandle;
+    USBD_PIPE_HANDLE NotifyPipeHandle;
+    UCHAR InterfaceNumber;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
