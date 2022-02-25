@@ -165,6 +165,16 @@ UsbSerSyncCompletion(
     IN PVOID Context
 );
 
+NTSTATUS
+NTAPI
+UsbSerGetRegistryKeyValue(
+    IN HANDLE KeyHandle,
+    IN PWSTR ValueString,
+    IN ULONG ValueStringSize,
+    OUT PWSTR OutKeyValue,
+    IN ULONG MaxDataLength
+);
+
 /* wmi.c */
 
 #endif // _USBSTOR_H_

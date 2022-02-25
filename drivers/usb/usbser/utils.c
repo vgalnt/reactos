@@ -32,4 +32,60 @@ UsbSerSyncCompletion(IN PDEVICE_OBJECT DeviceObject,
     return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
+NTSTATUS
+NTAPI
+UsbSerGetRegistryKeyValue(IN HANDLE KeyHandle,
+                          IN PWSTR ValueString,
+                          IN ULONG ValueStringSize,
+                          OUT PWSTR OutKeyValue,
+                          IN ULONG MaxDataLength)
+{
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    UNICODE_STRING ValueName;
+    ULONG Length;
+    NTSTATUS Status;
+
+    DPRINT("UsbSerGetRegistryKeyValue: ValueString '%S'\n", ValueString);
+    PAGED_CODE();
+
+    RtlInitUnicodeString(&ValueName, ValueString);
+
+    Length = ValueStringSize + MaxDataLength + sizeof(KEY_VALUE_FULL_INFORMATION);
+
+    ValueInfo = ExAllocatePoolWithTag(PagedPool, Length, USBSER_TAG);
+    if (!ValueInfo)
+    {
+        DPRINT1("UsbSerGetRegistryKeyValue: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Status = ZwQueryValueKey(KeyHandle,
+                             &ValueName,
+                             KeyValueFullInformation,
+                             ValueInfo,
+                             Length,
+                             &Length);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("UsbSerGetRegistryKeyValue: Status %X\n", Status);
+        ExFreePoolWithTag(ValueInfo, USBSER_TAG);
+        return Status;
+    }
+
+    if (ValueInfo->DataLength > MaxDataLength)
+    {
+        DPRINT1("UsbSerGetRegistryKeyValue: Status %X, Length %X, MaxLength %X\n", Status, ValueInfo->DataLength, MaxDataLength);
+        ExFreePoolWithTag(ValueInfo, USBSER_TAG);
+        return Status;
+    }
+
+    RtlCopyMemory(OutKeyValue,
+                  (PCHAR)ValueInfo + ValueInfo->DataOffset,
+                  ValueInfo->DataLength);
+
+    ExFreePoolWithTag(ValueInfo, USBSER_TAG);
+
+    return Status;
+}
+
 /* EOF */
