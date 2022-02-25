@@ -85,6 +85,7 @@ typedef struct _USBSER_DEVICE_EXTENSION
     USBD_PIPE_HANDLE DataOutPipeHandle;
     USBD_PIPE_HANDLE NotifyPipeHandle;
     UCHAR InterfaceNumber;
+    ULONG SupportedBauds;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
@@ -135,6 +136,12 @@ GetDeviceDescriptor(
 NTSTATUS
 NTAPI
 ConfigureDevice(
+    IN PDEVICE_OBJECT DeviceObject
+);
+
+NTSTATUS
+NTAPI
+ResetDevice(
     IN PDEVICE_OBJECT DeviceObject
 );
 

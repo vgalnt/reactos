@@ -417,4 +417,28 @@ ClassVendorCommand(IN PDEVICE_OBJECT DeviceObject,
     return Status;
 }
 
+NTSTATUS
+NTAPI
+ResetDevice(IN PDEVICE_OBJECT DeviceObject)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    KIRQL Irql;
+
+    DPRINT("ResetDevice: DeviceObject %p\n", DeviceObject);
+    PAGED_CODE();
+
+    DPRINT1("ResetDevice: FIXME GetLineControlAndBaud()\n");
+#if 0
+    GetLineControlAndBaud(DeviceObject);
+#endif
+
+    Extension = DeviceObject->DeviceExtension;
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    Extension->SupportedBauds = 420720; // ?
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    return STATUS_SUCCESS;
+}
+
 /* EOF */
