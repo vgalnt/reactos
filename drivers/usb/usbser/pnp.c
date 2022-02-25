@@ -20,6 +20,171 @@
 
 NTSTATUS
 NTAPI
+UsbSerDoExternalNaming(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    UNICODE_STRING SymLinkName;
+    PWSTR RegSymbolicName;
+    HANDLE KeyHandle;
+    USHORT MaxLength;
+    USHORT MaximumSize;
+    NTSTATUS Status;
+
+    DPRINT("UsbSerDoExternalNaming: Extension %p\n", Extension);
+    PAGED_CODE();
+
+    MaxLength = (USBSER_MAX_SYMBOLIC_NAME_LENGTH * sizeof(WCHAR));
+    MaximumSize = (MaxLength + sizeof(WCHAR));
+
+    SymLinkName.Length = 0;
+    SymLinkName.MaximumLength = MaxLength;
+
+    SymLinkName.Buffer = ExAllocatePoolWithTag(PagedPool, MaximumSize, USBSER_TAG);
+    if (!SymLinkName.Buffer)
+    {
+        DPRINT1("UsbSerDoExternalNaming: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+    RtlZeroMemory(SymLinkName.Buffer, MaximumSize);
+
+    RegSymbolicName = ExAllocatePoolWithTag(PagedPool, MaximumSize, USBSER_TAG);
+    if (!RegSymbolicName)
+    {
+        DPRINT1("UsbSerDoExternalNaming: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+
+    Status = IoOpenDeviceRegistryKey(Extension->PhysicalDevice,
+                                     PLUGPLAY_REGKEY_DEVICE,
+                                     STANDARD_RIGHTS_READ,
+                                     &KeyHandle);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT("UsbSerDoExternalNaming: Status %p\n", Status);
+        goto ErrorExit;
+    }
+
+    Status = UsbSerGetRegistryKeyValue(KeyHandle,
+                                       L"PortName",
+                                       sizeof(L"PortName"),
+                                       RegSymbolicName,
+                                       MaxLength);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT("UsbSerDoExternalNaming: Status %p\n", Status);
+
+        Status = UsbSerGetRegistryKeyValue(KeyHandle,
+                                           L"Identifier",
+                                           sizeof(L"Identifier"),
+                                           RegSymbolicName,
+                                           MaxLength);
+        if (Status != STATUS_SUCCESS)
+        {
+            DPRINT("UsbSerDoExternalNaming: Status %p\n", Status);
+            ZwClose(KeyHandle);
+            goto ErrorExit;
+        }
+    }
+
+    ZwClose(KeyHandle);
+
+    DPRINT("UsbSerDoExternalNaming: FIXME WmiId\n");
+
+    RtlAppendUnicodeToString(&SymLinkName, L"\\");
+    RtlAppendUnicodeToString(&SymLinkName, L"DosDevices");
+    RtlAppendUnicodeToString(&SymLinkName, L"\\");
+    RtlAppendUnicodeToString(&SymLinkName, RegSymbolicName);
+
+    MaxLength = (SymLinkName.Length + sizeof(WCHAR));
+    Extension->SymLinkName.MaximumLength = MaxLength;
+
+    Extension->SymLinkName.Buffer = ExAllocatePoolWithTag(PagedPool, MaxLength, USBSER_TAG);
+    if (!Extension->SymLinkName.Buffer)
+    {
+        DPRINT1("UsbSerDoExternalNaming: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+    RtlZeroMemory(Extension->SymLinkName.Buffer, MaxLength);
+
+    RtlAppendUnicodeStringToString(&Extension->SymLinkName, &SymLinkName);
+
+    Status = IoCreateSymbolicLink(&Extension->SymLinkName, &Extension->DeviceName);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("UsbSerDoExternalNaming: Status %p\n", Status);
+        goto ErrorExit;
+    }
+
+    Extension->IsSymLinkCreated = TRUE;
+
+    MaxLength = (USBSER_MAX_DOS_NAME_LENGTH * sizeof(WCHAR));
+    MaximumSize = (MaxLength + sizeof(WCHAR));
+
+    Extension->DosName.Buffer = ExAllocatePoolWithTag(PagedPool, MaximumSize, USBSER_TAG);
+    if (!Extension->DosName.Buffer)
+    {
+        DPRINT1("UsbSerDoExternalNaming: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+    RtlZeroMemory(Extension->DosName.Buffer, MaxLength);
+
+    Extension->DosName.Length = 0;
+    Extension->DosName.MaximumLength = MaximumSize;
+    Extension->DosName.Buffer[USBSER_MAX_DOS_NAME_LENGTH] = 0;
+
+    RtlAppendUnicodeToString(&Extension->DosName, RegSymbolicName);
+    Extension->DosName.Buffer[Extension->DosName.Length] = 0;
+
+    Status = RtlWriteRegistryValue(RTL_REGISTRY_DEVICEMAP,
+                                   L"SERIALCOMM",
+                                   Extension->DeviceName.Buffer,
+                                   REG_SZ,
+                                   Extension->DosName.Buffer,
+                                   Extension->DosName.Length + sizeof(WCHAR));
+    if (Status == STATUS_SUCCESS)
+        goto Exit;
+
+    DPRINT1("UsbSerDoExternalNaming: Status %p\n", Status);
+
+ErrorExit:
+
+    if (Extension->DosName.Buffer)
+    {
+        ExFreePoolWithTag(Extension->DosName.Buffer, USBSER_TAG);
+        Extension->DosName.Buffer = NULL;
+    }
+
+    if (Extension->IsSymLinkCreated)
+    {
+        IoDeleteSymbolicLink(&Extension->SymLinkName);
+        Extension->IsSymLinkCreated = FALSE;
+    }
+
+    if (Extension->SymLinkName.Buffer)
+    {
+        ExFreePoolWithTag(Extension->SymLinkName.Buffer, USBSER_TAG);
+        Extension->SymLinkName.Buffer = NULL;
+    }
+
+    if (Extension->DeviceName.Buffer)
+        RtlDeleteRegistryValue(RTL_REGISTRY_DEVICEMAP, L"SERIALCOMM", Extension->DeviceName.Buffer);
+
+Exit:
+
+    if (SymLinkName.Buffer)
+        ExFreePoolWithTag(SymLinkName.Buffer, USBSER_TAG);
+
+    if (RegSymbolicName)
+        ExFreePoolWithTag(RegSymbolicName, USBSER_TAG);
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 StartDevice(IN PDEVICE_OBJECT DeviceObject,
             IN PIRP Irp)
 {
