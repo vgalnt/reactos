@@ -25,6 +25,15 @@
 /* Universal Serial Bus Communications Class Subclass Specification for PSTN Devices
    Revision 1.2, February 9, 2007 (PSTN120)
 */
+
+/* (CDC120) "6 Communications Class Specific Messages"
+   (PSTN120) "6.3 PSTN Subclass Specific Requests"
+*/
+#define USB_CDC_SET_LINE_CODING         0x20
+#define USB_CDC_GET_LINE_CODING         0x21
+#define USB_CDC_SET_CONTROL_LINE_STATE  0x22
+#define USB_CDC_SEND_BREAK              0x23
+
 #include <pshpack1.h>
 typedef union _USBSER_SERIAL_STATE
 {
@@ -102,6 +111,19 @@ NTAPI
 CallUSBD(
     IN PDEVICE_OBJECT DeviceObject,
     IN PURB Urb
+);
+
+NTSTATUS
+NTAPI
+ClassVendorCommand(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN UCHAR Request,
+    IN USHORT Value,
+    IN USHORT Index,
+    IN PVOID TransferBuffer,
+    IN ULONG * OutLength,
+    IN ULONG Direction,
+    IN BOOLEAN Function
 );
 
 NTSTATUS

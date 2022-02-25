@@ -361,4 +361,60 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+ClassVendorCommand(IN PDEVICE_OBJECT DeviceObject,
+                   IN UCHAR Request,
+                   IN USHORT Value,
+                   IN USHORT Index,
+                   IN PVOID TransferBuffer,
+                   IN OUT ULONG * OutLength,
+                   IN ULONG Direction,
+                   IN BOOLEAN IsClassFunction)
+{
+    struct _URB_CONTROL_VENDOR_OR_CLASS_REQUEST * Urb;
+    ULONG Length = 0;
+    NTSTATUS Status;
+
+    DPRINT("ClassVendorCommand: Request %X\n", Request);
+    PAGED_CODE();
+
+    if (OutLength)
+        Length = *OutLength;
+
+    Urb = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Urb), USBSER_TAG);
+    if (!Urb)
+    {
+        DPRINT1("ClassVendorCommand: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Urb->Hdr.Length = sizeof(*Urb);
+
+    Urb->TransferBufferLength = Length;
+    Urb->TransferBufferMDL = NULL;
+    Urb->RequestTypeReservedBits = 0;
+    Urb->UrbLink = NULL;
+
+    if (IsClassFunction)
+        Urb->Hdr.Function = URB_FUNCTION_CLASS_INTERFACE;
+    else
+        Urb->Hdr.Function = URB_FUNCTION_VENDOR_DEVICE;
+
+    Urb->TransferBuffer = TransferBuffer;
+    Urb->Request = Request;
+    Urb->Value = Value;
+    Urb->Index = Index;
+    Urb->TransferFlags = (Direction == USBD_TRANSFER_DIRECTION_IN);
+
+    Status = CallUSBD(DeviceObject, (PURB)Urb);
+
+    if (OutLength)
+        *OutLength = Urb->TransferBufferLength;
+
+    ExFreePoolWithTag(Urb, USBSER_TAG);
+
+    return Status;
+}
+
 /* EOF */
