@@ -427,10 +427,7 @@ ResetDevice(IN PDEVICE_OBJECT DeviceObject)
     DPRINT("ResetDevice: DeviceObject %p\n", DeviceObject);
     PAGED_CODE();
 
-    DPRINT1("ResetDevice: FIXME GetLineControlAndBaud()\n");
-#if 0
     GetLineControlAndBaud(DeviceObject);
-#endif
 
     Extension = DeviceObject->DeviceExtension;
 

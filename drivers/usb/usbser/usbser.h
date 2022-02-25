@@ -86,6 +86,8 @@ typedef struct _USBSER_DEVICE_EXTENSION
     USBD_PIPE_HANDLE NotifyPipeHandle;
     UCHAR InterfaceNumber;
     ULONG SupportedBauds;
+    SERIAL_BAUD_RATE BaudRate;
+    SERIAL_LINE_CONTROL LineControl;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
@@ -104,6 +106,12 @@ UsbSerPnP(
 /* power.c */
 
 /* serial.c */
+
+NTSTATUS
+NTAPI
+GetLineControlAndBaud(
+    IN PDEVICE_OBJECT DeviceObject
+);
 
 /* usb.c */
 
