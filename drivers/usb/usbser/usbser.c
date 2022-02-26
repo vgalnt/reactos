@@ -22,13 +22,59 @@ ULONG NumDevices;
 
 /* FUNCTIONS ******************************************************************/
 
+VOID
+NTAPI
+PutData(IN PUSBSER_DEVICE_EXTENSION Extension,
+        IN ULONG BufferLength)
+{
+    ULONG Offset;
+    ULONG Size;
+    ULONG Remain;
+    KIRQL Irql;
+
+    DPRINT("PutData: Extension %p BufferLength %X\n", Extension, BufferLength);
+
+    if (!BufferLength)
+    {
+        DPRINT1("PutData: BufferLength is 0\n");
+        return;
+    }
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    Offset = (Extension->CharsInReadBuffer + Extension->ReadBufferOffset) % Extension->RxBufferSize;
+
+    if (BufferLength < (Extension->RxBufferSize - Offset))
+        Size = BufferLength;
+    else
+        Size = (Extension->RxBufferSize - Offset);
+
+    RtlCopyMemory(((PCHAR)Extension->RxBuffer + Offset), Extension->ReadBuffer, Size);
+
+    Extension->CharsInReadBuffer += Size;
+    Extension->ReadByIsr += Size;
+
+    Remain = (BufferLength - Size);
+    if (Remain)
+    {
+        RtlCopyMemory(Extension->RxBuffer, ((PCHAR)Extension->ReadBuffer + Size), Remain);
+
+        Extension->CharsInReadBuffer += Remain;
+        Extension->ReadByIsr += Remain;
+    }
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+}
+
 NTSTATUS NTAPI ReadCompletion(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp, IN PVOID Context)
 {
     UNIMPLEMENTED;
     return STATUS_NOT_IMPLEMENTED;
 }
 
-VOID NTAPI RestartRead(PUSBSER_DEVICE_EXTENSION Extension)
+VOID
+NTAPI
+RestartRead(PUSBSER_DEVICE_EXTENSION Extension)
 {
     PIO_STACK_LOCATION IoStack;
     PIRP Irp;

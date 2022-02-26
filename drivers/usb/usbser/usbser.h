@@ -119,9 +119,15 @@ typedef struct _USBSER_DEVICE_EXTENSION
     ULONG SupportedBauds;
     SERIAL_BAUD_RATE BaudRate;
     SERIAL_LINE_CONTROL LineControl;
+    SERIAL_TIMEOUTS Timeouts;
+    SERIAL_HANDFLOW HandFlow;
+    SERIAL_CHARS Chars;
     ULONG LineState;
     PIRP ReadIrp;
     PURB ReadUrb;
+    ULONG HistoryMask;
+    ULONG IsrWaitMask;
+    ULONG ReadByIsr;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
@@ -204,6 +210,12 @@ ResetDevice(
 VOID
 NTAPI
 StartRead(
+    IN PUSBSER_DEVICE_EXTENSION Extension
+);
+
+VOID
+NTAPI
+RestartRead(
     IN PUSBSER_DEVICE_EXTENSION Extension
 );
 
