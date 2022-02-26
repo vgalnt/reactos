@@ -204,6 +204,22 @@ UsbSerGetRegistryKeyValue(
     IN ULONG MaxDataLength
 );
 
+VOID
+NTAPI
+UsbSerFetchBooleanLocked(
+    OUT BOOLEAN * OutBoolean,
+    IN BOOLEAN BooleanValue,
+    IN PKSPIN_LOCK SpinLock
+);
+
+VOID
+NTAPI
+UsbSerFetchPVoidLocked(
+    OUT PVOID * OutPVoid,
+    IN PVOID PVoid,
+    IN PKSPIN_LOCK SpinLock
+);
+
 /* wmi.c */
 
 #endif // _USBSTOR_H_

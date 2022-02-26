@@ -18,6 +18,32 @@
 
 /* FUNCTIONS *****************************************************************/
 
+VOID
+NTAPI
+UsbSerFetchBooleanLocked(OUT BOOLEAN * OutBoolean,
+                         IN BOOLEAN BooleanValue,
+                         IN PKSPIN_LOCK SpinLock)
+{
+    KIRQL Irql;
+
+    KeAcquireSpinLock(SpinLock, &Irql);
+    *OutBoolean = BooleanValue;
+    KeReleaseSpinLock(SpinLock, Irql);
+}
+
+VOID
+NTAPI
+UsbSerFetchPVoidLocked(OUT PVOID * OutPVoid,
+                       IN PVOID PVoid,
+                       IN PKSPIN_LOCK SpinLock)
+{
+    KIRQL Irql;
+
+    KeAcquireSpinLock(SpinLock, &Irql);
+    *OutPVoid = PVoid;
+    KeReleaseSpinLock(SpinLock, Irql);
+}
+
 NTSTATUS
 NTAPI
 UsbSerSyncCompletion(IN PDEVICE_OBJECT DeviceObject,
