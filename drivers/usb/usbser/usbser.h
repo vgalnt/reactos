@@ -16,6 +16,8 @@
 #include <usbdlib.h>
 #include <ntddser.h>
 
+#define USBSER_MAX_SYMBOLIC_NAME_LENGTH 128
+#define USBSER_MAX_DOS_NAME_LENGTH 32
 #define USBSER_MAX_SLOT 256
 #define USBSER_TAG 'CBSU'
 
@@ -35,6 +37,17 @@
 #define USB_CDC_SEND_BREAK              0x23
 
 #include <pshpack1.h>
+typedef union _USBSER_CONTROL_LINE_STATE
+{
+    struct
+    {
+        USHORT DtePresent:1;     // Indicates to DCE if DTE is present or not. 0 - Not Present, 1 - Present
+        USHORT CarrierControl:1; // Carrier control for half duplex modems. 0 - Deactivate carrier, 1 - Activate carrier.
+        USHORT Reserved:14;
+    };
+    USHORT AsUSHORT;
+} USBSER_CONTROL_LINE_STATE, *PUSBSER_CONTROL_LINE_STATE;
+
 typedef union _USBSER_SERIAL_STATE
 {
     struct
@@ -77,6 +90,8 @@ typedef struct _USBSER_DEVICE_EXTENSION
     PDEVICE_OBJECT PhysicalDevice;
     PDEVICE_OBJECT LowerDevice;
     UNICODE_STRING DeviceName;
+    UNICODE_STRING SymLinkName;
+    UNICODE_STRING DosName;
     ULONG DeviceIndex;
     KSPIN_LOCK SpinLock;
     PUSB_DEVICE_DESCRIPTOR DeviceDescriptor;
@@ -85,12 +100,13 @@ typedef struct _USBSER_DEVICE_EXTENSION
     USBD_PIPE_HANDLE DataOutPipeHandle;
     USBD_PIPE_HANDLE NotifyPipeHandle;
     UCHAR InterfaceNumber;
+    BOOLEAN IsSymLinkCreated;
     ULONG SupportedBauds;
     SERIAL_BAUD_RATE BaudRate;
     SERIAL_LINE_CONTROL LineControl;
+    ULONG LineState;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
-
 
 /* ioctl.c */
 
@@ -113,6 +129,13 @@ GetLineControlAndBaud(
     IN PDEVICE_OBJECT DeviceObject
 );
 
+NTSTATUS
+NTAPI
+SetClrDtr(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN BOOLEAN SetOrClear
+);
+
 /* usb.c */
 
 NTSTATUS
@@ -132,7 +155,7 @@ ClassVendorCommand(
     IN PVOID TransferBuffer,
     IN ULONG * OutLength,
     IN ULONG Direction,
-    IN BOOLEAN Function
+    IN BOOLEAN IsClassFunction
 );
 
 NTSTATUS

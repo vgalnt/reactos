@@ -63,4 +63,58 @@ GetLineControlAndBaud(IN PDEVICE_OBJECT DeviceObject)
     return Status;
 }
 
+NTSTATUS
+NTAPI
+SetClrDtr(IN PDEVICE_OBJECT DeviceObject,
+          IN BOOLEAN SetOrClear)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    USBSER_CONTROL_LINE_STATE ControlSignal;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("SetClrDtr: DeviceObject %p, SetOrClear %d\n", DeviceObject, SetOrClear);
+    PAGED_CODE();
+
+    ControlSignal.AsUSHORT = 0;
+
+    Extension = DeviceObject->DeviceExtension;
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    if (Extension->LineState & SERIAL_RTS_STATE)
+    {
+        ControlSignal.CarrierControl = 1;
+    }
+
+    if (SetOrClear)
+    {
+        Extension->LineState |= SERIAL_DTR_STATE;
+        ControlSignal.DtePresent |= 1;
+    }
+    else
+    {
+        Extension->LineState &= ~SERIAL_DTR_STATE;
+    }
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    Status = ClassVendorCommand(DeviceObject,
+                                USB_CDC_SET_CONTROL_LINE_STATE,
+                                ControlSignal.AsUSHORT,
+                                Extension->InterfaceNumber,
+                                NULL,
+                                NULL,
+                                USBD_TRANSFER_DIRECTION_OUT,
+                                TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+        Extension->LineState &= ~SERIAL_DTR_STATE;
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+    }
+
+    return Status;
+}
+
 /* EOF */
