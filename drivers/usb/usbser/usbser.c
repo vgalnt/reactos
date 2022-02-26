@@ -66,10 +66,69 @@ PutData(IN PUSBSER_DEVICE_EXTENSION Extension,
     KeReleaseSpinLock(&Extension->SpinLock, Irql);
 }
 
-NTSTATUS NTAPI ReadCompletion(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp, IN PVOID Context)
+NTSTATUS
+NTAPI
+ReadCompletion(IN PDEVICE_OBJECT DeviceObject,
+               IN PIRP Irp,
+               IN PVOID Context)
 {
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension = Context;
+    KIRQL Irql;
+    ULONG Offset;
+    ULONG BufferLength;
+    BOOLEAN IsRestartRead;
+
+    DPRINT("ReadCompletion: Extension %p\n", Extension);
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    BufferLength = Extension->ReadUrb->UrbBulkOrInterruptTransfer.TransferBufferLength;
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        Extension->ReadingState = 2;
+        Extension->ReadingIsOn = FALSE;
+        Extension->DeviceIsRunning = FALSE;
+
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+        goto Exit;
+    }
+
+    Extension->HistoryMask |= (SERIAL_EV_RX80FULL | SERIAL_EV_RXCHAR);
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    if (Extension->IsrWaitMask & SERIAL_EV_RXFLAG)
+    {
+        for (Offset = 0; Offset < BufferLength; Offset++)
+        {
+            if (*((PUCHAR)Extension->ReadBuffer + Offset) == Extension->Chars.EventChar)
+            {
+                Extension->HistoryMask |= SERIAL_EV_RXFLAG;
+                break;
+            }
+        }
+    }
+
+    PutData(Extension, BufferLength);
+
+    DPRINT1("ReadCompletion: FIXME CheckForQueuedReads()\n");
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    IsRestartRead = (Extension->ReadingState == 3);
+    Extension->ReadingState = 2;
+    Extension->ReadingIsOn = FALSE;
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    if (IsRestartRead)
+        RestartRead(Extension);
+
+Exit:
+
+    if (!InterlockedDecrement(&Extension->DataInCount))
+        KeSetEvent(&Extension->EventDataIn, IO_NO_INCREMENT, FALSE);
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 VOID
