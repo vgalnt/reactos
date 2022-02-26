@@ -136,6 +136,12 @@ SetClrDtr(
     IN BOOLEAN SetOrClear
 );
 
+NTSTATUS
+NTAPI
+ClrRts(
+    IN PUSBSER_DEVICE_EXTENSION Extension
+);
+
 /* usb.c */
 
 NTSTATUS

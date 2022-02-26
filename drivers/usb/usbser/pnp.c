@@ -233,6 +233,11 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
 
     ResetDevice(DeviceObject);
 
+    UsbSerDoExternalNaming(Extension);
+
+    SetClrDtr(DeviceObject, FALSE);
+    ClrRts(Extension);
+
 
 Exit:
 

@@ -117,4 +117,20 @@ SetClrDtr(IN PDEVICE_OBJECT DeviceObject,
     return Status;
 }
 
+NTSTATUS
+NTAPI
+ClrRts(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    KIRQL Irql;
+
+    DPRINT("ClrRts: Extension %p\n", Extension);
+    PAGED_CODE();
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    Extension->LineState &= ~SERIAL_RTS_STATE;
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    return STATUS_SUCCESS;
+}
+
 /* EOF */
