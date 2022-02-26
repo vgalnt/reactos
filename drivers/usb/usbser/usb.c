@@ -158,6 +158,12 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
     PUSBD_INTERFACE_INFORMATION InterfaceArray[2];
     PUSB_INTERFACE_DESCRIPTOR iDesc;
     PURB Urb = NULL;
+    PVOID NotifyBuffer;
+    PVOID ReadBuffer;
+    PVOID RxBuffer;
+    PVOID OldReadBuffer;
+    PVOID OldRxBuffer;
+    PVOID OldNotifyBuffer;
     ULONG ix;
     USHORT Size;
     BOOLEAN InterfaceFound = FALSE;
@@ -225,7 +231,7 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
     {
         Interface = InterfaceArray[ix];
 
-        if (Interface->Class == USB_DEVICE_CLASS_COMMUNICATIONS)
+        if (Interface->Class == USB_DEVICE_CLASS_COMMUNICATIONS)//2
         {
             DPRINT1("SelectInterface: find interface number %X\n", Interface->InterfaceNumber);
             InterfaceFound = TRUE;
@@ -238,7 +244,48 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
             {
                 if (Interface->Pipes[ix].PipeType == UsbdPipeTypeBulk)
                 {
+                    Extension->RxBufferSize = RxBufferSize;
+
+                    if (RxBufferSize)
+                        RxBuffer = ExAllocatePoolWithTag(NonPagedPool, RxBufferSize, USBSER_TAG);
+                    else
+                        RxBuffer = NULL;
+
+                    NotifyBuffer = ExAllocatePoolWithTag(NonPagedPool, sizeof(USBSER_CDC_NOTIFICATION), USBSER_TAG);
+                    ReadBuffer = ExAllocatePoolWithTag(NonPagedPool, 0x1000, USBSER_TAG);
+
+                    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
                     Extension->DataInPipeHandle = Interface->Pipes[ix].PipeHandle;
+
+                    if (Extension->NotifyBuffer)
+                        OldNotifyBuffer = Extension->NotifyBuffer;
+                    else
+                        OldNotifyBuffer = NULL;
+
+                    if (Extension->RxBuffer)
+                        OldRxBuffer = Extension->RxBuffer;
+                    else
+                        OldRxBuffer = NULL;
+
+                    if (Extension->ReadBuffer)
+                        OldReadBuffer = Extension->ReadBuffer;
+                    else
+                        OldReadBuffer = NULL;
+
+                    Extension->CharsInReadBuffer = 0;
+                    Extension->ReadBufferOffset = 0;
+
+                    Extension->RxBuffer = RxBuffer;
+
+                    Extension->ReadBuffer = ReadBuffer;
+                    Extension->NotifyBuffer = NotifyBuffer;
+
+                    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+                    if (OldNotifyBuffer) ExFreePoolWithTag(OldNotifyBuffer, USBSER_TAG);
+                    if (OldRxBuffer) ExFreePoolWithTag(OldRxBuffer, USBSER_TAG);
+                    if (OldReadBuffer) ExFreePoolWithTag(OldReadBuffer, USBSER_TAG);
                 }
                 else if (Interface->Pipes[ix].PipeType == UsbdPipeTypeInterrupt)
                 {

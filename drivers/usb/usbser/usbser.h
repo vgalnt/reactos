@@ -99,12 +99,29 @@ typedef struct _USBSER_DEVICE_EXTENSION
     USBD_PIPE_HANDLE DataInPipeHandle;
     USBD_PIPE_HANDLE DataOutPipeHandle;
     USBD_PIPE_HANDLE NotifyPipeHandle;
+    KEVENT EventDataIn;
+    KEVENT EventDataOut;
+    KEVENT EventNotify;
+    LONG DataInCount;
+    LONG DataOutCount;
+    LONG NotifyCount;
+    PVOID NotifyBuffer;
+    PVOID ReadBuffer;
+    ULONG CharsInReadBuffer;
+    ULONG ReadBufferOffset;
+    ULONG ReadingState;
+    PVOID RxBuffer;
+    USHORT RxBufferSize;
     UCHAR InterfaceNumber;
     BOOLEAN IsSymLinkCreated;
+    BOOLEAN DeviceIsRunning;
+    BOOLEAN ReadingIsOn;
     ULONG SupportedBauds;
     SERIAL_BAUD_RATE BaudRate;
     SERIAL_LINE_CONTROL LineControl;
     ULONG LineState;
+    PIRP ReadIrp;
+    PURB ReadUrb;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
@@ -183,6 +200,12 @@ ResetDevice(
 );
 
 /* usbser.c */
+
+VOID
+NTAPI
+StartRead(
+    IN PUSBSER_DEVICE_EXTENSION Extension
+);
 
 /* utils.c */
 

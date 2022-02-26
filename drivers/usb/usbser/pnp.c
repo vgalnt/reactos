@@ -238,6 +238,8 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
     SetClrDtr(DeviceObject, FALSE);
     ClrRts(Extension);
 
+    StartRead(Extension);
+
 
 Exit:
 

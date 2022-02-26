@@ -22,6 +22,116 @@ ULONG NumDevices;
 
 /* FUNCTIONS ******************************************************************/
 
+NTSTATUS NTAPI ReadCompletion(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp, IN PVOID Context)
+{
+    UNIMPLEMENTED;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID NTAPI RestartRead(PUSBSER_DEVICE_EXTENSION Extension)
+{
+    PIO_STACK_LOCATION IoStack;
+    PIRP Irp;
+    PURB Urb;
+    BOOLEAN IsContinueRead;
+    BOOLEAN IsAllowNextRead;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("RestartRead: Extension %p\n", Extension);
+
+    do
+    {
+        IsAllowNextRead = FALSE;
+
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+        if (Extension->ReadingIsOn == FALSE &&
+            Extension->CharsInReadBuffer <= 0x3000 &&
+            Extension->DeviceIsRunning == TRUE)
+        {
+            IsAllowNextRead = TRUE;
+            Extension->ReadingIsOn = TRUE;
+            Extension->ReadingState = 1;
+        }
+
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+        if (!IsAllowNextRead)
+            break;
+
+        Urb = Extension->ReadUrb;
+        Irp = Extension->ReadIrp;
+
+        RtlZeroMemory(Urb, sizeof(struct _URB_BULK_OR_INTERRUPT_TRANSFER));
+
+        Urb->UrbHeader.Length = sizeof(struct _URB_BULK_OR_INTERRUPT_TRANSFER);
+        Urb->UrbHeader.Function = URB_FUNCTION_BULK_OR_INTERRUPT_TRANSFER;
+
+        Urb->UrbBulkOrInterruptTransfer.PipeHandle = Extension->DataInPipeHandle;
+        Urb->UrbBulkOrInterruptTransfer.TransferBuffer = Extension->ReadBuffer;
+        Urb->UrbBulkOrInterruptTransfer.TransferBufferLength = 0x1000;
+        Urb->UrbBulkOrInterruptTransfer.TransferFlags = (USBD_TRANSFER_DIRECTION_IN | USBD_SHORT_TRANSFER_OK);
+
+        Urb->UrbBulkOrInterruptTransfer.TransferBufferMDL = NULL;
+        Urb->UrbBulkOrInterruptTransfer.UrbLink = NULL;
+
+        IoStack = IoGetNextIrpStackLocation(Irp);
+        IoStack->MajorFunction = IRP_MJ_INTERNAL_DEVICE_CONTROL;
+        IoStack->Parameters.DeviceIoControl.IoControlCode = IOCTL_INTERNAL_USB_SUBMIT_URB;
+        IoStack->Parameters.Others.Argument1 = Urb;
+
+        IoSetCompletionRoutine(Irp, ReadCompletion, Extension, TRUE, TRUE, TRUE);
+
+        InterlockedIncrement(&Extension->DataInCount);
+
+        Status = IoCallDriver(Extension->LowerDevice, Irp);
+
+        if (!NT_SUCCESS(Status) && !InterlockedDecrement(&Extension->DataInCount))
+        {
+            KeSetEvent(&Extension->EventDataIn, IO_NO_INCREMENT, FALSE);
+        }
+
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+        IsContinueRead = (Extension->ReadingState == 2);
+        Extension->ReadingState = 3;
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+    }
+    while (IsContinueRead);
+}
+
+VOID
+NTAPI
+StartRead(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    struct _URB_BULK_OR_INTERRUPT_TRANSFER * Urb;
+    PIRP Irp;
+
+    DPRINT("StartRead: Extension %p\n", Extension);
+    PAGED_CODE();
+
+    Irp = IoAllocateIrp((Extension->LowerDevice->StackSize + 1), FALSE);
+    if (!Irp)
+    {
+        DPRINT1("StartRead: allocate irp failed\n");
+        return;
+    }
+
+    Urb = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct _URB_BULK_OR_INTERRUPT_TRANSFER), USBSER_TAG);
+    if (!Urb)
+    {
+        DPRINT1("StartRead: allocate Urb failed\n");
+        return;
+    }
+
+    UsbSerFetchPVoidLocked((PVOID *)&Extension->ReadIrp, Irp, &Extension->SpinLock);
+    UsbSerFetchPVoidLocked((PVOID *)&Extension->ReadUrb, Urb, &Extension->SpinLock);
+
+    RestartRead(Extension);
+}
+
+/* IRP_MJ FUNCTIONS ***********************************************************/
+
 NTSTATUS
 NTAPI
 UsbSerCreate(IN PDEVICE_OBJECT DeviceObject,
@@ -232,6 +342,16 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     NumDevices++;
     Slots[FreeIdx] = 1;
     KeReleaseSpinLock(&GlobalSpinLock, Irql);
+
+    KeInitializeSpinLock(&Extension->SpinLock);
+
+    KeInitializeEvent(&Extension->EventDataIn, SynchronizationEvent, FALSE);
+    KeInitializeEvent(&Extension->EventDataOut, SynchronizationEvent, FALSE);
+    KeInitializeEvent(&Extension->EventNotify, SynchronizationEvent, FALSE);
+
+    Extension->DataInCount = 1;
+    Extension->DataOutCount = 1;
+    Extension->NotifyCount = 1;
 
     if (!TargetDevice)
     {
