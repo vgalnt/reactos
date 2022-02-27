@@ -239,7 +239,9 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
     ClrRts(Extension);
 
     StartRead(Extension);
+    StartNotifyRead(Extension);
 
+    DPRINT("StartDevice: Device %p is started\n", DeviceObject);
 
 Exit:
 

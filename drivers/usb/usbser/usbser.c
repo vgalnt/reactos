@@ -483,7 +483,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
         if (!Slots[FreeIdx])
             break;
     }
-    KfReleaseSpinLock(&GlobalSpinLock, Irql);
+    KeReleaseSpinLock(&GlobalSpinLock, Irql);
 
     if (FreeIdx == USBSER_MAX_SLOT)
     {

@@ -221,6 +221,12 @@ RestartRead(
     IN PUSBSER_DEVICE_EXTENSION Extension
 );
 
+VOID
+NTAPI
+StartNotifyRead(
+    IN PUSBSER_DEVICE_EXTENSION Extension
+);
+
 /* utils.c */
 
 NTSTATUS
