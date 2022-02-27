@@ -275,9 +275,54 @@ NTAPI
 QueryCapabilities(IN PDEVICE_OBJECT DeviceObject,
                   IN PIRP Irp)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE);
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PDEVICE_CAPABILITIES Capabilities;
+    PIO_STACK_LOCATION IoStack;
+    PKEVENT Event;
+    NTSTATUS Status;
+
+    DPRINT("QueryCapabilities: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+
+    Event = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Event), USBSER_TAG);
+    if (!Event)
+    {
+        DPRINT1("QueryCapabilities: STATUS_INSUFFICIENT_RESOURCES\n");
+        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    KeInitializeEvent(Event, SynchronizationEvent, FALSE);
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    IoSetCompletionRoutine(Irp, UsbSerSyncCompletion, &Event, TRUE, TRUE, TRUE);
+
+    Extension = DeviceObject->DeviceExtension;
+
+    Status = IoCallDriver(Extension->LowerDevice, Irp);
+    if (Status == STATUS_PENDING)
+        KeWaitForSingleObject(Event, Executive, KernelMode, FALSE, NULL);
+
+    ExFreePoolWithTag(Event, USBSER_TAG);
+
+    Status = Irp->IoStatus.Status;
+
+    if (!DeviceObject->ReferenceCount)
+    {
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return Status;
+    }
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Capabilities = IoStack->Parameters.DeviceCapabilities.Capabilities;
+    Capabilities->Reserved |= 0x200;
+
+    Extension->SystemWake = Capabilities->SystemWake;
+    Extension->DeviceWake = Capabilities->DeviceWake;
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    return Status;
 }
 
 VOID
