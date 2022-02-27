@@ -536,7 +536,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
         goto Exit;
     }
 
-    RtlCopyMemory(&Extension->DeviceName.Buffer, DeviceName.Buffer, Extension->DeviceName.MaximumLength);
+    RtlCopyMemory(Extension->DeviceName.Buffer, DeviceName.Buffer, Extension->DeviceName.MaximumLength);
 
     Extension->DeviceIndex = FreeIdx;
 
@@ -580,9 +580,6 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     NewDevice->Flags &= ~DO_DEVICE_INITIALIZING;
 
 Exit:
-
-    RtlFreeUnicodeString(&DeviceName);
-    RtlFreeUnicodeString(&SymLinkName);
 
     if (Status != STATUS_SUCCESS && NewDevice)
     {
