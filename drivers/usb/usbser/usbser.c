@@ -235,6 +235,103 @@ StartRead(IN PUSBSER_DEVICE_EXTENSION Extension)
     RestartRead(Extension);
 }
 
+NTSTATUS
+NTAPI
+NotifyCompletion(IN PDEVICE_OBJECT DeviceObject,
+                 IN PIRP Irp,
+                 IN PVOID Context)
+{
+    UNIMPLEMENTED;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+RestartNotifyRead(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    PIO_STACK_LOCATION IoStack;
+    PURB Urb;
+    PIRP Irp;
+    NTSTATUS Status;
+
+    DPRINT("RestartNotifyRead: Extension %p\n", Extension);
+
+    Urb = Extension->NotifyUrb;
+    Irp = Extension->NotifyIrp;
+
+    if (!Extension->DeviceIsRunning)
+    {
+        goto Exit;
+    }
+
+    RtlZeroMemory(Urb, sizeof(struct _URB_BULK_OR_INTERRUPT_TRANSFER));
+
+    Urb->UrbHeader.Length = sizeof(struct _URB_BULK_OR_INTERRUPT_TRANSFER);
+    Urb->UrbHeader.Function = URB_FUNCTION_BULK_OR_INTERRUPT_TRANSFER;
+
+    Urb->UrbBulkOrInterruptTransfer.PipeHandle = Extension->NotifyPipeHandle;
+    Urb->UrbBulkOrInterruptTransfer.TransferBuffer = Extension->NotifyBuffer;
+    Urb->UrbBulkOrInterruptTransfer.TransferBufferLength = sizeof(USBSER_CDC_NOTIFICATION);
+    Urb->UrbBulkOrInterruptTransfer.TransferFlags = (USBD_TRANSFER_DIRECTION_IN | USBD_SHORT_TRANSFER_OK);
+
+    Urb->UrbBulkOrInterruptTransfer.TransferBufferMDL = NULL;
+    Urb->UrbBulkOrInterruptTransfer.UrbLink = NULL;
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MajorFunction = IRP_MJ_INTERNAL_DEVICE_CONTROL;
+    IoStack->Parameters.DeviceIoControl.IoControlCode = IOCTL_INTERNAL_USB_SUBMIT_URB;
+    IoStack->Parameters.Others.Argument1 = Urb;
+
+    IoSetCompletionRoutine(Irp, NotifyCompletion, Extension, TRUE, TRUE, TRUE);
+
+    InterlockedIncrement(&Extension->NotifyCount);
+
+    Status = IoCallDriver(Extension->LowerDevice, Irp);
+    if (NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    if (!InterlockedDecrement(&Extension->NotifyCount))
+    {
+        KeSetEvent(&Extension->EventNotify, IO_NO_INCREMENT, FALSE);
+    }
+
+Exit:
+
+    return;
+}
+
+VOID
+NTAPI
+StartNotifyRead(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    PURB Urb;
+    PIRP Irp;
+
+    DPRINT("StartNotifyRead: Extension %p\n", Extension);
+    PAGED_CODE();
+
+    Irp = IoAllocateIrp((Extension->LowerDevice->StackSize + 1), FALSE);
+    if (!Irp)
+    {
+        DPRINT1("StartNotifyRead: allocate Irp failed\n");
+        return;
+    }
+
+    Urb = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct _URB_BULK_OR_INTERRUPT_TRANSFER), USBSER_TAG);
+    if (!Urb)
+    {
+        DPRINT1("StartNotifyRead: allocate Urb failed\n");
+        return;
+    }
+
+    UsbSerFetchPVoidLocked((PVOID *)&Extension->NotifyIrp, Irp, &Extension->SpinLock);
+    UsbSerFetchPVoidLocked((PVOID *)&Extension->NotifyUrb, Urb, &Extension->SpinLock);
+
+    RestartNotifyRead(Extension);
+}
+
 /* IRP_MJ FUNCTIONS ***********************************************************/
 
 NTSTATUS
