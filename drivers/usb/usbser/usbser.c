@@ -339,10 +339,55 @@ NTAPI
 UsbSerCreate(IN PDEVICE_OBJECT DeviceObject,
              IN PIRP Irp)
 {
-    DPRINT("UsbSerCreate: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    KIRQL Irql;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("UsbSer_Create: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
     PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+
+    Extension = DeviceObject->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+
+    if (InterlockedIncrement(&Extension->OpenCount) != 1)
+    {
+        InterlockedDecrement(&Extension->OpenCount);
+        Irp->IoStatus.Status = STATUS_ACCESS_DENIED;
+        Status = STATUS_ACCESS_DENIED;
+        goto Exit;
+    }
+
+    if (IoStack->Parameters.Create.Options & FILE_DIRECTORY_FILE)
+    {
+        InterlockedDecrement(&Extension->OpenCount);
+        Irp->IoStatus.Information = 0;
+        Irp->IoStatus.Status = STATUS_NOT_A_DIRECTORY;
+        Status = STATUS_NOT_A_DIRECTORY;
+        goto Exit;
+    }
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    Extension->IsrWaitMask = 0;
+
+    RtlZeroMemory(&Extension->Stats, sizeof(Extension->Stats));
+
+    Extension->CharsInReadBuffer = 0;
+    Extension->ReadBufferOffset = 0;
+    Extension->HistoryMask = 0;
+    Extension->IsWaitWake = FALSE;
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    RestartRead(Extension);
+
+Exit:
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return Status;
 }
 
 NTSTATUS

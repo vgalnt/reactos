@@ -116,12 +116,14 @@ typedef struct _USBSER_DEVICE_EXTENSION
     BOOLEAN IsSymLinkCreated;
     BOOLEAN DeviceIsRunning;
     BOOLEAN ReadingIsOn;
+    BOOLEAN IsWaitWake;
     ULONG SupportedBauds;
     SERIAL_BAUD_RATE BaudRate;
     SERIAL_LINE_CONTROL LineControl;
     SERIAL_TIMEOUTS Timeouts;
     SERIAL_HANDFLOW HandFlow;
     SERIAL_CHARS Chars;
+    SERIALPERF_STATS Stats;
     ULONG LineState;
     PIRP ReadIrp;
     PURB ReadUrb;
@@ -132,6 +134,8 @@ typedef struct _USBSER_DEVICE_EXTENSION
     ULONG ReadByIsr;
     SYSTEM_POWER_STATE SystemWake;
     DEVICE_POWER_STATE DeviceWake;
+    PIRP WakeIrp;
+    LONG OpenCount;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
