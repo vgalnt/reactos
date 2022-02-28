@@ -20,6 +20,146 @@
 
 NTSTATUS
 NTAPI
+GetBaudRate(IN PDEVICE_OBJECT DeviceObject,
+            IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    PSERIAL_BAUD_RATE Data;
+    KIRQL Irql;
+
+    DPRINT("GetBaudRate: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < 4)
+    {
+        DPRINT("GetBaudRate: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.OutputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    GetLineControlAndBaud(DeviceObject);
+
+    Extension = DeviceObject->DeviceExtension;
+    Data = Irp->AssociatedIrp.SystemBuffer;
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    Data->BaudRate = Extension->BaudRate.BaudRate;
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    Irp->IoStatus.Information = 4;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+GetLineControl(IN PDEVICE_OBJECT DeviceObject,
+               IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PSERIAL_LINE_CONTROL LineControl;
+    PIO_STACK_LOCATION IoStack;
+    KIRQL Irql;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("GetLineControl: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < 3)
+    {
+        DPRINT("GetLineControl: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.OutputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    GetLineControlAndBaud(DeviceObject);
+
+    Extension = DeviceObject->DeviceExtension;
+    LineControl = Irp->AssociatedIrp.SystemBuffer;
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    RtlCopyMemory(LineControl, &Extension->LineControl, sizeof(*LineControl));
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    Irp->IoStatus.Information = 3;
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
+GetChars(IN PDEVICE_OBJECT DeviceObject,
+         IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    PSERIAL_CHARS Chars;
+    KIRQL Irql;
+
+    DPRINT("GetChars: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    Extension = DeviceObject->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+
+    Chars = Irp->AssociatedIrp.SystemBuffer;
+
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < 6)
+    {
+        DPRINT1("GetChars: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.OutputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    RtlCopyMemory(Chars, &Extension->Chars, sizeof(*Chars));
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    Irp->IoStatus.Information = 6;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+GetHandflow(IN PDEVICE_OBJECT DeviceObject,
+            IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    PSERIAL_HANDFLOW HandFlow;
+    KIRQL Irql;
+
+    DPRINT("GetHandflow: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+
+    HandFlow = Irp->AssociatedIrp.SystemBuffer;
+
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < 0x10)
+    {
+        DPRINT1("GetHandflow: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.OutputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    RtlCopyMemory(HandFlow, &Extension->HandFlow, sizeof(*HandFlow));
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    Irp->IoStatus.Information = 0x10;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
                     IN PIRP Irp)
 {
@@ -37,7 +177,8 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
     {
         case IOCTL_SERIAL_GET_BAUD_RATE:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_BAUD_RATE\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_BAUD_RATE\n");
+            Status = GetBaudRate(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_PURGE:
@@ -107,12 +248,14 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_GET_LINE_CONTROL:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_LINE_CONTROL\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_LINE_CONTROL\n");
+            Status = GetLineControl(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_GET_CHARS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_CHARS\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_CHARS\n");
+            Status = GetChars(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_SET_CHARS:
@@ -122,7 +265,8 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_GET_HANDFLOW:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_HANDFLOW\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_HANDFLOW\n");
+            Status = GetHandflow(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_CONFIG_SIZE:
