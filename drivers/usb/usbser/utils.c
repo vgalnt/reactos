@@ -52,7 +52,7 @@ UsbSerSyncCompletion(IN PDEVICE_OBJECT DeviceObject,
 {
     PKEVENT Event = Context;
 
-    DPRINT("UsbSerSyncCompletion: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    //DPRINT("UsbSerSyncCompletion: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
 
     KeSetEvent(Event, IO_NO_INCREMENT, FALSE);
     return STATUS_MORE_PROCESSING_REQUIRED;

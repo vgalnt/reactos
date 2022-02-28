@@ -281,7 +281,7 @@ QueryCapabilities(IN PDEVICE_OBJECT DeviceObject,
     PKEVENT Event;
     NTSTATUS Status;
 
-    DPRINT("QueryCapabilities: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    //DPRINT("QueryCapabilities: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
 
     Event = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Event), USBSER_TAG);
     if (!Event)
@@ -344,7 +344,7 @@ UsbSerPnP(IN PDEVICE_OBJECT DeviceObject,
     PIO_STACK_LOCATION IoStack;
     NTSTATUS Status;
 
-    DPRINT("UsbSerPnP: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    //DPRINT("UsbSerPnP: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
     PAGED_CODE();
 
     Extension = DeviceObject->DeviceExtension;
@@ -394,7 +394,7 @@ UsbSerPnP(IN PDEVICE_OBJECT DeviceObject,
             break;
 
         case IRP_MN_QUERY_CAPABILITIES:
-            DPRINT("UsbSerPnP: IRP_MN_QUERY_CAPABILITIES\n");
+            //DPRINT("UsbSerPnP: IRP_MN_QUERY_CAPABILITIES\n");
             Status = QueryCapabilities(DeviceObject, Irp);
             goto Exit;
 
