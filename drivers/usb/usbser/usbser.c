@@ -472,17 +472,6 @@ UsbSerFlush(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
-UsbSerDispatch(IN PDEVICE_OBJECT DeviceObject,
-               IN PIRP Irp)
-{
-    DPRINT("UsbSerDispatch: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
-    PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS
-NTAPI
 UsbSerCleanup(IN PDEVICE_OBJECT DeviceObject,
               IN PIRP Irp)
 {
@@ -637,6 +626,8 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     }
 
     DPRINT("UsbSer_PnPAddDevice: TargetDevice %p, LowerDevice %p\n", TargetDevice, Extension->LowerDevice);
+
+    Extension->DevicePowerState = PowerDeviceD0;
 
     NewDevice->StackSize = (Extension->LowerDevice->StackSize + 1);
 
