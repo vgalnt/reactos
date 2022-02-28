@@ -395,10 +395,30 @@ NTAPI
 UsbSerClose(IN PDEVICE_OBJECT DeviceObject,
             IN PIRP Irp)
 {
-    DPRINT("UsbSerClose: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PUSBSER_DEVICE_EXTENSION Extension;
+    LONG OpenCount;
+
+    DPRINT("UsbSer_Close: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
     PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+
+    Extension = DeviceObject->DeviceExtension;
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+
+    SetClrDtr(DeviceObject, FALSE);
+
+    Extension->IsWaitWake = FALSE;
+
+    if (Extension->WakeIrp)
+        IoCancelIrp(Extension->WakeIrp);
+
+    OpenCount = InterlockedDecrement(&Extension->OpenCount);
+    ASSERT(OpenCount == 0);
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
