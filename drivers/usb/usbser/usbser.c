@@ -334,6 +334,23 @@ StartNotifyRead(IN PUSBSER_DEVICE_EXTENSION Extension)
 
 /* IRP_MJ_READ FUNCTIONS ******************************************************/
 
+VOID
+NTAPI
+UsbSerCancelQueued(IN PDEVICE_OBJECT DeviceObject,
+                   IN PIRP Irp)
+{
+    DPRINT("UsbSerCancelQueued: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = STATUS_CANCELLED;
+
+    RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
+
+    IoReleaseCancelSpinLock(Irp->CancelIrql);
+    IoCompleteRequest(Irp, IO_SERIAL_INCREMENT);
+}
+
 NTSTATUS
 NTAPI
 UsbSerStartOrQueue(IN PDEVICE_OBJECT DeviceObject,
@@ -342,8 +359,42 @@ UsbSerStartOrQueue(IN PDEVICE_OBJECT DeviceObject,
                    OUT PIRP * OutIrp,
                    IN PUSBSER_START_READ StartReadRoutine)
 {
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("UsbSerStartOrQueue: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    IoAcquireCancelSpinLock(&Irql);
+
+    if (IsListEmpty(List) && (*OutIrp == NULL))
+    {
+        *OutIrp = Irp;
+        IoReleaseCancelSpinLock(Irql);
+        Extension = DeviceObject->DeviceExtension;
+        Status = StartReadRoutine(Extension);
+        return Status;
+    }
+
+    if (Irp->Cancel)
+    {
+        IoReleaseCancelSpinLock(Irql);
+        Irp->IoStatus.Status = STATUS_CANCELLED;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return STATUS_CANCELLED;
+    }
+
+    IoMarkIrpPending(Irp);
+
+    Irp->IoStatus.Status = STATUS_PENDING;
+
+    InsertTailList(List, &Irp->Tail.Overlay.ListEntry);
+
+    IoSetCancelRoutine(Irp, UsbSerCancelQueued);
+    IoReleaseCancelSpinLock(Irql);
+
+    return STATUS_PENDING;
 }
 
 NTSTATUS
