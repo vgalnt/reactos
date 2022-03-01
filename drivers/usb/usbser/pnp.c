@@ -233,6 +233,8 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
 
     ResetDevice(DeviceObject);
 
+    InitializeListHead(&Extension->ReadQueueList);
+
     UsbSerDoExternalNaming(Extension);
 
     SetClrDtr(DeviceObject, FALSE);

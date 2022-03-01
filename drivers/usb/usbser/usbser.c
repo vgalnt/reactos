@@ -332,6 +332,64 @@ StartNotifyRead(IN PUSBSER_DEVICE_EXTENSION Extension)
     RestartNotifyRead(Extension);
 }
 
+/* IRP_MJ_READ FUNCTIONS ******************************************************/
+
+NTSTATUS
+NTAPI
+UsbSerStartOrQueue(IN PDEVICE_OBJECT DeviceObject,
+                   IN PIRP Irp,
+                   IN PLIST_ENTRY List,
+                   OUT PIRP * OutIrp,
+                   IN PUSBSER_START_READ StartReadRoutine)
+{
+    UNIMPLEMENTED;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+UsbSerStartRead(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    UNIMPLEMENTED;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+UsbSerRead(IN PDEVICE_OBJECT DeviceObject,
+           IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    DPRINT("UsbSerRead: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    Extension = DeviceObject->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+
+    if (IoStack->Parameters.Read.Length)
+    {
+        Status = UsbSerStartOrQueue(DeviceObject,
+                                    Irp,
+                                    &Extension->ReadQueueList,
+                                    &Extension->CurrentReadIrp,
+                                    UsbSerStartRead);
+
+        DPRINT("UsbSerRead: Status %X\n", Status);
+        return Status;
+    }
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    return STATUS_SUCCESS;
+}
+
 /* IRP_MJ FUNCTIONS ***********************************************************/
 
 NTSTATUS

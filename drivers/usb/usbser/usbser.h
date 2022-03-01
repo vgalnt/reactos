@@ -137,8 +137,13 @@ typedef struct _USBSER_DEVICE_EXTENSION
     PIRP WakeIrp;
     LONG OpenCount;
     DEVICE_POWER_STATE DevicePowerState;
+    PIRP CurrentReadIrp;
+    LIST_ENTRY ReadQueueList;
+    ULONG ReadLength;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
+
+typedef NTSTATUS (NTAPI* PUSBSER_START_READ)(PUSBSER_DEVICE_EXTENSION Extension);
 
 /* ioctl.c */
 
