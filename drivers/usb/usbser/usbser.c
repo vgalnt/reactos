@@ -351,6 +351,17 @@ UsbSerCancelQueued(IN PDEVICE_OBJECT DeviceObject,
     IoCompleteRequest(Irp, IO_SERIAL_INCREMENT);
 }
 
+VOID
+NTAPI
+UsbSerGetNextIrp(IN PUSBSER_DEVICE_EXTENSION Extension,
+                 IN OUT PIRP * CurrentOpIrp,
+                 IN PLIST_ENTRY QueueToProcess,
+                 OUT PIRP * OutNextIrp,
+                 IN BOOLEAN CompleteCurrent)
+{
+    UNIMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 UsbSerStartOrQueue(IN PDEVICE_OBJECT DeviceObject,
@@ -370,10 +381,13 @@ UsbSerStartOrQueue(IN PDEVICE_OBJECT DeviceObject,
 
     if (IsListEmpty(List) && (*OutIrp == NULL))
     {
+        /* Queue is empty */
         *OutIrp = Irp;
         IoReleaseCancelSpinLock(Irql);
         Extension = DeviceObject->DeviceExtension;
+
         Status = StartReadRoutine(Extension);
+        DPRINT("UsbSerStartOrQueue: Status %X\n", Status);
         return Status;
     }
 
@@ -384,6 +398,8 @@ UsbSerStartOrQueue(IN PDEVICE_OBJECT DeviceObject,
         IoCompleteRequest(Irp, IO_NO_INCREMENT);
         return STATUS_CANCELLED;
     }
+
+    /* Add to Queue */
 
     IoMarkIrpPending(Irp);
 
@@ -397,12 +413,225 @@ UsbSerStartOrQueue(IN PDEVICE_OBJECT DeviceObject,
     return STATUS_PENDING;
 }
 
+VOID
+NTAPI
+GetData(IN PUSBSER_DEVICE_EXTENSION Extension,
+        IN PVOID DataBuffer,
+        IN ULONG DataBufferSize,
+        OUT ULONG * OutLength)
+{
+    UNIMPLEMENTED;
+}
+
+VOID
+NTAPI
+UsbSerCancelCurrentRead(IN PDEVICE_OBJECT DeviceObject,
+                        IN PIRP Irp)
+{
+    UNIMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 UsbSerStartRead(IN PUSBSER_DEVICE_EXTENSION Extension)
 {
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+    LARGE_INTEGER TotalTime;
+    PIRP CurrentReadIrp;
+    PIRP NewIrp;
+    PIRP Irp;
+    ULONG IntervalTimeout;
+    ULONG TotalTimeoutMultiplier;
+    ULONG TotalTimeoutConstant;
+    ULONG Multiplier;
+    ULONG Length;
+    ULONG Constant = 0;
+    BOOLEAN UseIntervalTimer;
+    BOOLEAN CrunchDownToOne;
+    BOOLEAN ReturnWithWhatsPresent;
+    BOOLEAN Os2ssreturn;
+    BOOLEAN IsSetStatus = FALSE;
+    BOOLEAN UseTotalTimer;
+    KIRQL CancelIrql;
+    KIRQL Irql;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("UsbSerStartRead: Extension %p\n", Extension);
+    PAGED_CODE();
+
+    do
+    {
+        Irp = Extension->CurrentReadIrp;
+        IoStack = IoGetCurrentIrpStackLocation(Irp);
+        Length = IoStack->Parameters.Read.Length;
+        Extension->ReadLength = Length;
+
+        UseTotalTimer = FALSE;
+        ReturnWithWhatsPresent = FALSE;
+        Os2ssreturn = FALSE;
+        CrunchDownToOne = FALSE;
+        UseIntervalTimer = FALSE;
+
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+        IntervalTimeout = Extension->Timeouts.ReadIntervalTimeout;
+        TotalTimeoutMultiplier = Extension->Timeouts.ReadTotalTimeoutMultiplier;
+        TotalTimeoutConstant = Extension->Timeouts.ReadTotalTimeoutConstant;
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+        if (IntervalTimeout && (IntervalTimeout != MAXULONG))
+        {
+            UseIntervalTimer = TRUE;
+
+            Extension->IntervalTime.QuadPart = UInt32x32To64(IntervalTimeout, 10000);
+
+            if (Extension->IntervalTime.QuadPart < Extension->CutOverAmount.QuadPart)
+            {
+                Extension->IntervalTimeToUse = &Extension->ShortIntervalAmount;
+            }
+            else
+            {
+                Extension->IntervalTimeToUse = &Extension->LongIntervalAmount;
+            }
+        }
+
+        if (IntervalTimeout != MAXULONG)
+        {
+            if (TotalTimeoutMultiplier || TotalTimeoutConstant)
+            {
+                UseTotalTimer = TRUE;
+
+                Multiplier = TotalTimeoutMultiplier;
+                Constant = TotalTimeoutConstant;
+            }
+        }
+        else
+        {
+            if (!TotalTimeoutConstant && !TotalTimeoutMultiplier)
+            {
+                ReturnWithWhatsPresent = TRUE;
+            }
+            else if ((TotalTimeoutConstant != MAXULONG) && (TotalTimeoutMultiplier != MAXULONG))
+            {
+                UseTotalTimer = TRUE;
+                Os2ssreturn = TRUE;
+
+                Multiplier = TotalTimeoutMultiplier;
+                Constant = TotalTimeoutConstant;
+            }
+            else if ((TotalTimeoutConstant != MAXULONG) && (TotalTimeoutMultiplier == MAXULONG))
+            {
+                UseTotalTimer = TRUE;
+                Os2ssreturn = TRUE;
+                CrunchDownToOne = TRUE;
+
+                Multiplier = 0;
+                Constant = TotalTimeoutConstant;
+            }
+        }
+
+        if (UseTotalTimer)
+        {
+            TotalTime.QuadPart = ((LONGLONG)(UInt32x32To64(Extension->ReadLength, Multiplier) + Constant)) * -10000;
+        }
+
+        CurrentReadIrp = Irp;
+
+        if (Extension->CharsInReadBuffer)
+        {
+            ULONG Offset = (Length - Extension->ReadLength);
+
+            DPRINT("UsbSerStartRead: Offset %X\n", Offset);
+
+            GetData(Extension,
+                    ((char *)Irp->AssociatedIrp.SystemBuffer + Offset),
+                    Extension->ReadLength,
+                    &Irp->IoStatus.Information);
+        }
+
+        if (ReturnWithWhatsPresent ||
+            !Extension->ReadLength ||
+            (Os2ssreturn && CurrentReadIrp->IoStatus.Information))
+        {
+            CurrentReadIrp->IoStatus.Status = STATUS_SUCCESS;
+
+            if (!IsSetStatus)
+            {
+                Status = STATUS_SUCCESS;
+                IsSetStatus = TRUE;
+            }
+        }
+        else
+        {
+            IoStack = IoGetCurrentIrpStackLocation(CurrentReadIrp);
+            IoStack->Parameters.Others.Argument4 = NULL;
+
+            IoAcquireCancelSpinLock(&CancelIrql);
+            if (!CurrentReadIrp->Cancel)
+                break;
+            IoReleaseCancelSpinLock(CancelIrql);
+
+            CurrentReadIrp->IoStatus.Status = STATUS_CANCELLED;
+            CurrentReadIrp->IoStatus.Information = 0;
+
+            if (!IsSetStatus)
+            {
+                Status = STATUS_CANCELLED;
+                IsSetStatus = TRUE;
+            }
+        }
+
+        UsbSerGetNextIrp(Extension,
+                         &Extension->CurrentReadIrp,
+                         &Extension->ReadQueueList,
+                         &NewIrp,
+                         TRUE);
+        if (!NewIrp)
+            return Status;
+
+        DPRINT("UsbSerStartRead: NewIrp %p\n", NewIrp);
+    }
+    while (TRUE);
+
+    IoStack = IoGetCurrentIrpStackLocation(CurrentReadIrp);
+
+    if (CrunchDownToOne)
+    {
+        IoStack->Parameters.Read.Length = 1;
+        Extension->ReadLength = 1;
+    }
+
+    IoStack->Parameters.Others.Argument4 = (PVOID)((ULONG)IoStack->Parameters.Others.Argument4 | 1);
+    IoStack->Parameters.Others.Argument4 = (PVOID)((ULONG)IoStack->Parameters.Others.Argument4 | 2);
+
+    if (UseTotalTimer)
+    {
+        IoStack->Parameters.Others.Argument4 = (PVOID)((ULONG)IoStack->Parameters.Others.Argument4 | 4);
+
+        KeSetTimer(&Extension->ReadRequestTotalTimer,
+                   TotalTime,
+                   &Extension->ReadTimeoutDpc);
+    }
+
+    if (UseIntervalTimer)
+    {
+        IoStack->Parameters.Others.Argument4 = (PVOID)((ULONG)IoStack->Parameters.Others.Argument4 | 8);
+
+        KeQuerySystemTime(&Extension->LastReadTime);
+
+        KeSetTimer(&Extension->ReadRequestIntervalTimer,
+                   *Extension->IntervalTimeToUse,
+                   &Extension->IntervalReadTimeoutDpc);
+    }
+
+    IoSetCancelRoutine(CurrentReadIrp, UsbSerCancelCurrentRead);
+    IoMarkIrpPending(CurrentReadIrp);
+
+    IoReleaseCancelSpinLock(CancelIrql);
+
+    if (!IsSetStatus)
+        Status = STATUS_PENDING;
+
+    return Status;
 }
 
 NTSTATUS

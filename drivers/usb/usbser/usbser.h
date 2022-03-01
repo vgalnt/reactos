@@ -140,6 +140,17 @@ typedef struct _USBSER_DEVICE_EXTENSION
     PIRP CurrentReadIrp;
     LIST_ENTRY ReadQueueList;
     ULONG ReadLength;
+    LARGE_INTEGER IntervalTime;
+    LARGE_INTEGER CutOverAmount;
+    LARGE_INTEGER LastReadTime;
+    KTIMER ReadRequestTotalTimer;
+    KTIMER ReadRequestIntervalTimer;
+    LARGE_INTEGER ShortIntervalAmount;
+    LARGE_INTEGER LongIntervalAmount;
+    PLARGE_INTEGER IntervalTimeToUse;
+    KDPC ReadTimeoutDpc;
+    KDPC IntervalReadTimeoutDpc;
+    KDPC WriteTimeoutDpc;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
