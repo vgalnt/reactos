@@ -171,7 +171,13 @@ SetClrDtr(
 NTSTATUS
 NTAPI
 ClrRts(
-    IN PUSBSER_DEVICE_EXTENSION Extension
+    IN PDEVICE_OBJECT DeviceObject
+);
+
+NTSTATUS
+NTAPI
+SetRts(
+    IN PDEVICE_OBJECT DeviceObject
 );
 
 /* usb.c */

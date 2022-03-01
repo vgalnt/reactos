@@ -319,7 +319,8 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_CLR_DTR:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_CLR_DTR\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_CLR_DTR\n");
+            Status = SetClrDtr(DeviceObject, FALSE);
             break;
         }
         case IOCTL_SERIAL_RESET_DEVICE:
@@ -329,17 +330,20 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_SET_RTS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_RTS\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_RTS\n");
+            Status = SetRts(DeviceObject);
             break;
         }
         case IOCTL_SERIAL_CLR_RTS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_CLR_RTS\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_CLR_RTS\n");
+            Status = ClrRts(DeviceObject);
             break;
         }
         case IOCTL_SERIAL_SET_DTR:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_DTR\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_DTR\n");
+            Status = SetClrDtr(DeviceObject, TRUE);
             break;
         }
         case IOCTL_SERIAL_SET_TIMEOUTS:

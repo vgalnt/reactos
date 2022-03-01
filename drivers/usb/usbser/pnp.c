@@ -236,7 +236,7 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
     UsbSerDoExternalNaming(Extension);
 
     SetClrDtr(DeviceObject, FALSE);
-    ClrRts(Extension);
+    ClrRts(DeviceObject);
 
     StartRead(Extension);
     StartNotifyRead(Extension);
