@@ -138,7 +138,7 @@ SetLineControl(IN PDEVICE_OBJECT DeviceObject,
     IoStack = IoGetCurrentIrpStackLocation(Irp);
     Irp->IoStatus.Information = 0;
 
-    if (IoStack->Parameters.DeviceIoControl.InputBufferLength >= 3)
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength < 3)
     {
         DPRINT1("SetLineControl: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
         return STATUS_BUFFER_TOO_SMALL;
