@@ -291,6 +291,39 @@ SetHandflow(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
+SetTimeouts(IN PDEVICE_OBJECT DeviceObject,
+            IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PSERIAL_TIMEOUTS Timeouts;
+    PIO_STACK_LOCATION IoStack;
+    KIRQL Irql;
+
+    DPRINT("SetTimeouts: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+
+    Timeouts = Irp->AssociatedIrp.SystemBuffer;
+
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength < 0x14)
+    {
+        DPRINT1("SetTimeouts: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    Extension = DeviceObject->DeviceExtension;
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    RtlCopyMemory(&Extension->Timeouts, Timeouts, sizeof(Extension->Timeouts));
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
                     IN PIRP Irp)
 {
@@ -348,7 +381,8 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_SET_TIMEOUTS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_TIMEOUTS\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_TIMEOUTS\n");
+            Status = SetTimeouts(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_SET_BREAK_OFF:
