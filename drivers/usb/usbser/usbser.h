@@ -145,6 +145,7 @@ typedef struct _USBSER_DEVICE_EXTENSION
     LARGE_INTEGER LastReadTime;
     KTIMER ReadRequestTotalTimer;
     KTIMER ReadRequestIntervalTimer;
+    KTIMER WriteRequestTotalTimer;
     LARGE_INTEGER ShortIntervalAmount;
     LARGE_INTEGER LongIntervalAmount;
     PLARGE_INTEGER IntervalTimeToUse;
@@ -154,6 +155,18 @@ typedef struct _USBSER_DEVICE_EXTENSION
     LONG CountOnLastRead;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
+
+typedef struct _USBSER_WRITE_CONTEXT
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIRP Irp;
+    KTIMER Timer;
+    LARGE_INTEGER TimeOut;
+    KDPC TimerDpc;
+    NTSTATUS Status;
+    struct _URB_BULK_OR_INTERRUPT_TRANSFER Urb;
+
+} USBSER_WRITE_CONTEXT, *PUSBSER_WRITE_CONTEXT;
 
 typedef NTSTATUS (NTAPI* PUSBSER_START_READ)(PUSBSER_DEVICE_EXTENSION Extension);
 typedef VOID (NTAPI* PUSBSER_GET_NEXT_IRP)(PUSBSER_DEVICE_EXTENSION Extension, PIRP * CurrentOpIrp, PLIST_ENTRY QueueToProcess, PIRP * OutNextIrp, BOOLEAN CompleteCurrent);
