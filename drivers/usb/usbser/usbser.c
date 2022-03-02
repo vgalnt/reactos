@@ -84,7 +84,8 @@ ReadCompletion(IN PDEVICE_OBJECT DeviceObject,
 
     BufferLength = Extension->ReadUrb->UrbBulkOrInterruptTransfer.TransferBufferLength;
 
-    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    if (!NT_SUCCESS(Irp->IoStatus.Status) ||
+        Extension->DevicePowerState != PowerDeviceD0)
     {
         Extension->ReadingState = 2;
         Extension->ReadingIsOn = FALSE;
