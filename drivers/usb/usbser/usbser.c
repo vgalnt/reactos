@@ -525,6 +525,36 @@ UsbSerGrabReadFromRx(IN PUSBSER_DEVICE_EXTENSION Extension)
 
 VOID
 NTAPI
+UsbSerRundownIrpRefs(IN PUSBSER_DEVICE_EXTENSION Extension,
+                     IN PIRP * CurrentOpIrp,
+                     IN PKTIMER IntervalTimer,
+                     IN PKTIMER TotalTimer)
+{
+    PIO_STACK_LOCATION IoStack;
+
+    DPRINT("UsbSerRundownIrpRefs: Extension %p\n", Extension);
+
+    IoStack = IoGetCurrentIrpStackLocation(*CurrentOpIrp);
+
+    if ((*CurrentOpIrp)->CancelRoutine)
+    {
+        IoStack->Parameters.Others.Argument4 = (PVOID)((ULONG_PTR)IoStack->Parameters.Others.Argument4 & ~2);
+        IoSetCancelRoutine(*CurrentOpIrp, NULL);
+    }
+
+    if (IntervalTimer && KeCancelTimer(IntervalTimer))
+    {
+        IoStack->Parameters.Others.Argument4 = (PVOID)((ULONG_PTR)IoStack->Parameters.Others.Argument4 & ~8);
+    }
+
+    if (TotalTimer && KeCancelTimer(TotalTimer))
+    {
+        IoStack->Parameters.Others.Argument4 = (PVOID)((ULONG_PTR)IoStack->Parameters.Others.Argument4 & ~4);
+    }
+}
+
+VOID
+NTAPI
 UsbSerTryToCompleteCurrent(IN PUSBSER_DEVICE_EXTENSION Extension,
                            IN KIRQL IrqlForRelease,
                            IN NTSTATUS Status,
@@ -537,7 +567,49 @@ UsbSerTryToCompleteCurrent(IN PUSBSER_DEVICE_EXTENSION Extension,
                            IN LONG RefType,
                            IN BOOLEAN CompleteCurrent)
 {
-    UNIMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+    PIRP NextIrp;
+    PIRP currentIrp;
+
+    DPRINT("UsbSerTryToCompleteCurrent: Extension %p\n", Extension);
+    PAGED_CODE();
+
+    IoStack = IoGetCurrentIrpStackLocation(*CurrentOpIrp);
+
+    IoStack->Parameters.Others.Argument4 = (PVOID)((ULONG_PTR)IoStack->Parameters.Others.Argument4 & ~RefType);
+
+    UsbSerRundownIrpRefs(Extension, CurrentOpIrp, IntervalTimer, Timer);
+
+    if (IoStack->Parameters.Others.Argument4)
+    {
+        IoReleaseCancelSpinLock(IrqlForRelease);
+        return;
+    }
+
+    (*CurrentOpIrp)->IoStatus.Status = Status;
+
+    if (Status == STATUS_CANCELLED)
+        (*CurrentOpIrp)->IoStatus.Information = 0;
+
+    if (GetNextIrp)
+    {
+        IoReleaseCancelSpinLock(IrqlForRelease);
+
+        GetNextIrp(Extension, CurrentOpIrp, QueueToProcess, &NextIrp, CompleteCurrent);
+
+        if (NextIrp)
+            Starter(Extension);
+
+        return;
+    }
+
+    currentIrp = *CurrentOpIrp;
+    *CurrentOpIrp = NULL;
+
+    IoReleaseCancelSpinLock(IrqlForRelease);
+
+    if (CompleteCurrent)
+        IoCompleteRequest(currentIrp, IO_SERIAL_INCREMENT);
 }
 
 VOID
