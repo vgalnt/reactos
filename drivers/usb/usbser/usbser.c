@@ -359,7 +359,38 @@ UsbSerGetNextIrp(IN PUSBSER_DEVICE_EXTENSION Extension,
                  OUT PIRP * OutNextIrp,
                  IN BOOLEAN CompleteCurrent)
 {
-    UNIMPLEMENTED;
+    PIRP OldIrp;
+    PLIST_ENTRY Head;
+    KIRQL Irql;
+
+    DPRINT("UsbSerGetNextIrp: QueueToProcess %p, CompleteCurrent %X\n", QueueToProcess, CompleteCurrent);
+    PAGED_CODE();
+
+    IoAcquireCancelSpinLock(&Irql);
+    OldIrp = *CurrentOpIrp;
+
+    if (OldIrp && CompleteCurrent && OldIrp->CancelRoutine)
+    {
+        DPRINT1("UsbSerGetNextIrp: OldIrp->CancelRoutine should be is NULL!\n");
+    }
+
+    if (IsListEmpty(QueueToProcess))
+    {
+        *CurrentOpIrp = NULL;
+    }
+    else
+    {
+        Head = RemoveHeadList(QueueToProcess);
+        *CurrentOpIrp = CONTAINING_RECORD(Head, IRP, Tail.Overlay.ListEntry);
+        IoSetCancelRoutine(*CurrentOpIrp, NULL);
+    }
+
+    *OutNextIrp = *CurrentOpIrp;
+
+    IoReleaseCancelSpinLock(Irql);
+
+    if (OldIrp && CompleteCurrent)
+        IoCompleteRequest(OldIrp, IO_SERIAL_INCREMENT);
 }
 
 NTSTATUS
@@ -420,7 +451,61 @@ GetData(IN PUSBSER_DEVICE_EXTENSION Extension,
         IN ULONG DataBufferSize,
         OUT ULONG * OutLength)
 {
-    UNIMPLEMENTED;
+    ULONG Offset;
+    ULONG Size;
+    ULONG Remain;
+    KIRQL Irql;
+
+    DPRINT("GetData: DataBuffer %p, DataBufferSize %X\n", DataBuffer, DataBufferSize);
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    if (DataBufferSize > Extension->CharsInReadBuffer)
+        DataBufferSize = Extension->CharsInReadBuffer;
+
+    if (!DataBufferSize)
+    {
+        DPRINT("GetData: DataBufferSize is 0\n");
+        goto Exit;
+    }
+
+    Offset = Extension->ReadBufferOffset;
+
+    if ((DataBufferSize + Offset) >= Extension->RxBufferSize)
+    {
+        Size = Extension->RxBufferSize - Offset;
+    }
+    else
+    {
+        Size = DataBufferSize;
+    }
+
+    RtlCopyMemory(DataBuffer, (PVOID)((ULONG_PTR)Extension->RxBuffer + Offset), Size);
+
+    Extension->ReadBufferOffset += Size;
+    Extension->CharsInReadBuffer -= Size;
+    Extension->ReadLength -= Size;
+
+    *OutLength += Size;
+
+    Remain = (DataBufferSize - Size);
+    if (!Remain)
+        goto Exit;
+
+    DataBuffer = (PVOID)((ULONG_PTR)DataBuffer + Size);
+
+    RtlCopyMemory(DataBuffer, Extension->RxBuffer, Remain);
+
+    Extension->CharsInReadBuffer -= Remain;
+    Extension->ReadLength -= Remain;
+    Extension->ReadBufferOffset = Remain;
+
+    *OutLength += Remain;
+
+Exit:
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+    RestartRead(Extension);
 }
 
 VOID
