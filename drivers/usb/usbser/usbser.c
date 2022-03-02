@@ -510,10 +510,63 @@ Exit:
 
 VOID
 NTAPI
+UsbSerGrabReadFromRx(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    PIO_STACK_LOCATION IoStack;
+    PULONG_PTR Argument4;
+
+    PAGED_CODE();
+
+    IoStack = IoGetCurrentIrpStackLocation(Extension->CurrentReadIrp);
+
+    Argument4 = (PULONG_PTR)&IoStack->Parameters.Others.Argument4;
+    *Argument4 &= ~1;
+}
+
+VOID
+NTAPI
+UsbSerTryToCompleteCurrent(IN PUSBSER_DEVICE_EXTENSION Extension,
+                           IN KIRQL IrqlForRelease,
+                           IN NTSTATUS Status,
+                           IN PIRP * CurrentOpIrp,
+                           IN PLIST_ENTRY QueueToProcess,
+                           IN PKTIMER IntervalTimer,
+                           IN PKTIMER Timer,
+                           IN PUSBSER_START_READ Starter,
+                           IN PUSBSER_GET_NEXT_IRP GetNextIrp,
+                           IN LONG RefType,
+                           IN BOOLEAN CompleteCurrent)
+{
+    UNIMPLEMENTED;
+}
+
+VOID
+NTAPI
 UsbSerCancelCurrentRead(IN PDEVICE_OBJECT DeviceObject,
                         IN PIRP Irp)
 {
-    UNIMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension;
+
+    DPRINT("UsbSerCancelCurrentRead: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    Extension = DeviceObject->DeviceExtension;
+
+    Extension->CountOnLastRead = 0xFFFFFFFF;
+
+    UsbSerGrabReadFromRx(Extension);
+
+    UsbSerTryToCompleteCurrent(Extension,
+                               Irp->CancelIrql,
+                               STATUS_CANCELLED,
+                               &Extension->CurrentReadIrp,
+                               &Extension->ReadQueueList,
+                               &Extension->ReadRequestIntervalTimer,
+                               &Extension->ReadRequestTotalTimer,
+                               UsbSerStartRead,
+                               UsbSerGetNextIrp,
+                               2,                // LONG RefType
+                               TRUE);            // BOOLEAN CompleteCurrent
 }
 
 NTSTATUS
@@ -561,6 +614,7 @@ UsbSerStartRead(IN PUSBSER_DEVICE_EXTENSION Extension)
         IntervalTimeout = Extension->Timeouts.ReadIntervalTimeout;
         TotalTimeoutMultiplier = Extension->Timeouts.ReadTotalTimeoutMultiplier;
         TotalTimeoutConstant = Extension->Timeouts.ReadTotalTimeoutConstant;
+        Extension->CountOnLastRead = 0;
         KeReleaseSpinLock(&Extension->SpinLock, Irql);
 
         if (IntervalTimeout && (IntervalTimeout != MAXULONG))

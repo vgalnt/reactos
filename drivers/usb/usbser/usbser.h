@@ -151,10 +151,12 @@ typedef struct _USBSER_DEVICE_EXTENSION
     KDPC ReadTimeoutDpc;
     KDPC IntervalReadTimeoutDpc;
     KDPC WriteTimeoutDpc;
+    LONG CountOnLastRead;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
 typedef NTSTATUS (NTAPI* PUSBSER_START_READ)(PUSBSER_DEVICE_EXTENSION Extension);
+typedef VOID (NTAPI* PUSBSER_GET_NEXT_IRP)(PUSBSER_DEVICE_EXTENSION Extension, PIRP * CurrentOpIrp, PLIST_ENTRY QueueToProcess, PIRP * OutNextIrp, BOOLEAN CompleteCurrent);
 
 /* ioctl.c */
 
@@ -253,6 +255,12 @@ RestartRead(
 VOID
 NTAPI
 StartNotifyRead(
+    IN PUSBSER_DEVICE_EXTENSION Extension
+);
+
+NTSTATUS
+NTAPI
+UsbSerStartRead(
     IN PUSBSER_DEVICE_EXTENSION Extension
 );
 
