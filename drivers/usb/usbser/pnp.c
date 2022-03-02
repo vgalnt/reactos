@@ -199,6 +199,15 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
 
     Extension = DeviceObject->DeviceExtension;
 
+    KeInitializeTimer(&Extension->WriteRequestTotalTimer);
+    KeInitializeTimer(&Extension->ReadRequestTotalTimer);
+    KeInitializeTimer(&Extension->ReadRequestIntervalTimer);
+
+    Extension->LongIntervalAmount.QuadPart = 1000 * -10000; // 1 sec
+    Extension->ShortIntervalAmount.QuadPart = -1;
+
+    Extension->CutOverAmount.QuadPart = 200000000;
+
     KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
 
     IoCopyCurrentIrpStackLocationToNext(Irp);
@@ -232,6 +241,9 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
     }
 
     ResetDevice(DeviceObject);
+
+    Extension->HandFlow.ControlHandShake = 0;
+    Extension->HandFlow.FlowReplace = SERIAL_RTS_CONTROL;
 
     InitializeListHead(&Extension->ReadQueueList);
 
