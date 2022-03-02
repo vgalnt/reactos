@@ -203,6 +203,10 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
     KeInitializeTimer(&Extension->ReadRequestTotalTimer);
     KeInitializeTimer(&Extension->ReadRequestIntervalTimer);
 
+    KeInitializeDpc(&Extension->ReadTimeoutDpc, UsbSerReadTimeout, Extension);
+    KeInitializeDpc(&Extension->IntervalReadTimeoutDpc, UsbSerIntervalReadTimeout, Extension);
+    KeInitializeDpc(&Extension->WriteTimeoutDpc, UsbSerWriteTimeout, Extension);
+
     Extension->LongIntervalAmount.QuadPart = 1000 * -10000; // 1 sec
     Extension->ShortIntervalAmount.QuadPart = -1;
 

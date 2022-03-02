@@ -114,4 +114,36 @@ UsbSerGetRegistryKeyValue(IN HANDLE KeyHandle,
     return Status;
 }
 
+/* DPC FUNCTIONS *************************************************************/
+
+VOID
+NTAPI
+UsbSerReadTimeout(IN PKDPC Dpc,
+                  IN PVOID DeferredContext,
+                  IN PVOID SystemArgument1,
+                  IN PVOID SystemArgument2)
+{
+    DPRINT1("StartDevice: FIXME UsbSerReadTimeout()\n");ASSERT(0);
+}
+
+VOID
+NTAPI
+UsbSerIntervalReadTimeout(IN PKDPC Dpc,
+                          IN PVOID DeferredContext,
+                          IN PVOID SystemArgument1,
+                          IN PVOID SystemArgument2)
+{
+    DPRINT1("StartDevice: FIXME UsbSerIntervalReadTimeout()\n");ASSERT(0);
+}
+
+VOID
+NTAPI
+UsbSerWriteTimeout(IN PKDPC Dpc,
+                   IN PVOID DeferredContext,
+                   IN PVOID SystemArgument1,
+                   IN PVOID SystemArgument2)
+{
+    DPRINT1("StartDevice: FIXME UsbSerWriteTimeout()\n");ASSERT(0);
+}
+
 /* EOF */
