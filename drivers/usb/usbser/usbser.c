@@ -884,14 +884,91 @@ UsbSerRead(IN PDEVICE_OBJECT DeviceObject,
 
 /* IRP_MJ_WRITE FUNCTIONS *****************************************************/
 
+VOID
+NTAPI
+UsbSerProcessEmptyTransmit(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    UNIMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 UsbSerWriteComplete(IN PDEVICE_OBJECT DeviceObject,
                     IN PIRP Irp,
                     IN PVOID Context)
 {
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    PUSBSER_WRITE_CONTEXT WriteCtx = Context;
+    LONG DataOutCount;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("UsbSerWriteComplete: WriteCtx %p\n", WriteCtx);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    Status = Irp->IoStatus.Status;
+
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("UsbSerWriteComplete: Status %X\n", Status);
+
+        if (Status == STATUS_CANCELLED)
+        {
+            if (WriteCtx->Status)
+            {
+                Irp->IoStatus.Status = WriteCtx->Status;
+                Status = Irp->IoStatus.Status;
+            }
+        }
+    }
+    else if (IoStack->MajorFunction == IRP_MJ_DEVICE_CONTROL)
+    {
+        Irp->IoStatus.Information = 0;
+    }
+    else
+    {
+        Irp->IoStatus.Information = WriteCtx->Urb.TransferBufferLength;
+        IoStack->Parameters.Write.Length = Irp->IoStatus.Information;
+    }
+
+    if (WriteCtx->TimeOut.QuadPart)
+        KeCancelTimer(&WriteCtx->Timer);
+
+    ExFreePoolWithTag(WriteCtx, USBSER_TAG);
+
+    if (Irp->PendingReturned)
+        IoMarkIrpPending(Irp);
+
+    Extension = WriteCtx->Extension;
+
+    if (!InterlockedDecrement(&Extension->TransmitCount))
+        UsbSerProcessEmptyTransmit(Extension);
+
+    DataOutCount = InterlockedDecrement((PLONG)&Extension->DataOutCount);
+    if (DataOutCount == 0 || DataOutCount == 1)
+    {
+        KeSetEvent(&Extension->EventFlush, IO_NO_INCREMENT, FALSE);
+
+        if (!DataOutCount)
+            KeSetEvent(&Extension->EventDataOut, IO_NO_INCREMENT, FALSE);
+    }
+
+    IoAcquireCancelSpinLock(&Irql);
+
+    UsbSerTryToCompleteCurrent(Extension,
+                               Irql,
+                               Status,
+                               &Irp,
+                               NULL,
+                               NULL,
+                               &Extension->WriteRequestTotalTimer,
+                               NULL,
+                               NULL,
+                               1,
+                               TRUE);
+    return Status;
 }
 
 NTSTATUS
@@ -968,6 +1045,10 @@ UsbSerGiveWriteToUsb(IN PUSBSER_DEVICE_EXTENSION Extension,
     InterlockedIncrement(&Extension->TransmitCount);
 
     Status = IoCallDriver(Extension->LowerDevice, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("UsbSerGiveWriteToUsb: Status %X\n", Status);
+    }
 
     return Status;
 }
