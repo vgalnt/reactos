@@ -882,6 +882,104 @@ UsbSerRead(IN PDEVICE_OBJECT DeviceObject,
     return STATUS_SUCCESS;
 }
 
+/* IRP_MJ_WRITE FUNCTIONS *****************************************************/
+
+NTSTATUS
+NTAPI
+UsbSerGiveWriteToUsb(IN PUSBSER_DEVICE_EXTENSION Extension,
+                     IN PIRP Irp,
+                     IN LARGE_INTEGER WriteTimeOut)
+{
+    UNIMPLEMENTED;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+UsbSerWrite(IN PDEVICE_OBJECT DeviceObject,
+            IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    LARGE_INTEGER WriteTimeOut;
+    SERIAL_TIMEOUTS timeouts;
+    ULONGLONG wTimeout;
+    ULONG WriteLength;
+    KIRQL Irql;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("UsbSerWrite: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    Extension = DeviceObject->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    Irp->IoStatus.Information = 0;
+
+    if (IoStack->Parameters.Write.Length == 0)
+    {
+        DPRINT("UsbSerWrite: Length for write is 0\n");
+        Irp->IoStatus.Status = Status;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return STATUS_SUCCESS;
+    }
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    if (Extension->DevicePowerState != PowerDeviceD0)
+    {
+        DPRINT1("UsbSerWrite: DevicePowerState %X\n", Extension->DevicePowerState);
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+        Irp->IoStatus.Status = Status;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    RtlCopyMemory(&timeouts, &Extension->Timeouts, sizeof(timeouts));
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    if (timeouts.WriteTotalTimeoutConstant ||
+        timeouts.WriteTotalTimeoutMultiplier)
+    {
+        if (IoStack->MajorFunction == IRP_MJ_WRITE)
+            WriteLength = IoStack->Parameters.Write.Length;
+        else
+            WriteLength = 1;
+
+        wTimeout = timeouts.WriteTotalTimeoutConstant;
+        wTimeout += (WriteLength * timeouts.WriteTotalTimeoutMultiplier);
+
+        WriteTimeOut.QuadPart = wTimeout * -10000;
+    }
+    else
+    {
+        WriteTimeOut.QuadPart = 0;
+    }
+
+    IoStack->Parameters.Others.Argument4 = NULL;
+
+    IoAcquireCancelSpinLock(&Irql);
+    if (Irp->Cancel)
+    {
+        DPRINT("UsbSerWrite: Irp %X cancelled\n", Irp);
+        IoReleaseCancelSpinLock(Irql);
+        Irp->IoStatus.Status = STATUS_CANCELLED;
+        return STATUS_CANCELLED;
+    }
+    IoSetCancelRoutine(Irp, NULL);
+    IoReleaseCancelSpinLock(Irql);
+
+    Status = UsbSerGiveWriteToUsb(Extension, Irp, WriteTimeOut);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("UsbSerWrite: Status %X\n", Status);
+    }
+
+    return Status;
+}
+
 /* IRP_MJ FUNCTIONS ***********************************************************/
 
 NTSTATUS
@@ -969,28 +1067,6 @@ UsbSerClose(IN PDEVICE_OBJECT DeviceObject,
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
     return STATUS_SUCCESS;
-}
-
-NTSTATUS
-NTAPI
-UsbSerRead(IN PDEVICE_OBJECT DeviceObject,
-           IN PIRP Irp)
-{
-    DPRINT("UsbSerRead: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
-    PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS
-NTAPI 
-UsbSerWrite(IN PDEVICE_OBJECT DeviceObject,
-            IN PIRP Irp)
-{
-    DPRINT("UsbSerWrite: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
-    PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
 }
 
 NTSTATUS
