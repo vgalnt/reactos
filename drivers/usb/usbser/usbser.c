@@ -888,7 +888,50 @@ VOID
 NTAPI
 UsbSerProcessEmptyTransmit(IN PUSBSER_DEVICE_EXTENSION Extension)
 {
-    UNIMPLEMENTED;
+    PIRP Irp;
+    KIRQL Irql;
+
+    DPRINT("UsbSerProcessEmptyTransmit: Extension %p\n", Extension);
+
+    Extension->HistoryMask |= 4;
+
+    if (!(Extension->IsrWaitMask & 4))
+    {
+        DPRINT("UsbSerProcessEmptyTransmit: IsrWaitMask %X\n", Extension->IsrWaitMask);
+        return;
+    }
+
+    IoAcquireCancelSpinLock(&Irql);
+
+    if (!Extension->MaskIrp)
+    {
+        IoReleaseCancelSpinLock(Irql);
+        return;
+    }
+
+    Irp = Extension->MaskIrp;
+    DPRINT("UsbSerProcessEmptyTransmit: MaskIrp %p\n", Irp);
+
+    if (!Irp->AssociatedIrp.SystemBuffer)
+    {
+        DPRINT1("UsbSerProcessEmptyTransmit: AssociatedIrp.SystemBuffer is NULL\n");
+        ASSERT(FALSE);
+        IoReleaseCancelSpinLock(Irql);
+        return;
+    }
+
+    *(PULONG)Irp->AssociatedIrp.SystemBuffer = Extension->HistoryMask;
+    Extension->HistoryMask = 0;
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = sizeof(Extension->HistoryMask);
+
+    Extension->MaskIrp = NULL;
+
+    IoSetCancelRoutine(Irp, NULL);
+    IoReleaseCancelSpinLock(Irql);
+
+    IoCompleteRequest(Irp, IO_SERIAL_INCREMENT);
 }
 
 NTSTATUS

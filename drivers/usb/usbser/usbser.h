@@ -130,6 +130,7 @@ typedef struct _USBSER_DEVICE_EXTENSION
     PURB ReadUrb;
     PIRP NotifyIrp;
     PURB NotifyUrb;
+    PIRP MaskIrp;
     ULONG HistoryMask;
     ULONG IsrWaitMask;
     ULONG ReadByIsr;
