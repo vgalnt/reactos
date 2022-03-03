@@ -102,6 +102,7 @@ typedef struct _USBSER_DEVICE_EXTENSION
     KEVENT EventDataIn;
     KEVENT EventDataOut;
     KEVENT EventNotify;
+    KEVENT EventFlush;
     LONG DataInCount;
     LONG DataOutCount;
     LONG NotifyCount;
@@ -153,6 +154,7 @@ typedef struct _USBSER_DEVICE_EXTENSION
     KDPC IntervalReadTimeoutDpc;
     KDPC WriteTimeoutDpc;
     LONG CountOnLastRead;
+    LONG TransmitCount;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 

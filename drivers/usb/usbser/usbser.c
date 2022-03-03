@@ -886,12 +886,90 @@ UsbSerRead(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
+UsbSerWriteComplete(IN PDEVICE_OBJECT DeviceObject,
+                    IN PIRP Irp,
+                    IN PVOID Context)
+{
+    UNIMPLEMENTED;
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 UsbSerGiveWriteToUsb(IN PUSBSER_DEVICE_EXTENSION Extension,
                      IN PIRP Irp,
                      IN LARGE_INTEGER WriteTimeOut)
 {
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+    PUSBSER_WRITE_CONTEXT WriteCtx;
+    NTSTATUS Status;
+    KIRQL Irql;
+
+    DPRINT("UsbSerGiveWriteToUsb: Extension %p, Irp %p\n", Extension, Irp);
+    PAGED_CODE();
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    IoStack->Parameters.Others.Argument4 = (PVOID)((ULONG_PTR)IoStack->Parameters.Others.Argument4 | 1);
+
+    WriteCtx = ExAllocatePoolWithTag(NonPagedPool, sizeof(*WriteCtx), USBSER_TAG);
+    if (!WriteCtx)
+    {
+        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        IoAcquireCancelSpinLock(&Irql);
+
+        UsbSerTryToCompleteCurrent(Extension,
+                                   Irql,
+                                   STATUS_INSUFFICIENT_RESOURCES,
+                                   &Irp,
+                                   NULL,
+                                   &Extension->WriteRequestTotalTimer,
+                                   NULL,
+                                   NULL,
+                                   NULL,
+                                   1,
+                                   TRUE);
+
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(WriteCtx, sizeof(*WriteCtx));
+
+    WriteCtx->Extension = Extension;
+    WriteCtx->Irp = Irp;
+    WriteCtx->TimeOut = WriteTimeOut;
+
+    if (WriteTimeOut.QuadPart)
+    {
+        KeInitializeTimer(&WriteCtx->Timer);
+        KeInitializeDpc(&WriteCtx->TimerDpc, UsbSerWriteTimeout, WriteCtx);
+        KeSetTimer(&WriteCtx->Timer, WriteTimeOut, &WriteCtx->TimerDpc);
+    }
+
+    WriteCtx->Urb.Hdr.Length = sizeof(WriteCtx->Urb);
+    WriteCtx->Urb.Hdr.Function = URB_FUNCTION_BULK_OR_INTERRUPT_TRANSFER;
+
+    WriteCtx->Urb.PipeHandle = Extension->DataOutPipeHandle;
+    WriteCtx->Urb.TransferBuffer = Irp->AssociatedIrp.SystemBuffer;
+    WriteCtx->Urb.TransferBufferLength = IoStack->Parameters.Write.Length;
+    WriteCtx->Urb.TransferFlags = (USBD_TRANSFER_DIRECTION_OUT | USBD_SHORT_TRANSFER_OK);
+
+    WriteCtx->Urb.TransferBufferMDL = NULL;
+    WriteCtx->Urb.UrbLink = NULL;
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MajorFunction = IRP_MJ_INTERNAL_DEVICE_CONTROL;
+    IoStack->Parameters.DeviceIoControl.IoControlCode = IOCTL_INTERNAL_USB_SUBMIT_URB;
+    IoStack->Parameters.Others.Argument1 = &WriteCtx->Urb;
+
+    IoSetCompletionRoutine(Irp, UsbSerWriteComplete, WriteCtx, TRUE, TRUE, TRUE);
+
+    InterlockedIncrement(&Extension->DataOutCount);
+    InterlockedIncrement(&Extension->TransmitCount);
+
+    Status = IoCallDriver(Extension->LowerDevice, Irp);
+
+    return Status;
 }
 
 NTSTATUS
@@ -1230,6 +1308,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     KeInitializeEvent(&Extension->EventDataIn, SynchronizationEvent, FALSE);
     KeInitializeEvent(&Extension->EventDataOut, SynchronizationEvent, FALSE);
     KeInitializeEvent(&Extension->EventNotify, SynchronizationEvent, FALSE);
+    KeInitializeEvent(&Extension->EventFlush, SynchronizationEvent, FALSE);
 
     Extension->DataInCount = 1;
     Extension->DataOutCount = 1;
