@@ -249,6 +249,8 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
     Extension->HandFlow.ControlHandShake = 0;
     Extension->HandFlow.FlowReplace = SERIAL_RTS_CONTROL;
 
+    Extension->DeviceIsRunning = TRUE;
+
     InitializeListHead(&Extension->ReadQueueList);
 
     UsbSerDoExternalNaming(Extension);
