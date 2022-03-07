@@ -176,6 +176,13 @@ typedef VOID (NTAPI* PUSBSER_GET_NEXT_IRP)(PUSBSER_DEVICE_EXTENSION Extension, P
 
 /* ioctl.c */
 
+NTSTATUS
+NTAPI
+UsbSerDispatch(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp
+);
+
 /* pnp.c */
 
 NTSTATUS
@@ -192,6 +199,12 @@ UsbSerPnP(
 NTSTATUS
 NTAPI
 GetLineControlAndBaud(
+    IN PDEVICE_OBJECT DeviceObject
+);
+
+NTSTATUS
+NTAPI
+SetLineControlAndBaud(
     IN PDEVICE_OBJECT DeviceObject
 );
 
@@ -280,6 +293,44 @@ UsbSerStartRead(
     IN PUSBSER_DEVICE_EXTENSION Extension
 );
 
+VOID
+NTAPI
+UsbSerGetNextIrp(
+    IN PUSBSER_DEVICE_EXTENSION Extension,
+    IN OUT PIRP * CurrentOpIrp,
+    IN PLIST_ENTRY QueueToProcess,
+    OUT PIRP * OutNextIrp,
+    IN BOOLEAN CompleteCurrent
+);
+
+VOID
+NTAPI
+UsbSerGrabReadFromRx(
+    IN PUSBSER_DEVICE_EXTENSION Extension
+);
+
+VOID
+NTAPI
+UsbSerTryToCompleteCurrent(
+    IN PUSBSER_DEVICE_EXTENSION Extension,
+    IN KIRQL IrqlForRelease,
+    IN NTSTATUS Status,
+    IN PIRP * CurrentOpIrp,
+    IN PLIST_ENTRY QueueToProcess,
+    IN PKTIMER IntervalTimer,
+    IN PKTIMER Timer,
+    IN PUSBSER_START_READ Starter,
+    IN PUSBSER_GET_NEXT_IRP GetNextIrp,
+    IN LONG RefType,
+    IN BOOLEAN CompleteCurrent
+);
+
+VOID
+NTAPI
+RestartNotifyRead(
+    IN PUSBSER_DEVICE_EXTENSION Extension
+);
+
 /* utils.c */
 
 NTSTATUS
@@ -314,6 +365,33 @@ UsbSerFetchPVoidLocked(
     OUT PVOID * OutPVoid,
     IN PVOID PVoid,
     IN PKSPIN_LOCK SpinLock
+);
+
+VOID
+NTAPI
+UsbSerReadTimeout(
+    IN PKDPC Dpc,
+    IN PVOID DeferredContext,
+    IN PVOID SystemArgument1,
+    IN PVOID SystemArgument2
+);
+
+VOID
+NTAPI
+UsbSerIntervalReadTimeout(
+    IN PKDPC Dpc,
+    IN PVOID DeferredContext,
+    IN PVOID SystemArgument1,
+    IN PVOID SystemArgument2
+);
+
+VOID
+NTAPI
+UsbSerWriteTimeout(
+    IN PKDPC Dpc,
+    IN PVOID DeferredContext,
+    IN PVOID SystemArgument1,
+    IN PVOID SystemArgument2
 );
 
 /* wmi.c */
