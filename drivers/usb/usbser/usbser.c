@@ -236,14 +236,183 @@ StartRead(IN PUSBSER_DEVICE_EXTENSION Extension)
     RestartRead(Extension);
 }
 
+VOID
+NTAPI
+RestartNotifyReadWorkItem(IN PDEVICE_OBJECT DeviceObject,
+                          IN PVOID Context)
+{
+    PUSBSER_DEVICE_EXTENSION Extension = Context;
+    PIO_WORKITEM WorkItem;
+    KIRQL Irql;
+
+    DPRINT("RestartNotifyReadWorkItem: Extension %p\n", Extension);
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    WorkItem = Extension->WorkItem;
+    Extension->WorkItem = NULL;
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    IoFreeWorkItem(WorkItem);
+    RestartNotifyRead(Extension);
+}
+
 NTSTATUS
 NTAPI
 NotifyCompletion(IN PDEVICE_OBJECT DeviceObject,
                  IN PIRP Irp,
                  IN PVOID Context)
 {
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension = Context;
+    PUSBSER_CDC_NOTIFICATION Notify;
+    USBSER_SERIAL_STATE SerialState;
+    PIRP OldMaskIrp = NULL;
+    ULONG Length;
+    USHORT OldModemStatus;
+    USHORT ChangedStatus;
+    KIRQL Irql;
+    BOOLEAN IsDoSetEvent = FALSE;
+    NTSTATUS Status;
+
+    DPRINT("NotifyCompletion: Extension %p\n", Extension);
+
+    Length = Extension->NotifyUrb->UrbControlTransfer.TransferBufferLength;
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    Notify = Extension->NotifyBuffer;
+
+    if (Notify->NotificationType != 0x20 ||
+        Length != sizeof(USBSER_CDC_NOTIFICATION))
+    {
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+        goto RestartNotification;
+    }
+
+    OldModemStatus = Extension->ModemStatus;
+    Extension->ModemStatus = 0x10;
+
+    SerialState.AsUSHORT = Notify->SerialState.AsUSHORT;
+
+    if (SerialState.TxCarrier)
+        Extension->ModemStatus |= 0x20;
+
+    if (SerialState.RxCarrier)
+        Extension->ModemStatus |= 0x80;
+
+    if (SerialState.RingSignal)
+        Extension->ModemStatus |= 0x40;
+
+    ChangedStatus = (OldModemStatus ^ Extension->ModemStatus);
+
+    Extension->HistoryMask = 0;
+
+    if (ChangedStatus & 0x20)
+        Extension->HistoryMask |= 0x10;
+
+    if (ChangedStatus & 0x80)
+        Extension->HistoryMask |= 0x20;
+
+    if (ChangedStatus & 0x40)
+        Extension->HistoryMask |= 0x100;
+
+    Extension->HistoryMask &= Extension->IsrWaitMask;
+
+    if (ChangedStatus & 0x10)
+        Extension->Stats.FrameErrorCount++;
+
+    if (ChangedStatus & 0x40)
+        Extension->Stats.BufferOverrunErrorCount++;
+
+    if (ChangedStatus & 0x20)
+        Extension->Stats.ParityErrorCount++;
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    IoAcquireCancelSpinLock(&Irql);
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    OldMaskIrp = Extension->MaskIrp;
+
+    if (!OldMaskIrp || !Extension->HistoryMask)
+    {
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+        IoReleaseCancelSpinLock(Irql);
+        goto RestartNotification;
+    }
+
+    *(PULONG)OldMaskIrp->AssociatedIrp.SystemBuffer = Extension->HistoryMask;
+
+    OldMaskIrp->IoStatus.Status = STATUS_SUCCESS;
+    OldMaskIrp->IoStatus.Information = sizeof(Extension->HistoryMask);
+
+    Extension->MaskIrp = NULL;
+
+RestartNotification:
+
+    if (OldMaskIrp && Extension->HistoryMask &&
+        Irp->IoStatus.Status == STATUS_SUCCESS)
+    {
+        Extension->HistoryMask = 0;
+        IoSetCancelRoutine(OldMaskIrp, NULL);
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+        IoReleaseCancelSpinLock(Irql);
+        IoCompleteRequest(OldMaskIrp, IO_NO_INCREMENT);
+    }
+
+    Status = Irp->IoStatus.Status;
+    if (Status == STATUS_CANCELLED)
+    {
+        goto Exit;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        UsbSerFetchBooleanLocked(&Extension->DeviceIsRunning, FALSE, &Extension->SpinLock);
+        goto Exit;
+    }
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    if (!Extension->DeviceIsRunning)
+    {
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+        goto Exit;
+    }
+
+    if (Extension->DevicePowerState != PowerDeviceD0)
+    {
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+        goto Exit;
+    }
+
+    if (!Extension->WorkItem)
+    {
+        IsDoSetEvent = TRUE;
+
+        Extension->WorkItem = IoAllocateWorkItem(Extension->PhysicalDevice);
+        if (!Extension->WorkItem)
+        {
+            KeReleaseSpinLock(&Extension->SpinLock, Irql);
+            goto Exit;
+        }
+    }
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    if (IsDoSetEvent)
+    {
+        IoQueueWorkItem(Extension->WorkItem, RestartNotifyReadWorkItem, CriticalWorkQueue, Extension);
+    }
+
+Exit:
+
+    if (!InterlockedDecrement(&Extension->NotifyCount))
+    {
+        if (!IsDoSetEvent)
+            KeSetEvent(&Extension->EventNotify, IO_NO_INCREMENT, FALSE);
+    }
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 VOID

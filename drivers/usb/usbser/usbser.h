@@ -113,6 +113,7 @@ typedef struct _USBSER_DEVICE_EXTENSION
     ULONG ReadingState;
     PVOID RxBuffer;
     USHORT RxBufferSize;
+    USHORT ModemStatus;
     UCHAR InterfaceNumber;
     BOOLEAN IsSymLinkCreated;
     BOOLEAN DeviceIsRunning;
@@ -156,6 +157,7 @@ typedef struct _USBSER_DEVICE_EXTENSION
     KDPC WriteTimeoutDpc;
     LONG CountOnLastRead;
     LONG TransmitCount;
+    PIO_WORKITEM WorkItem;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
