@@ -167,6 +167,7 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
     PVOID OldRxBuffer;
     PVOID OldNotifyBuffer;
     ULONG ix;
+    ULONG jx;
     USHORT Size;
     BOOLEAN InterfaceFound = FALSE;
     KIRQL Irql;
@@ -196,18 +197,18 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
 
         InterfaceArray[ix] = Interface;
 
-        for (ix = 0; ix < Interface->NumberOfPipes; ix++)
+        for (jx = 0; jx < Interface->NumberOfPipes; jx++)
         {
-            if (USB_ENDPOINT_DIRECTION_IN(Interface->Pipes[ix].EndpointAddress))
+            if (USB_ENDPOINT_DIRECTION_IN(Interface->Pipes[jx].EndpointAddress))
             {
-                if (Interface->Pipes[ix].PipeType == UsbdPipeTypeBulk)
+                if (Interface->Pipes[jx].PipeType == UsbdPipeTypeBulk)
                 {
-                    Interface->Pipes[ix].MaximumTransferSize = 0x1000;
+                    Interface->Pipes[jx].MaximumTransferSize = 0x1000;
                 }
             }
-            else if (Interface->Pipes[ix].PipeType == UsbdPipeTypeBulk)
+            else if (Interface->Pipes[jx].PipeType == UsbdPipeTypeBulk)
             {
-                Interface->Pipes[ix].MaximumTransferSize = 0x2000;
+                Interface->Pipes[jx].MaximumTransferSize = 0x2000;
             }
         }
 
@@ -240,11 +241,11 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
             Extension->InterfaceNumber = Interface->InterfaceNumber;
         }
 
-        for (ix = 0; ix < Interface->NumberOfPipes; ix++)
+        for (jx = 0; jx < Interface->NumberOfPipes; jx++)
         {
-            if (USB_ENDPOINT_DIRECTION_IN(Interface->Pipes[ix].EndpointAddress))
+            if (USB_ENDPOINT_DIRECTION_IN(Interface->Pipes[jx].EndpointAddress))
             {
-                if (Interface->Pipes[ix].PipeType == UsbdPipeTypeBulk)
+                if (Interface->Pipes[jx].PipeType == UsbdPipeTypeBulk)
                 {
                     Extension->RxBufferSize = RxBufferSize;
 
@@ -258,7 +259,7 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
 
                     KeAcquireSpinLock(&Extension->SpinLock, &Irql);
 
-                    Extension->DataInPipeHandle = Interface->Pipes[ix].PipeHandle;
+                    Extension->DataInPipeHandle = Interface->Pipes[jx].PipeHandle;
 
                     if (Extension->NotifyBuffer)
                         OldNotifyBuffer = Extension->NotifyBuffer;
@@ -289,14 +290,14 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
                     if (OldRxBuffer) ExFreePoolWithTag(OldRxBuffer, USBSER_TAG);
                     if (OldReadBuffer) ExFreePoolWithTag(OldReadBuffer, USBSER_TAG);
                 }
-                else if (Interface->Pipes[ix].PipeType == UsbdPipeTypeInterrupt)
+                else if (Interface->Pipes[jx].PipeType == UsbdPipeTypeInterrupt)
                 {
-                    Extension->NotifyPipeHandle = Interface->Pipes[ix].PipeHandle;
+                    Extension->NotifyPipeHandle = Interface->Pipes[jx].PipeHandle;
                 }
             }
-            else if (Interface->Pipes[ix].PipeType == UsbdPipeTypeBulk)
+            else if (Interface->Pipes[jx].PipeType == UsbdPipeTypeBulk)
             {
-                Extension->DataOutPipeHandle = Interface->Pipes[ix].PipeHandle;
+                Extension->DataOutPipeHandle = Interface->Pipes[jx].PipeHandle;
             }
         }
     }
