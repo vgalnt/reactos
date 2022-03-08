@@ -335,7 +335,7 @@ QueryCapabilities(IN PDEVICE_OBJECT DeviceObject,
 
     IoStack = IoGetCurrentIrpStackLocation(Irp);
     Capabilities = IoStack->Parameters.DeviceCapabilities.Capabilities;
-    Capabilities->Reserved |= 0x200;
+    Capabilities->SurpriseRemovalOK = 1;
 
     Extension->SystemWake = Capabilities->SystemWake;
     Extension->DeviceWake = Capabilities->DeviceWake;
