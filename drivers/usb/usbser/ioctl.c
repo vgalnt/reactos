@@ -198,7 +198,7 @@ SetChars(IN PDEVICE_OBJECT DeviceObject,
     PSERIAL_CHARS Chars;
     KIRQL Irql;
   
-    DPRINT("GetChars: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    DPRINT("SetChars: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
     PAGED_CODE();
 
     IoStack = IoGetCurrentIrpStackLocation(Irp);
