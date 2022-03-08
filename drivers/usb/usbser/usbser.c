@@ -66,6 +66,70 @@ PutData(IN PUSBSER_DEVICE_EXTENSION Extension,
     KeReleaseSpinLock(&Extension->SpinLock, Irql);
 }
 
+VOID
+NTAPI
+GetData(IN PUSBSER_DEVICE_EXTENSION Extension,
+        IN PVOID DataBuffer,
+        IN ULONG DataBufferSize,
+        OUT ULONG * OutLength)
+{
+    ULONG Offset;
+    ULONG Size;
+    ULONG Remain;
+    KIRQL Irql;
+
+    DPRINT("GetData: DataBuffer %p, DataBufferSize %X\n", DataBuffer, DataBufferSize);
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    if (DataBufferSize > Extension->CharsInReadBuffer)
+        DataBufferSize = Extension->CharsInReadBuffer;
+
+    if (!DataBufferSize)
+    {
+        DPRINT("GetData: DataBufferSize is 0\n");
+        goto Exit;
+    }
+
+    Offset = Extension->ReadBufferOffset;
+
+    if ((DataBufferSize + Offset) >= Extension->RxBufferSize)
+    {
+        Size = Extension->RxBufferSize - Offset;
+    }
+    else
+    {
+        Size = DataBufferSize;
+    }
+
+    RtlCopyMemory(DataBuffer, (PVOID)((ULONG_PTR)Extension->RxBuffer + Offset), Size);
+
+    Extension->ReadBufferOffset += Size;
+    Extension->CharsInReadBuffer -= Size;
+    Extension->ReadLength -= Size;
+
+    *OutLength += Size;
+
+    Remain = (DataBufferSize - Size);
+    if (!Remain)
+        goto Exit;
+
+    DataBuffer = (PVOID)((ULONG_PTR)DataBuffer + Size);
+
+    RtlCopyMemory(DataBuffer, Extension->RxBuffer, Remain);
+
+    Extension->CharsInReadBuffer -= Remain;
+    Extension->ReadLength -= Remain;
+    Extension->ReadBufferOffset = Remain;
+
+    *OutLength += Remain;
+
+Exit:
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+    RestartRead(Extension);
+}
+
 NTSTATUS
 NTAPI
 ReadCompletion(IN PDEVICE_OBJECT DeviceObject,
