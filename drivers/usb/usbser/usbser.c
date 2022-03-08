@@ -1243,7 +1243,7 @@ UsbSerWriteComplete(IN PDEVICE_OBJECT DeviceObject,
                                NULL,
                                NULL,
                                1,
-                               TRUE);
+                               FALSE);
     return Status;
 }
 
