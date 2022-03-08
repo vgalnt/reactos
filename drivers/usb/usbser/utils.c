@@ -163,7 +163,17 @@ UsbSerWriteTimeout(IN PKDPC Dpc,
                    IN PVOID SystemArgument1,
                    IN PVOID SystemArgument2)
 {
-    DPRINT1("StartDevice: FIXME UsbSerWriteTimeout()\n");ASSERT(0);
+    PUSBSER_WRITE_CONTEXT WriteCtx = DeferredContext;
+    BOOLEAN Result;
+
+    DPRINT("UsbSerWriteTimeout: WriteCtx %p, Irp %p\n", WriteCtx, WriteCtx->Irp);
+
+    Result = IoCancelIrp(WriteCtx->Irp);
+    if (Result)
+    {
+        DPRINT1("UsbSerWriteTimeout: Irp is cancelled\n");
+        WriteCtx->Status = STATUS_TIMEOUT;
+    }
 }
 
 /* EOF */
