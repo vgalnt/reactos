@@ -36,7 +36,7 @@ PutData(IN PUSBSER_DEVICE_EXTENSION Extension,
 
     if (!BufferLength)
     {
-        DPRINT1("PutData: BufferLength is 0\n");
+        DPRINT("PutData: BufferLength is 0\n");
         return;
     }
 
