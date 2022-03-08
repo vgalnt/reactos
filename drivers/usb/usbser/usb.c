@@ -175,6 +175,15 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
 
     DPRINT("SelectInterface: DeviceObject %p, Descriptor %p\n", DeviceObject, Descriptor);
 
+    DPRINT("SelectInterface: bLength             %X\n", Descriptor->bLength);
+    DPRINT("SelectInterface: bDescriptorType     %X\n", Descriptor->bDescriptorType);
+    DPRINT("SelectInterface: wTotalLength        %X\n", Descriptor->wTotalLength);
+    DPRINT("SelectInterface: bNumInterfaces      %X\n", Descriptor->bNumInterfaces);
+    DPRINT("SelectInterface: bConfigurationValue %X\n", Descriptor->bConfigurationValue);
+    DPRINT("SelectInterface: iConfiguration      %X\n", Descriptor->iConfiguration);
+    DPRINT("SelectInterface: bmAttributes        %X\n", Descriptor->bmAttributes);
+    DPRINT("SelectInterface: MaxPower            %X\n", Descriptor->MaxPower);
+
     Urb = USBD_CreateConfigurationRequest(Descriptor, &Size);
     if (!Urb)
     {
@@ -199,15 +208,21 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
 
         for (jx = 0; jx < Interface->NumberOfPipes; jx++)
         {
+            DPRINT("SelectInterface: [%X][%X] Interface->Length           %X\n", ix, jx, Interface->Length);
+            DPRINT("SelectInterface: [%X][%X] Interface->InterfaceNumber  %X\n", ix, jx, Interface->InterfaceNumber);
+            DPRINT("SelectInterface: [%X][%X] Interface->AlternateSetting %X\n", ix, jx, Interface->AlternateSetting);
+
             if (USB_ENDPOINT_DIRECTION_IN(Interface->Pipes[jx].EndpointAddress))
             {
                 if (Interface->Pipes[jx].PipeType == UsbdPipeTypeBulk)
                 {
+                    DPRINT("SelectInterface: [%X][%X] MaximumTransferSize 0x1000\n", ix, jx);
                     Interface->Pipes[jx].MaximumTransferSize = 0x1000;
                 }
             }
             else if (Interface->Pipes[jx].PipeType == UsbdPipeTypeBulk)
             {
+                DPRINT("SelectInterface: [%X][%X] MaximumTransferSize 0x2000\n", ix, jx);
                 Interface->Pipes[jx].MaximumTransferSize = 0x2000;
             }
         }
@@ -234,7 +249,15 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
     {
         Interface = InterfaceArray[ix];
 
-        if (Interface->Class == USB_DEVICE_CLASS_COMMUNICATIONS)//2
+        DPRINT("[%X] NumberOfPipes    %X\n", ix, Interface->NumberOfPipes);
+        DPRINT("[%X] Length           %X\n", ix, Interface->Length);
+        DPRINT("[%X] AlternateSetting %X\n", ix, Interface->AlternateSetting);
+        DPRINT("[%X] InterfaceNumber  %X\n", ix, Interface->InterfaceNumber);
+        DPRINT("[%X] Class            %X\n", ix, Interface->Class);
+        DPRINT("[%X] SubClass         %X\n", ix, Interface->SubClass);
+        DPRINT("[%X] Protocol         %X\n", ix, Interface->Protocol);
+
+        if (Interface->Class == USB_DEVICE_CLASS_COMMUNICATIONS)
         {
             DPRINT1("SelectInterface: find interface number %X\n", Interface->InterfaceNumber);
             InterfaceFound = TRUE;
@@ -243,6 +266,13 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
 
         for (jx = 0; jx < Interface->NumberOfPipes; jx++)
         {
+            DPRINT("[%X][%X] PipeType            %X\n", ix, jx, Interface->Pipes[jx].PipeType);
+            DPRINT("[%X][%X] EndpointAddress     %X\n", ix, jx, Interface->Pipes[jx].EndpointAddress);
+            DPRINT("[%X][%X] MaximumPacketSize   %X\n", ix, jx, Interface->Pipes[jx].MaximumPacketSize);
+            DPRINT("[%X][%X] Interval            %X\n", ix, jx, Interface->Pipes[jx].Interval);
+            DPRINT("[%X][%X] PipeHandle          %X\n", ix, jx, Interface->Pipes[jx].PipeHandle);
+            DPRINT("[%X][%X] MaximumTransferSize %X\n", ix, jx, Interface->Pipes[jx].MaximumTransferSize);
+
             if (USB_ENDPOINT_DIRECTION_IN(Interface->Pipes[jx].EndpointAddress))
             {
                 if (Interface->Pipes[jx].PipeType == UsbdPipeTypeBulk)
@@ -260,6 +290,7 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
                     KeAcquireSpinLock(&Extension->SpinLock, &Irql);
 
                     Extension->DataInPipeHandle = Interface->Pipes[jx].PipeHandle;
+                    DPRINT("DataInPipeHandle %X\n", Interface->Pipes[jx].PipeHandle);
 
                     if (Extension->NotifyBuffer)
                         OldNotifyBuffer = Extension->NotifyBuffer;
@@ -293,11 +324,13 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
                 else if (Interface->Pipes[jx].PipeType == UsbdPipeTypeInterrupt)
                 {
                     Extension->NotifyPipeHandle = Interface->Pipes[jx].PipeHandle;
+                    DPRINT("NotifyPipeHandle %X\n", Interface->Pipes[jx].PipeHandle);
                 }
             }
             else if (Interface->Pipes[jx].PipeType == UsbdPipeTypeBulk)
             {
                 Extension->DataOutPipeHandle = Interface->Pipes[jx].PipeHandle;
+                DPRINT("DataOutPipeHandle %X\n", Interface->Pipes[jx].PipeHandle);
             }
         }
     }
