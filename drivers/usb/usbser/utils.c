@@ -123,7 +123,27 @@ UsbSerReadTimeout(IN PKDPC Dpc,
                   IN PVOID SystemArgument1,
                   IN PVOID SystemArgument2)
 {
-    DPRINT1("StartDevice: FIXME UsbSerReadTimeout()\n");ASSERT(0);
+    PUSBSER_DEVICE_EXTENSION Extension = DeferredContext;
+    KIRQL Irql;
+
+    DPRINT("UsbSerReadTimeout: Extension %X\n", Extension);
+
+    IoAcquireCancelSpinLock(&Irql);
+
+    Extension->CountOnLastRead = -2;
+    UsbSerGrabReadFromRx(Extension);
+
+    UsbSerTryToCompleteCurrent(Extension,
+                               Irql,
+                               STATUS_TIMEOUT,
+                               &Extension->CurrentReadIrp,
+                               &Extension->ReadQueueList,
+                               &Extension->ReadRequestIntervalTimer,
+                               &Extension->ReadRequestTotalTimer,
+                               UsbSerStartRead,
+                               UsbSerGetNextIrp,
+                               4,
+                               TRUE);
 }
 
 VOID
