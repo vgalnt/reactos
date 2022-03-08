@@ -1118,6 +1118,7 @@ UsbSerWriteComplete(IN PDEVICE_OBJECT DeviceObject,
 
     DPRINT("UsbSerWriteComplete: WriteCtx %p\n", WriteCtx);
 
+    Extension = WriteCtx->Extension;
     IoStack = IoGetCurrentIrpStackLocation(Irp);
 
     Status = Irp->IoStatus.Status;
@@ -1152,8 +1153,6 @@ UsbSerWriteComplete(IN PDEVICE_OBJECT DeviceObject,
 
     if (Irp->PendingReturned)
         IoMarkIrpPending(Irp);
-
-    Extension = WriteCtx->Extension;
 
     if (!InterlockedDecrement(&Extension->TransmitCount))
         UsbSerProcessEmptyTransmit(Extension);
