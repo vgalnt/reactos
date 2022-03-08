@@ -1467,6 +1467,104 @@ UsbSerFlush(IN PDEVICE_OBJECT DeviceObject,
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+NTAPI
+UsbSerKillAllReadsOrWrites(IN PDEVICE_OBJECT DeviceObject,
+                           IN PLIST_ENTRY List,
+                           IN PIRP * pIrp)
+{
+    PDRIVER_CANCEL CancelRoutine;
+    PIRP QueuedIrp;
+    KIRQL Irql;
+
+    DPRINT("UsbSerKillAllReadsOrWrites: DeviceObject %p, List %p\n", DeviceObject, List);
+    PAGED_CODE();
+
+    IoAcquireCancelSpinLock(&Irql);
+
+    while (!IsListEmpty(List))
+    {
+        QueuedIrp = CONTAINING_RECORD(List->Blink, IRP, Tail.Overlay.ListEntry);
+        RemoveEntryList(List->Blink);
+
+        CancelRoutine = QueuedIrp->CancelRoutine;
+        QueuedIrp->CancelRoutine = NULL;
+        QueuedIrp->CancelIrql = Irql;
+        QueuedIrp->Cancel = TRUE;
+        CancelRoutine(DeviceObject, QueuedIrp);
+
+        IoAcquireCancelSpinLock(&Irql);
+    }
+
+    if (*pIrp == NULL)
+    {
+        IoReleaseCancelSpinLock(Irql);
+        return;
+    }
+
+    (*pIrp)->Cancel = TRUE;
+
+    if ((*pIrp)->CancelRoutine == NULL)
+    {
+        IoReleaseCancelSpinLock(Irql);
+        return;
+    }
+
+    CancelRoutine = (*pIrp)->CancelRoutine;
+
+    (*pIrp)->CancelRoutine = NULL;
+    (*pIrp)->CancelIrql = Irql;
+
+    CancelRoutine(DeviceObject, *pIrp);
+}
+
+VOID
+NTAPI
+UsbSerKillPendingIrps(IN PDEVICE_OBJECT DeviceObject)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PDRIVER_CANCEL CancelRoutine;
+    KIRQL Irql;
+
+    DPRINT("UsbSerKillPendingIrps: DeviceObject %p\n", DeviceObject);
+    PAGED_CODE();
+
+    Extension = DeviceObject->DeviceExtension;
+
+    UsbSerKillAllReadsOrWrites(DeviceObject, &Extension->ReadQueueList, &Extension->CurrentReadIrp);
+
+    IoAcquireCancelSpinLock(&Irql);
+
+    if (!Extension->MaskIrp)
+    {
+        IoReleaseCancelSpinLock(Irql);
+        goto Exit;
+    }
+
+    CancelRoutine = Extension->MaskIrp->CancelRoutine;
+    Extension->MaskIrp->Cancel = 1;
+
+    if (!CancelRoutine)
+    {
+        ASSERT(CancelRoutine);
+        IoReleaseCancelSpinLock(Irql);
+        goto Exit;
+    }
+
+    Extension->MaskIrp->CancelRoutine = 0;
+    Extension->MaskIrp->CancelIrql = Irql;
+
+    CancelRoutine(DeviceObject, Extension->MaskIrp);
+
+Exit:
+
+    if (Extension->WakeIrp)
+    {
+        IoCancelIrp(Extension->WakeIrp);
+        Extension->WakeIrp = NULL;
+    }
+}
+
 NTSTATUS
 NTAPI
 UsbSerCleanup(IN PDEVICE_OBJECT DeviceObject,
@@ -1474,8 +1572,15 @@ UsbSerCleanup(IN PDEVICE_OBJECT DeviceObject,
 {
     DPRINT("UsbSerCleanup: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
     PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+
+    UsbSerKillPendingIrps(DeviceObject);
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
