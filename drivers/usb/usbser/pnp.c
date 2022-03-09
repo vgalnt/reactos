@@ -315,7 +315,7 @@ QueryCapabilities(IN PDEVICE_OBJECT DeviceObject,
     KeInitializeEvent(Event, SynchronizationEvent, FALSE);
 
     IoCopyCurrentIrpStackLocationToNext(Irp);
-    IoSetCompletionRoutine(Irp, UsbSerSyncCompletion, &Event, TRUE, TRUE, TRUE);
+    IoSetCompletionRoutine(Irp, UsbSerSyncCompletion, Event, TRUE, TRUE, TRUE);
 
     Extension = DeviceObject->DeviceExtension;
 
