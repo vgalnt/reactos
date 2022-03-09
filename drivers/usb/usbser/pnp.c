@@ -350,9 +350,53 @@ NTAPI
 SurpriseRemoval(IN PDEVICE_OBJECT DeviceObject,
                 IN PIRP Irp)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE);
-    return;
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIRP MaskIrp;
+    KIRQL Irql;
+
+    Extension = DeviceObject->DeviceExtension;
+
+    IoAcquireCancelSpinLock(&Irql);
+    UsbSerFetchBooleanLocked(&Extension->DeviceIsRunning, FALSE, &Extension->SpinLock);
+
+    MaskIrp = Extension->MaskIrp;
+    if (!MaskIrp)
+    {
+        IoReleaseCancelSpinLock(Irql);
+        goto Exit;
+    }
+
+    if (!(Extension->IsrWaitMask & 0x20))
+    {
+        IoReleaseCancelSpinLock(Irql);
+        goto Exit;
+    }
+
+    if (!(Extension->ModemStatus & 0x80))
+    {
+        IoReleaseCancelSpinLock(Irql);
+        goto Exit;
+    }
+
+    Extension->ModemStatus &= ~0x80;
+    Extension->HistoryMask |= 0x20;
+
+    MaskIrp->IoStatus.Status = STATUS_SUCCESS;
+    MaskIrp->IoStatus.Information = sizeof(Extension->HistoryMask);
+
+    Extension->MaskIrp = NULL;
+
+    *(PULONG)MaskIrp->AssociatedIrp.SystemBuffer = Extension->HistoryMask;
+    Extension->HistoryMask = 0;
+
+    IoSetCancelRoutine(MaskIrp, NULL);
+    IoReleaseCancelSpinLock(Irql);
+
+    IoCompleteRequest(MaskIrp, IO_NO_INCREMENT);
+
+Exit:
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
 }
 
 NTSTATUS
