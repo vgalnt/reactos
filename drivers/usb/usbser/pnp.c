@@ -185,6 +185,15 @@ Exit:
 
 NTSTATUS
 NTAPI
+UsbSerUndoExternalNaming(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    UNIMPLEMENTED;
+    ASSERT(FALSE);
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 StartDevice(IN PDEVICE_OBJECT DeviceObject,
             IN PIRP Irp)
 {
@@ -261,6 +270,7 @@ StartDevice(IN PDEVICE_OBJECT DeviceObject,
     StartRead(Extension);
     StartNotifyRead(Extension);
 
+    Extension->PnpState = 1;
     DPRINT("StartDevice: Device %p is started\n", DeviceObject);
 
 Exit:
@@ -270,14 +280,120 @@ Exit:
     return Status;
 }
 
+VOID
+NTAPI
+CancelPendingWaitMasks(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    PIRP Irp;
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    if (!Extension->MaskIrp)
+    {
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+        return;
+    }
+
+    Irp = Extension->MaskIrp;
+    Extension->MaskIrp = NULL;
+
+    Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = STATUS_CANCELLED;
+
+    IoSetCancelRoutine(Irp, NULL);
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+}
+
+NTSTATUS
+NTAPI
+DeleteObjectAndLink(IN PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED;
+    ASSERT(FALSE);
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 RemoveDevice(IN PDEVICE_OBJECT DeviceObject,
              IN PIRP Irp)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE);
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension;
+    NTSTATUS Status;
+
+    Extension = DeviceObject->DeviceExtension;
+
+    PAGED_CODE();
+
+    UsbSerFetchBooleanLocked(&Extension->DeviceIsRunning, FALSE, &Extension->SpinLock);
+
+    CancelPendingWaitMasks(Extension);
+
+    if (Extension->PnpState == 1)
+        UsbSerAbortPipes(DeviceObject);
+
+    if (Extension->ReadIrp)
+    {
+        IoFreeIrp(Extension->ReadIrp);
+        Extension->ReadIrp = NULL;
+    }
+
+    if (Extension->NotifyIrp)
+    {
+        IoFreeIrp(Extension->NotifyIrp);
+        Extension->NotifyIrp = NULL;
+    }
+
+    if (Extension->NotifyUrb)
+    {
+        ExFreePoolWithTag(Extension->NotifyUrb, USBSER_TAG);
+        Extension->NotifyUrb = NULL;
+    }
+
+    if (Extension->ReadUrb)
+    {
+        ExFreePoolWithTag(Extension->ReadUrb, USBSER_TAG);
+        Extension->ReadUrb = NULL;
+    }
+
+    if (Extension->DeviceDescriptor)
+    {
+        ExFreePoolWithTag(Extension->DeviceDescriptor, USBSER_TAG);
+        Extension->DeviceDescriptor = NULL;
+    }
+
+    if (Extension->RxBuffer)
+    {
+        ExFreePoolWithTag(Extension->RxBuffer, USBSER_TAG);
+        Extension->RxBuffer = NULL;
+    }
+
+    if (Extension->ReadBuffer)
+    {
+        ExFreePoolWithTag(Extension->ReadBuffer, USBSER_TAG);
+        Extension->ReadBuffer = NULL;
+    }
+
+    if (Extension->NotifyBuffer)
+    {
+        ExFreePoolWithTag(Extension->NotifyBuffer, USBSER_TAG);
+        Extension->NotifyBuffer = NULL;
+    }
+
+    UsbSerUndoExternalNaming(Extension);
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    Status = IoCallDriver(Extension->LowerDevice, Irp);
+
+    IoDetachDevice(Extension->LowerDevice);
+    DeleteObjectAndLink(DeviceObject);
+
+    Extension->PnpState = 2;
+
+    return Status;
 }
 
 NTSTATUS

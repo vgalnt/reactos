@@ -158,6 +158,7 @@ typedef struct _USBSER_DEVICE_EXTENSION
     LONG CountOnLastRead;
     LONG TransmitCount;
     PIO_WORKITEM WorkItem;
+    ULONG PnpState;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 
