@@ -16,6 +16,10 @@
 
 /* GLOBALS ********************************************************************/
 
+extern KSPIN_LOCK GlobalSpinLock;
+extern BOOLEAN Slots[0x100];
+extern ULONG NumDevices;
+
 /* FUNCTIONS *****************************************************************/
 
 NTSTATUS
@@ -328,13 +332,27 @@ CancelPendingWaitMasks(IN PUSBSER_DEVICE_EXTENSION Extension)
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 }
 
-NTSTATUS
+VOID
 NTAPI
 DeleteObjectAndLink(IN PDEVICE_OBJECT DeviceObject)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE);
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension;
+
+    PAGED_CODE();
+
+    Extension = DeviceObject->DeviceExtension;
+
+    IoDeleteSymbolicLink(&Extension->SymLinkName);
+
+    if (Extension->DeviceIndex < 0x100)
+    {
+        UsbSerFetchBooleanLocked(&Slots[Extension->DeviceIndex], FALSE, &GlobalSpinLock);
+
+        NumDevices--;
+        ASSERT(NumDevices != 0);
+    }
+
+    IoDeleteDevice(DeviceObject);
 }
 
 NTSTATUS

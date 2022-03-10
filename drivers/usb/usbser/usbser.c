@@ -15,7 +15,7 @@
 /* DATA ***********************************************************************/
 
 KSPIN_LOCK GlobalSpinLock;
-UCHAR Slots[0x100];
+BOOLEAN Slots[0x100];
 ULONG NumDevices;
 
 /* GLOBALS ********************************************************************/
@@ -1697,7 +1697,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
 
     KeAcquireSpinLock(&GlobalSpinLock, &Irql);
     NumDevices++;
-    Slots[FreeIdx] = 1;
+    Slots[FreeIdx] = TRUE;
     KeReleaseSpinLock(&GlobalSpinLock, Irql);
 
     KeInitializeSpinLock(&Extension->SpinLock);
