@@ -183,13 +183,34 @@ Exit:
     return Status;
 }
 
-NTSTATUS
+VOID
 NTAPI
 UsbSerUndoExternalNaming(IN PUSBSER_DEVICE_EXTENSION Extension)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE);
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+
+    if (Extension->SymLinkName.Buffer)
+    {
+        if (Extension->IsSymLinkCreated)
+            IoDeleteSymbolicLink(&Extension->SymLinkName);
+
+        ExFreePoolWithTag(Extension->SymLinkName.Buffer, USBSER_TAG);
+        RtlInitUnicodeString(&Extension->SymLinkName, NULL);
+    }
+
+    if (Extension->DosName.Buffer)
+    {
+        ExFreePoolWithTag(Extension->DosName.Buffer, USBSER_TAG);
+        RtlInitUnicodeString(&Extension->DosName, NULL);
+    }
+
+    if (Extension->DeviceName.Buffer)
+    {
+        RtlDeleteRegistryValue(RTL_REGISTRY_DEVICEMAP, L"SERIALCOMM", Extension->DeviceName.Buffer);
+
+        ExFreePoolWithTag(Extension->DeviceName.Buffer, USBSER_TAG);
+        RtlInitUnicodeString(&Extension->DeviceName, NULL);
+    }
 }
 
 NTSTATUS

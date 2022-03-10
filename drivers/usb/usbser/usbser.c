@@ -1683,7 +1683,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     Extension->DeviceName.Length = DeviceName.Length;
     Extension->DeviceName.MaximumLength = DeviceName.MaximumLength;
 
-    Extension->DeviceName.Buffer = ExAllocatePool(PagedPool, Extension->DeviceName.MaximumLength);
+    Extension->DeviceName.Buffer = ExAllocatePoolWithTag(PagedPool, Extension->DeviceName.MaximumLength, USBSER_TAG);
     if (!Extension->DeviceName.Buffer)
     {
         Status = STATUS_INSUFFICIENT_RESOURCES;
