@@ -270,6 +270,12 @@ ResetDevice(
     IN PDEVICE_OBJECT DeviceObject
 );
 
+NTSTATUS
+NTAPI
+UsbSerAbortPipes(
+    IN PDEVICE_OBJECT DeviceObject
+);
+
 /* usbser.c */
 
 VOID

@@ -521,4 +521,79 @@ ResetDevice(IN PDEVICE_OBJECT DeviceObject)
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+UsbSerAbortPipes(IN PDEVICE_OBJECT DeviceObject)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    struct _URB_PIPE_REQUEST * Urb;
+    NTSTATUS Status;
+
+    DPRINT("UsbSerAbortPipes: DeviceObject %p\n", DeviceObject);
+
+    Extension = DeviceObject->DeviceExtension;
+
+    Urb = ExAllocatePoolWithTag(NonPagedPool, sizeof(struct _URB_PIPE_REQUEST), USBSER_TAG);
+    if (!Urb)
+    {
+        DPRINT1("UsbSerAbortPipes: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Urb->Hdr.Length = sizeof(struct _URB_PIPE_REQUEST);
+    Urb->Hdr.Function = URB_FUNCTION_ABORT_PIPE;
+    Urb->PipeHandle = Extension->DataInPipeHandle;
+
+    Status = CallUSBD(DeviceObject, (PURB)Urb);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("UsbSerAbortPipes: Status %X\n", Status);
+        ExFreePoolWithTag(Urb, USBSER_TAG);
+        return Status;
+    }
+
+    if (InterlockedDecrement(&Extension->DataInCount))
+    {
+        KeWaitForSingleObject(&Extension->EventDataIn, Executive, KernelMode, FALSE, NULL);
+    }
+
+    InterlockedIncrement(&Extension->DataInCount);
+
+    Urb->Hdr.Length = sizeof(struct _URB_PIPE_REQUEST);
+    Urb->Hdr.Function = URB_FUNCTION_ABORT_PIPE;
+    Urb->PipeHandle = Extension->DataOutPipeHandle;
+
+    Status = CallUSBD(DeviceObject, (PURB)Urb);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("UsbSerAbortPipes: Status %X\n", Status);
+        ExFreePoolWithTag(Urb, USBSER_TAG);
+        return Status;
+    }
+
+    if (InterlockedDecrement(&Extension->DataOutCount))
+    {
+        KeWaitForSingleObject(&Extension->EventDataOut, Executive, KernelMode, FALSE, NULL);
+    }
+
+    InterlockedIncrement(&Extension->DataOutCount);
+
+    Urb->Hdr.Length = sizeof(struct _URB_PIPE_REQUEST);
+    Urb->Hdr.Function = URB_FUNCTION_ABORT_PIPE;
+    Urb->PipeHandle = Extension->NotifyPipeHandle;
+
+    Status = CallUSBD(DeviceObject, (PURB)Urb);
+
+    if (InterlockedDecrement(&Extension->NotifyCount))
+    {
+        KeWaitForSingleObject(&Extension->EventNotify, Executive, KernelMode, FALSE, NULL);
+    }
+
+    InterlockedIncrement(&Extension->NotifyCount);
+
+    ExFreePoolWithTag(Urb, USBSER_TAG);
+
+    return Status;
+}
+
 /* EOF */
