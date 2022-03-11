@@ -130,6 +130,98 @@ Exit:
     RestartRead(Extension);
 }
 
+VOID
+NTAPI
+CheckForQueuedReads(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    PIO_STACK_LOCATION IoStack;
+    PIRP Irp;
+    PVOID DataBuffer;
+    PULONG Mask;
+    PIRP MaskIrp;
+    KIRQL Irql;
+
+    //DPRINT("CheckForQueuedReads: Extension %p, Irp %p\n", Extension, Extension->CurrentReadIrp);
+
+    IoAcquireCancelSpinLock(&Irql);
+
+    Irp = Extension->CurrentReadIrp;
+    if (Irp)
+    {
+        IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+        if ((ULONG_PTR)IoStack->Parameters.Others.Argument4 & 1)
+        {
+            IoReleaseCancelSpinLock(Irql);
+
+            DPRINT("CheckForQueuedReads: Reading %X\n", Extension->ReadLength);
+
+            DataBuffer = (PVOID)((ULONG_PTR)Irp->AssociatedIrp.SystemBuffer +
+                                 IoStack->Parameters.Read.Length -
+                                 Extension->ReadLength);
+
+            GetData(Extension, DataBuffer, Extension->ReadLength, &Irp->IoStatus.Information);
+
+            IoAcquireCancelSpinLock(&Irql);
+
+            if (!Extension->ReadLength)
+            {
+                Irp->IoStatus.Status = STATUS_SUCCESS;
+                Extension->CountOnLastRead = -3;
+
+                UsbSerTryToCompleteCurrent(Extension,
+                                           Irql,
+                                           STATUS_SUCCESS,
+                                           &Extension->CurrentReadIrp,
+                                           &Extension->ReadQueueList,
+                                           &Extension->ReadRequestIntervalTimer,
+                                           &Extension->ReadRequestTotalTimer,
+                                           UsbSerStartRead,
+                                           UsbSerGetNextIrp,
+                                           1,
+                                           TRUE);
+
+                IoAcquireCancelSpinLock(&Irql);
+            }
+        }
+    }
+
+    if (Extension->IsrWaitMask & 1)
+        Extension->HistoryMask |= 1;
+
+    if (!Extension->MaskIrp)
+    {
+        IoReleaseCancelSpinLock(Irql);
+        goto Exit;
+    }
+
+    if (!(Extension->IsrWaitMask & Extension->HistoryMask))
+    {
+        IoReleaseCancelSpinLock(Irql);
+        goto Exit;
+    }
+
+    Mask = Extension->MaskIrp->AssociatedIrp.SystemBuffer,
+    *Mask = Extension->HistoryMask;
+
+    MaskIrp = Extension->MaskIrp;
+    Extension->HistoryMask = 0;
+
+    MaskIrp->IoStatus.Information = sizeof(*Mask);
+    MaskIrp->IoStatus.Status = STATUS_SUCCESS;
+
+    Extension->MaskIrp = NULL;
+
+    IoSetCancelRoutine(MaskIrp, NULL);
+    IoReleaseCancelSpinLock(Irql);
+
+    IoCompleteRequest(MaskIrp, IO_SERIAL_INCREMENT);
+
+Exit:
+
+    DPRINT("CheckForQueuedReads: Exit\n");
+}
+
 NTSTATUS
 NTAPI
 ReadCompletion(IN PDEVICE_OBJECT DeviceObject,
@@ -177,7 +269,7 @@ ReadCompletion(IN PDEVICE_OBJECT DeviceObject,
 
     PutData(Extension, BufferLength);
 
-    DPRINT1("ReadCompletion: FIXME CheckForQueuedReads()\n");
+    CheckForQueuedReads(Extension);
 
     KeAcquireSpinLock(&Extension->SpinLock, &Irql);
     IsRestartRead = (Extension->ReadingState == 3);
