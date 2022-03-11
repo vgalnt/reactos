@@ -582,8 +582,7 @@ UsbSerPnP(IN PDEVICE_OBJECT DeviceObject,
 
         case IRP_MN_REMOVE_DEVICE:
             DPRINT("UsbSerPnP: IRP_MN_REMOVE_DEVICE\n");
-            DPRINT1("UsbSerPnP: FIXME IoWMIRegistrationControl()\n");
-            //IoWMIRegistrationControl(DeviceObject, WMIREG_ACTION_DEREGISTER);
+            IoWMIRegistrationControl(DeviceObject, WMIREG_ACTION_DEREGISTER);
             Status = RemoveDevice(DeviceObject, Irp);
             goto Exit;
 
@@ -686,6 +685,5 @@ Exit:
 
     return Status;
 }
-
 
 /* EOF */
