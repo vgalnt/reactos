@@ -15,6 +15,8 @@
 #include <usbioctl.h>
 #include <usbdlib.h>
 #include <ntddser.h>
+#include <wmilib.h>
+#include <wmidata.h>
 
 #define USBSER_MAX_SYMBOLIC_NAME_LENGTH 128
 #define USBSER_MAX_DOS_NAME_LENGTH 32
@@ -159,6 +161,7 @@ typedef struct _USBSER_DEVICE_EXTENSION
     LONG TransmitCount;
     PIO_WORKITEM WorkItem;
     ULONG PnpState;
+    WMILIB_CONTEXT WmiLibInfo;
 
 } USBSER_DEVICE_EXTENSION, *PUSBSER_DEVICE_EXTENSION;
 

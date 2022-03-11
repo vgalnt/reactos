@@ -18,6 +18,12 @@ KSPIN_LOCK GlobalSpinLock;
 BOOLEAN Slots[0x100];
 ULONG NumDevices;
 
+GUID SerialPortNameGuid = SERIAL_PORT_WMI_NAME_GUID;
+WMIGUIDREGINFO SerialWmiGuidList[1] =
+{
+    { &SerialPortNameGuid, 1, 0 }
+};
+
 /* GLOBALS ********************************************************************/
 
 /* FUNCTIONS ******************************************************************/
@@ -1690,12 +1696,56 @@ NTAPI
 UsbSerSystemControlDispatch(IN PDEVICE_OBJECT DeviceObject,
                             IN PIRP Irp)
 {
+    PUSBSER_DEVICE_EXTENSION Extension;
+    SYSCTL_IRP_DISPOSITION Disposition;
+    NTSTATUS Status;
+
     DPRINT("UsbSerSystemControlDispatch: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
     PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
-}
 
+    Extension = DeviceObject->DeviceExtension;
+
+    Status = WmiSystemControl(&Extension->WmiLibInfo, DeviceObject, Irp, &Disposition);
+
+    switch (Disposition)
+    {
+        case IrpProcessed:
+        {
+            DPRINT("UsbSerSystemControlDispatch: IrpProcessed\n");
+            break;
+        }
+        case IrpNotCompleted:
+        {
+            DPRINT("UsbSerSystemControlDispatch: IrpNotCompleted\n");
+            IoCompleteRequest(Irp, IO_NO_INCREMENT);                
+            break;
+        }
+        case IrpForward:
+        {
+            DPRINT("UsbSerSystemControlDispatch: IrpForward\n");
+            IoSkipCurrentIrpStackLocation(Irp);
+            Status = IoCallDriver(Extension->LowerDevice, Irp);
+            break;
+        }
+        case IrpNotWmi:
+        {
+            DPRINT("UsbSerSystemControlDispatch: IrpNotWmi\n");
+            IoSkipCurrentIrpStackLocation(Irp);
+            Status = IoCallDriver(Extension->LowerDevice, Irp);
+            break;
+        }
+        default:
+        {
+            DPRINT1("UsbSerSystemControlDispatch: Unknown Disposition %X\n", Disposition);
+            ASSERT(FALSE);
+            IoSkipCurrentIrpStackLocation(Irp);
+            Status = IoCallDriver(Extension->LowerDevice, Irp);
+            break;
+        }        
+    }
+
+    return Status;
+}
 VOID
 NTAPI
 UsbSerUnload(IN PDRIVER_OBJECT DriverObject)
@@ -1828,6 +1878,20 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     NewDevice->Flags |= DO_BUFFERED_IO; // IO system copies the users data to and from system supplied buffers
     NewDevice->Flags |= DO_POWER_PAGABLE;
     NewDevice->Flags &= ~DO_DEVICE_INITIALIZING;
+
+    Extension->WmiLibInfo.GuidCount = 1;
+    Extension->WmiLibInfo.GuidList = SerialWmiGuidList;
+
+    Extension->WmiLibInfo.QueryWmiRegInfo = UsbSerQueryWmiRegInfo;
+    Extension->WmiLibInfo.QueryWmiDataBlock = UsbSerQueryWmiDataBlock;
+
+    Extension->WmiLibInfo.SetWmiDataBlock = UsbSerSetWmiDataBlock;
+    Extension->WmiLibInfo.SetWmiDataItem = UsbSerSetWmiDataItem;
+
+    Extension->WmiLibInfo.ExecuteWmiMethod = NULL;
+    Extension->WmiLibInfo.WmiFunctionControl = NULL;
+
+    IoWMIRegistrationControl(NewDevice, WMIREG_ACTION_REGISTER);//1
 
 Exit:
 
