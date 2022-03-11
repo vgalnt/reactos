@@ -405,4 +405,51 @@ UsbSerWriteTimeout(
 
 /* wmi.c */
 
+NTSTATUS
+NTAPI
+UsbSerSetWmiDataItem(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP PIrp,
+    IN ULONG GuidIndex,
+    IN ULONG InstanceIndex,
+    IN ULONG DataItemId,
+    IN ULONG BufferSize,
+    IN PUCHAR PBuffer
+);
+
+NTSTATUS
+NTAPI
+UsbSerSetWmiDataBlock(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP PIrp,
+    IN ULONG GuidIndex,
+    IN ULONG InstanceIndex,
+    IN ULONG BufferSize,
+    IN PUCHAR PBuffer
+);
+
+NTSTATUS
+NTAPI
+UsbSerQueryWmiDataBlock(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP PIrp,
+    IN ULONG GuidIndex, 
+    IN ULONG InstanceIndex,
+    IN ULONG InstanceCount,
+    IN OUT PULONG InstanceLengthArray,
+    IN ULONG OutBufferSize,
+    OUT PUCHAR PBuffer
+);
+
+NTSTATUS
+NTAPI
+UsbSerQueryWmiRegInfo(
+    IN PDEVICE_OBJECT DeviceObject,
+    OUT PULONG PRegFlags,
+    OUT PUNICODE_STRING PInstanceName,
+    OUT PUNICODE_STRING * PRegistryPath,
+    OUT PUNICODE_STRING MofResourceName,
+    OUT PDEVICE_OBJECT * Pdo
+);
+
 #endif // _USBSTOR_H_
