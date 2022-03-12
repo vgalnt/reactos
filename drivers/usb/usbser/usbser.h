@@ -21,7 +21,9 @@
 #define USBSER_MAX_SYMBOLIC_NAME_LENGTH 128
 #define USBSER_MAX_DOS_NAME_LENGTH 32
 #define USBSER_MAX_SLOT 256
+
 #define USBSER_TAG 'CBSU'
+#define USBD_TAG   'DBSU'
 
 /* Universal Serial Bus Class Definitions for Communications Devices
    Revision 1.2, November 3, 2010 (CDC120)

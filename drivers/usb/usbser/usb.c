@@ -338,7 +338,7 @@ SelectInterface(IN PDEVICE_OBJECT DeviceObject,
 Exit:
 
     if (Urb)
-        ExFreePoolWithTag(Urb, USBSER_TAG);
+        ExFreePoolWithTag(Urb, USBD_TAG);
 
     if (!InterfaceFound)
     {

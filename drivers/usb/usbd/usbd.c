@@ -42,6 +42,19 @@
 #define PLUGPLAY_REGKEY_DRIVER              2
 #endif
 
+#define USBD_TAG 'DBSU'
+
+PUSB_INTERFACE_DESCRIPTOR NTAPI
+USBD_ParseConfigurationDescriptorEx(
+    PUSB_CONFIGURATION_DESCRIPTOR ConfigurationDescriptor,
+    PVOID StartPosition,
+    LONG InterfaceNumber,
+    LONG AlternateSetting,
+    LONG InterfaceClass,
+    LONG InterfaceSubClass,
+    LONG InterfaceProtocol
+);
+
 NTSTATUS NTAPI
 DriverEntry(PDRIVER_OBJECT DriverObject,
             PUNICODE_STRING RegistryPath)
@@ -350,7 +363,7 @@ USBD_CreateConfigurationRequestEx(
     UrbSize = GET_SELECT_CONFIGURATION_REQUEST_SIZE(InterfaceCount, PipeCount);
 
     // allocate urb
-    Urb = ExAllocatePool(NonPagedPool, UrbSize);
+    Urb = ExAllocatePoolWithTag(NonPagedPool, UrbSize, USBD_TAG);
     if (!Urb)
     {
         // no memory
@@ -403,8 +416,49 @@ USBD_CreateConfigurationRequest(
     PUSHORT Size
     )
 {
-    /* WindowsXP returns NULL */
-    return NULL;
+    PUSBD_INTERFACE_LIST_ENTRY iList;
+    PUSB_INTERFACE_DESCRIPTOR iDesc;
+    PURB Urb;
+    ULONG iCount;
+    ULONG ix;
+
+    PAGED_CODE();
+
+    iCount = ConfigurationDescriptor->bNumInterfaces;
+
+    iList = ExAllocatePoolWithTag(PagedPool, (iCount + 1) * sizeof(*iList), USBD_TAG);
+
+    for (ix = 0; ix < iCount; ix++)
+    {
+        iDesc = USBD_ParseConfigurationDescriptorEx(ConfigurationDescriptor,
+                                                    ConfigurationDescriptor,
+                                                    ix,
+                                                    0,
+                                                    -1,
+                                                    -1,
+                                                    -1);
+        if (!iDesc)
+        {
+            ASSERT(iDesc != NULL);
+            Urb = NULL;
+            goto Exit;
+        }
+
+        iList[ix].InterfaceDescriptor = iDesc;
+    }
+
+    iList[ix].InterfaceDescriptor = NULL;
+
+    Urb = USBD_CreateConfigurationRequestEx(ConfigurationDescriptor, iList);
+
+Exit:
+
+    ExFreePoolWithTag(iList, USBD_TAG);
+
+    if (Urb && Size)
+        *Size = Urb->UrbHeader.Length;
+
+    return Urb;
 }
 
 /*
@@ -642,7 +696,7 @@ USBD_GetPdoRegistryParameter(
         ValueName.Length = ValueName.MaximumLength = KeyNameLength;
 
         Length = ParameterLength + sizeof(KEY_VALUE_PARTIAL_INFORMATION);
-        PartialInfo = ExAllocatePool(PagedPool, Length);
+        PartialInfo = ExAllocatePoolWithTag(PagedPool, Length, USBD_TAG);
         if (PartialInfo)
         {
             Status = ZwQueryValueKey(DevInstRegKey, &ValueName,
@@ -651,7 +705,7 @@ USBD_GetPdoRegistryParameter(
             {
                 /* The caller doesn't want all the data */
                 ExFreePool(PartialInfo);
-                PartialInfo = ExAllocatePool(PagedPool, Length);
+                PartialInfo = ExAllocatePoolWithTag(PagedPool, Length, USBD_TAG);
                 if (PartialInfo)
                 {
                     Status = ZwQueryValueKey(DevInstRegKey, &ValueName,
