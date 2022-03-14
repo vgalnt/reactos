@@ -191,6 +191,14 @@ UsbSerDispatch(
     IN PIRP Irp
 );
 
+VOID
+NTAPI
+UsbSerKillAllReadsOrWrites(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PLIST_ENTRY List,
+    IN PIRP * pIrp
+);
+
 /* pnp.c */
 
 NTSTATUS

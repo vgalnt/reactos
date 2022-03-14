@@ -324,6 +324,68 @@ SetTimeouts(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
+Purge(IN PDEVICE_OBJECT DeviceObject,
+      IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    ULONG Remain;
+    ULONG Mask;
+    KIRQL Irql;
+
+    DPRINT("Purge: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    Extension = DeviceObject->DeviceExtension;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength < sizeof(ULONG))
+    {
+        DPRINT1("Purge: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    Mask = *((ULONG *)(Irp->AssociatedIrp.SystemBuffer));
+    if (!Mask)
+    {
+        DPRINT1("Purge: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (Mask & ~(SERIAL_PURGE_TXABORT |
+                 SERIAL_PURGE_RXABORT |
+                 SERIAL_PURGE_TXCLEAR |
+                 SERIAL_PURGE_RXCLEAR))
+    {
+        DPRINT1("Purge: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (Mask & SERIAL_PURGE_RXCLEAR)
+    {
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+        Extension->ReadBufferOffset = 0;
+        Remain = Extension->CharsInReadBuffer;
+        Extension->CharsInReadBuffer = 0;
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+        if (Remain)
+            RestartRead(Extension);
+    }
+
+    if (!(Mask & SERIAL_PURGE_RXABORT))
+        return STATUS_SUCCESS;
+
+    UsbSerKillAllReadsOrWrites(DeviceObject,
+                               &Extension->ReadQueueList,
+                               &Extension->CurrentReadIrp);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
                     IN PIRP Irp)
 {
@@ -347,7 +409,8 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_PURGE:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_PURGE\n");ASSERT(FALSE);
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_PURGE\n");
+            Status = Purge(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_CLR_DTR:
