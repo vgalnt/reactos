@@ -386,6 +386,37 @@ Purge(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
+GetModemStatus(IN PDEVICE_OBJECT DeviceObject,
+               IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    PULONG ModemStatus;
+    KIRQL Irql;
+
+    Extension = DeviceObject->DeviceExtension;
+    ModemStatus = (PULONG)Irp->AssociatedIrp.SystemBuffer;
+
+    Irp->IoStatus.Information = 0;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(ULONG))
+    {
+        DPRINT1("SetWaitMask: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    *ModemStatus = Extension->ModemStatus;
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    Irp->IoStatus.Information = sizeof(ULONG);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
                     IN PIRP Irp)
 {
@@ -468,6 +499,12 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         case IOCTL_SERIAL_SET_BREAK_ON:
         {
             DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_BREAK_ON\n");ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_SERIAL_GET_MODEMSTATUS:
+        {
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_GET_MODEMSTATUS\n");
+            Status = GetModemStatus(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_GET_COMMSTATUS:
