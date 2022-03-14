@@ -490,6 +490,111 @@ SetWaitMask(IN PDEVICE_OBJECT DeviceObject,
     return Status;
 }
 
+VOID
+NTAPI
+UsbSerCancelWaitOnMask(IN PDEVICE_OBJECT DeviceObject,
+                       IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+
+    Extension = DeviceObject->DeviceExtension;
+    ASSERT(Extension->MaskIrp == Irp);
+
+    Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = STATUS_CANCELLED;
+
+    Extension->MaskIrp = NULL;
+
+    IoReleaseCancelSpinLock(Irp->CancelIrql);
+    IoCompleteRequest(Irp, 2);
+}
+
+NTSTATUS
+NTAPI
+WaitOnMask(IN PDEVICE_OBJECT DeviceObject,
+           IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    KIRQL Irql;
+    PIRP MaskIrp;
+    KIRQL CancelIrql;
+    PULONG WaitMask;
+    NTSTATUS Status;
+
+    WaitMask = (PULONG)Irp->AssociatedIrp.SystemBuffer;
+    Extension = DeviceObject->DeviceExtension;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(ULONG))
+    {
+        DPRINT1("WaitOnMask: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (Extension->HistoryMask)
+    {
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+        *WaitMask = Extension->HistoryMask;
+        Extension->HistoryMask = 0;
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+        Irp->IoStatus.Information = sizeof(ULONG);
+
+        return STATUS_SUCCESS;
+    }
+
+    /* Extension->HistoryMask is 0 */
+
+    IoAcquireCancelSpinLock(&CancelIrql);
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    while (Extension->MaskIrp)
+    {
+        MaskIrp = Extension->MaskIrp;
+        Extension->MaskIrp = NULL;
+
+        MaskIrp->IoStatus.Status = STATUS_SUCCESS;
+
+        IoSetCancelRoutine(MaskIrp, NULL);
+
+        *WaitMask = 0;
+
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+        IoReleaseCancelSpinLock(CancelIrql);
+        IoCompleteRequest(MaskIrp, 2);
+        IoAcquireCancelSpinLock(&CancelIrql);
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    }
+
+    if (Irp->Cancel)
+    {
+        Irp->IoStatus.Information = 0;
+        Irp->IoStatus.Status = STATUS_CANCELLED;
+
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    IoSetCancelRoutine(Irp, UsbSerCancelWaitOnMask);
+
+    Irp->IoStatus.Status = STATUS_PENDING;
+    Status = STATUS_PENDING;
+
+    Extension->MaskIrp = Irp;
+
+    IoMarkIrpPending(Irp);
+
+Exit:
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+    IoReleaseCancelSpinLock(CancelIrql);
+
+    return Status;
+}
+
 NTSTATUS
 NTAPI
 UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
@@ -517,6 +622,12 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         {
             DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_WAIT_MASK\n");
             Status = SetWaitMask(DeviceObject, Irp);
+            break;
+        }
+        case IOCTL_SERIAL_WAIT_ON_MASK:
+        {
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_WAIT_ON_MASK\n");
+            Status = WaitOnMask(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_PURGE:
