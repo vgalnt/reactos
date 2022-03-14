@@ -415,6 +415,81 @@ GetModemStatus(IN PDEVICE_OBJECT DeviceObject,
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+UsbSerCompletePendingWaitMasks(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    PULONG WaitMask;
+    PIRP Irp;
+    KIRQL Irql;
+    KIRQL CancelIrql;
+
+    IoAcquireCancelSpinLock(&CancelIrql);
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    if (!Extension->MaskIrp)
+    {
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+        IoReleaseCancelSpinLock(CancelIrql);
+        return;
+    }
+
+    Irp = Extension->MaskIrp;
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = sizeof(ULONG);
+
+    WaitMask = (PULONG)Irp->AssociatedIrp.SystemBuffer;
+    *WaitMask = 0;
+
+    Extension->MaskIrp = NULL;
+    IoSetCancelRoutine(Irp, NULL);
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+    IoReleaseCancelSpinLock(CancelIrql);
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+}
+
+NTSTATUS
+NTAPI
+SetWaitMask(IN PDEVICE_OBJECT DeviceObject,
+            IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    PULONG WaitMask;
+    KIRQL Irql;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    Extension = DeviceObject->DeviceExtension;
+    Irp->IoStatus.Information = 0;
+
+    WaitMask = (PULONG)Irp->AssociatedIrp.MasterIrp;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength < sizeof(ULONG))
+    {
+        DPRINT1("SetWaitMask: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    if (*WaitMask & 0xFFFFE000)
+    {
+        DPRINT1("SetWaitMask: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    UsbSerCompletePendingWaitMasks(Extension);
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    Extension->HistoryMask = 0;
+    Extension->IsrWaitMask = *WaitMask;
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    return Status;
+}
+
 NTSTATUS
 NTAPI
 UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
@@ -436,6 +511,12 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         {
             DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_BAUD_RATE\n");
             Status = GetBaudRate(DeviceObject, Irp);
+            break;
+        }
+        case IOCTL_SERIAL_SET_WAIT_MASK:
+        {
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_WAIT_MASK\n");
+            Status = SetWaitMask(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_PURGE:
