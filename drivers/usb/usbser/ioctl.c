@@ -633,6 +633,32 @@ GetCommStatus(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
+SetQueueSize(IN PDEVICE_OBJECT DeviceObject,
+             IN PIRP Irp)
+{
+    //PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    //PULONG QueueSize;
+
+    //Extension = DeviceObject->DeviceExtension;
+    //QueueSize = Irp->AssociatedIrp.SystemBuffer;
+
+    Irp->IoStatus.Information = 0;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength < sizeof(ULONG))
+    {
+        DPRINT1("SetQueueSize: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    /* Nothing */
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
                     IN PIRP Irp)
 {
@@ -716,6 +742,12 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         {
             DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_BAUD_RATE\n");
             Status = SetBaudRate(DeviceObject, Irp);
+            break;
+        }
+        case IOCTL_SERIAL_SET_QUEUE_SIZE:
+        {
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_QUEUE_SIZE\n");
+            Status = SetQueueSize(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_SET_LINE_CONTROL:
