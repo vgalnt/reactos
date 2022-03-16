@@ -597,6 +597,42 @@ Exit:
 
 NTSTATUS
 NTAPI
+GetCommStatus(IN PDEVICE_OBJECT DeviceObject,
+              IN PIRP Irp)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PSERIAL_STATUS CommStatus;
+    PIO_STACK_LOCATION IoStack;
+    KIRQL Irql;
+
+    DPRINT("GetCommStatus: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+
+    Irp->IoStatus.Information = 0;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*CommStatus))
+    {
+        DPRINT1("GetCommStatus: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.OutputBufferLength);
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    CommStatus = Irp->AssociatedIrp.SystemBuffer;
+    RtlZeroMemory(CommStatus, sizeof(*CommStatus));
+
+    Extension = DeviceObject->DeviceExtension;
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+    CommStatus->AmountInInQueue = Extension->CharsInReadBuffer;
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    Irp->IoStatus.Information = sizeof(*CommStatus);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
                     IN PIRP Irp)
 {
@@ -701,7 +737,8 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_GET_COMMSTATUS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_COMMSTATUS\n");ASSERT(FALSE);
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_GET_COMMSTATUS\n");
+            Status = GetCommStatus(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_SET_HANDFLOW:
