@@ -402,7 +402,7 @@ GetModemStatus(IN PDEVICE_OBJECT DeviceObject,
     IoStack = IoGetCurrentIrpStackLocation(Irp);
     if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(ULONG))
     {
-        DPRINT1("SetWaitMask: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
+        DPRINT1("GetModemStatus: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.OutputBufferLength);
         return STATUS_BUFFER_TOO_SMALL;
     }
 
@@ -530,7 +530,7 @@ WaitOnMask(IN PDEVICE_OBJECT DeviceObject,
 
     if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(ULONG))
     {
-        DPRINT1("WaitOnMask: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
+        DPRINT1("WaitOnMask: STATUS_BUFFER_TOO_SMALL. Length %X\n", IoStack->Parameters.DeviceIoControl.OutputBufferLength);
         return STATUS_BUFFER_TOO_SMALL;
     }
 
