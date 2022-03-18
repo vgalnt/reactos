@@ -76,7 +76,7 @@ UsbSerDoExternalNaming(IN PUSBSER_DEVICE_EXTENSION Extension)
                                        MaxLength);
     if (Status != STATUS_SUCCESS)
     {
-        DPRINT("UsbSerDoExternalNaming: Status %p\n", Status);
+        DPRINT1("UsbSerDoExternalNaming: Status %p\n", Status);
 
         Status = UsbSerGetRegistryKeyValue(KeyHandle,
                                            L"Identifier",
@@ -85,7 +85,7 @@ UsbSerDoExternalNaming(IN PUSBSER_DEVICE_EXTENSION Extension)
                                            MaxLength);
         if (Status != STATUS_SUCCESS)
         {
-            DPRINT("UsbSerDoExternalNaming: Status %p\n", Status);
+            DPRINT1("UsbSerDoExternalNaming: Status %p\n", Status);
             ZwClose(KeyHandle);
             goto ErrorExit;
         }
@@ -114,6 +114,8 @@ UsbSerDoExternalNaming(IN PUSBSER_DEVICE_EXTENSION Extension)
 
     RtlAppendUnicodeStringToString(&Extension->SymLinkName, &SymLinkName);
 
+    DPRINT1("UsbSerDoExternalNaming: '%wZ', '%wZ'\n", &Extension->DeviceName, &Extension->SymLinkName);
+
     Status = IoCreateSymbolicLink(&Extension->SymLinkName, &Extension->DeviceName);
     if (Status != STATUS_SUCCESS)
     {
@@ -141,6 +143,8 @@ UsbSerDoExternalNaming(IN PUSBSER_DEVICE_EXTENSION Extension)
 
     RtlAppendUnicodeToString(&Extension->DosName, RegSymbolicName);
     Extension->DosName.Buffer[Extension->DosName.Length] = 0;
+
+    DPRINT1("UsbSerDoExternalNaming: DosName '%wZ'\n", &Extension->DosName);
 
     Status = RtlWriteRegistryValue(RTL_REGISTRY_DEVICEMAP,
                                    L"SERIALCOMM",
@@ -349,7 +353,10 @@ DeleteObjectAndLink(IN PDEVICE_OBJECT DeviceObject)
         UsbSerFetchBooleanLocked(&Slots[Extension->DeviceIndex], FALSE, &GlobalSpinLock);
 
         NumDevices--;
-        ASSERT(NumDevices != 0);
+        if (!NumDevices)
+        {
+            DPRINT("DeleteObjectAndLink: NumDevices is 0\n");
+        }
     }
 
     IoDeleteDevice(DeviceObject);
