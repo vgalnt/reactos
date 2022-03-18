@@ -676,7 +676,7 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
     {
         case IOCTL_SERIAL_GET_BAUD_RATE:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_BAUD_RATE\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_GET_BAUD_RATE\n");
             Status = GetBaudRate(DeviceObject, Irp);
             break;
         }
@@ -700,47 +700,51 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_CLR_DTR:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_CLR_DTR\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_CLR_DTR\n");
             Status = SetClrDtr(DeviceObject, FALSE);
             break;
         }
         case IOCTL_SERIAL_RESET_DEVICE:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_RESET_DEVICE\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: FIXME. IOCTL_SERIAL_RESET_DEVICE not implemented\n");
+            Status = STATUS_NOT_IMPLEMENTED;
+            //ASSERT(FALSE);
             break;
         }
         case IOCTL_SERIAL_SET_RTS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_RTS\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_RTS\n");
             Status = SetRts(DeviceObject);
             break;
         }
         case IOCTL_SERIAL_CLR_RTS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_CLR_RTS\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_CLR_RTS\n");
             Status = ClrRts(DeviceObject);
             break;
         }
         case IOCTL_SERIAL_SET_DTR:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_DTR\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_DTR\n");
             Status = SetClrDtr(DeviceObject, TRUE);
             break;
         }
         case IOCTL_SERIAL_SET_TIMEOUTS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_TIMEOUTS\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_TIMEOUTS\n");
             Status = SetTimeouts(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_SET_BREAK_OFF:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_BREAK_OFF\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: FIXME. IOCTL_SERIAL_SET_BREAK_OFF not implemented\n");
+            Status = STATUS_NOT_IMPLEMENTED;
+            //ASSERT(FALSE);
             break;
         }
         case IOCTL_SERIAL_SET_BAUD_RATE:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_BAUD_RATE\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_BAUD_RATE\n");
             Status = SetBaudRate(DeviceObject, Irp);
             break;
         }
@@ -752,13 +756,15 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_SET_LINE_CONTROL:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_LINE_CONTROL\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_LINE_CONTROL\n");
             Status = SetLineControl(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_SET_BREAK_ON:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_BREAK_ON\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: FIXME. IOCTL_SERIAL_SET_BREAK_ON not implemented\n");
+            Status = STATUS_NOT_IMPLEMENTED;
+            //ASSERT(FALSE);
             break;
         }
         case IOCTL_SERIAL_GET_MODEMSTATUS:
@@ -775,42 +781,45 @@ UsbSerDeviceControl(IN PDEVICE_OBJECT DeviceObject,
         }
         case IOCTL_SERIAL_SET_HANDFLOW:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_HANDFLOW\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_HANDFLOW\n");
             Status = SetHandflow(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_GET_LINE_CONTROL:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_LINE_CONTROL\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_GET_LINE_CONTROL\n");
             Status = GetLineControl(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_GET_CHARS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_CHARS\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_GET_CHARS\n");
             Status = GetChars(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_SET_CHARS:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_SET_CHARS\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_SET_CHARS\n");
             Status = SetChars(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_GET_HANDFLOW:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_GET_HANDFLOW\n");
+            DPRINT("UsbSerDeviceControl: IOCTL_SERIAL_GET_HANDFLOW\n");
             Status = GetHandflow(DeviceObject, Irp);
             break;
         }
         case IOCTL_SERIAL_CONFIG_SIZE:
         {
-            DPRINT1("UsbSerDeviceControl: IOCTL_SERIAL_CONFIG_SIZE\n");ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: FIXME. IOCTL_SERIAL_CONFIG_SIZE not implemented\n");
+            Status = STATUS_NOT_IMPLEMENTED;
+            //ASSERT(FALSE);
             break;
         }
         default:
         {
-            DPRINT1("UsbSerDeviceControl: Unknown ControlCode [%X] \n", ControlCode);ASSERT(FALSE);
+            DPRINT1("UsbSerDeviceControl: Unknown ControlCode [%X] \n", ControlCode);
+            //ASSERT(FALSE);
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
