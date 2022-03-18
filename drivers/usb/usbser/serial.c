@@ -65,6 +65,93 @@ GetLineControlAndBaud(IN PDEVICE_OBJECT DeviceObject)
 
 NTSTATUS
 NTAPI
+SetLineControlAndBaud(IN PDEVICE_OBJECT DeviceObject)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    USBSER_CDC_LINE_CODING LineData;
+    ULONG Length;
+    KIRQL Irql;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("SetLineControlAndBaud: DeviceObject %p\n", DeviceObject);
+
+    Extension = DeviceObject->DeviceExtension;
+    Length = sizeof(USBSER_CDC_LINE_CODING);
+
+    KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+
+    LineData.BaudRate = Extension->BaudRate.BaudRate;
+    LineData.DataBits = Extension->LineControl.WordLength;
+
+    switch (Extension->LineControl.StopBits)
+    {
+        case 0:
+            LineData.StopBits = STOP_BIT_1;
+            break;
+
+        case 1:
+            LineData.StopBits = STOP_BITS_1_5;
+            break;
+
+        case 2:
+            LineData.StopBits = STOP_BITS_2;
+            break;
+
+        default:
+            DPRINT1("SetLineControlAndBaud: Extension->LineControl.StopBits %p\n", Extension->LineControl.StopBits);
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+    }
+
+    switch (Extension->LineControl.Parity)
+    {
+        case 0:
+            LineData.ParityType = NO_PARITY;
+            break;
+
+        case 1:
+            LineData.ParityType = ODD_PARITY;
+            break;
+
+        case 2:
+            LineData.ParityType = EVEN_PARITY;
+            break;
+
+        case 3:
+            LineData.ParityType = MARK_PARITY;
+            break;
+
+        case 4:
+            LineData.ParityType = SPACE_PARITY;
+            break;
+
+        default:
+            DPRINT1("SetLineControlAndBaud: Extension->LineControl.Parity %p\n", Extension->LineControl.Parity);
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+    }
+
+    KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+    if (NT_SUCCESS(Status))
+    {
+        Status = ClassVendorCommand(DeviceObject,
+                                    USB_CDC_SET_LINE_CODING,
+                                    0,
+                                    Extension->InterfaceNumber,
+                                    &LineData,
+                                    &Length,
+                                    USBD_TRANSFER_DIRECTION_OUT,
+                                    TRUE);
+    }
+
+    GetLineControlAndBaud(DeviceObject);
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 SetClrDtr(IN PDEVICE_OBJECT DeviceObject,
           IN BOOLEAN SetOrClear)
 {
