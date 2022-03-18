@@ -696,7 +696,6 @@ UsbSerGetNextIrp(IN PUSBSER_DEVICE_EXTENSION Extension,
     KIRQL Irql;
 
     DPRINT("UsbSerGetNextIrp: QueueToProcess %p, CompleteCurrent %X\n", QueueToProcess, CompleteCurrent);
-    PAGED_CODE();
 
     IoAcquireCancelSpinLock(&Irql);
     OldIrp = *CurrentOpIrp;
@@ -783,8 +782,6 @@ UsbSerGrabReadFromRx(IN PUSBSER_DEVICE_EXTENSION Extension)
     PIO_STACK_LOCATION IoStack;
     PULONG_PTR Argument4;
 
-    PAGED_CODE();
-
     IoStack = IoGetCurrentIrpStackLocation(Extension->CurrentReadIrp);
 
     Argument4 = (PULONG_PTR)&IoStack->Parameters.Others.Argument4;
@@ -840,7 +837,6 @@ UsbSerTryToCompleteCurrent(IN PUSBSER_DEVICE_EXTENSION Extension,
     PIRP currentIrp;
 
     DPRINT("UsbSerTryToCompleteCurrent: Extension %p\n", Extension);
-    PAGED_CODE();
 
     IoStack = IoGetCurrentIrpStackLocation(*CurrentOpIrp);
 
@@ -888,7 +884,6 @@ UsbSerCancelCurrentRead(IN PDEVICE_OBJECT DeviceObject,
     PUSBSER_DEVICE_EXTENSION Extension;
 
     DPRINT("UsbSerCancelCurrentRead: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
-    PAGED_CODE();
 
     Extension = DeviceObject->DeviceExtension;
 
