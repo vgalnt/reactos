@@ -1182,7 +1182,6 @@ UsbSerProcessEmptyTransmit(IN PUSBSER_DEVICE_EXTENSION Extension)
     if (!Irp->AssociatedIrp.SystemBuffer)
     {
         DPRINT1("UsbSerProcessEmptyTransmit: AssociatedIrp.SystemBuffer is NULL\n");
-        ASSERT(FALSE);
         IoReleaseCancelSpinLock(Irql);
         return;
     }
@@ -1737,7 +1736,6 @@ UsbSerSystemControlDispatch(IN PDEVICE_OBJECT DeviceObject,
         default:
         {
             DPRINT1("UsbSerSystemControlDispatch: Unknown Disposition %X\n", Disposition);
-            ASSERT(FALSE);
             IoSkipCurrentIrpStackLocation(Irp);
             Status = IoCallDriver(Extension->LowerDevice, Irp);
             break;

@@ -441,7 +441,6 @@ StopDevice(IN PDEVICE_OBJECT DeviceObject,
            IN PIRP Irp)
 {
     UNIMPLEMENTED;
-    ASSERT(FALSE);
     return STATUS_NOT_IMPLEMENTED;
 }
 

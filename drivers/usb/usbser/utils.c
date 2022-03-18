@@ -153,7 +153,7 @@ UsbSerIntervalReadTimeout(IN PKDPC Dpc,
                           IN PVOID SystemArgument1,
                           IN PVOID SystemArgument2)
 {
-    DPRINT1("UsbSerIntervalReadTimeout: FIXME UsbSerIntervalReadTimeout()\n");ASSERT(0);
+    DPRINT1("UsbSerIntervalReadTimeout: FIXME UsbSerIntervalReadTimeout()\n");
 }
 
 VOID
