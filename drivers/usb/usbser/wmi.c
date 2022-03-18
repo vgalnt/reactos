@@ -29,7 +29,6 @@ UsbSerSetWmiDataItem(IN PDEVICE_OBJECT DeviceObject,
                      IN PUCHAR PBuffer)
 {
     UNIMPLEMENTED;
-    ASSERT(FALSE);
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -43,7 +42,6 @@ UsbSerSetWmiDataBlock(IN PDEVICE_OBJECT DeviceObject,
                       IN PUCHAR PBuffer)
 {
     UNIMPLEMENTED;
-    ASSERT(FALSE);
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -59,7 +57,6 @@ UsbSerQueryWmiDataBlock(IN PDEVICE_OBJECT DeviceObject,
                         OUT PUCHAR PBuffer)
 {
     UNIMPLEMENTED;
-    ASSERT(FALSE);
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -73,7 +70,6 @@ UsbSerQueryWmiRegInfo(IN PDEVICE_OBJECT DeviceObject,
                       OUT PDEVICE_OBJECT * Pdo)
 {
     UNIMPLEMENTED;
-    ASSERT(FALSE);
     return STATUS_NOT_IMPLEMENTED;
 }
 
