@@ -25,6 +25,8 @@
 #include <pnp_c.h>
 #include <winsvc.h>
 
+#include <pseh/pseh2.h>
+
 #include "rpc_private.h"
 
 DWORD
@@ -35,7 +37,8 @@ I_ScPnPGetServiceName(IN SERVICE_STATUS_HANDLE hServiceStatus,
 
 
 /* Registry key and value names */
-static const WCHAR Backslash[] = {'\\', 0};
+static const WCHAR BackslashOpenBrace[] = {'\\', '{', 0};
+static const WCHAR CloseBrace[] = {'}', 0};
 static const WCHAR Class[]  = {'C','l','a','s','s',0};
 
 static const WCHAR ControlClass[] = {'S','y','s','t','e','m','\\',
@@ -61,7 +64,7 @@ typedef struct _LOG_CONF_INFO
 {
     ULONG ulMagic;
     DEVINST dnDevInst;
-    ULONG ulFlags;
+    ULONG ulType;
     ULONG ulTag;
 } LOG_CONF_INFO, *PLOG_CONF_INFO;
 
@@ -71,7 +74,7 @@ typedef struct _LOG_CONF_INFO
 typedef struct _NOTIFY_DATA
 {
     ULONG ulMagic;
-    ULONG ulNotifyData;
+    PVOID hNotifyHandle;
 } NOTIFY_DATA, *PNOTIFY_DATA;
 
 #define NOTIFY_MAGIC 0x44556677
@@ -631,6 +634,7 @@ CMP_RegisterNotification(
         return CR_OUT_OF_MEMORY;
 
     pNotifyData->ulMagic = NOTIFY_MAGIC;
+    pNotifyData->hNotifyHandle = NULL;
 
     if ((ulFlags & DEVICE_NOTIFY_SERVICE_HANDLE) == DEVICE_NOTIFY_WINDOW_HANDLE)
     {
@@ -671,8 +675,8 @@ CMP_RegisterNotification(
                                        (BYTE*)lpvNotificationFilter,
                                        ((DEV_BROADCAST_HDR*)lpvNotificationFilter)->dbch_size,
                                        ulFlags,
-                                       &pNotifyData->ulNotifyData,
-                                       0,            /* ??? */
+                                       &pNotifyData->hNotifyHandle,
+                                       GetCurrentProcessId(),
                                        &ulUnknown9); /* ??? */
     }
     RpcExcept(EXCEPTION_EXECUTE_HANDLER)
@@ -683,11 +687,12 @@ CMP_RegisterNotification(
 
     if (ret == CR_SUCCESS)
     {
+        TRACE("hNotifyHandle: %p\n", pNotifyData->hNotifyHandle);
         *phDevNotify = (HDEVNOTIFY)pNotifyData;
     }
     else
     {
-        if (pNotifyData != NULL)
+        if (pNotifyData->hNotifyHandle == NULL)
             HeapFree(GetProcessHeap(), 0, pNotifyData);
 
         *phDevNotify = (HDEVNOTIFY)NULL;
@@ -771,7 +776,7 @@ CMP_UnregisterNotification(
     RpcTryExcept
     {
         ret = PNP_UnregisterNotification(BindingHandle,
-                                         pNotifyData->ulNotifyData);
+                                         &pNotifyData->hNotifyHandle);
     }
     RpcExcept(EXCEPTION_EXECUTE_HANDLER)
     {
@@ -780,7 +785,10 @@ CMP_UnregisterNotification(
     RpcEndExcept;
 
     if (ret == CR_SUCCESS)
+    {
+        pNotifyData->hNotifyHandle = NULL;
         HeapFree(GetProcessHeap(), 0, pNotifyData);
+    }
 
     return ret;
 }
@@ -947,7 +955,7 @@ CM_Add_Empty_Log_Conf_Ex(
         {
             pLogConfInfo->ulMagic = LOG_CONF_MAGIC;
             pLogConfInfo->dnDevInst = dnDevInst;
-            pLogConfInfo->ulFlags = ulFlags;
+            pLogConfInfo->ulType = ulFlags;
             pLogConfInfo->ulTag = ulLogConfTag;
 
             *plcLogConf = (LOG_CONF)pLogConfInfo;
@@ -2353,8 +2361,11 @@ CM_Free_Log_Conf_Ex(
 
     RpcTryExcept
     {
-        ret = PNP_FreeLogConf(BindingHandle, lpDevInst, pLogConfInfo->ulFlags,
-                              pLogConfInfo->ulTag, 0);
+        ret = PNP_FreeLogConf(BindingHandle,
+                              lpDevInst,
+                              pLogConfInfo->ulType,
+                              pLogConfInfo->ulTag,
+                              0);
     }
     RpcExcept(EXCEPTION_EXECUTE_HANDLER)
     {
@@ -2934,7 +2945,7 @@ CM_Get_Class_Registry_PropertyA(
         *pulLength = WideCharToMultiByte(CP_ACP,
                                          0,
                                          BufferW,
-                                         lstrlenW(BufferW) + 1,
+                                         ulLength,
                                          Buffer,
                                          *pulLength,
                                          NULL,
@@ -3856,7 +3867,7 @@ CM_Get_Device_ID_List_ExA(
     if (WideCharToMultiByte(CP_ACP,
                             0,
                             BufferW,
-                            lstrlenW(BufferW) + 1,
+                            BufferLen,
                             Buffer,
                             BufferLen,
                             NULL,
@@ -4341,7 +4352,7 @@ CM_Get_Device_Interface_List_ExA(
     if (WideCharToMultiByte(CP_ACP,
                             0,
                             BufferW,
-                            lstrlenW(BufferW) + 1,
+                            BufferLen,
                             Buffer,
                             BufferLen,
                             NULL,
@@ -4646,7 +4657,7 @@ CM_Get_First_Log_Conf_Ex(
 
         pLogConfInfo->ulMagic = LOG_CONF_MAGIC;
         pLogConfInfo->dnDevInst = dnDevInst;
-        pLogConfInfo->ulFlags = ulFlags;
+        pLogConfInfo->ulType = ulFlags;
         pLogConfInfo->ulTag = ulTag;
 
         *plcLogConf = (LOG_CONF)pLogConfInfo;
@@ -5044,7 +5055,7 @@ CM_Get_Log_Conf_Priority_Ex(
     {
         ret = PNP_GetLogConfPriority(BindingHandle,
                                      lpDevInst,
-                                     pLogConfInfo->ulFlags,
+                                     pLogConfInfo->ulType,
                                      pLogConfInfo->ulTag,
                                      pPriority,
                                      0);
@@ -5132,7 +5143,7 @@ CM_Get_Next_Log_Conf_Ex(
     {
         ret = PNP_GetNextLogConf(BindingHandle,
                                  lpDevInst,
-                                 pLogConfInfo->ulFlags,
+                                 pLogConfInfo->ulType,
                                  pLogConfInfo->ulTag,
                                  &ulNewTag,
                                  0);
@@ -5154,7 +5165,7 @@ CM_Get_Next_Log_Conf_Ex(
 
         pNewLogConfInfo->ulMagic = LOG_CONF_MAGIC;
         pNewLogConfInfo->dnDevInst = pLogConfInfo->dnDevInst;
-        pNewLogConfInfo->ulFlags = pLogConfInfo->ulFlags;
+        pNewLogConfInfo->ulType = pLogConfInfo->ulType;
         pNewLogConfInfo->ulTag = ulNewTag;
 
         *plcLogConf = (LOG_CONF)pNewLogConfInfo;
@@ -5197,10 +5208,85 @@ CM_Get_Next_Res_Des_Ex(
     _In_ ULONG ulFlags,
     _In_opt_ HMACHINE hMachine)
 {
+    RPC_BINDING_HANDLE BindingHandle = NULL;
+    HSTRING_TABLE StringTable = NULL;
+    ULONG ulInTag, ulOutTag = 0;
+    ULONG ulInType, ulOutType = 0;
+    LPWSTR lpDevInst;
+    DEVINST dnDevInst;
+    CONFIGRET ret;
+
     FIXME("CM_Get_Next_Res_Des_Ex(%p %p %lu %p %lx %p)\n",
           prdResDes, rdResDes, ForResource, pResourceID, ulFlags, hMachine);
 
-    return CR_CALL_NOT_IMPLEMENTED;
+    if (prdResDes == NULL)
+        return CR_INVALID_POINTER;
+
+    if (IsValidLogConf((PLOG_CONF_INFO)rdResDes))
+    {
+        FIXME("LogConf found!\n");
+        dnDevInst = ((PLOG_CONF_INFO)rdResDes)->dnDevInst;
+        ulInTag = ((PLOG_CONF_INFO)rdResDes)->ulTag;
+        ulInType = ((PLOG_CONF_INFO)rdResDes)->ulType;
+    }
+#if 0
+    else if (IsValidResDes((PRES_DES_INFO)rdResDes))
+    {
+        FIXME("ResDes found!\n");
+        dnDevInst = ((PRES_DES_INFO)rdResDes)->dnDevInst;
+        ulInTag = ((PRES_DES_INFO)rdResDes)->ulTag;
+        ulInType = ((PRES_DES_INFO)rdResDes)->ulType;
+    }
+#endif
+    else
+    {
+        return CR_INVALID_RES_DES;
+    }
+
+    if (hMachine != NULL)
+    {
+        BindingHandle = ((PMACHINE_INFO)hMachine)->BindingHandle;
+        if (BindingHandle == NULL)
+            return CR_FAILURE;
+
+        StringTable = ((PMACHINE_INFO)hMachine)->StringTable;
+        if (StringTable == 0)
+            return CR_FAILURE;
+    }
+    else
+    {
+        if (!PnpGetLocalHandles(&BindingHandle, &StringTable))
+            return CR_FAILURE;
+    }
+
+    lpDevInst = pSetupStringTableStringFromId(StringTable, dnDevInst);
+    if (lpDevInst == NULL)
+        return CR_INVALID_DEVNODE;
+
+    RpcTryExcept
+    {
+        ret = PNP_GetNextResDes(BindingHandle,
+                                lpDevInst,
+                                ulInTag,
+                                ulInType,
+                                ForResource,
+                                0, /* unsigned long ulResourceTag, */
+                                &ulOutTag,
+                                &ulOutType,
+                                0);
+    }
+    RpcExcept(EXCEPTION_EXECUTE_HANDLER)
+    {
+        ret = RpcStatusToCmStatus(RpcExceptionCode());
+    }
+    RpcEndExcept;
+
+    if (ret != CR_SUCCESS)
+        return ret;
+
+    /* FIXME: Create the ResDes handle */
+
+    return CR_SUCCESS;
 }
 
 
@@ -6265,8 +6351,9 @@ CM_Open_Class_Key_ExW(
             return CR_INVALID_DATA;
         }
 
-        lstrcatW(szKeyName, Backslash);
+        lstrcatW(szKeyName, BackslashOpenBrace);
         lstrcatW(szKeyName, lpGuidString);
+        lstrcatW(szKeyName, CloseBrace);
     }
 
     if (Disposition == RegDisposition_OpenAlways)
