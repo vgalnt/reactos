@@ -122,6 +122,7 @@ KiSwitchKernelStack(PVOID StackBase, PVOID StackLimit)
     LONG_PTR StackOffset;
     SIZE_T StackSize;
     PKIPCR Pcr;
+    ULONG Eflags;
 
     /* Get the current thread */
     CurrentThread = KeGetCurrentThread();
@@ -142,6 +143,7 @@ KiSwitchKernelStack(PVOID StackBase, PVOID StackLimit)
     StackOffset = (PUCHAR)StackBase - (PUCHAR)CurrentThread->StackBase;
 
     /* Disable interrupts while messing with the stack */
+    Eflags = __readeflags();
     _disable();
 
     /* Set the new trap frame */
@@ -163,6 +165,9 @@ KiSwitchKernelStack(PVOID StackBase, PVOID StackLimit)
 
     /* Adjust Rsp0 in the TSS */
     Pcr->TssBase->Rsp0 += StackOffset;
+
+    /* Restore interrupts */
+    __writeeflags(Eflags);
 
     return OldStackBase;
 }
