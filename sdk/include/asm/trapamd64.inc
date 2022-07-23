@@ -97,6 +97,9 @@ MACRO(EnterTrap, Flags)
         mov [rbp + KTRAP_FRAME_SegGs], gs
     endif
 
+    /* Save MCXSR */
+    stmxcsr [rbp + KTRAP_FRAME_MxCsr]
+
 #if DBG
     mov ecx, MSR_GS_BASE
     rdmsr
@@ -115,6 +118,17 @@ MACRO(EnterTrap, Flags)
     mov ds, ax
     mov es, ax
     swapgs
+
+    /* Load kernel MXCSR */
+    ldmxcsr gs:[PcMxCsr]
+
+#if DBG
+    /* Check IRQL */
+    mov rax, cr8
+    test rax, rax
+    jz kernel_mode_entry
+    int HEX(2c)
+#endif
 
 kernel_mode_entry:
 
@@ -151,14 +165,23 @@ MACRO(ExitTrap, Flags)
     LOCAL kernel_mode_return
     LOCAL IntsEnabled
     LOCAL NoUserApc
+    LOCAL IrqlPassive
 
 #if DBG
         /* Check previous irql */
         mov rax, cr8
         cmp [rbp + KTRAP_FRAME_PreviousIrql], al
+#ifdef _USE_ML
         je .irql_ok
+#else
+        je 1f
+#endif
         int 3
+#ifdef _USE_ML
     .irql_ok:
+#else
+    1:
+#endif
 #endif
 
     if (Flags AND TF_SEGMENTS)
@@ -193,7 +216,17 @@ MACRO(ExitTrap, Flags)
     jnz IntsEnabled
     int HEX(2c)
 IntsEnabled:
+
+    /* Make sure we are at passive level */
+    mov rax, cr8
+    test rax, rax
+    jz IrqlPassive
+    int HEX(2C)
+
+IrqlPassive:
 #endif
+
+    cli
 
     /* Swap gs to user mode */
     swapgs
@@ -227,6 +260,9 @@ kernel_mode_return:
         movdqa xmm4, [rbp + KTRAP_FRAME_Xmm4]
         movdqa xmm5, [rbp + KTRAP_FRAME_Xmm5]
     endif
+
+    /* Restore MCXSR */
+    ldmxcsr [rbp + KTRAP_FRAME_MxCsr]
 
     /* Restore rbp */
     mov rbp, [rbp + KTRAP_FRAME_Rbp]
