@@ -56,7 +56,7 @@ KeContextToTrapFrame(IN PCONTEXT Context,
     }
 
     /* Handle floating point registers */
-    if ((ContextFlags & CONTEXT_FLOATING_POINT))
+    if (ContextFlags & CONTEXT_FLOATING_POINT)
     {
         TrapFrame->MxCsr = Context->MxCsr;
         TrapFrame->Xmm0 = Context->Xmm0;
@@ -207,9 +207,9 @@ KeTrapFrameToContext(IN PKTRAP_FRAME TrapFrame,
     }
 
     /* Handle floating point registers */
-    if ((ContextFlags & CONTEXT_FLOATING_POINT) && 
-        ((TrapFrame->SegCs & MODE_MASK) != KernelMode))
+    if (ContextFlags & CONTEXT_FLOATING_POINT)
     {
+        Context->MxCsr = TrapFrame->MxCsr;
         Context->Xmm0 = TrapFrame->Xmm0;
         Context->Xmm1 = TrapFrame->Xmm1;
         Context->Xmm2 = TrapFrame->Xmm2;
@@ -292,3 +292,29 @@ KeTrapFrameToContext(IN PKTRAP_FRAME TrapFrame,
     if (OldIrql < APC_LEVEL) KeLowerIrql(OldIrql);
 }
 
+VOID
+RtlSetUnwindContext(
+    _In_ PCONTEXT Context,
+    _In_ DWORD64 TargetFrame);
+
+VOID
+KiSetTrapContextInternal(
+    _Out_ PKTRAP_FRAME TrapFrame,
+    _In_ PCONTEXT Context,
+    _In_ KPROCESSOR_MODE RequestorMode)
+{
+    ULONG64 TargetFrame;
+
+    /* Save the volatile register context in the trap frame */
+    KeContextToTrapFrame(Context,
+                         NULL,
+                         TrapFrame,
+                         Context->ContextFlags,
+                         RequestorMode);
+
+    /* The target frame is MAX_SYSCALL_PARAM_SIZE bytes before the trap frame */
+    TargetFrame = (ULONG64)TrapFrame - MAX_SYSCALL_PARAM_SIZE ;
+
+    /* Set the nonvolatiles on the stack */
+    RtlSetUnwindContext(Context, TargetFrame);
+}
