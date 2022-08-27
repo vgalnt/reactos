@@ -1,6 +1,10 @@
 #ifndef __NTOSKRNL_INCLUDE_INTERNAL_AMD64_KE_H
 #define __NTOSKRNL_INCLUDE_INTERNAL_AMD64_KE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define X86_EFLAGS_TF           0x00000100 /* Trap flag */
 #define X86_EFLAGS_IF           0x00000200 /* Interrupt Enable flag */
 #define X86_EFLAGS_IOPL         0x00003000 /* I/O Privilege Level bits */
@@ -363,13 +367,27 @@ KiUserTrap(IN PKTRAP_FRAME TrapFrame)
     return !!(TrapFrame->SegCs & MODE_MASK);
 }
 
-#define Ki386PerfEnd()
+//
+// PERF Code
+//
+FORCEINLINE
+VOID
+Ki386PerfEnd(VOID)
+{
+    extern ULONGLONG BootCyclesEnd, BootCycles;
+    BootCyclesEnd = __rdtsc();
+    DbgPrint("Boot took %I64u cycles!\n", BootCyclesEnd - BootCycles);
+    DbgPrint("Interrupts: %u System Calls: %u Context Switches: %u\n",
+             KeGetCurrentPrcb()->InterruptCount,
+             KeGetCurrentPrcb()->KeSystemCalls,
+             KeGetContextSwitches(KeGetCurrentPrcb()));
+}
 
 struct _KPCR;
 
 //VOID KiInitializeTss(IN PKTSS Tss, IN UINT64 Stack);
 
-VOID KiSwitchToBootStack(IN ULONG_PTR InitialStack);
+DECLSPEC_NORETURN VOID KiSwitchToBootStack(IN ULONG_PTR InitialStack);
 VOID KiDivideErrorFault(VOID);
 VOID KiDebugTrapOrFault(VOID);
 VOID KiNmiInterrupt(VOID);
@@ -448,6 +466,16 @@ KiGetUserModeStackAddress(void)
 {
     return &PsGetCurrentThread()->Tcb.TrapFrame->Rsp;
 }
+
+VOID
+KiSetTrapContext(
+    _Out_ PKTRAP_FRAME TrapFrame,
+    _In_ PCONTEXT Context,
+    _In_ KPROCESSOR_MODE RequestorMode);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* __NTOSKRNL_INCLUDE_INTERNAL_AMD64_KE_H */
 
