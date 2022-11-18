@@ -499,7 +499,7 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 
 #ifndef _WINKD_
     /* Read KDB Data */
-    KdbInit();
+    KdbpCliInit();
 
     /* I/O is now setup for disk access, so phase 3 */
     KdInitSystem(3, LoaderBlock);
