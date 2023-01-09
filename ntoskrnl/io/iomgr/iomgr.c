@@ -497,13 +497,6 @@ IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     /* No one should need loader block any longer */
     IopLoaderBlock = NULL;
 
-#ifndef _WINKD_
-    /* Read KDB Data */
-    KdbpCliInit();
-
-    /* I/O is now setup for disk access, so phase 3 */
-    KdInitSystem(3, LoaderBlock);
-#endif
 
     /* Load system start drivers */
     DPRINT("IoInitSystem: IopInitializeSystemDrivers()\n");
