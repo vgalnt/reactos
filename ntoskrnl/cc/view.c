@@ -1570,6 +1570,9 @@ CcInitView (
 }
 
 #if DBG && defined(KDBG)
+
+#include <kdbg/kdb.h>
+
 BOOLEAN
 ExpKdbgExtFileCache(ULONG Argc, PCHAR Argv[])
 {
@@ -1666,6 +1669,7 @@ ExpKdbgExtDefWrites(ULONG Argc, PCHAR Argv[])
 
     return TRUE;
 }
-#endif
+
+#endif // DBG && defined(KDBG)
 
 /* EOF */
