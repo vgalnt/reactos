@@ -13375,14 +13375,61 @@ ACPIInterruptServiceRoutineDPC(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+ULONG
+NTAPI
+ACPIIoReadPm1Status(VOID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+BOOLEAN
+NTAPI
+ACPIGpeIsEvent(VOID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 BOOLEAN
 NTAPI
 ACPIInterruptServiceRoutine(
     _In_ PKINTERRUPT Interrupt,
     _In_ PVOID ServiceContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PACPI_PM_DISPATCH_TABLE HalAcpiDispatchTable = (PVOID)PmHalDispatchTable;
+    ULONG Pm1Status;
+    ULONG StatusBits;
+
+    Pm1Status = ACPIIoReadPm1Status();
+
+    DPRINT("ACPIInterruptServiceRoutine: %p, %p, %X\n", Interrupt, ServiceContext, Pm1Status);
+
+    if (ACPIGpeIsEvent())
+        Pm1Status |= 0x10000;
+
+    if (!(AcpiOverrideAttributes & 0x0100) && !Pm1Status)
+        Pm1Status = 0x10000;
+
+    StatusBits = (Pm1Status & 0x11);
+
+    if (StatusBits)
+    {
+        CLEAR_PM1_STATUS_BITS(StatusBits);
+
+        if (Pm1Status & 1)
+            ((VOID (NTAPI *)(VOID))(HalAcpiDispatchTable->HalAcpiTimerInterrupt))();
+
+        Pm1Status &= ~StatusBits;
+    }
+
+    if (Pm1Status)
+    {
+        DPRINT1("ACPIInterruptServiceRoutine: FIXME. Pm1Status %X\n", Pm1Status);
+        ASSERT(FALSE);
+    }
+
+    return (StatusBits != 0);
 }
 
 BOOLEAN

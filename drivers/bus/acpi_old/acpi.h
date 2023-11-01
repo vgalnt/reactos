@@ -1289,6 +1289,12 @@ GetIsaVectorFlags(
     _Out_ UCHAR* OutFlags
 );
 
+VOID
+NTAPI
+CLEAR_PM1_STATUS_BITS(
+    _In_ ULONG Value
+);
+
 /* dispatch.c */
 NTSTATUS
 NTAPI
