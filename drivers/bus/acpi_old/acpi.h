@@ -1301,6 +1301,12 @@ READ_PM1_STATUS(
     VOID
 );
 
+USHORT
+NTAPI
+ACPIReadGpeStatusRegister(
+    _In_ ULONG Size
+);
+
 /* dispatch.c */
 NTSTATUS
 NTAPI

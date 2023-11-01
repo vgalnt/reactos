@@ -13387,8 +13387,19 @@ BOOLEAN
 NTAPI
 ACPIGpeIsEvent(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    ULONG ix = 0;
+
+    if (!AcpiInformation->GpeSize)
+        return FALSE;
+
+    while (!(ACPIReadGpeStatusRegister(ix) & GpeCurEnable[ix]))
+    {
+        ix++;
+        if (ix >= AcpiInformation->GpeSize)
+            return FALSE;
+    }
+
+    return TRUE;
 }
 
 BOOLEAN
