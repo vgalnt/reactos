@@ -13379,8 +13379,8 @@ ULONG
 NTAPI
 ACPIIoReadPm1Status(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    ULONG Pm1Status = READ_PM1_STATUS();
+    return (Pm1Status & (AcpiInformation->pm1_en_bits | 0x8401));
 }
 
 BOOLEAN

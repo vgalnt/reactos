@@ -1295,6 +1295,12 @@ CLEAR_PM1_STATUS_BITS(
     _In_ ULONG Value
 );
 
+USHORT
+NTAPI
+READ_PM1_STATUS(
+    VOID
+);
+
 /* dispatch.c */
 NTSTATUS
 NTAPI
