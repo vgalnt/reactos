@@ -14150,8 +14150,49 @@ ACPIIoctlCalculateOutputBufferSize(
     _Out_ PULONG OutCount,
     _In_ BOOLEAN Param4)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ULONG Length;
+
+    DPRINT1("ACPIIoctlCalculateOutputBufferSize: %p (%X), %X\n", DataResult, DataResult->DataType, Param4);
+
+    if (DataResult->DataType == 0)
+    {
+        Length = 0;
+        *OutCount = 1;
+        goto Exit;
+    }
+
+    if (DataResult->DataType == 1)
+    {
+        Length = 8;
+        *OutCount = 1;
+        goto Exit;
+    }
+
+    if (DataResult->DataType == 2 || DataResult->DataType == 3)
+    {
+        Length = (DataResult->DataLen + 4);
+        *OutCount = 1;
+        goto Exit;
+    }
+
+    if (DataResult->DataType != 4)
+    {
+        DPRINT1("ACPIIoctlCalculateOutputBufferSize: %p (%X), %X\n", DataResult, DataResult->DataType, Param4);
+        ASSERT(FALSE);
+        return STATUS_ACPI_INVALID_DATA;
+    }
+
+    // DataResult->DataType == 4
+    DPRINT1("ACPIIoctlCalculateOutputBufferSize: FIXME\n");
+    ASSERT(FALSE);
+
+Exit:
+
+    ASSERT(OutLength && OutCount);
+
+    *OutLength += Length;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
