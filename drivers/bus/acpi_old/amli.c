@@ -9320,7 +9320,7 @@ ParseAndGetNameSpaceObject(
     Status = GetNameSpaceObject(Name, ScopeObject, OutNsObject, 0);
     if (Status != STATUS_OBJECT_NAME_NOT_FOUND)
     {
-        DPRINT1("ParseAndGetNameSpaceObject: Status %X\n", Status);
+        DPRINT("ParseAndGetNameSpaceObject: Status %X\n", Status);
         goto Exit;
     }
 
