@@ -14202,8 +14202,34 @@ ACPIIoctlCalculateOutputBuffer(
     _In_ PACPI_METHOD_ARGUMENT Argument,
     _In_ BOOLEAN Param3)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    DPRINT1("ACPIIoctlCalculateOutputBuffer: %p (%X), %X\n", DataResult, DataResult->DataType, Param3);
+
+    ASSERT(Argument);
+
+    if (DataResult->DataType == 1)
+    {
+        Argument->Type = 0;
+        Argument->DataLength = 4;
+        Argument->Argument = (ULONG)DataResult->DataValue;
+    }
+    else if (DataResult->DataType == 2 || DataResult->DataType == 3)
+    {
+        DPRINT1("ACPIIoctlCalculateOutputBufferSize: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (DataResult->DataType == 4)
+    {
+        DPRINT1("ACPIIoctlCalculateOutputBufferSize: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        DPRINT1("ACPIIoctlCalculateOutputBufferSize: %p (%X), %X\n", DataResult, DataResult->DataType, Param3);
+        ASSERT(FALSE);
+        return STATUS_ACPI_INVALID_DATA;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
