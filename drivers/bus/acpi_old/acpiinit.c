@@ -1086,7 +1086,11 @@ NTAPI
 CLEAR_PM1_STATUS_BITS(
     _In_ ULONG Value)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    if (AcpiInformation->PM1a_BLK)
+        (AcpiWriteRegisterRoutine)(2, 0, Value);
+
+    if (AcpiInformation->PM1b_BLK)
+        (AcpiWriteRegisterRoutine)(3, 0, Value);
 }
 
 VOID
