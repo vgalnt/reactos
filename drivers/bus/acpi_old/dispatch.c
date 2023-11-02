@@ -14144,12 +14144,94 @@ Exit:
 
 NTSTATUS
 NTAPI
+ACPIIoctlCalculateOutputBufferSize(
+    _In_ PAMLI_OBJECT_DATA DataResult,
+    _Out_ PULONG OutLength,
+    _Out_ PULONG OutCount,
+    _In_ BOOLEAN Param4)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ACPIIoctlCalculateOutputBuffer(
+    _In_ PAMLI_OBJECT_DATA DataResult,
+    _In_ PACPI_METHOD_ARGUMENT Argument,
+    _In_ BOOLEAN Param3)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ACPIIoctlEvalPostProcessing(
     _In_ PIRP Irp,
     _In_ PAMLI_OBJECT_DATA DataResult)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_EVAL_OUTPUT_BUFFER EvalBuffer;
+    PACPI_METHOD_ARGUMENT Argument;
+    ULONG BufferLength;
+    ULONG Length = 0;
+    ULONG Count = 0;
+    NTSTATUS Status;
+
+    DPRINT1("ACPIIoctlEvalPostProcessing: %p, %p\n", Irp, DataResult);
+
+    BufferLength = IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.OutputBufferLength;
+    if (!BufferLength)
+    {
+        Irp->IoStatus.Information = 0;
+        return STATUS_SUCCESS;
+    }
+
+    Length = 0;
+    Count = 0;
+
+    Status = ACPIIoctlCalculateOutputBufferSize(DataResult, &Length, &Count, TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIIoctlEvalPostProcessing: Status %X\n", Status);
+        Irp->IoStatus.Information = 0;
+        return STATUS_SUCCESS;
+    }
+
+    Length += 0xC; // FIXME
+
+    if (Length < sizeof(ACPI_EVAL_OUTPUT_BUFFER))
+        Length = sizeof(ACPI_EVAL_OUTPUT_BUFFER);
+
+    if (BufferLength >= sizeof(ACPI_EVAL_OUTPUT_BUFFER))
+    {
+        EvalBuffer = Irp->AssociatedIrp.SystemBuffer;
+
+        EvalBuffer->Signature = 'BoeA';
+        EvalBuffer->Length = Length;
+        EvalBuffer->Count = Count;
+
+        Argument = EvalBuffer->Argument;
+    }
+
+    if (Length > BufferLength)
+    {
+        DPRINT1("ACPIIoctlEvalPostProcessing: STATUS_BUFFER_OVERFLOW\n");
+        Irp->IoStatus.Information = sizeof(ACPI_EVAL_OUTPUT_BUFFER);
+        return STATUS_BUFFER_OVERFLOW;
+    }
+
+    Irp->IoStatus.Information = Length;
+
+    Status = ACPIIoctlCalculateOutputBuffer(DataResult, Argument, TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIIoctlEvalPostProcessing: Status %X\n", Status);
+        Irp->IoStatus.Information = 0;
+        return STATUS_SUCCESS;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
