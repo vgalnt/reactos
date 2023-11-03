@@ -2584,8 +2584,8 @@ AcpiArbFindSuitableRange(
         Status = GetVectorProperties(vector, &Flags);
         if (NT_SUCCESS(Status))
         {
-            DPRINT1("AcpiArbFindSuitableRange: FIXME\n");
-            ASSERT(FALSE);
+            if (!(Flags & 1) || !(Flags & 2))
+                return FALSE;
         }
 
         if (ArbState->CurrentMinimum > vector || ArbState->CurrentMaximum < vector)
