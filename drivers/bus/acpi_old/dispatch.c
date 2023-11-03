@@ -6193,15 +6193,49 @@ ACPIVectorClear(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+PACPI_POWER_INFO
+NTAPI
+OSPowerFindPowerInfoByContext(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 NTSTATUS
 NTAPI
 ACPIRegisterForDeviceNotifications(
-    _In_ PDEVICE_OBJECT Context,
+    _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PDEVICE_NOTIFY_CALLBACK NotificationHandler,
     _In_ PVOID NotificationContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_POWER_INFO PowerInfo;
+    KIRQL Irql;
+
+    DPRINT("ACPIRegisterForDeviceNotifications: %p, %X, %X\n", DeviceObject, NotificationHandler, NotificationContext);
+
+    PowerInfo = OSPowerFindPowerInfoByContext(DeviceObject);
+    if (!PowerInfo)
+    {
+        DPRINT1("ACPIRegisterForDeviceNotifications: STATUS_NO_SUCH_DEVICE\n");
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    KeAcquireSpinLock(&NotifyHandlerLock, &Irql);
+
+    if (PowerInfo->DeviceNotifyHandler)
+    {
+        DPRINT1("ACPIRegisterForDeviceNotifications: STATUS_UNSUCCESSFUL\n");
+        KeReleaseSpinLock(&NotifyHandlerLock, Irql);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    PowerInfo->DeviceNotifyHandler = NotificationHandler;
+    PowerInfo->HandlerContext = NotificationContext;
+
+    KeReleaseSpinLock(&NotifyHandlerLock, Irql);
+
+    return STATUS_SUCCESS;
 }
 
 VOID

@@ -224,6 +224,8 @@ typedef struct _ACPI_POWER_INFO
 {
     PVOID Context;
     DEVICE_POWER_STATE PowerState;
+    PDEVICE_NOTIFY_CALLBACK DeviceNotifyHandler;
+    PVOID HandlerContext;
     PACPI_DEVICE_POWER_NODE PowerNode[4];
     PAMLI_NAME_SPACE_OBJECT PowerObject[5];
     ULONG WakeBit;
