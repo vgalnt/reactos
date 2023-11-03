@@ -6198,8 +6198,14 @@ NTAPI
 OSPowerFindPowerInfoByContext(
     _In_ PDEVICE_OBJECT DeviceObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PDEVICE_EXTENSION DeviceExtension;
+
+    ASSERT(DeviceObject != NULL);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+    ASSERT(DeviceExtension->Signature == '_SGP');//ACPI_SIGNATURE
+
+    return &DeviceExtension->PowerInfo;
 }
 
 NTSTATUS
