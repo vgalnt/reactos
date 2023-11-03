@@ -12650,8 +12650,14 @@ ACPIProcessorStartDevice(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    Status = ACPIInternalSetDeviceInterface(DeviceObject, (LPGUID)&GUID_DEVICE_PROCESSOR);
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 /* Filter Device FUNCTIOS ***************************************************/
