@@ -697,24 +697,25 @@ PciDriverUnload(IN PDRIVER_OBJECT DriverObject)
 
 NTSTATUS
 NTAPI
-DriverEntry(IN PDRIVER_OBJECT DriverObject,
-            IN PUNICODE_STRING RegistryPath)
+DriverEntry(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PUNICODE_STRING RegistryPath)
 {
-    HANDLE KeyHandle, ParametersKey, DebugKey, ControlSetKey;
-    BOOLEAN Result;
     OBJECT_ATTRIBUTES ObjectAttributes;
-    ULONG ResultLength;
-    PULONG Value;
+    HANDLE ParametersKey = NULL;
+    HANDLE ControlSetKey = NULL;
+    HANDLE DebugKey = NULL;
+    HANDLE KeyHandle = NULL;
+    UNICODE_STRING PciLockString;
+    UNICODE_STRING OptionString;
     PWCHAR StartOptions;
-    UNICODE_STRING OptionString, PciLockString;
+    PULONG Value;
+    ULONG ResultLength;
+    BOOLEAN Result;
     NTSTATUS Status;
-    DPRINT1("PCI: DriverEntry!\n");
 
-    /* Setup initial loop variables */
-    KeyHandle = NULL;
-    ParametersKey = NULL;
-    DebugKey = NULL;
-    ControlSetKey = NULL;
+    DPRINT("PCIX: DriverEntry!\n");
+
     do
     {
         /* Remember our object so we can get it to it later */
@@ -725,26 +726,23 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject,
         DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = PciDispatchIrp;
         DriverObject->MajorFunction[IRP_MJ_SYSTEM_CONTROL] = PciDispatchIrp;
         DriverObject->MajorFunction[IRP_MJ_PNP] = PciDispatchIrp;
+
         DriverObject->DriverUnload = PciDriverUnload;
 
         /* This is how we'll detect a new PCI bus */
         DriverObject->DriverExtension->AddDevice = PciAddDevice;
 
         /* Open the PCI key */
-        InitializeObjectAttributes(&ObjectAttributes,
-                                   RegistryPath,
-                                   OBJ_CASE_INSENSITIVE,
-                                   NULL,
-                                   NULL);
+        InitializeObjectAttributes(&ObjectAttributes, RegistryPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
         Status = ZwOpenKey(&KeyHandle, KEY_QUERY_VALUE, &ObjectAttributes);
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            break;
+        }
 
         /* Open the Parameters subkey */
-        Result = PciOpenKey(L"Parameters",
-                            KeyHandle,
-                            KEY_QUERY_VALUE,
-                            &ParametersKey,
-                            &Status);
+        Result = PciOpenKey(L"Parameters", KeyHandle, KEY_QUERY_VALUE, &ParametersKey, &Status);
         //if (!Result) break;
 
         /* Build the list of all known PCI erratas */
@@ -752,16 +750,15 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject,
         //if (!NT_SUCCESS(Status)) break;
 
         /* Open the debug key, if it exists */
-        Result = PciOpenKey(L"Debug",
-                            KeyHandle,
-                            KEY_QUERY_VALUE,
-                            &DebugKey,
-                            &Status);
+        Result = PciOpenKey(L"Debug", KeyHandle, KEY_QUERY_VALUE, &DebugKey, &Status);
         if (Result)
         {
             /* There are PCI debug devices, go discover them */
             Status = PciGetDebugPorts(DebugKey);
-            if (!NT_SUCCESS(Status)) break;
+            if (!NT_SUCCESS(Status))
+            {
+                break;
+            }
         }
 
         /* Initialize the synchronization locks */
@@ -770,20 +767,14 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject,
         KeInitializeEvent(&PciLegacyDescriptionLock, SynchronizationEvent, TRUE);
 
         /* Open the control set key */
-        Result = PciOpenKey(L"\\Registry\\Machine\\System\\CurrentControlSet",
-                            NULL,
-                            KEY_QUERY_VALUE,
-                            &ControlSetKey,
-                            &Status);
-        if (!Result) break;
+        Result = PciOpenKey(L"\\Registry\\Machine\\System\\CurrentControlSet", NULL, KEY_QUERY_VALUE, &ControlSetKey, &Status);
+        if (!Result)
+        {
+            break;
+        }
 
         /* Read the command line */
-        Status = PciGetRegistryValue(L"SystemStartOptions",
-                                     L"Control",
-                                     ControlSetKey,
-                                     REG_SZ,
-                                     (PVOID*)&StartOptions,
-                                     &ResultLength);
+        Status = PciGetRegistryValue(L"SystemStartOptions", L"Control", ControlSetKey, REG_SZ, (PVOID*)&StartOptions, &ResultLength);
         if (NT_SUCCESS(Status))
         {
             /* Initialize the command-line as a string */
@@ -792,61 +783,54 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject,
 
             /* Check if the command-line has the PCILOCK argument */
             RtlInitUnicodeString(&PciLockString, L"PCILOCK");
+
             if (PciUnicodeStringStrStr(&OptionString, &PciLockString, TRUE))
-            {
                 /* The PCI Bus driver will keep the BIOS-assigned resources */
                 PciLockDeviceResources = TRUE;
-            }
 
             /* This data isn't needed anymore */
             ExFreePoolWithTag(StartOptions, 0);
         }
 
         /* The PCILOCK feature can also be enabled per-system in the registry */
-        Status = PciGetRegistryValue(L"PCILock",
-                                     L"Control\\BiosInfo\\PCI",
-                                     ControlSetKey,
-                                     REG_DWORD,
-                                     (PVOID*)&Value,
-                                     &ResultLength);
+        Status = PciGetRegistryValue(L"PCILock", L"Control\\BiosInfo\\PCI", ControlSetKey, REG_DWORD, (PVOID*)&Value, &ResultLength);
         if (NT_SUCCESS(Status))
         {
             /* Read the value it's been set to. This overrides /PCILOCK */
-            if (ResultLength == sizeof(ULONG)) PciLockDeviceResources = *Value;
+            if (ResultLength == sizeof(ULONG))
+                PciLockDeviceResources = *Value;
+
             ExFreePoolWithTag(Value, 0);
         }
 
         /* The system can have global PCI erratas in the registry */
-        Status = PciGetRegistryValue(L"HackFlags",
-                                     L"Control\\PnP\\PCI",
-                                     ControlSetKey,
-                                     REG_DWORD,
-                                     (PVOID*)&Value,
-                                     &ResultLength);
+        Status = PciGetRegistryValue(L"HackFlags", L"Control\\PnP\\PCI", ControlSetKey, REG_DWORD, (PVOID*)&Value, &ResultLength);
         if (NT_SUCCESS(Status))
         {
             /* Read them in */
-            if (ResultLength == sizeof(ULONG)) PciSystemWideHackFlags = *Value;
+            if (ResultLength == sizeof(ULONG))
+                PciSystemWideHackFlags = *Value;
+
             ExFreePoolWithTag(Value, 0);
         }
 
         /* Check if the system should allow native ATA support */
-        Status = PciGetRegistryValue(L"EnableNativeModeATA",
-                                     L"Control\\PnP\\PCI",
-                                     ControlSetKey,
-                                     REG_DWORD,
-                                     (PVOID*)&Value,
-                                     &ResultLength);
+        Status = PciGetRegistryValue(L"EnableNativeModeATA", L"Control\\PnP\\PCI", ControlSetKey, REG_DWORD, (PVOID*)&Value, &ResultLength);
         if (NT_SUCCESS(Status))
         {
             /* This key is typically set by drivers, but users can force it */
-            if (ResultLength == sizeof(ULONG)) PciEnableNativeModeATA = *Value;
+            if (ResultLength == sizeof(ULONG))
+                PciEnableNativeModeATA = *Value;
+
             ExFreePoolWithTag(Value, 0);
         }
 
         /* Build the range lists for all the excluded resource areas */
         Status = PciBuildDefaultExclusionLists();
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            break;
+        }
 
         /* Read the PCI IRQ Routing Table that the loader put in the registry */
         PciGetIrqRoutingTableFromRegistry(&PciIrqRoutingTable);
@@ -859,18 +843,29 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject,
 
         /* Check if this is a Datacenter SKU, which impacts IRQ alignment */
         PciRunningDatacenter = PciIsDatacenter();
-        if (PciRunningDatacenter) DPRINT1("PCI running on datacenter build\n");
+        if (PciRunningDatacenter)
+            DPRINT1("PCI running on datacenter build\n");
 
         /* Check if the system has an ACPI Hardware Watchdog Timer */
         //WdTable = PciGetAcpiTable(WDRT_SIGNATURE);
         Status = STATUS_SUCCESS;
-    } while (FALSE);
+    }
+    while (FALSE);
 
     /* Close all opened keys, return driver status to PnP Manager */
-    if (KeyHandle) ZwClose(KeyHandle);
-    if (ControlSetKey) ZwClose(ControlSetKey);
-    if (ParametersKey) ZwClose(ParametersKey);
-    if (DebugKey) ZwClose(DebugKey);
+
+    if (KeyHandle)
+        ZwClose(KeyHandle);
+
+    if (ControlSetKey)
+        ZwClose(ControlSetKey);
+
+    if (ParametersKey)
+        ZwClose(ParametersKey);
+
+    if (DebugKey)
+        ZwClose(DebugKey);
+
     return Status;
 }
 
