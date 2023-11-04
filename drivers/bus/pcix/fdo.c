@@ -453,6 +453,16 @@ PciInitializeFdoExtensionCommonFields(PPCI_FDO_EXTENSION FdoExtension,
     PciInitializeState(FdoExtension);
 }
 
+PCM_PARTIAL_RESOURCE_DESCRIPTOR
+NTAPI
+PciFindDescriptorInCmResourceList(
+    _In_ CM_RESOURCE_TYPE DescriptorType,
+    _In_ PCM_RESOURCE_LIST CmResource)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 NTSTATUS
 NTAPI
 PciAddDevice(
@@ -461,12 +471,13 @@ PciAddDevice(
 {
     UCHAR Buffer[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
     PKEY_VALUE_PARTIAL_INFORMATION ValueInfo = (PKEY_VALUE_PARTIAL_INFORMATION)Buffer;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
     PPCI_FDO_EXTENSION FdoExtension = NULL;
     PPCI_FDO_EXTENSION ParentExtension;
     PPCI_PDO_EXTENSION PdoExtension = NULL;
     PDEVICE_OBJECT DeviceObject = NULL;
     PDEVICE_OBJECT AttachedTo = NULL;
-    PCM_RESOURCE_LIST Descriptor;
+    PCM_RESOURCE_LIST CmList;
     UNICODE_STRING ValueName;
     HANDLE KeyHandle;
     ULONG ResultLength;
@@ -554,24 +565,29 @@ PciAddDevice(
         else
         {
             /* Query the boot configuration */
-            Status = PciGetDeviceProperty(PhysicalDeviceObject, DevicePropertyBootConfiguration, (PVOID*)&Descriptor);
+            Status = PciGetDeviceProperty(PhysicalDeviceObject, DevicePropertyBootConfiguration, (PVOID*)&CmList);
             if (!NT_SUCCESS(Status))
             {
                 /* No configuration has been set */
                 DPRINT1("PciAddDevice: Status %X\n", Status);
-                Descriptor = NULL;
+                CmDescriptor = NULL;
             }
             else
             {
-                DPRINT1("PciAddDevice: Root PDO in ReactOS does not assign boot resources\n");
-                UNIMPLEMENTED_DBGBREAK("Encountered during setup\n");
-                Descriptor = NULL;
+                CmDescriptor = PciFindDescriptorInCmResourceList(CmResourceTypeBusNumber, CmList);
             }
 
-            if (Descriptor)
+            if (CmDescriptor)
             {
-                DPRINT1("PciAddDevice: Root PDO in ReactOS does not assign boot resources\n");
-                UNIMPLEMENTED_DBGBREAK();
+                DPRINT("PciAddDevice: CmDescriptor %p\n", CmDescriptor);
+
+                ASSERT(CmDescriptor->u.BusNumber.Start <= 0xFF);
+                ASSERT((CmDescriptor->u.BusNumber.Start + CmDescriptor->u.BusNumber.Length - 1) <= 0xFF);
+
+                FdoExtension->BaseBus = (UCHAR)CmDescriptor->u.BusNumber.Start;
+                FdoExtension->MaxSubordinateBus = (UCHAR)(CmDescriptor->u.BusNumber.Start + CmDescriptor->u.BusNumber.Length - 1);
+
+                DPRINT("PciAddDevice: Root Bus # %X->%X\n", FdoExtension->BaseBus, FdoExtension->MaxSubordinateBus);
             }
             else
             {
