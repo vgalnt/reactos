@@ -156,7 +156,7 @@ typedef struct _PCI_HACK_ENTRY
     USHORT SubVendorID;
     USHORT SubSystemID;
     ULONGLONG HackFlags;
-    USHORT RevisionID;
+    UCHAR RevisionID;
     UCHAR Flags;
 } PCI_HACK_ENTRY, *PPCI_HACK_ENTRY;
 

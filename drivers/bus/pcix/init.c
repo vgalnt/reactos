@@ -489,6 +489,8 @@ PciBuildHackTable(
     ULONG HackCount;
     ULONG Size;
     ULONG ix;
+    USHORT Value;
+    BOOLEAN Result;
     NTSTATUS Status;
 
     DPRINT("PciBuildHackTable: %p\n", KeyHandle);
@@ -528,7 +530,7 @@ PciBuildHackTable(
         HackCount = FullInfo->Values;
 
         /* Free the structure now */
-        ExFreePoolWithTag(FullInfo, 0);
+        ExFreePoolWithTag(FullInfo, PCI_POOL_TAG);
         FullInfo = NULL;
 
         /* Allocate the hack table, now that the number of entries is known */
@@ -543,7 +545,7 @@ PciBuildHackTable(
         }
 
         /* Allocate the space needed to hold the full value information */
-        ValueInfo = ExAllocatePoolWithTag(NonPagedPool, Size, PCI_POOL_TAG);
+        ValueInfo = ExAllocatePoolWithTag(PagedPool, Size, PCI_POOL_TAG); // ? POOL_TYPE 0x101
         if (!PciHackTable)
         {
             DPRINT1("PciBuildHackTable: allocate failed\n");
@@ -631,11 +633,13 @@ PciBuildHackTable(
                 NameLength == PCI_HACK_ENTRY_FULL_SIZE)
             {
                 /* Get the data */
-                if (!PciStringToUSHORT(&ValueInfo->Name[16], &Entry->RevisionID))
+                Result = PciStringToUSHORT(&ValueInfo->Name[16], &Value);
+                if (!Result)
                     /* This failed, try the next entry */
                     continue;
 
                 /* Save the fact this entry has finer controls */
+                Entry->RevisionID = Value;
                 Entry->Flags |= PCI_HACK_HAS_REVISION_INFO;
             }
 
@@ -668,7 +672,7 @@ PciBuildHackTable(
         Entry->VendorID = PCI_INVALID_VENDORID;
 
         /* Success path, free the temporary registry data */
-        ExFreePoolWithTag(ValueInfo, 0);
+        ExFreePoolWithTag(ValueInfo, PCI_POOL_TAG);
         return STATUS_SUCCESS;
     }
     while (TRUE);
@@ -683,7 +687,10 @@ PciBuildHackTable(
         ExFreePoolWithTag(ValueInfo, PCI_POOL_TAG);
 
     if (PciHackTable)
+    {
         ExFreePoolWithTag(PciHackTable, PCI_POOL_TAG);
+        PciHackTable = NULL;
+    }
 
     return Status;
 }
