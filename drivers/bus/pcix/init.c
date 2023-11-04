@@ -708,7 +708,7 @@ DriverEntry(
     HANDLE KeyHandle = NULL;
     UNICODE_STRING PciLockString;
     UNICODE_STRING OptionString;
-    PWCHAR StartOptions;
+    PWCHAR StartOptions = NULL;
     PULONG Value;
     ULONG ResultLength;
     BOOLEAN Result;
@@ -735,28 +735,35 @@ DriverEntry(
         /* Open the PCI key */
         InitializeObjectAttributes(&ObjectAttributes, RegistryPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-        Status = ZwOpenKey(&KeyHandle, KEY_QUERY_VALUE, &ObjectAttributes);
+        Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
         if (!NT_SUCCESS(Status))
         {
+            DPRINT1("DriverEntry: Status %X\n", Status);
             break;
         }
 
         /* Open the Parameters subkey */
-        Result = PciOpenKey(L"Parameters", KeyHandle, KEY_QUERY_VALUE, &ParametersKey, &Status);
-        //if (!Result) break;
+        Result = PciOpenKey(L"Parameters", KeyHandle, KEY_READ, &ParametersKey, &Status);
+        if (!Result)
+            break;
 
         /* Build the list of all known PCI erratas */
         Status = PciBuildHackTable(ParametersKey);
-        //if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("DriverEntry: Status %X\n", Status);
+            break;
+        }
 
         /* Open the debug key, if it exists */
-        Result = PciOpenKey(L"Debug", KeyHandle, KEY_QUERY_VALUE, &DebugKey, &Status);
+        Result = PciOpenKey(L"Debug", KeyHandle, KEY_READ, &DebugKey, &Status);
         if (Result)
         {
             /* There are PCI debug devices, go discover them */
             Status = PciGetDebugPorts(DebugKey);
             if (!NT_SUCCESS(Status))
             {
+                DPRINT1("DriverEntry: Status %X\n", Status);
                 break;
             }
         }
@@ -764,14 +771,11 @@ DriverEntry(
         /* Initialize the synchronization locks */
         KeInitializeEvent(&PciGlobalLock, SynchronizationEvent, TRUE);
         KeInitializeEvent(&PciBusLock, SynchronizationEvent, TRUE);
-        KeInitializeEvent(&PciLegacyDescriptionLock, SynchronizationEvent, TRUE);
 
         /* Open the control set key */
-        Result = PciOpenKey(L"\\Registry\\Machine\\System\\CurrentControlSet", NULL, KEY_QUERY_VALUE, &ControlSetKey, &Status);
+        Result = PciOpenKey(L"\\Registry\\Machine\\System\\CurrentControlSet", NULL, KEY_READ, &ControlSetKey, &Status);
         if (!Result)
-        {
             break;
-        }
 
         /* Read the command line */
         Status = PciGetRegistryValue(L"SystemStartOptions", L"Control", ControlSetKey, REG_SZ, (PVOID*)&StartOptions, &ResultLength);
@@ -779,7 +783,8 @@ DriverEntry(
         {
             /* Initialize the command-line as a string */
             OptionString.Buffer = StartOptions;
-            OptionString.MaximumLength = OptionString.Length = ResultLength;
+            OptionString.MaximumLength = ResultLength;
+            OptionString.Length = (OptionString.MaximumLength - sizeof(WCHAR));
 
             /* Check if the command-line has the PCILOCK argument */
             RtlInitUnicodeString(&PciLockString, L"PCILOCK");
@@ -787,20 +792,27 @@ DriverEntry(
             if (PciUnicodeStringStrStr(&OptionString, &PciLockString, TRUE))
                 /* The PCI Bus driver will keep the BIOS-assigned resources */
                 PciLockDeviceResources = TRUE;
+        }
+        else
+        {
+            OptionString.MaximumLength = OptionString.Length = 0;
+            OptionString.Buffer = NULL;
 
-            /* This data isn't needed anymore */
-            ExFreePoolWithTag(StartOptions, 0);
+            PciLockDeviceResources = FALSE;
         }
 
-        /* The PCILOCK feature can also be enabled per-system in the registry */
-        Status = PciGetRegistryValue(L"PCILock", L"Control\\BiosInfo\\PCI", ControlSetKey, REG_DWORD, (PVOID*)&Value, &ResultLength);
-        if (NT_SUCCESS(Status))
+        if (!PciLockDeviceResources)
         {
-            /* Read the value it's been set to. This overrides /PCILOCK */
-            if (ResultLength == sizeof(ULONG))
-                PciLockDeviceResources = *Value;
+            /* The PCILOCK feature can also be enabled per-system in the registry */
+            Status = PciGetRegistryValue(L"PCILock", L"Control\\BiosInfo\\PCI", ControlSetKey, REG_DWORD, (PVOID*)&Value, &ResultLength);
+            if (NT_SUCCESS(Status))
+            {
+                /* Read the value it's been set to. This overrides /PCILOCK */
+                if (ResultLength == sizeof(ULONG) && *Value == 1)
+                    PciLockDeviceResources = TRUE;
 
-            ExFreePoolWithTag(Value, 0);
+                ExFreePool(Value);
+            }
         }
 
         /* The system can have global PCI erratas in the registry */
@@ -811,7 +823,11 @@ DriverEntry(
             if (ResultLength == sizeof(ULONG))
                 PciSystemWideHackFlags = *Value;
 
-            ExFreePoolWithTag(Value, 0);
+            ExFreePool(Value);
+        }
+        else
+        {
+            PciSystemWideHackFlags = FALSE;
         }
 
         /* Check if the system should allow native ATA support */
@@ -822,14 +838,19 @@ DriverEntry(
             if (ResultLength == sizeof(ULONG))
                 PciEnableNativeModeATA = *Value;
 
-            ExFreePoolWithTag(Value, 0);
+            ExFreePool(Value);
+        }
+        else
+        {
+            PciEnableNativeModeATA = FALSE;
         }
 
         /* Build the range lists for all the excluded resource areas */
         Status = PciBuildDefaultExclusionLists();
         if (!NT_SUCCESS(Status))
         {
-            break;
+            DPRINT1("DriverEntry: Status %X\n", Status);
+            return Status;
         }
 
         /* Read the PCI IRQ Routing Table that the loader put in the registry */
@@ -849,7 +870,10 @@ DriverEntry(
         }
 
         /* Check if the system has an ACPI Hardware Watchdog Timer */
-        //WdTable = PciGetAcpiTable(WDRT_SIGNATURE);
+        WdTable = PciGetAcpiTable(WDRT_SIGNATURE);
+
+        KeInitializeEvent(&PciLegacyDescriptionLock, SynchronizationEvent, TRUE);
+
         Status = STATUS_SUCCESS;
     }
     while (FALSE);
@@ -867,6 +891,9 @@ DriverEntry(
 
     if (DebugKey)
         ZwClose(DebugKey);
+
+    /* This data isn't needed anymore */
+    ExFreePool(StartOptions);
 
     return Status;
 }
