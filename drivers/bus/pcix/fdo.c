@@ -455,11 +455,69 @@ PciInitializeFdoExtensionCommonFields(PPCI_FDO_EXTENSION FdoExtension,
 
 PCM_PARTIAL_RESOURCE_DESCRIPTOR
 NTAPI
+PciGetNextCmPartialDescriptor(
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PCM_PARTIAL_RESOURCE_DESCRIPTOR
+NTAPI
 PciFindDescriptorInCmResourceList(
     _In_ CM_RESOURCE_TYPE DescriptorType,
     _In_ PCM_RESOURCE_LIST CmResource)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PCM_FULL_RESOURCE_DESCRIPTOR FullList;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    ULONG ix;
+    ULONG jx;
+
+    if (!CmResource)
+    {
+        DPRINT("PciFindDescriptorInCmResourceList: CmResource == NULL\n");
+        return NULL;
+    }
+
+    if (!CmResource->Count)
+    {
+        DPRINT("PciFindDescriptorInCmResourceList: CmResource->Count == 0\n");
+        return NULL;
+    }
+
+    DPRINT("PciFindDescriptorInCmResourceList: FullList Count %x\n", CmResource->Count);
+
+    FullList = &CmResource->List[0];
+
+    for (ix = 0; ix < CmResource->Count; ix++)
+    {
+        DPRINT("List #%X Iface %X Bus #%X Ver.%X Rev.%X Count %X\n",
+                ix,
+                FullList->InterfaceType,
+                FullList->BusNumber,
+                FullList->PartialResourceList.Version,
+                FullList->PartialResourceList.Revision,
+                FullList->PartialResourceList.Count);
+
+        CmDescriptor = FullList->PartialResourceList.PartialDescriptors;
+
+        for (jx = 0; jx < FullList->PartialResourceList.Count; jx++)
+        {
+            if (CmDescriptor->Type == DescriptorType)
+            {
+                DPRINT1("[%p:%X:%X] BUS: Start %X Len %X Reserv %X\n",
+                        CmDescriptor, CmDescriptor->ShareDisposition, CmDescriptor->Flags,
+                        CmDescriptor->u.BusNumber.Start, CmDescriptor->u.BusNumber.Length, CmDescriptor->u.BusNumber.Reserved);
+
+                return CmDescriptor;
+            }
+
+            CmDescriptor = PciGetNextCmPartialDescriptor(CmDescriptor);
+        }
+
+        FullList = (PCM_FULL_RESOURCE_DESCRIPTOR)CmDescriptor;
+    }
+
     return NULL;
 }
 
