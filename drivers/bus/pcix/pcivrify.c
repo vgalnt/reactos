@@ -91,23 +91,27 @@ PciVerifierProfileChangeCallback(IN PVOID NotificationStructure,
 
 VOID
 NTAPI
-PciVerifierInit(IN PDRIVER_OBJECT DriverObject)
+PciVerifierInit(
+    _In_ PDRIVER_OBJECT DriverObject)
 {
     NTSTATUS Status;
 
+    DPRINT("PciVerifierInit: %p\n", DriverObject);
+
     /* Check if the kernel driver verifier is enabled */
-    if (VfIsVerificationEnabled(VFOBJTYPE_SYSTEM_BIOS, NULL))
-    {
-        /* Register a notification for changes, to keep track of the PCI tree */
-        Status = IoRegisterPlugPlayNotification(EventCategoryHardwareProfileChange,
-                                                0,
-                                                NULL,
-                                                DriverObject,
-                                                PciVerifierProfileChangeCallback,
-                                                NULL,
-                                                &PciVerifierNotificationHandle);
-        if (NT_SUCCESS(Status)) PciVerifierRegistered = TRUE;
-    }
+    if (!VfIsVerificationEnabled(VFOBJTYPE_SYSTEM_BIOS, NULL))
+        return;
+
+    /* Register a notification for changes, to keep track of the PCI tree */
+    Status = IoRegisterPlugPlayNotification(EventCategoryHardwareProfileChange,
+                                            0,
+                                            NULL,
+                                            DriverObject,
+                                            PciVerifierProfileChangeCallback,
+                                            NULL,
+                                            &PciVerifierNotificationHandle);
+    if (NT_SUCCESS(Status))
+        PciVerifierRegistered = TRUE;
 }
 
 /* EOF */
