@@ -7,7 +7,7 @@
 
 #include "acpi.h"
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS *******************************************************************/
@@ -4194,7 +4194,7 @@ NTSTATUS __cdecl LogOp2(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT 
             Result = (TermContext->DataArgs[0].DataValue && TermContext->DataArgs[1].DataValue);
             giIndent--;
 
-            DPRINT1("LogOp2: LAnd %X, Result %X\n", 0, Result);
+            DPRINT("LogOp2: LAnd %X, Result %X\n", 0, Result);
             break;
         }
         case 0x91:
@@ -4203,7 +4203,7 @@ NTSTATUS __cdecl LogOp2(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT 
             Result = (TermContext->DataArgs[0].DataValue || TermContext->DataArgs[1].DataValue);
             giIndent--;
 
-            DPRINT1("LogOp2: LOr %X, Result %X\n", 0, Result);
+            DPRINT("LogOp2: LOr %X, Result %X\n", 0, Result);
             break;
         }
         case 0x93:
@@ -4212,7 +4212,7 @@ NTSTATUS __cdecl LogOp2(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT 
             Result = (TermContext->DataArgs[0].DataValue == TermContext->DataArgs[1].DataValue);
             giIndent--;
 
-            DPRINT1("LogOp2: LEqual %X, Result %X\n", 0, Result);
+            DPRINT("LogOp2: LEqual %X, Result %X\n", 0, Result);
             break;
         }
         case 0x94:
@@ -4221,7 +4221,7 @@ NTSTATUS __cdecl LogOp2(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT 
             Result = (TermContext->DataArgs[0].DataValue > TermContext->DataArgs[1].DataValue);
             giIndent--;
 
-            DPRINT1("LogOp2: LGreater %X, Result %X\n", 0, Result);
+            DPRINT("LogOp2: LGreater %X, Result %X\n", 0, Result);
             break;
         }
         case 0x95:
@@ -4230,7 +4230,7 @@ NTSTATUS __cdecl LogOp2(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT 
             Result = (TermContext->DataArgs[0].DataValue < TermContext->DataArgs[1].DataValue);
             giIndent--;
 
-            DPRINT1("LogOp2: LLess %X, Result %X\n", 0, Result);
+            DPRINT("LogOp2: LLess %X, Result %X\n", 0, Result);
             break;
         }
         default:
@@ -4887,7 +4887,7 @@ IsPciDeviceWorker(
 
         if (!NT_SUCCESS(InStatus))
         {
-            DPRINT1("IsPciDeviceWorker: InStatus %X\n", InStatus);
+            DPRINT("IsPciDeviceWorker: InStatus %X\n", InStatus);
             *Context->OutIsPciDevice = FALSE;
             goto Exit;
         }
@@ -6770,7 +6770,7 @@ Exit:
 
     if (Status != STATUS_SUCCESS)
     {
-        DPRINT1("GetNameSpaceObject: Status %X\n", Status);
+        DPRINT("GetNameSpaceObject: Status %X\n", Status);
         *OutObject = NULL;
     }
 
@@ -8418,7 +8418,7 @@ ParseIntObj(
     {
         --*OutOp;
 
-        DPRINT1("ParseIntObj: invalid opcode %X at %X\n", **OutOp, *OutOp);
+        DPRINT("ParseIntObj: invalid opcode %X at %X\n", **OutOp, *OutOp);
 
         if (!ErrOk)
         {
@@ -8475,7 +8475,7 @@ ParseString(
     }
     else
     {
-        DPRINT1("ParseString: invalid opcode %X at %X\n", **OutOp, *OutOp);
+        DPRINT("ParseString: invalid opcode %X at %X\n", **OutOp, *OutOp);
 
         if (!ErrOk)
         {

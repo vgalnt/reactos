@@ -7,7 +7,7 @@
 
 #include "acpi.h"
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 #ifdef ALLOC_PRAGMA
@@ -61,7 +61,7 @@ OSOpenUnicodeHandle(
     Status = ZwOpenKey(KeyHandle, KEY_READ, &ObjectAttributes);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("OSOpenUnicodeHandle: Status %X\n", Status);
+        DPRINT("OSOpenUnicodeHandle: Status %X\n", Status);
     }
 
     return Status;
@@ -125,7 +125,7 @@ OSReadRegValue(
         Status = OSOpenHandle("\\Registry\\Machine\\System\\CurrentControlSet\\Services\\ACPI\\Parameters", NULL, &KeyHandle);
         if (!NT_SUCCESS(Status) || !KeyHandle)
         {
-            DPRINT1("OSReadRegValue: Status %X\n", Status);
+            DPRINT("OSReadRegValue: Status %X\n", Status);
             return Status;
         }
     }
@@ -246,7 +246,7 @@ OSReadRegValue(
         return STATUS_SUCCESS;
     }
 
-    DPRINT1("OSReadRegValue: %X < %X\n", *OutMaximumLength, AnsiName.MaximumLength);
+    DPRINT("OSReadRegValue: %X < %X\n", *OutMaximumLength, AnsiName.MaximumLength);
 
     RtlFreeAnsiString(&AnsiName);
 
@@ -418,7 +418,7 @@ ACPIInitReadRegistryKeys(VOID)
     Status = OSReadRegValue("Attributes", NULL, &AcpiOverrideAttributes, &MaximumLength);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("ACPIInitReadRegistryKeys: Status %X\n", Status);
+        DPRINT("ACPIInitReadRegistryKeys: Status %X\n", Status);
         AcpiOverrideAttributes = 0;
     }
 
@@ -528,7 +528,6 @@ ACPIRegReadAMLRegistryEntry(
     _In_ PDESCRIPTION_HEADER* OutTableHeader,
     _In_ BOOLEAN IsNeedUnmap)
 {
-    //UNIMPLEMENTED_DBGBREAK();
     UNIMPLEMENTED;
     return FALSE;
 }

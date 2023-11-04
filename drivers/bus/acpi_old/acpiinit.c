@@ -7,7 +7,7 @@
 
 #include "acpi.h"
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 #ifdef ALLOC_PRAGMA
@@ -2092,7 +2092,7 @@ LookupIsaVectorOverride(
         EntryHeader = Add2Ptr(EntryHeader, EntryHeader->Header.Length);
     }
 
-    DPRINT1("LookupIsaVectorOverride: STATUS_NOT_FOUND\n");
+    DPRINT("LookupIsaVectorOverride: STATUS_NOT_FOUND\n");
     return STATUS_NOT_FOUND;
 }
 
@@ -2591,7 +2591,6 @@ AcpiArbFindSuitableRange(
         if (ArbState->CurrentMinimum > vector || ArbState->CurrentMaximum < vector)
             return FALSE;
 
-
         DPRINT("AcpiArbFindSuitableRange: found %X from a static mapping.\n", (ULONG)ArbState->Start);
 
         if (!HalAcpiDispatchTable->HalIsVectorValid(vector))
@@ -2888,7 +2887,7 @@ AcpiArbCommitAllocation(
                 }
                 else
                 {
-                    DPRINT1("AcpiArbCommitAllocation: Status %X\n", Status);
+                    DPRINT("AcpiArbCommitAllocation: Status %X\n", Status);
                 }
             }
         }
@@ -3008,7 +3007,7 @@ AcpiArbCrackPRT(
 
         if (((PDEVICE_EXTENSION)Pdo->DeviceExtension)->Flags & 0x0000000002000000)
         {
-            DPRINT1("AcpiArbCrackPRT: STATUS_NOT_FOUND\n");
+            DPRINT("AcpiArbCrackPRT: STATUS_NOT_FOUND\n");
             return STATUS_NOT_FOUND;
         }
     }
@@ -3035,7 +3034,7 @@ AcpiArbCrackPRT(
                                                &Flags);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("AcpiArbCrackPRT: STATUS_NOT_FOUND\n");
+        DPRINT("AcpiArbCrackPRT: STATUS_NOT_FOUND\n");
         return STATUS_NOT_FOUND;
     }
 
@@ -3234,7 +3233,7 @@ GetIsaVectorFlags(
         Vector++;
         if (Vector >= 0x10)
         {
-            DPRINT1("GetIsaVectorFlags: STATUS_NOT_FOUND\n");
+            DPRINT("GetIsaVectorFlags: STATUS_NOT_FOUND\n");
             return STATUS_NOT_FOUND;
         }
     }
@@ -3260,7 +3259,7 @@ GetVectorProperties(
     VectorBlock = HashVector(InVector);
     if (!VectorBlock)
     {
-        DPRINT1("GetVectorProperties: STATUS_NOT_FOUND\n");
+        DPRINT("GetVectorProperties: STATUS_NOT_FOUND\n");
         return STATUS_NOT_FOUND;
     }
 

@@ -7,7 +7,7 @@
 
 #include "acpi.h"
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 #ifdef ALLOC_PRAGMA
@@ -1375,7 +1375,7 @@ ACPIGetConvertToAddress(
 
     if (!NT_SUCCESS(InStatus))
     {
-        DPRINT1("ACPIGetConvertToAddress: InStatus %X\n", InStatus);
+        DPRINT("ACPIGetConvertToAddress: InStatus %X\n", InStatus);
         return InStatus;
     }
 
@@ -1591,7 +1591,7 @@ ACPIGetConvertToPnpID(
 
     if (!NT_SUCCESS(InStatus))
     {
-        DPRINT1("ACPIGetConvertToPnpID: InStatus %X\n", InStatus);
+        DPRINT("ACPIGetConvertToPnpID: InStatus %X\n", InStatus);
         return InStatus;
     }
 
@@ -2721,7 +2721,7 @@ ACPIGetConvertToCompatibleIDWide(
 
     if (!NT_SUCCESS(InStatus))
     {
-        DPRINT1("ACPIGetConvertToCompatibleIDWide: InStatus %X\n", InStatus);
+        DPRINT("ACPIGetConvertToCompatibleIDWide: InStatus %X\n", InStatus);
         return Status;
     }
 
@@ -2876,7 +2876,7 @@ ACPIGetWorkerForBuffer(
 
     if (!NT_SUCCESS(InStatus))
     {
-        DPRINT1("ACPIGetWorkerForBuffer: InStatus %X\n", InStatus);
+        DPRINT("ACPIGetWorkerForBuffer: InStatus %X\n", InStatus);
         IsSuccess = FALSE;
         goto Exit;
     }
@@ -10023,7 +10023,7 @@ ACPIBusIrpQueryResources(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("ACPIBusIrpQueryResources: Status %X\n", Status);
+        DPRINT("ACPIBusIrpQueryResources: Status %X\n", Status);
 
         if (! (DeviceExtension->Flags & 0x0000000002000000))
             Status = Irp->IoStatus.Status;
@@ -10089,7 +10089,7 @@ Finish:
 
     if (!NT_SUCCESS(Status) && Status != STATUS_INSUFFICIENT_RESOURCES)
     {
-        DPRINT1("ACPIBusIrpQueryResources: Status %X\n", Status);
+        DPRINT("ACPIBusIrpQueryResources: Status %X\n", Status);
 
         if (DeviceExtension->Flags & 0x0000000002000000)
         {
@@ -14203,7 +14203,7 @@ ACPIIoctlEvalPreProcessing(
     Status = AMLIGetNameSpaceObject(ObjPath, ScopeNsObject, &NsObject, 1);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("ACPIIoctlEvalPreProcessing: Status %X\n", Status);
+        DPRINT("ACPIIoctlEvalPreProcessing: Status %X\n", Status);
         return Status;
     }
 
@@ -14423,7 +14423,7 @@ ACPIIoctlEvalControlMethod(
     Status = ACPIIoctlEvalPreProcessing(DeviceObject, Irp, IoStack, PagedPool, &NsObject, &DataResult, &DataArgs, &ArgsCount);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("ACPIIoctlEvalControlMethod: Status %X\n", Status);
+        DPRINT("ACPIIoctlEvalControlMethod: Status %X\n", Status);
         goto Exit;
     }
 
