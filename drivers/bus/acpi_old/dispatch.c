@@ -12123,7 +12123,31 @@ ACPIBusIrpSetSystemPower(
     _In_ PIRP Irp,
     _In_ PIO_STACK_LOCATION IoStack)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_EXTENSION DeviceExtension;
+    DEVICE_POWER_STATE DeviceState;
+
+    DPRINT("ACPIBusIrpSetSystemPower: DeviceObject %p\n", DeviceObject);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+    DeviceState = DeviceExtension->PowerInfo.DevicePowerMatrix[IoStack->Parameters.Power.State.SystemState];
+
+    if (IoStack->Parameters.Power.ShutdownType != PowerActionWarmEject)
+    {
+        if (!(DeviceExtension->Flags & 0x0000000000020000) ||
+            DeviceExtension->PowerInfo.PowerState == DeviceState)
+        {
+            return ACPIDispatchPowerIrpSuccess(DeviceObject, Irp);
+        }
+
+        DPRINT1("ACPIBusIrpSetSystemPower: %p, send D%d irp!\n", Irp, (DeviceState - PowerDeviceD0));
+
+        DPRINT1("ACPIBusIrpSetSystemPower: FIXME\n");
+        ASSERT(FALSE);
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    DPRINT1("ACPIBusIrpSetSystemPower: DeviceObject %p\n", DeviceObject);
+    ASSERT(FALSE);
     return STATUS_NOT_IMPLEMENTED;
 }
 
