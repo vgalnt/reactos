@@ -317,6 +317,9 @@ PciBuildDefaultExclusionLists(VOID)
 {
     ULONG Start;
     NTSTATUS Status;
+
+    DPRINT("PciBuildDefaultExclusionLists()\n");
+
     ASSERT(PciIsaBitExclusionList.Count == 0);
     ASSERT(PciVgaAndIsaBitExclusionList.Count == 0);
 
@@ -325,53 +328,70 @@ PciBuildDefaultExclusionLists(VOID)
     RtlInitializeRangeList(&PciVgaAndIsaBitExclusionList);
 
     /* Loop x86 I/O ranges */
-    for (Start = 0x100; Start <= 0xFEFF; Start += 0x400)
+    for (Start = 0; Start <= 0xFFFF; Start += 0x400)
     {
         /* Add the ISA I/O ranges */
         Status = RtlAddRange(&PciIsaBitExclusionList,
-                             Start,
-                             Start + 0x2FF,
+                             (Start + 0x100),
+                             (Start + 0x3FF),
                              0,
                              RTL_RANGE_LIST_ADD_IF_CONFLICT,
                              NULL,
                              NULL);
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciBuildDefaultExclusionLists: Status %X\n", Status);
+            break;
+        }
 
         /* Add the ISA I/O ranges */
         Status = RtlAddRange(&PciVgaAndIsaBitExclusionList,
-                             Start,
-                             Start + 0x2AF,
+                             (Start + 0x100),
+                             (Start + 0x3AF),
                              0,
                              RTL_RANGE_LIST_ADD_IF_CONFLICT,
                              NULL,
                              NULL);
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciBuildDefaultExclusionLists: Status %X\n", Status);
+            break;
+        }
 
         /* Add the VGA I/O range for Monochrome Video */
         Status = RtlAddRange(&PciVgaAndIsaBitExclusionList,
-                             Start + 0x2BC,
-                             Start + 0x2BF,
+                             (Start + 0x3BC),
+                             (Start + 0x3BF),
                              0,
                              RTL_RANGE_LIST_ADD_IF_CONFLICT,
                              NULL,
                              NULL);
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciBuildDefaultExclusionLists: Status %X\n", Status);
+            break;
+        }
 
         /* Add the VGA I/O range for certain CGA adapters */
         Status = RtlAddRange(&PciVgaAndIsaBitExclusionList,
-                             Start + 0x2E0,
-                             Start + 0x2FF,
+                             (Start + 0x3E0),
+                             (Start + 0x3FF),
                              0,
                              RTL_RANGE_LIST_ADD_IF_CONFLICT,
                              NULL,
                              NULL);
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciBuildDefaultExclusionLists: Status %X\n", Status);
+            break;
+        }
 
         /* Success, ranges added done */
     };
 
     RtlFreeRangeList(&PciIsaBitExclusionList);
     RtlFreeRangeList(&PciVgaAndIsaBitExclusionList);
+
     return Status;
 }
 
