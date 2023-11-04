@@ -477,42 +477,52 @@ PciGetIrqRoutingTableFromRegistry(OUT PPCI_IRQ_ROUTING_TABLE *PciRoutingTable)
 
 NTSTATUS
 NTAPI
-PciBuildHackTable(IN HANDLE KeyHandle)
+PciBuildHackTable(
+    _In_ HANDLE KeyHandle)
 {
-    PKEY_FULL_INFORMATION FullInfo;
-    ULONG i, HackCount;
-    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo = NULL;
+    PKEY_FULL_INFORMATION FullInfo = NULL;
     PPCI_HACK_ENTRY Entry;
-    NTSTATUS Status;
-    ULONG NameLength, ResultLength;
     ULONGLONG HackFlags;
+    ULONG ResultLength;
+    ULONG NameLength;
+    ULONG HackCount;
+    ULONG Size;
+    ULONG ix;
+    NTSTATUS Status;
 
-    /* So we know what to free at the end of the body */
-    FullInfo = NULL;
-    ValueInfo = NULL;
+    DPRINT("PciBuildHackTable: %p\n", KeyHandle);
+
+    Size = (sizeof(KEY_VALUE_FULL_INFORMATION) + PCI_HACK_ENTRY_FULL_SIZE);
+
     do
     {
         /* Query the size required for full key information */
-        Status = ZwQueryKey(KeyHandle,
-                            KeyFullInformation,
-                            NULL,
-                            0,
-                            &ResultLength);
-        if (Status != STATUS_BUFFER_TOO_SMALL) break;
+        Status = ZwQueryKey(KeyHandle, KeyFullInformation, NULL, 0, &ResultLength);
+        if (Status != STATUS_BUFFER_TOO_SMALL)
+        {
+            DPRINT("PciBuildHackTable: Status %X\n", Status);
+            break;
+        }
 
         /* Allocate the space required to hold the full key information */
-        Status = STATUS_INSUFFICIENT_RESOURCES;
         ASSERT(ResultLength > 0);
+
         FullInfo = ExAllocatePoolWithTag(PagedPool, ResultLength, PCI_POOL_TAG);
-        if (!FullInfo) break;
+        if (!FullInfo)
+        {
+            DPRINT1("PciBuildHackTable: allocate failed\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
 
         /* Go ahead and query the key information */
-        Status = ZwQueryKey(KeyHandle,
-                            KeyFullInformation,
-                            FullInfo,
-                            ResultLength,
-                            &ResultLength);
-        if (!NT_SUCCESS(Status)) break;
+        Status = ZwQueryKey(KeyHandle, KeyFullInformation, FullInfo, ResultLength, &ResultLength);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciBuildHackTable: Status %X\n", Status);
+            break;
+        }
 
         /* The only piece of information that's needed is the count of values */
         HackCount = FullInfo->Values;
@@ -522,43 +532,42 @@ PciBuildHackTable(IN HANDLE KeyHandle)
         FullInfo = NULL;
 
         /* Allocate the hack table, now that the number of entries is known */
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-        ResultLength = sizeof(PCI_HACK_ENTRY) * HackCount;
-        PciHackTable = ExAllocatePoolWithTag(NonPagedPool,
-                                             ResultLength +
-                                             sizeof(PCI_HACK_ENTRY),
-                                             PCI_POOL_TAG);
-        if (!PciHackTable) break;
+        ResultLength = (HackCount * sizeof(PCI_HACK_ENTRY));
+
+        PciHackTable = ExAllocatePoolWithTag(NonPagedPool, (ResultLength + sizeof(PCI_HACK_ENTRY)), PCI_POOL_TAG);
+        if (!PciHackTable)
+        {
+            DPRINT1("PciBuildHackTable: allocate failed\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
 
         /* Allocate the space needed to hold the full value information */
-        ValueInfo = ExAllocatePoolWithTag(NonPagedPool,
-                                          sizeof(KEY_VALUE_FULL_INFORMATION) +
-                                          PCI_HACK_ENTRY_FULL_SIZE,
-                                          PCI_POOL_TAG);
-        if (!PciHackTable) break;
+        ValueInfo = ExAllocatePoolWithTag(NonPagedPool, Size, PCI_POOL_TAG);
+        if (!PciHackTable)
+        {
+            DPRINT1("PciBuildHackTable: allocate failed\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
 
         /* Loop each value in the registry */
         Entry = &PciHackTable[0];
-        for (i = 0; i < HackCount; i++)
+        for (ix = 0; ix < HackCount; ix++)
         {
             /* Get the entry for this value */
-            Entry = &PciHackTable[i];
+            Entry = &PciHackTable[ix];
 
             /* Query the value in the key */
-            Status = ZwEnumerateValueKey(KeyHandle,
-                                         i,
-                                         KeyValueFullInformation,
-                                         ValueInfo,
-                                         sizeof(KEY_VALUE_FULL_INFORMATION) +
-                                         PCI_HACK_ENTRY_FULL_SIZE,
-                                         &ResultLength);
+            Status = ZwEnumerateValueKey(KeyHandle, ix, KeyValueFullInformation, ValueInfo, Size, &ResultLength);
             if (!NT_SUCCESS(Status))
             {
                 /* Check why the call failed */
-                if ((Status != STATUS_BUFFER_OVERFLOW) &&
-                    (Status != STATUS_BUFFER_TOO_SMALL))
+                if (Status != STATUS_BUFFER_OVERFLOW &&
+                    Status != STATUS_BUFFER_TOO_SMALL)
                 {
                     /* The call failed due to an unknown error, bail out */
+                    DPRINT1("PciBuildHackTable: Status %X\n", Status);
                     break;
                 }
 
@@ -567,26 +576,26 @@ PciBuildHackTable(IN HANDLE KeyHandle)
             }
 
             /* Check if the value data matches what's expected */
-            if ((ValueInfo->Type != REG_BINARY) ||
-                (ValueInfo->DataLength != sizeof(ULONGLONG)))
+            if (ValueInfo->Type != REG_BINARY ||
+                ValueInfo->DataLength != sizeof(ULONGLONG))
             {
                 /* It doesn't, try the next key in the list */
                 continue;
             }
 
             /* Read the actual hack flags */
-            HackFlags = *(PULONGLONG)((ULONG_PTR)ValueInfo +
-                                      ValueInfo->DataOffset);
+            HackFlags = *(PULONGLONG)((ULONG_PTR)ValueInfo + ValueInfo->DataOffset);
 
             /* Check what kind of errata entry this is, based on the name */
             NameLength = ValueInfo->NameLength;
-            if ((NameLength != PCI_HACK_ENTRY_SIZE) &&
-                (NameLength != PCI_HACK_ENTRY_REV_SIZE) &&
-                (NameLength != PCI_HACK_ENTRY_SUBSYS_SIZE) &&
-                (NameLength != PCI_HACK_ENTRY_FULL_SIZE))
+
+            if (NameLength != PCI_HACK_ENTRY_SIZE &&
+                NameLength != PCI_HACK_ENTRY_REV_SIZE &&
+                NameLength != PCI_HACK_ENTRY_SUBSYS_SIZE &&
+                NameLength != PCI_HACK_ENTRY_FULL_SIZE)
             {
                 /* It's an invalid entry, skip it */
-                DPRINT1("Skipping hack entry with invalid length name\n");
+                DPRINT1("PciBuildHackTable: Skipping hack entry with invalid length name\n");
                 continue;
             }
 
@@ -594,46 +603,41 @@ PciBuildHackTable(IN HANDLE KeyHandle)
             RtlZeroMemory(Entry, sizeof(PCI_HACK_ENTRY));
 
             /* Get the vendor and device data */
-            if (!(PciStringToUSHORT(ValueInfo->Name, &Entry->VendorID)) ||
-                !(PciStringToUSHORT(&ValueInfo->Name[4], &Entry->DeviceID)))
+            if (!PciStringToUSHORT(ValueInfo->Name, &Entry->VendorID) ||
+                !PciStringToUSHORT(&ValueInfo->Name[4], &Entry->DeviceID))
             {
                 /* This failed, try the next entry */
                 continue;
             }
 
             /* Check if the entry contains subsystem information */
-            if ((NameLength == PCI_HACK_ENTRY_SUBSYS_SIZE) ||
-                (NameLength == PCI_HACK_ENTRY_FULL_SIZE))
+            if (NameLength == PCI_HACK_ENTRY_SUBSYS_SIZE ||
+                NameLength == PCI_HACK_ENTRY_FULL_SIZE)
             {
                 /* Get the data */
-                if (!(PciStringToUSHORT(&ValueInfo->Name[8],
-                                        &Entry->SubVendorID)) ||
-                    !(PciStringToUSHORT(&ValueInfo->Name[12],
-                                        &Entry->SubSystemID)))
-                  {
-                      /* This failed, try the next entry */
-                      continue;
-                  }
+                if (!PciStringToUSHORT(&ValueInfo->Name[8], &Entry->SubVendorID) ||
+                    !PciStringToUSHORT(&ValueInfo->Name[12], &Entry->SubSystemID))
+                {
+                    /* This failed, try the next entry */
+                    continue;
+                }
 
-                  /* Save the fact this entry has finer controls */
-                  Entry->Flags |= PCI_HACK_HAS_SUBSYSTEM_INFO;
-             }
+                /* Save the fact this entry has finer controls */
+                Entry->Flags |= PCI_HACK_HAS_SUBSYSTEM_INFO;
+            }
 
-             /* Check if the entry contains revision information */
-             if ((NameLength == PCI_HACK_ENTRY_REV_SIZE) ||
-                 (NameLength == PCI_HACK_ENTRY_FULL_SIZE))
-             {
-                 /* Get the data */
-                 if (!PciStringToUSHORT(&ValueInfo->Name[16],
-                                        &Entry->RevisionID))
-                 {
-                     /* This failed, try the next entry */
-                     continue;
-                 }
+            /* Check if the entry contains revision information */
+            if (NameLength == PCI_HACK_ENTRY_REV_SIZE ||
+                NameLength == PCI_HACK_ENTRY_FULL_SIZE)
+            {
+                /* Get the data */
+                if (!PciStringToUSHORT(&ValueInfo->Name[16], &Entry->RevisionID))
+                    /* This failed, try the next entry */
+                    continue;
 
-                 /* Save the fact this entry has finer controls */
-                 Entry->Flags |= PCI_HACK_HAS_REVISION_INFO;
-             }
+                /* Save the fact this entry has finer controls */
+                Entry->Flags |= PCI_HACK_HAS_REVISION_INFO;
+            }
 
             /* Only the last entry should have this set */
             ASSERT(Entry->VendorID != PCI_INVALID_VENDORID);
@@ -642,20 +646,22 @@ PciBuildHackTable(IN HANDLE KeyHandle)
             Entry->HackFlags = HackFlags;
 
             /* Print out for the debugger's sake */
-#ifdef HACK_DEBUG
-            DPRINT1("Adding Hack entry for Vendor:0x%04x Device:0x%04x ",
-                    Entry->VendorID, Entry->DeviceID);
+          #ifdef HACK_DEBUG
+            DPRINT1("PciBuildHackTable: Adding Hack entry for Vendor:0x%04x Device:0x%04x ", Entry->VendorID, Entry->DeviceID);
             if (Entry->Flags & PCI_HACK_HAS_SUBSYSTEM_INFO)
-                DbgPrint("SybSys:0x%04x SubVendor:0x%04x ",
-                         Entry->SubSystemID, Entry->SubVendorID);
+                DbgPrint("SybSys:0x%04x SubVendor:0x%04x ", Entry->SubSystemID, Entry->SubVendorID);
             if (Entry->Flags & PCI_HACK_HAS_REVISION_INFO)
                 DbgPrint("Revision:0x%02x", Entry->RevisionID);
             DbgPrint(" = 0x%I64x\n", Entry->HackFlags);
-#endif
+          #endif
         }
 
         /* Bail out in case of failure */
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciBuildHackTable: Status %X\n", Status);
+            break;
+        }
 
         /* Terminate the table with an invalid entry */
         ASSERT(Entry < (PciHackTable + HackCount + 1));
@@ -664,13 +670,21 @@ PciBuildHackTable(IN HANDLE KeyHandle)
         /* Success path, free the temporary registry data */
         ExFreePoolWithTag(ValueInfo, 0);
         return STATUS_SUCCESS;
-    } while (TRUE);
+    }
+    while (TRUE);
 
     /* Failure path, free temporary allocations and return failure code */
     ASSERT(!NT_SUCCESS(Status));
-    if (FullInfo) ExFreePool(FullInfo);
-    if (ValueInfo) ExFreePool(ValueInfo);
-    if (PciHackTable) ExFreePool(PciHackTable);
+
+    if (FullInfo)
+        ExFreePoolWithTag(FullInfo, PCI_POOL_TAG);
+
+    if (ValueInfo)
+        ExFreePoolWithTag(ValueInfo, PCI_POOL_TAG);
+
+    if (PciHackTable)
+        ExFreePoolWithTag(PciHackTable, PCI_POOL_TAG);
+
     return Status;
 }
 
