@@ -12107,12 +12107,42 @@ ACPIDispatchPowerIrpUnhandled(
 
 NTSTATUS
 NTAPI
+ACPIBusIrpSetDevicePower(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ACPIBusIrpSetSystemPower(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ACPIBusIrpSetPower(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+
+    DPRINT("ACPIBusIrpSetPower: DeviceObject %p\n", DeviceObject);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.Power.Type == DevicePowerState)
+        return ACPIBusIrpSetDevicePower(DeviceObject, Irp, IoStack);
+
+    return ACPIBusIrpSetSystemPower(DeviceObject, Irp, IoStack);
 }
 
 NTSTATUS
