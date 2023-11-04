@@ -111,18 +111,23 @@ PciStringToUSHORT(IN PWCHAR String,
 
 BOOLEAN
 NTAPI
-PciIsSuiteVersion(IN USHORT SuiteMask)
+PciIsSuiteVersion(
+    _In_ USHORT SuiteMask)
 {
-    ULONGLONG Mask = 0;
     RTL_OSVERSIONINFOEXW VersionInfo;
+    ULONGLONG Mask = 0;
+
+    DPRINT("PciIsSuiteVersion: SuiteMask %X\n", SuiteMask);
 
     /* Initialize the version information */
     RtlZeroMemory(&VersionInfo, sizeof(RTL_OSVERSIONINFOEXW));
+
     VersionInfo.dwOSVersionInfoSize = sizeof(RTL_OSVERSIONINFOEXW);
     VersionInfo.wSuiteMask = SuiteMask;
 
     /* Set the comparison mask and return if the passed suite mask matches */
     VER_SET_CONDITION(Mask, VER_SUITENAME, VER_AND);
+
     return NT_SUCCESS(RtlVerifyVersionInfo(&VersionInfo, VER_SUITENAME, Mask));
 }
 
