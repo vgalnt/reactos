@@ -455,36 +455,32 @@ PciInitializeFdoExtensionCommonFields(PPCI_FDO_EXTENSION FdoExtension,
 
 NTSTATUS
 NTAPI
-PciAddDevice(IN PDRIVER_OBJECT DriverObject,
-             IN PDEVICE_OBJECT PhysicalDeviceObject)
+PciAddDevice(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PDEVICE_OBJECT PhysicalDeviceObject)
 {
-    PCM_RESOURCE_LIST Descriptor;
-    PDEVICE_OBJECT AttachedTo;
-    PPCI_FDO_EXTENSION FdoExtension;
-    PPCI_FDO_EXTENSION ParentExtension;
-    PPCI_PDO_EXTENSION PdoExtension;
-    PDEVICE_OBJECT DeviceObject;
     UCHAR Buffer[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
     PKEY_VALUE_PARTIAL_INFORMATION ValueInfo = (PKEY_VALUE_PARTIAL_INFORMATION)Buffer;
-    NTSTATUS Status;
-    HANDLE KeyHandle;
+    PPCI_FDO_EXTENSION FdoExtension = NULL;
+    PPCI_FDO_EXTENSION ParentExtension;
+    PPCI_PDO_EXTENSION PdoExtension = NULL;
+    PDEVICE_OBJECT DeviceObject = NULL;
+    PDEVICE_OBJECT AttachedTo = NULL;
+    PCM_RESOURCE_LIST Descriptor;
     UNICODE_STRING ValueName;
+    HANDLE KeyHandle;
     ULONG ResultLength;
+    NTSTATUS Status;
+
     PAGED_CODE();
-    DPRINT1("PCI - AddDevice (a new bus). PDO: %p (Driver: %wZ)\n",
-            PhysicalDeviceObject, &PhysicalDeviceObject->DriverObject->DriverName);
+    DPRINT("PciAddDevice: %p, '%wZ'\n", PhysicalDeviceObject, &PhysicalDeviceObject->DriverObject->DriverName);
 
     /* Zero out variables so failure path knows what to do */
-    AttachedTo = NULL;
-    FdoExtension = NULL;
-    PdoExtension = NULL;
-    DeviceObject = NULL;
 
     do
     {
         /* Check if there's already a device extension for this bus */
-        ParentExtension = PciFindParentPciFdoExtension(PhysicalDeviceObject,
-                                                       &PciGlobalLock);
+        ParentExtension = PciFindParentPciFdoExtension(PhysicalDeviceObject, &PciGlobalLock);
         if (ParentExtension)
         {
             /* Make sure we find a real PDO */
@@ -492,14 +488,12 @@ PciAddDevice(IN PDRIVER_OBJECT DriverObject,
             ASSERT_PDO(PdoExtension);
 
             /* Make sure it's a PCI-to-PCI bridge */
-            if ((PdoExtension->BaseClass != PCI_CLASS_BRIDGE_DEV) ||
-                (PdoExtension->SubClass != PCI_SUBCLASS_BR_PCI_TO_PCI))
+            if (PdoExtension->BaseClass != PCI_CLASS_BRIDGE_DEV ||
+                PdoExtension->SubClass != PCI_SUBCLASS_BR_PCI_TO_PCI)
             {
                 /* This should never happen */
-                DPRINT1("PCI - PciAddDevice for Non-Root/Non-PCI-PCI bridge,\n"
-                        "      Class %02x, SubClass %02x, will not add.\n",
-                        PdoExtension->BaseClass,
-                        PdoExtension->SubClass);
+                DPRINT1("PCI - PciAddDevice for Non-Root/Non-PCI-PCI bridge,\n      Class %02x, SubClass %02x, will not add.\n", PdoExtension->BaseClass, PdoExtension->SubClass);
+
                 ASSERT((PdoExtension->BaseClass == PCI_CLASS_BRIDGE_DEV) &&
                        (PdoExtension->SubClass == PCI_SUBCLASS_BR_PCI_TO_PCI));
 
@@ -509,17 +503,13 @@ PciAddDevice(IN PDRIVER_OBJECT DriverObject,
             }
 
             /* Subordinate bus on the bridge */
-            DPRINT1("PCI - AddDevice (new bus is child of bus 0x%x).\n",
-                    ParentExtension->BaseBus);
+            DPRINT1("PCI - AddDevice (new bus is child of bus 0x%x).\n", ParentExtension->BaseBus);
 
             /* Make sure PCI bus numbers are configured */
             if (!PciAreBusNumbersConfigured(PdoExtension))
             {
                 /* This is a critical failure */
-                DPRINT1("PCI - Bus numbers not configured for bridge (0x%x.0x%x.0x%x)\n",
-                        ParentExtension->BaseBus,
-                        PdoExtension->Slot.u.bits.DeviceNumber,
-                        PdoExtension->Slot.u.bits.FunctionNumber);
+                DPRINT1("PCI - Bus numbers not configured for bridge (0x%x.0x%x.0x%x)\n", ParentExtension->BaseBus, PdoExtension->Slot.u.bits.DeviceNumber, PdoExtension->Slot.u.bits.FunctionNumber);
 
                 /* Enter the failure path */
                 Status = STATUS_INVALID_DEVICE_REQUEST;
@@ -528,27 +518,28 @@ PciAddDevice(IN PDRIVER_OBJECT DriverObject,
         }
 
         /* Create the FDO for the bus */
-        Status = IoCreateDevice(DriverObject,
-                                sizeof(PCI_FDO_EXTENSION),
-                                NULL,
-                                FILE_DEVICE_BUS_EXTENDER,
-                                0,
-                                0,
-                                &DeviceObject);
-        if (!NT_SUCCESS(Status)) break;
+        Status = IoCreateDevice(DriverObject, sizeof(PCI_FDO_EXTENSION), NULL, FILE_DEVICE_BUS_EXTENDER, 0, 0, &DeviceObject);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciAddDevice: Status %X\n", Status);
+            break;
+        }
 
         /* Initialize the extension for the FDO */
         FdoExtension = DeviceObject->DeviceExtension;
-        PciInitializeFdoExtensionCommonFields(DeviceObject->DeviceExtension,
-                                              DeviceObject,
-                                              PhysicalDeviceObject);
+        PciInitializeFdoExtensionCommonFields(DeviceObject->DeviceExtension, DeviceObject, PhysicalDeviceObject);
 
         /* Attach to the root PDO */
         Status = STATUS_NO_SUCH_DEVICE;
-        AttachedTo = IoAttachDeviceToDeviceStack(DeviceObject,
-                                                 PhysicalDeviceObject);
+
+        AttachedTo = IoAttachDeviceToDeviceStack(DeviceObject, PhysicalDeviceObject);
         ASSERT(AttachedTo != NULL);
-        if (!AttachedTo) break;
+        if (!AttachedTo)
+        {
+            DPRINT1("PciAddDevice: Status %X\n", Status);
+            break;
+        }
+
         FdoExtension->AttachedDeviceObject = AttachedTo;
 
         /* Check if this is a child bus, or the root */
@@ -563,24 +554,23 @@ PciAddDevice(IN PDRIVER_OBJECT DriverObject,
         else
         {
             /* Query the boot configuration */
-            Status = PciGetDeviceProperty(PhysicalDeviceObject,
-                                          DevicePropertyBootConfiguration,
-                                          (PVOID*)&Descriptor);
+            Status = PciGetDeviceProperty(PhysicalDeviceObject, DevicePropertyBootConfiguration, (PVOID*)&Descriptor);
             if (!NT_SUCCESS(Status))
             {
                 /* No configuration has been set */
+                DPRINT1("PciAddDevice: Status %X\n", Status);
                 Descriptor = NULL;
             }
             else
             {
-                /* Root PDO in ReactOS does not assign boot resources */
+                DPRINT1("PciAddDevice: Root PDO in ReactOS does not assign boot resources\n");
                 UNIMPLEMENTED_DBGBREAK("Encountered during setup\n");
                 Descriptor = NULL;
             }
 
             if (Descriptor)
             {
-                /* Root PDO in ReactOS does not assign boot resources */
+                DPRINT1("PciAddDevice: Root PDO in ReactOS does not assign boot resources\n");
                 UNIMPLEMENTED_DBGBREAK();
             }
             else
@@ -589,15 +579,13 @@ PciAddDevice(IN PDRIVER_OBJECT DriverObject,
                 if (PciBreakOnDefault)
                 {
                     /* If a second bus is found and there's still no data, crash */
-                    KeBugCheckEx(PCI_BUS_DRIVER_INTERNAL,
-                                 0xDEAD0010u,
-                                 (ULONG_PTR)DeviceObject,
-                                 0,
-                                 0);
+                    DPRINT1("PciAddDevice: KeBugCheckEx(..)\n");
+                    ASSERT(FALSE);
+                    KeBugCheckEx(PCI_BUS_DRIVER_INTERNAL, 0xDEAD0010u, (ULONG_PTR)DeviceObject, 0, 0);
                 }
 
                 /* Warn that a default configuration will be used, and set bus 0 */
-                DPRINT1("PCI   Will use default configuration.\n");
+                DPRINT1("PciAddDevice: Will use default configuration.\n");
                 PciBreakOnDefault = TRUE;
                 FdoExtension->BaseBus = 0;
             }
@@ -608,38 +596,37 @@ PciAddDevice(IN PDRIVER_OBJECT DriverObject,
 
         /* Get the HAL or ACPI Bus Handler Callbacks for Configuration Access */
         Status = PciGetConfigHandlers(FdoExtension);
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciAddDevice: Status %X\n", Status);
+            break;
+        }
 
         /* Initialize all the supported PCI arbiters */
         Status = PciInitializeArbiters(FdoExtension);
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciAddDevice: Status %X\n", Status);
+            break;
+        }
 
         /* This is a real FDO, insert it into the list */
         FdoExtension->Fake = FALSE;
-        PciInsertEntryAtTail(&PciFdoExtensionListHead,
-                             FdoExtension,
-                             &PciGlobalLock);
+        PciInsertEntryAtTail(&PciFdoExtensionListHead, FdoExtension, &PciGlobalLock);
 
         /* Open the device registry key so that we can query the errata flags */
-        IoOpenDeviceRegistryKey(DeviceObject,
-                                PLUGPLAY_REGKEY_DEVICE,
-                                KEY_ALL_ACCESS,
-                                &KeyHandle),
+        IoOpenDeviceRegistryKey(DeviceObject, PLUGPLAY_REGKEY_DEVICE, KEY_ALL_ACCESS, &KeyHandle),
 
         /* Open the value that contains errata flags for this bus instance */
         RtlInitUnicodeString(&ValueName, L"HackFlags");
-        Status = ZwQueryValueKey(KeyHandle,
-                                 &ValueName,
-                                 KeyValuePartialInformation,
-                                 ValueInfo,
-                                 sizeof(Buffer),
-                                 &ResultLength);
+
+        Status = ZwQueryValueKey(KeyHandle, &ValueName, KeyValuePartialInformation, ValueInfo, sizeof(Buffer), &ResultLength);
         ZwClose(KeyHandle);
         if (NT_SUCCESS(Status))
         {
             /* Make sure the data is of expected type and size */
-            if ((ValueInfo->Type == REG_DWORD) &&
-                (ValueInfo->DataLength == sizeof(ULONG)))
+            if (ValueInfo->Type == REG_DWORD &&
+                ValueInfo->DataLength == sizeof(ULONG))
             {
                 /* Read the flags for this bus */
                 FdoExtension->BusHackFlags = *(PULONG)&ValueInfo->Data;
@@ -651,18 +638,27 @@ PciAddDevice(IN PDRIVER_OBJECT DriverObject,
 
         /* The Bus FDO is now initialized */
         DeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
+
         return STATUS_SUCCESS;
-    } while (FALSE);
+    }
+    while (FALSE);
 
     /* This is the failure path */
     ASSERT(!NT_SUCCESS(Status));
 
     /* Check if the FDO extension exists */
-    if (FdoExtension) DPRINT1("Should destroy secondaries\n");
+    if (FdoExtension)
+    {
+        DPRINT1("Should destroy secondaries\n");
+    }
 
     /* Delete device objects */
-    if (AttachedTo) IoDetachDevice(AttachedTo);
-    if (DeviceObject) IoDeleteDevice(DeviceObject);
+    if (AttachedTo)
+        IoDetachDevice(AttachedTo);
+
+    if (DeviceObject)
+        IoDeleteDevice(DeviceObject);
+
     return Status;
 }
 
