@@ -153,13 +153,22 @@ PciAllowExtendedInterruptVectors(
     if (!NT_SUCCESS(Status))
     {
         /* This is not an in-progress Setup boot, so query the suite version */
-        return PciIsSuiteVersion(VER_SUITE_DATACENTER);
+        DPRINT1("PciAllowExtendedInterruptVectors: Status %X\n", Status);
+
+        if (PciIsSuiteVersion(VER_SUITE_DATACENTER))
+            return TRUE;
+
+        if (PciIsSuiteVersion(VER_SUITE_ENTERPRISE))
+        {
+            ASSERT(FALSE);
+        }
+
+        return FALSE;
     }
 
     /* This scenario shouldn't happen yet, since SetupDD isn't used */
     UNIMPLEMENTED_FATAL("ReactOS doesn't use SetupDD for its installation program. Therefore this scenario must not happen!\n");
 
-    /* Return if this is Datacenter or not */
     return Result;
 }
 

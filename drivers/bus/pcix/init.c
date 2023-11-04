@@ -15,7 +15,7 @@
 
 /* GLOBALS ********************************************************************/
 
-BOOLEAN PciRunningDatacenter;
+BOOLEAN PciExtendInterruptVector;
 PDRIVER_OBJECT PciDriverObject;
 KEVENT PciGlobalLock;
 KEVENT PciBusLock;
@@ -842,9 +842,11 @@ DriverEntry(
         PciVerifierInit(DriverObject);
 
         /* Check if this is a Datacenter SKU, which impacts IRQ alignment */
-        PciRunningDatacenter = PciAllowExtendedInterruptVectors(&OptionString);
-        if (PciRunningDatacenter)
+        if (PciAllowExtendedInterruptVectors(&OptionString))
+        {
             DPRINT1("PCI running on datacenter build\n");
+            PciExtendInterruptVector = TRUE;
+        }
 
         /* Check if the system has an ACPI Hardware Watchdog Timer */
         //WdTable = PciGetAcpiTable(WDRT_SIGNATURE);

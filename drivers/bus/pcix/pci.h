@@ -1816,7 +1816,7 @@ extern PPCI_HACK_ENTRY PciHackTable;
 extern BOOLEAN PciAssignBusNumbers;
 extern BOOLEAN PciEnableNativeModeATA;
 extern PPCI_IRQ_ROUTING_TABLE PciIrqRoutingTable;
-extern BOOLEAN PciRunningDatacenter;
+extern BOOLEAN PciExtendInterruptVector;
 
 /* Exported by NTOS, should this go in the NDK? */
 extern NTSYSAPI BOOLEAN InitSafeBootMode;
