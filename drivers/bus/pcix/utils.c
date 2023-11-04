@@ -174,28 +174,35 @@ PciAllowExtendedInterruptVectors(
 
 BOOLEAN
 NTAPI
-PciOpenKey(IN PWCHAR KeyName,
-           IN HANDLE RootKey,
-           IN ACCESS_MASK DesiredAccess,
-           OUT PHANDLE KeyHandle,
-           OUT PNTSTATUS KeyStatus)
+PciOpenKey(
+    _In_ PWCHAR KeyName,
+    _In_ HANDLE RootKey,
+    _In_ ACCESS_MASK DesiredAccess,
+    _Out_ HANDLE* OutHandle,
+    _Out_ NTSTATUS* OutStatus)
 {
-    NTSTATUS Status;
     OBJECT_ATTRIBUTES ObjectAttributes;
     UNICODE_STRING KeyString;
+    NTSTATUS Status;
+
     PAGED_CODE();
+    DPRINT("PciOpenKey: '%S'\n", KeyName);
 
     /* Initialize the object attributes */
     RtlInitUnicodeString(&KeyString, KeyName);
-    InitializeObjectAttributes(&ObjectAttributes,
-                               &KeyString,
-                               OBJ_CASE_INSENSITIVE,
-                               RootKey,
-                               NULL);
+    InitializeObjectAttributes(&ObjectAttributes, &KeyString, OBJ_CASE_INSENSITIVE, RootKey, NULL);
 
     /* Open the key, returning a boolean, and the status, if requested */
-    Status = ZwOpenKey(KeyHandle, DesiredAccess, &ObjectAttributes);
-    if (KeyStatus) *KeyStatus = Status;
+    Status = ZwOpenKey(OutHandle, DesiredAccess, &ObjectAttributes);
+
+    if (OutStatus)
+        *OutStatus = Status;
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciOpenKey: Status %X for '%S'\n", Status, KeyName);
+    }
+
     return NT_SUCCESS(Status);
 }
 
