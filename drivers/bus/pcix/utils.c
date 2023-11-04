@@ -135,13 +135,10 @@ BOOLEAN
 NTAPI
 PciIsDatacenter(VOID)
 {
-    BOOLEAN Result;
-    PVOID Value;
-    ULONG ResultLength;
+    PVOID Value = NULL;
+    ULONG ResultLength = 0;
+    BOOLEAN Result = FALSE; // Assume this isn't Datacenter
     NTSTATUS Status;
-
-    /* Assume this isn't Datacenter */
-    Result = FALSE;
 
     /* First, try opening the setup key */
     Status = PciGetRegistryValue(L"",
@@ -153,13 +150,11 @@ PciIsDatacenter(VOID)
     if (!NT_SUCCESS(Status))
     {
         /* This is not an in-progress Setup boot, so query the suite version */
-        Result = PciIsSuiteVersion(VER_SUITE_DATACENTER);
+        return PciIsSuiteVersion(VER_SUITE_DATACENTER);
     }
-    else
-    {
-        /* This scenario shouldn't happen yet, since SetupDD isn't used */
-        UNIMPLEMENTED_FATAL("ReactOS doesn't use SetupDD for its installation program. Therefore this scenario must not happen!\n");
-    }
+
+    /* This scenario shouldn't happen yet, since SetupDD isn't used */
+    UNIMPLEMENTED_FATAL("ReactOS doesn't use SetupDD for its installation program. Therefore this scenario must not happen!\n");
 
     /* Return if this is Datacenter or not */
     return Result;
