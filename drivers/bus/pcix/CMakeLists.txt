@@ -39,14 +39,14 @@ list(APPEND SOURCE
     utils.c
     pci.h)
 
-add_library(pcix MODULE
+add_library(pci MODULE
     ${SOURCE}
     guid.c
     pci.rc)
 
-set_module_type(pcix kernelmodedriver)
-target_link_libraries(pcix arbiter)
-add_importlibs(pcix ntoskrnl hal)
-add_pch(pcix pci.h SOURCE)
-add_dependencies(pcix pciclass)
-add_cd_file(TARGET pcix DESTINATION reactos/system32/drivers NO_CAB FOR all)
+set_module_type(pci kernelmodedriver)
+target_link_libraries(pci arbiter)
+add_importlibs(pci ntoskrnl hal)
+add_pch(pci pci.h SOURCE)
+add_dependencies(pci pciclass)
+add_cd_file(TARGET pci DESTINATION reactos/system32/drivers NO_CAB FOR all)
