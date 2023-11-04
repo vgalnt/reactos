@@ -12281,8 +12281,12 @@ ACPIDispatchPowerIrpSuccess(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PoStartNextPowerIrp(Irp);
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    IoCompleteRequest(Irp, 0);
+
+    return STATUS_SUCCESS;
 }
 
 /* Fixed Button FUNCTIOS ****************************************************/
