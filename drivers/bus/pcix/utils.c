@@ -24,12 +24,16 @@ RTL_RANGE_LIST PciVgaAndIsaBitExclusionList;
 
 BOOLEAN
 NTAPI
-PciUnicodeStringStrStr(IN PUNICODE_STRING InputString,
-                       IN PCUNICODE_STRING EqualString,
-                       IN BOOLEAN CaseInSensitive)
+PciUnicodeStringStrStr(
+    _In_ PUNICODE_STRING InputString,
+    _In_ PCUNICODE_STRING EqualString,
+    _In_ BOOLEAN CaseInSensitive)
 {
     UNICODE_STRING PartialString;
-    LONG EqualChars, TotalChars;
+    LONG EqualChars;
+    LONG TotalChars;
+
+    DPRINT("PciUnicodeStringStrStr: '%wZ', '%wZ' (%X)\n", InputString, EqualString, CaseInSensitive);
 
     /* Build a partial string with the smaller substring */
     PartialString.Length = EqualString->Length;
@@ -38,10 +42,11 @@ PciUnicodeStringStrStr(IN PUNICODE_STRING InputString,
 
     /* Check how many characters that need comparing */
     EqualChars = 0;
-    TotalChars = (InputString->Length - EqualString->Length) / sizeof(WCHAR);
+    TotalChars = ((InputString->Length - EqualString->Length) / sizeof(WCHAR));
 
     /* If the substring is bigger, just fail immediately */
-    if (TotalChars < 0) return FALSE;
+    if (TotalChars < 0)
+        return FALSE;
 
     /* Keep checking each character */
     while (!RtlEqualUnicodeString(EqualString, &PartialString, CaseInSensitive))
@@ -49,7 +54,9 @@ PciUnicodeStringStrStr(IN PUNICODE_STRING InputString,
         /* Continue checking until all the required characters are equal */
         PartialString.Buffer++;
         PartialString.MaximumLength -= sizeof(WCHAR);
-        if (++EqualChars > TotalChars) return FALSE;
+
+        if (++EqualChars > TotalChars)
+            return FALSE;
     }
 
     /* The string is equal */
