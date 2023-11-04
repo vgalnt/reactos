@@ -311,121 +311,109 @@ PciGetAcpiTable(IN ULONG TableCode)
 
 NTSTATUS
 NTAPI
-PciGetIrqRoutingTableFromRegistry(OUT PPCI_IRQ_ROUTING_TABLE *PciRoutingTable)
+PciGetIrqRoutingTableFromRegistry(
+    _Out_ PPCI_IRQ_ROUTING_TABLE* OutPciRoutingTable)
 {
+    PKEY_VALUE_PARTIAL_INFORMATION ValueInfo = NULL;
+    PKEY_BASIC_INFORMATION KeyInfo = NULL;
+    PKEY_FULL_INFORMATION FullInfo = NULL;
+    UNICODE_STRING ValueName;
+    HANDLE KeyHandle = NULL;
+    HANDLE SubKey;
+    ULONG NumberOfBytes;
+    ULONG Length;
+    ULONG Size;
+    ULONG ix;
     BOOLEAN Result;
     NTSTATUS Status;
-    HANDLE KeyHandle, SubKey;
-    ULONG NumberOfBytes, i, Length;
-    PKEY_FULL_INFORMATION FullInfo;
-    PKEY_BASIC_INFORMATION KeyInfo;
-    PKEY_VALUE_PARTIAL_INFORMATION ValueInfo;
-    UNICODE_STRING ValueName;
     struct
     {
         CM_FULL_RESOURCE_DESCRIPTOR Descriptor;
         PCI_IRQ_ROUTING_TABLE Table;
-    } *Package;
+    } *Package = NULL;
 
-    /* So we know what to free at the end of the body */
-    Package = NULL;
-    ValueInfo = NULL;
-    KeyInfo = NULL;
-    KeyHandle = NULL;
-    FullInfo = NULL;
+    DPRINT("PciGetIrqRoutingTableFromRegistry: %p\n", OutPciRoutingTable);
+
     do
     {
         /* Open the BIOS key */
-        Result = PciOpenKey(L"\\Registry\\Machine\\HARDWARE\\DESCRIPTION\\"
-                            L"System\\MultiFunctionAdapter",
-                            NULL,
-                            KEY_QUERY_VALUE,
-                            &KeyHandle,
-                            &Status);
-        if (!Result) break;
+        Result = PciOpenKey(L"\\Registry\\Machine\\HARDWARE\\DESCRIPTION\\System\\MultiFunctionAdapter", NULL, KEY_QUERY_VALUE, &KeyHandle, &Status);
+        if (!Result)
+            break;
 
         /* Query how much space should be allocated for the key information */
-        Status = ZwQueryKey(KeyHandle,
-                            KeyFullInformation,
-                            NULL,
-                            sizeof(ULONG),
-                            &NumberOfBytes);
-        if (Status != STATUS_BUFFER_TOO_SMALL) break;
+        Status = ZwQueryKey(KeyHandle, KeyFullInformation, NULL, sizeof(ULONG), &NumberOfBytes);
+        if (Status != STATUS_BUFFER_TOO_SMALL)
+        {
+            DPRINT1("PciGetIrqRoutingTableFromRegistry: Status %X\n", Status);
+            break;
+        }
 
         /* Allocate the space required */
-        Status = STATUS_INSUFFICIENT_RESOURCES;
         FullInfo = ExAllocatePoolWithTag(PagedPool, NumberOfBytes, PCI_POOL_TAG);
-        if ( !FullInfo ) break;
+        if (!FullInfo)
+        {
+            DPRINT1("PciGetIrqRoutingTableFromRegistry: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
 
         /* Now query the key information that's needed */
-        Status = ZwQueryKey(KeyHandle,
-                            KeyFullInformation,
-                            FullInfo,
-                            NumberOfBytes,
-                            &NumberOfBytes);
-        if (!NT_SUCCESS(Status)) break;
+        Status = ZwQueryKey(KeyHandle, KeyFullInformation, FullInfo, NumberOfBytes, &NumberOfBytes);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciGetIrqRoutingTableFromRegistry: Status %X\n", Status);
+            break;
+        }
 
         /* Allocate enough space to hold the value information plus the name */
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-        Length = FullInfo->MaxNameLen + 26;
+        Length = (FullInfo->MaxNameLen + 26);
+
         KeyInfo = ExAllocatePoolWithTag(PagedPool, Length, PCI_POOL_TAG);
-        if (!KeyInfo) break;
+        if (!KeyInfo)
+        {
+            DPRINT1("PciGetIrqRoutingTableFromRegistry: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
+
+        Size = (sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(L"PCI BIOS"));
 
         /* Allocate the value information and name we expect to find */
-        ValueInfo = ExAllocatePoolWithTag(PagedPool,
-                                          sizeof(KEY_VALUE_PARTIAL_INFORMATION) +
-                                          sizeof(L"PCI BIOS"),
-                                          PCI_POOL_TAG);
-        if (!ValueInfo) break;
+        ValueInfo = ExAllocatePoolWithTag(PagedPool, Size, PCI_POOL_TAG);
+        if (!ValueInfo)
+        {
+            DPRINT1("PciGetIrqRoutingTableFromRegistry: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
 
         /* Loop each sub-key */
-        i = 0;
-        while (TRUE)
+        for (ix = 0;;)
         {
             /* Query each sub-key */
-            Status = ZwEnumerateKey(KeyHandle,
-                                    i++,
-                                    KeyBasicInformation,
-                                    KeyInfo,
-                                    Length,
-                                    &NumberOfBytes);
-            if (Status == STATUS_NO_MORE_ENTRIES) break;
+            Status = ZwEnumerateKey(KeyHandle, ix++, KeyBasicInformation, KeyInfo, Length, &NumberOfBytes);
+            if (Status == STATUS_NO_MORE_ENTRIES)
+                break;
 
             /* Null-terminate the keyname, because the kernel does not */
             KeyInfo->Name[KeyInfo->NameLength / sizeof(WCHAR)] = UNICODE_NULL;
 
             /* Open this subkey */
-            Result = PciOpenKey(KeyInfo->Name,
-                                KeyHandle,
-                                KEY_QUERY_VALUE,
-                                &SubKey,
-                                &Status);
+            Result = PciOpenKey(KeyInfo->Name, KeyHandle, KEY_QUERY_VALUE, &SubKey, &Status);
             if (Result)
             {
                 /* Query the identifier value for this subkey */
                 RtlInitUnicodeString(&ValueName, L"Identifier");
-                Status = ZwQueryValueKey(SubKey,
-                                         &ValueName,
-                                         KeyValuePartialInformation,
-                                         ValueInfo,
-                                         sizeof(KEY_VALUE_PARTIAL_INFORMATION) +
-                                         sizeof(L"PCI BIOS"),
-                                         &NumberOfBytes);
+
+                Status = ZwQueryValueKey(SubKey, &ValueName, KeyValuePartialInformation, ValueInfo, Size, &NumberOfBytes);
                 if (NT_SUCCESS(Status))
                 {
                     /* Check if this is the PCI BIOS subkey */
-                    if (!wcsncmp((PWCHAR)ValueInfo->Data,
-                                 L"PCI BIOS",
-                                 ValueInfo->DataLength))
+                    if (!wcsncmp((PWCHAR)ValueInfo->Data, L"PCI BIOS", ValueInfo->DataLength))
                     {
                         /* It is, proceed to query the PCI IRQ routing table */
-                        Status = PciGetRegistryValue(L"Configuration Data",
-                                                     L"RealModeIrqRoutingTable"
-                                                     L"\\0",
-                                                     SubKey,
-                                                     REG_FULL_RESOURCE_DESCRIPTOR,
-                                                     (PVOID*)&Package,
-                                                     &NumberOfBytes);
+                        Status = PciGetRegistryValue(L"Configuration Data", L"RealModeIrqRoutingTable\\0", SubKey, REG_FULL_RESOURCE_DESCRIPTOR, (PVOID*)&Package, &NumberOfBytes);
                         ZwClose(SubKey);
                         break;
                     }
@@ -437,41 +425,61 @@ PciGetIrqRoutingTableFromRegistry(OUT PPCI_IRQ_ROUTING_TABLE *PciRoutingTable)
         }
 
         /* Check if we got here because the routing table was found */
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciGetIrqRoutingTableFromRegistry: Status %X\n", Status);
+            break;
+        }
 
         /* Check if a descriptor was found */
-        if (!Package) break;
+        if (!Package)
+        {
+            DPRINT1("PciGetIrqRoutingTableFromRegistry: descriptor not found\n");
+            break;
+        }
 
         /* Make sure the buffer is large enough to hold the table */
-        if ((NumberOfBytes < sizeof(*Package)) ||
-            (Package->Table.TableSize >
-             (NumberOfBytes - sizeof(CM_FULL_RESOURCE_DESCRIPTOR))))
+        if (NumberOfBytes < sizeof(*Package) ||
+            Package->Table.TableSize > (NumberOfBytes - sizeof(CM_FULL_RESOURCE_DESCRIPTOR)))
         {
             /* Invalid package size */
+            DPRINT1("PciGetIrqRoutingTableFromRegistry: STATUS_UNSUCCESSFUL\n");
             Status = STATUS_UNSUCCESSFUL;
             break;
         }
 
         /* Allocate space for the table */
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-        *PciRoutingTable = ExAllocatePoolWithTag(PagedPool,
-                                                 NumberOfBytes,
-                                                 PCI_POOL_TAG);
-        if (!*PciRoutingTable) break;
+        *OutPciRoutingTable = ExAllocatePoolWithTag(PagedPool, NumberOfBytes, PCI_POOL_TAG);
+        if (!*OutPciRoutingTable)
+        {
+            DPRINT1("PciGetIrqRoutingTableFromRegistry: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
 
         /* Copy the registry data */
-        RtlCopyMemory(*PciRoutingTable,
-                      &Package->Table,
-                      NumberOfBytes - sizeof(CM_FULL_RESOURCE_DESCRIPTOR));
+        RtlCopyMemory(*OutPciRoutingTable, &Package->Table, (NumberOfBytes - sizeof(CM_FULL_RESOURCE_DESCRIPTOR)));
+
         Status = STATUS_SUCCESS;
-    } while (FALSE);
+    }
+    while (FALSE);
 
     /* Close any opened keys, free temporary allocations, and return status */
-    if (Package) ExFreePoolWithTag(Package, 0);
-    if (ValueInfo) ExFreePoolWithTag(ValueInfo, 0);
-    if (KeyInfo) ExFreePoolWithTag(KeyInfo, 0);
-    if (FullInfo) ExFreePoolWithTag(FullInfo, 0);
-    if (KeyHandle) ZwClose(KeyHandle);
+    if (Package)
+        ExFreePool(Package);
+
+    if (ValueInfo)
+        ExFreePoolWithTag(ValueInfo, PCI_POOL_TAG);
+
+    if (KeyInfo)
+        ExFreePoolWithTag(KeyInfo, PCI_POOL_TAG);
+
+    if (FullInfo)
+        ExFreePoolWithTag(FullInfo, PCI_POOL_TAG);
+
+    if (KeyHandle)
+        ZwClose(KeyHandle);
+
     return Status;
 }
 
