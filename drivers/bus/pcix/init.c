@@ -842,7 +842,7 @@ DriverEntry(
         PciVerifierInit(DriverObject);
 
         /* Check if this is a Datacenter SKU, which impacts IRQ alignment */
-        PciRunningDatacenter = PciIsDatacenter();
+        PciRunningDatacenter = PciAllowExtendedInterruptVectors(&OptionString);
         if (PciRunningDatacenter)
             DPRINT1("PCI running on datacenter build\n");
 

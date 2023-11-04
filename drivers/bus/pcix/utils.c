@@ -133,12 +133,15 @@ PciIsSuiteVersion(
 
 BOOLEAN
 NTAPI
-PciIsDatacenter(VOID)
+PciAllowExtendedInterruptVectors(
+    _In_ PUNICODE_STRING OptionString)
 {
     PVOID Value = NULL;
     ULONG ResultLength = 0;
     BOOLEAN Result = FALSE; // Assume this isn't Datacenter
     NTSTATUS Status;
+
+    DPRINT("PciAllowExtendedInterruptVectors: Options -'%wZ'\n", OptionString);
 
     /* First, try opening the setup key */
     Status = PciGetRegistryValue(L"",

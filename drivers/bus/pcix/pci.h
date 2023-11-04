@@ -969,8 +969,8 @@ PciStringToUSHORT(
 
 BOOLEAN
 NTAPI
-PciIsDatacenter(
-    VOID
+PciAllowExtendedInterruptVectors(
+    _In_ PUNICODE_STRING OptionString
 );
 
 NTSTATUS
