@@ -247,14 +247,17 @@ VOID
 NTAPI
 PciHookHal(VOID)
 {
+    DPRINT("PciHookHal()\n");
+
     /* Save the old HAL routines */
     ASSERT(PcipSavedAssignSlotResources == NULL);
     ASSERT(PcipSavedTranslateBusAddress == NULL);
+
     PcipSavedAssignSlotResources = HalPciAssignSlotResources;
     PcipSavedTranslateBusAddress = HalPciTranslateBusAddress;
 
     /* Take over the HAL's Bus Handler functions */
-//    HalPciAssignSlotResources = PciAssignSlotResources;
+    HalPciAssignSlotResources = PciAssignSlotResources;
     HalPciTranslateBusAddress = PciTranslateBusAddress;
 }
 
