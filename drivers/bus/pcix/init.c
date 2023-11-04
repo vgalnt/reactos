@@ -195,32 +195,40 @@ PciAcpiFindRsdt(OUT PACPI_BIOS_MULTI_NODE *AcpiMultiNode)
 
 PVOID
 NTAPI
-PciGetAcpiTable(IN ULONG TableCode)
+PciGetAcpiTable(
+    _In_ ULONG TableCode)
 {
-    PDESCRIPTION_HEADER Header;
     PACPI_BIOS_MULTI_NODE AcpiMultiNode;
+    PHYSICAL_ADDRESS PhysicalAddress;
+    PDESCRIPTION_HEADER Header;
+    PVOID MappedAddress;
+    PVOID TableBuffer;
     PRSDT Rsdt;
     PXSDT Xsdt;
-    ULONG EntryCount, TableLength, Offset, CurrentEntry;
-    PVOID TableBuffer, MappedAddress;
-    PHYSICAL_ADDRESS PhysicalAddress;
+    ULONG CurrentEntry;
+    ULONG TableLength;
+    ULONG EntryCount;
+    ULONG Offset;
     NTSTATUS Status;
+
+    DPRINT("PciGetAcpiTable: TableCode %X\n", TableCode);
 
     /* Try to find the RSDT or XSDT */
     Status = PciAcpiFindRsdt(&AcpiMultiNode);
     if (!NT_SUCCESS(Status))
     {
         /* No ACPI on the machine */
-        DPRINT1("AcpiFindRsdt() Failed!\n");
+        DPRINT1("PciGetAcpiTable: Status %X\n", Status);
         return NULL;
     }
 
     /* Map the RSDT with the minimum size allowed */
-    MappedAddress = MmMapIoSpace(AcpiMultiNode->RsdtAddress,
-                                 sizeof(DESCRIPTION_HEADER),
-                                 MmNonCached);
-    Header = MappedAddress;
-    if (!Header) return NULL;
+    Header = MappedAddress = MmMapIoSpace(AcpiMultiNode->RsdtAddress, sizeof(DESCRIPTION_HEADER), MmNonCached);
+    if (!Header)
+    {
+        DPRINT1("PciGetAcpiTable: not mapped\n");
+        return NULL;
+    }
 
     /* Check how big the table really is and get rid of the temporary header */
     TableLength = Header->Length;
@@ -228,19 +236,21 @@ PciGetAcpiTable(IN ULONG TableCode)
     Header = NULL;
 
     /* Map its true size */
-    MappedAddress = MmMapIoSpace(AcpiMultiNode->RsdtAddress,
-                                 TableLength,
-                                 MmNonCached);
-    Rsdt = MappedAddress;
-    Xsdt = MappedAddress;
-    ExFreePoolWithTag(AcpiMultiNode, 0);
-    if (!Rsdt) return NULL;
+    Xsdt = MappedAddress = Rsdt = MmMapIoSpace(AcpiMultiNode->RsdtAddress, TableLength, MmNonCached);
+    ExFreePool(AcpiMultiNode);
+    if (!Rsdt)
+    {
+        DPRINT1("PciGetAcpiTable: not mapped\n");
+        return NULL;
+    }
 
     /* Validate the table's signature */
-    if ((Rsdt->Header.Signature != RSDT_SIGNATURE) &&
-        (Rsdt->Header.Signature != XSDT_SIGNATURE))
+    if (Rsdt->Header.Signature != RSDT_SIGNATURE &&
+        Rsdt->Header.Signature != XSDT_SIGNATURE)
     {
         /* Very bad: crash */
+        DPRINT1("PciGetAcpiTable: RSDT table contains invalid signature\n");
+        ASSERT(FALSE);
         HalDisplayString("RSDT table contains invalid signature\r\n");
         MmUnmapIoSpace(Rsdt, TableLength);
         return NULL;
@@ -248,23 +258,26 @@ PciGetAcpiTable(IN ULONG TableCode)
 
     /* Smallest RSDT/XSDT is one without table entries */
     Offset = FIELD_OFFSET(RSDT, Tables);
+
     if (Rsdt->Header.Signature == XSDT_SIGNATURE)
     {
         /* Figure out total size of table and the offset */
         TableLength = Xsdt->Header.Length;
-        if (TableLength < Offset) Offset = Xsdt->Header.Length;
+        if (TableLength < Offset)
+            Offset = Xsdt->Header.Length;
 
         /* The entries are each 64-bits, so count them */
-        EntryCount = (TableLength - Offset) / sizeof(PHYSICAL_ADDRESS);
+        EntryCount = ((TableLength - Offset) / sizeof(PHYSICAL_ADDRESS));
     }
     else
     {
         /* Figure out total size of table and the offset */
         TableLength = Rsdt->Header.Length;
-        if (TableLength < Offset) Offset = Rsdt->Header.Length;
+        if (TableLength < Offset)
+            Offset = Rsdt->Header.Length;
 
         /* The entries are each 32-bits, so count them */
-        EntryCount = (TableLength - Offset) / sizeof(ULONG);
+        EntryCount = ((TableLength - Offset) / sizeof(ULONG));
     }
 
     /* Start at the beginning of the array and loop it */
@@ -272,30 +285,28 @@ PciGetAcpiTable(IN ULONG TableCode)
     {
         /* Are we using the XSDT? */
         if (Rsdt->Header.Signature != XSDT_SIGNATURE)
-        {
-            /* Read the 32-bit physical address */
-            PhysicalAddress.QuadPart = Rsdt->Tables[CurrentEntry];
-        }
+            PhysicalAddress.QuadPart = Rsdt->Tables[CurrentEntry]; // Read the 32-bit physical address
         else
-        {
-            /* Read the 64-bit physical address */
-            PhysicalAddress = Xsdt->Tables[CurrentEntry];
-        }
+           PhysicalAddress = Xsdt->Tables[CurrentEntry];           // Read the 64-bit physical address
 
         /* Map this table */
-        Header = MmMapIoSpace(PhysicalAddress,
-                              sizeof(DESCRIPTION_HEADER),
-                              MmNonCached);
-        if (!Header) break;
+        Header = MmMapIoSpace(PhysicalAddress, sizeof(DESCRIPTION_HEADER), MmNonCached);
+        if (!Header)
+        {
+            DPRINT1("PciGetAcpiTable: not mapped\n");
+            break;
+        }
 
         /* Check if this is the table that's being asked for */
         if (Header->Signature == TableCode)
         {
             /* Allocate a buffer for it */
-            TableBuffer = ExAllocatePoolWithTag(PagedPool,
-                                                Header->Length,
-                                                PCI_POOL_TAG);
-            if (!TableBuffer) break;
+            TableBuffer = ExAllocatePoolWithTag(PagedPool, Header->Length, PCI_POOL_TAG);
+            if (!TableBuffer)
+            {
+                DPRINT1("PciGetAcpiTable: allocate failed\n");
+                break;
+            }
 
             /* Copy the table into the buffer */
             RtlCopyMemory(TableBuffer, Header, Header->Length);
@@ -305,7 +316,9 @@ PciGetAcpiTable(IN ULONG TableCode)
         MmUnmapIoSpace(Header, sizeof(DESCRIPTION_HEADER));
     }
 
-    if (Header) MmUnmapIoSpace(Header, sizeof(DESCRIPTION_HEADER));
+    if (Header)
+        MmUnmapIoSpace(Header, sizeof(DESCRIPTION_HEADER));
+
     return NULL;
 }
 
