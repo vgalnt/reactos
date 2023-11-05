@@ -307,17 +307,80 @@ ario_ApplyBrokenVideoHack(IN PPCI_FDO_EXTENSION FdoExtension)
     FdoExtension->BrokenVideoHackApplied = TRUE;
 }
 
+/*  Not correct yet, FIXME! */
+NTSTATUS
+NTAPI
+armem_StartArbiter(
+    _In_ PARBITER_INSTANCE Arbiter)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+armem_PreprocessEntry(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+armem_GetNextAllocationRange(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+armem_FindSuitableRange(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 NTSTATUS
 NTAPI
 armem_Initializer(
     _In_ PPCI_ARBITER_INSTANCE Instance)
 {
-    UNREFERENCED_PARAMETER(Instance);
+    DPRINT("armem_Initializer: %p\n", Instance);
 
-    /* Not yet implemented */
-    UNIMPLEMENTED;
-    //while (TRUE);
-    return STATUS_SUCCESS;
+    PAGED_CODE();
+
+    RtlZeroMemory(&Instance->CommonInstance, sizeof(Instance->CommonInstance));
+
+    Instance->CommonInstance.UnpackRequirement = armemio_UnpackRequirement;
+    Instance->CommonInstance.PackResource = armemio_PackResource;
+    Instance->CommonInstance.UnpackResource = armemio_UnpackResource;
+    Instance->CommonInstance.ScoreRequirement = armemio_ScoreRequirement;
+    Instance->CommonInstance.StartArbiter = armem_StartArbiter;
+    Instance->CommonInstance.PreprocessEntry = armem_PreprocessEntry;
+    Instance->CommonInstance.GetNextAllocationRange = armem_GetNextAllocationRange;
+    Instance->CommonInstance.FindSuitableRange = armem_FindSuitableRange;
+
+    Instance->CommonInstance.Extension = ExAllocatePoolWithTag(PagedPool, sizeof(PCI_ARB_MEM_EXTENTION), 'BicP'); // POOL_TYPE 0x101
+    if (!Instance->CommonInstance.Extension)
+    {
+        DPRINT1("armem_Initializer: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(Instance->CommonInstance.Extension, sizeof(PCI_ARB_MEM_EXTENTION));
+
+    return ArbInitializeArbiterInstance(&Instance->CommonInstance,
+                                        Instance->BusFdoExtension->FunctionalDeviceObject,
+                                        CmResourceTypeMemory,
+                                        Instance->InstanceName,
+                                        L"Pci",
+                                        NULL);
 }
 
 NTSTATUS

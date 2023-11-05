@@ -357,6 +357,16 @@ typedef struct _PCI_ARBITER_INSTANCE
     ARBITER_INSTANCE CommonInstance;
 } PCI_ARBITER_INSTANCE, *PPCI_ARBITER_INSTANCE;
 
+typedef struct _PCI_ARB_MEM_EXTENTION
+{
+    UCHAR Unknown1;
+    UCHAR Unknown2;
+    USHORT Unknown3;
+    ARBITER_ORDERING_LIST OrderingList1;
+    ARBITER_ORDERING_LIST OrderingList2;
+    ARBITER_ORDERING_LIST OrderingList3;
+} PCI_ARB_MEM_EXTENTION, *PPCI_ARB_MEM_EXTENTION;
+
 // PCI Verifier Data
 typedef struct _PCI_VERIFIER_DATA
 {
