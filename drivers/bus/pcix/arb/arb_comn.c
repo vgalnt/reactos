@@ -37,13 +37,17 @@ PciArbiterDestructor(IN PPCI_ARBITER_INSTANCE Arbiter)
 
 NTSTATUS
 NTAPI
-PciInitializeArbiters(IN PPCI_FDO_EXTENSION FdoExtension)
+PciInitializeArbiters(
+    _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
-    PPCI_INTERFACE CurrentInterface, *Interfaces;
-    PPCI_PDO_EXTENSION PdoExtension;
     PPCI_ARBITER_INSTANCE ArbiterInterface;
-    NTSTATUS Status;
+    PPCI_PDO_EXTENSION PdoExtension;
+    PPCI_INTERFACE CurrentInterface;
+    PPCI_INTERFACE* Interfaces;
     PCI_SIGNATURE ArbiterType;
+    NTSTATUS Status;
+
+    DPRINT("PciInitializeArbiters: %p\n", FdoExtension);
     ASSERT_FDO(FdoExtension);
 
     /* Loop all the arbiters */
@@ -59,50 +63,50 @@ PciInitializeArbiters(IN PPCI_FDO_EXTENSION FdoExtension)
             /* Skip this bus if it does subtractive decode */
             if (PdoExtension->Dependent.type1.SubtractiveDecode)
             {
-                DPRINT1("PCI Not creating arbiters for subtractive bus %u\n",
-                        PdoExtension->Dependent.type1.SubtractiveDecode);
+                DPRINT1("PciInitializeArbiters: PCI Not creating arbiters for subtractive bus %X\n", PdoExtension->Dependent.type1.SubtractiveDecode);
                 continue;
             }
         }
 
         /* Query all the registered arbiter interfaces */
-        Interfaces = PciInterfaces;
-        while (*Interfaces)
+        for (Interfaces = PciInterfaces; *Interfaces; Interfaces++)
         {
             /* Find the one that matches the arbiter currently being setup */
             CurrentInterface = *Interfaces;
-            if (CurrentInterface->Signature == ArbiterType) break;
-            Interfaces++;
+            if (CurrentInterface->Signature == ArbiterType)
+                break;
         }
 
         /* Check if the required arbiter was not found in the list */
         if (!*Interfaces)
         {
             /* Skip this arbiter and try the next one */
-            DPRINT1("PCI - FDO ext 0x%p no %s arbiter.\n",
-                    FdoExtension,
-                    PciArbiterNames[ArbiterType - PciArb_Io]);
+            DPRINT1("PciInitializeArbiters: (%p) no '%s' arbiter\n", FdoExtension, PciArbiterNames[ArbiterType - PciArb_Io]);
             continue;
         }
 
         /* An arbiter was found, allocate an instance for it */
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-        ArbiterInterface = ExAllocatePoolWithTag(PagedPool,
-                                                 sizeof(PCI_ARBITER_INSTANCE),
-                                                 PCI_POOL_TAG);
-        if (!ArbiterInterface) break;
+        ArbiterInterface = ExAllocatePoolWithTag(PagedPool, sizeof(PCI_ARBITER_INSTANCE), PCI_POOL_TAG);
+        if (!ArbiterInterface)
+        {
+            DPRINT("PciInitializeArbiters: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
 
         /* Setup the instance */
         ArbiterInterface->BusFdoExtension = FdoExtension;
         ArbiterInterface->Interface = CurrentInterface;
-        swprintf(ArbiterInterface->InstanceName,
-                 L"PCI %S (b=%02x)",
-                 PciArbiterNames[ArbiterType - PciArb_Io],
-                 FdoExtension->BaseBus);
+
+        swprintf(ArbiterInterface->InstanceName, L"PCI %S (b=%02x)", PciArbiterNames[ArbiterType - PciArb_Io], FdoExtension->BaseBus);
 
         /* Call the interface initializer for it */
         Status = CurrentInterface->Initializer(ArbiterInterface);
-        if (!NT_SUCCESS(Status)) break;
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciInitializeArbiters: Status %X\n", Status);
+            break;
+        }
 
         /* Link it with this FDO */
         PcipLinkSecondaryExtension(&FdoExtension->SecondaryExtension,
@@ -112,10 +116,8 @@ PciInitializeArbiters(IN PPCI_FDO_EXTENSION FdoExtension)
                                    PciArbiterDestructor);
 
         /* This arbiter is now initialized, move to the next one */
-        DPRINT1("PCI - FDO ext 0x%p %S arbiter initialized (context 0x%p).\n",
-                FdoExtension,
-                L"ARBITER HEADER MISSING", //ArbiterInterface->CommonInstance.Name,
-                ArbiterInterface);
+        DPRINT1("PciInitializeArbiters: %p, '%S', %p\n", FdoExtension, ArbiterInterface->CommonInstance.Name, ArbiterInterface);
+
         Status = STATUS_SUCCESS;
     }
 
