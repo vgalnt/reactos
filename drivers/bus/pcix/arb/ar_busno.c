@@ -32,33 +32,70 @@ PCI_INTERFACE ArbiterInterfaceBusNumber =
 
 NTSTATUS
 NTAPI
+arbusno_UnpackRequirement(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
+    _Out_ PULONGLONG OutMinimumAddress,
+    _Out_ PULONGLONG OutMaximumAddress,
+    _Out_ PULONG OutLength,
+    _Out_ PULONG OutAlignment)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+arbusno_PackResource(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
+    _In_ ULONGLONG Start,
+    _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+arbusno_UnpackResource(
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor,
+    _Out_ PULONGLONG Start,
+    _Out_ PULONG OutLength)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+LONG
+NTAPI
+arbusno_ScoreRequirement(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+
+NTSTATUS
+NTAPI
 arbusno_Initializer(
     _In_ PPCI_ARBITER_INSTANCE Instance)
 {
-    PPCI_ARBITER_INSTANCE Arbiter = Instance;
-    PPCI_FDO_EXTENSION FdoExtension;
     NTSTATUS Status;
 
+    DPRINT("arbusno_Initializer: %p\n", Instance);
     PAGED_CODE();
 
-    RtlZeroMemory(&Arbiter->CommonInstance, sizeof(Arbiter->CommonInstance));
+    RtlZeroMemory(&Instance->CommonInstance, sizeof(Instance->CommonInstance));
 
-    FdoExtension = Arbiter->BusFdoExtension;
+    Instance->CommonInstance.UnpackRequirement = arbusno_UnpackRequirement;
+    Instance->CommonInstance.PackResource = arbusno_PackResource;
+    Instance->CommonInstance.UnpackResource = arbusno_UnpackResource;
+    Instance->CommonInstance.ScoreRequirement = arbusno_ScoreRequirement;
 
-    /* Not yet implemented */
-    UNIMPLEMENTED;
-
-#if 0
-    Arbiter->CommonInstance.UnpackRequirement = arbusno_UnpackRequirement;
-    Arbiter->CommonInstance.PackResource = arbusno_PackResource;
-    Arbiter->CommonInstance.UnpackResource = arbusno_UnpackResource;
-    Arbiter->CommonInstance.ScoreRequirement = arbusno_ScoreRequirement;
-#endif
-
-    Status = ArbInitializeArbiterInstance(&Arbiter->CommonInstance,
-                                          FdoExtension->FunctionalDeviceObject,
+    Status = ArbInitializeArbiterInstance(&Instance->CommonInstance,
+                                          Instance->BusFdoExtension->FunctionalDeviceObject,
                                           CmResourceTypeBusNumber,
-                                          Arbiter->InstanceName,
+                                          Instance->InstanceName,
                                           L"Pci",
                                           NULL);
     if (!NT_SUCCESS(Status))
