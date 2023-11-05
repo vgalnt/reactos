@@ -52,8 +52,43 @@ armemio_UnpackRequirement(
     _Out_ PULONG OutLength,
     _Out_ PULONG OutAlignment)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("armemio_UnpackRequirement: %p\n", IoDescriptor);
+    PAGED_CODE();
+
+    ASSERT(IoDescriptor);
+    ASSERT((IoDescriptor->Type == CmResourceTypePort) || (IoDescriptor->Type == CmResourceTypeMemory));
+
+    *OutMinimumAddress = IoDescriptor->u.Memory.MinimumAddress.QuadPart;
+    *OutMaximumAddress = IoDescriptor->u.Memory.MaximumAddress.QuadPart;
+
+    *OutLength = IoDescriptor->u.Memory.Length;
+
+    *OutAlignment = IoDescriptor->u.Memory.Alignment;
+    if (!IoDescriptor->u.Memory.Alignment)
+        *OutAlignment = 1;
+
+    if (IoDescriptor->Type != CmResourceTypeMemory)
+        return Status;
+
+    if (!(IoDescriptor->Flags & 0x10))
+        return Status;
+
+    if (IoDescriptor->u.Memory.MaximumAddress.QuadPart <= 0xFFFFFF)
+        return Status;
+
+    if (IoDescriptor->u.Memory.MinimumAddress.QuadPart <= 0xFFFFFF)
+    {
+          *OutMaximumAddress = 0xFFFFFF;
+          return Status;
+    }
+
+    DPRINT1("armemio_UnpackRequirement: 24 bit decode specified but both min and max are greater than 0xFFFFFF, most probably due to broken INF!\n");
+
+    ASSERT(IoDescriptor->u.Memory.MinimumAddress.QuadPart <= 0xFFFFFF);
+
+    return STATUS_UNSUCCESSFUL;
 }
 
 NTSTATUS
