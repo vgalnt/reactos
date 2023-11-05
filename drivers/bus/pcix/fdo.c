@@ -362,16 +362,33 @@ PciFdoIrpSurpriseRemoval(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciFdoIrpQueryLegacyBusInformation(IN PIRP Irp,
-                                   IN PIO_STACK_LOCATION IoStackLocation,
-                                   IN PPCI_FDO_EXTENSION DeviceExtension)
+PciFdoIrpQueryLegacyBusInformation(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    PLEGACY_BUS_INFORMATION BusInfo;
 
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_SUPPORTED;
+    DPRINT("PciFdoIrpQueryLegacyBusInformation: %p\n", Irp);
+
+    PAGED_CODE();
+    UNREFERENCED_PARAMETER(IoStack);
+
+    BusInfo = ExAllocatePoolWithTag(PagedPool, sizeof(*BusInfo), 'BicP'); // POOL_TYPE 0x101
+    if (!BusInfo)
+    {
+        ASSERT(BusInfo != NULL);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlCopyMemory(&BusInfo->BusTypeGuid, &GUID_BUS_TYPE_PCI, sizeof(GUID));
+
+    BusInfo->LegacyBusType = PCIBus;
+    BusInfo->BusNumber = FdoExtension->BaseBus;
+
+    Irp->IoStatus.Information = (ULONG_PTR)BusInfo;
+
+    return STATUS_SUCCESS;
 }
 
 VOID
