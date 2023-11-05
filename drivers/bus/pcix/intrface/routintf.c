@@ -34,7 +34,8 @@ PCI_INTERFACE PciRoutingInterface =
 
 NTSTATUS
 NTAPI
-routeintrf_Initializer(IN PVOID Instance)
+routeintrf_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
     /* PnP Interfaces don't get Initialized */

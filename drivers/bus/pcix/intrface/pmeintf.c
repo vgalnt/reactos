@@ -32,7 +32,8 @@ PCI_INTERFACE PciPmeInterface =
 
 NTSTATUS
 NTAPI
-PciPmeInterfaceInitializer(IN PVOID Instance)
+PciPmeInterfaceInitializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
     /* PnP Interfaces don't get Initialized */

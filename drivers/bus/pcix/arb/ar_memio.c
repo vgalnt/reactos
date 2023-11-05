@@ -45,14 +45,147 @@ PCI_INTERFACE ArbiterInterfaceIo =
 
 NTSTATUS
 NTAPI
-ario_Initializer(IN PVOID Instance)
+armemio_UnpackRequirement(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
+    _Out_ PULONGLONG OutMinimumAddress,
+    _Out_ PULONGLONG OutMaximumAddress,
+    _Out_ PULONG OutLength,
+    _Out_ PULONG OutAlignment)
 {
-    UNREFERENCED_PARAMETER(Instance);
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
 
-    /* Not yet implemented */
-    UNIMPLEMENTED;
-    //while (TRUE);
-    return STATUS_SUCCESS;
+NTSTATUS
+NTAPI
+armemio_PackResource(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
+    _In_ ULONGLONG Start,
+    _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+armemio_UnpackResource(
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor,
+    _Out_ PULONGLONG Start,
+    _Out_ PULONG OutLength)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+LONG
+NTAPI
+armemio_ScoreRequirement(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+/*  Not correct yet, FIXME! */
+NTSTATUS
+NTAPI
+ario_StartArbiter(
+    _In_ PARBITER_INSTANCE Arbiter)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ario_PreprocessEntry(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+ario_GetNextAllocationRange(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+ario_FindSuitableRange(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+ario_AddAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+ario_BacktrackAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+/*  Not correct yet, FIXME! */
+NTSTATUS
+NTAPI
+ario_OverrideConflict(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PVOID Param2)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ario_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
+{
+    DPRINT("ario_Initializer: %p\n", Instance);
+
+    PAGED_CODE();
+    ASSERT(!(Instance->BusFdoExtension->BrokenVideoHackApplied));
+
+    RtlZeroMemory(&Instance->CommonInstance, sizeof(Instance->CommonInstance));
+
+    Instance->CommonInstance.UnpackRequirement = armemio_UnpackRequirement;
+    Instance->CommonInstance.PackResource = armemio_PackResource;
+    Instance->CommonInstance.UnpackResource = armemio_UnpackResource;
+    Instance->CommonInstance.ScoreRequirement = armemio_ScoreRequirement;
+    Instance->CommonInstance.StartArbiter = ario_StartArbiter;
+    Instance->CommonInstance.PreprocessEntry = ario_PreprocessEntry;
+    Instance->CommonInstance.GetNextAllocationRange = ario_GetNextAllocationRange;
+    Instance->CommonInstance.FindSuitableRange = ario_FindSuitableRange;
+    Instance->CommonInstance.AddAllocation = ario_AddAllocation;
+    Instance->CommonInstance.BacktrackAllocation = ario_BacktrackAllocation;
+    Instance->CommonInstance.OverrideConflict = ario_OverrideConflict;
+
+    return ArbInitializeArbiterInstance(&Instance->CommonInstance,
+                                        Instance->BusFdoExtension->FunctionalDeviceObject,
+                                        CmResourceTypePort,
+                                        Instance->InstanceName,
+                                        L"Pci",
+                                        NULL);
 }
 
 NTSTATUS
@@ -141,7 +274,8 @@ ario_ApplyBrokenVideoHack(IN PPCI_FDO_EXTENSION FdoExtension)
 
 NTSTATUS
 NTAPI
-armem_Initializer(IN PVOID Instance)
+armem_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
 

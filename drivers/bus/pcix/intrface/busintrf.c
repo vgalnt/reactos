@@ -32,7 +32,8 @@ PCI_INTERFACE BusHandlerInterface =
 
 NTSTATUS
 NTAPI
-busintrf_Initializer(IN PVOID Instance)
+busintrf_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
     /* PnP Interfaces don't get Initialized */

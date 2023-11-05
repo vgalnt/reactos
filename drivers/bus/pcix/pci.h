@@ -311,7 +311,6 @@ typedef struct _PCI_MJ_DISPATCH_TABLE
 } PCI_MJ_DISPATCH_TABLE, *PPCI_MJ_DISPATCH_TABLE;
 
 // Generic PCI Interface Constructor and Initializer
-struct _PCI_INTERFACE;
 typedef NTSTATUS (NTAPI* PCI_INTERFACE_CONSTRUCTOR)(
     _In_ PVOID DeviceExtension,
     _In_ PVOID Instance,
@@ -321,8 +320,9 @@ typedef NTSTATUS (NTAPI* PCI_INTERFACE_CONSTRUCTOR)(
     _In_ PINTERFACE Interface
 );
 
+struct _PCI_ARBITER_INSTANCE;
 typedef NTSTATUS (NTAPI* PCI_INTERFACE_INITIALIZER)(
-    _In_ PVOID Instance
+    _In_ struct _PCI_ARBITER_INSTANCE* Instance
 );
 
 // Generic PCI Interface (Interface, Translator, Arbiter)
@@ -348,7 +348,7 @@ typedef struct PCI_SECONDARY_EXTENSION
 } PCI_SECONDARY_EXTENSION, *PPCI_SECONDARY_EXTENSION;
 
 // PCI Arbiter Instance
-typedef struct PCI_ARBITER_INSTANCE
+typedef struct _PCI_ARBITER_INSTANCE
 {
     PCI_SECONDARY_EXTENSION Header;
     PPCI_INTERFACE Interface;
@@ -1244,73 +1244,73 @@ PciQueryInterface(
 NTSTATUS
 NTAPI
 PciPmeInterfaceInitializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 routeintrf_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 arbusno_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 agpintrf_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 tranirq_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 busintrf_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 armem_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 ario_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 locintrf_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 pcicbintrf_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 lddintrf_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS
 NTAPI
 devpresent_Initializer(
-    _In_ PVOID Instance
+    _In_ PPCI_ARBITER_INSTANCE Instance
 );
 
 NTSTATUS

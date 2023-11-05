@@ -32,7 +32,8 @@ PCI_INTERFACE PciLocationInterface =
 
 NTSTATUS
 NTAPI
-locintrf_Initializer(IN PVOID Instance)
+locintrf_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
     /* PnP Interfaces don't get Initialized */

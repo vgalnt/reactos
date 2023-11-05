@@ -32,7 +32,8 @@ PCI_INTERFACE TranslatorInterfaceInterrupt =
 
 NTSTATUS
 NTAPI
-tranirq_Initializer(IN PVOID Instance)
+tranirq_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
     /* PnP Interfaces don't get Initialized */

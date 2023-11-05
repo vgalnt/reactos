@@ -96,7 +96,8 @@ Cardbus_ChangeResourceSettings(IN PPCI_PDO_EXTENSION PdoExtension,
 
 NTSTATUS
 NTAPI
-pcicbintrf_Initializer(IN PVOID Instance)
+pcicbintrf_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
     /* PnP Interfaces don't get Initialized */

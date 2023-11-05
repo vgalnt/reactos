@@ -32,7 +32,8 @@ PCI_INTERFACE PciLegacyDeviceDetectionInterface =
 
 NTSTATUS
 NTAPI
-lddintrf_Initializer(IN PVOID Instance)
+lddintrf_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
     /* PnP Interfaces don't get Initialized */

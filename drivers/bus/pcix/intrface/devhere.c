@@ -32,7 +32,8 @@ PCI_INTERFACE PciDevicePresentInterface =
 
 NTSTATUS
 NTAPI
-devpresent_Initializer(IN PVOID Instance)
+devpresent_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
     /* PnP Interfaces don't get Initialized */

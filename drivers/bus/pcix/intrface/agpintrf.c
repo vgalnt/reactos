@@ -34,7 +34,8 @@ PCI_INTERFACE AgpTargetInterface =
 
 NTSTATUS
 NTAPI
-agpintrf_Initializer(IN PVOID Instance)
+agpintrf_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     UNREFERENCED_PARAMETER(Instance);
     /* PnP Interfaces don't get Initialized */

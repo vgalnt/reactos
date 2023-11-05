@@ -32,7 +32,8 @@ PCI_INTERFACE ArbiterInterfaceBusNumber =
 
 NTSTATUS
 NTAPI
-arbusno_Initializer(IN PVOID Instance)
+arbusno_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance)
 {
     PPCI_ARBITER_INSTANCE Arbiter = Instance;
     PPCI_FDO_EXTENSION FdoExtension;
