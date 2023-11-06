@@ -126,7 +126,8 @@ armemio_ScoreRequirement(
 NTSTATUS
 NTAPI
 ario_StartArbiter(
-    _In_ PARBITER_INSTANCE Arbiter)
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PCM_RESOURCE_LIST CmResource)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
@@ -311,7 +312,8 @@ ario_ApplyBrokenVideoHack(IN PPCI_FDO_EXTENSION FdoExtension)
 NTSTATUS
 NTAPI
 armem_StartArbiter(
-    _In_ PARBITER_INSTANCE Arbiter)
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PCM_RESOURCE_LIST CmResource)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
