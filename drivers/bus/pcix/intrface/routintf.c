@@ -43,27 +43,83 @@ routeintrf_Initializer(
     return STATUS_UNSUCCESSFUL;
 }
 
+VOID
+NTAPI
+pcicbintrf_Dereference(
+    _In_ PVOID Context)
+{
+    ;
+}
+
 NTSTATUS
 NTAPI
-routeintrf_Constructor(IN PVOID DeviceExtension,
-                       IN PVOID Instance,
-                       IN PVOID InterfaceData,
-                       IN USHORT Version,
-                       IN USHORT Size,
-                       IN PINTERFACE Interface)
+PciGetInterruptRoutingInfoEx(
+    _In_ PDEVICE_OBJECT Pdo,
+    _Out_ ULONG* OutBus,
+    _Out_ ULONG* OutPciSlot,
+    _Out_ UCHAR* OutInterruptLine,
+    _Out_ UCHAR* OutInterruptPin,
+    _Out_ UCHAR* OutClassCode,
+    _Out_ UCHAR* OutSubClassCode,
+    _Out_ PDEVICE_OBJECT* OutParentPdo,
+    _Out_ ROUTING_TOKEN* OutRoutingToken,
+    _Out_ UCHAR* OutFlags)
 {
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciSetRoutingTokenEx(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PROUTING_TOKEN RoutingToken)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+PciUpdateInterruptLine(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ UCHAR LineRegister)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+routeintrf_Constructor(
+    _In_ PVOID DeviceExtension,
+    _In_ PVOID Instance,
+    _In_ PVOID InterfaceData,
+    _In_ USHORT Version,
+    _In_ USHORT Size,
+    _In_ PINTERFACE Interface)
+{
+    PINT_ROUTE_INTERFACE_STANDARD RouteInterface = (PVOID)Interface;
+
+    DPRINT("routeintrf_Constructor: %p, %X\n", Interface, Version);
+
     UNREFERENCED_PARAMETER(Instance);
     UNREFERENCED_PARAMETER(InterfaceData);
     UNREFERENCED_PARAMETER(Size);
-    UNREFERENCED_PARAMETER(Interface);
 
     /* Only version 1 is supported */
-    if (Version != PCI_INT_ROUTE_INTRF_STANDARD_VER) return STATUS_NOINTERFACE;
+    if (Version != PCI_INT_ROUTE_INTRF_STANDARD_VER)
+        return STATUS_NOINTERFACE;
 
-    /* Not yet implemented */
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    RouteInterface->Size = sizeof(*RouteInterface);
+    RouteInterface->Version = Version;
+    RouteInterface->Context = DeviceExtension;
+    RouteInterface->InterfaceReference = pcicbintrf_Dereference;
+    RouteInterface->InterfaceDereference = pcicbintrf_Dereference;
+    RouteInterface->GetInterruptRouting = PciGetInterruptRoutingInfoEx;
+    RouteInterface->SetInterruptRoutingToken = PciSetRoutingTokenEx;
+    RouteInterface->UpdateInterruptLine = PciUpdateInterruptLine;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
