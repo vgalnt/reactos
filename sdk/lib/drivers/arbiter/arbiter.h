@@ -139,10 +139,10 @@ typedef NTSTATUS
     _In_ PARBITER_INSTANCE Arbiter
 );
 
-/*  Not correct yet, FIXME! */
 typedef NTSTATUS
 (NTAPI * PARB_START_ARBITER)(
-    _In_ PARBITER_INSTANCE Arbiter
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PCM_RESOURCE_LIST CmResource
 );
 
 typedef NTSTATUS
@@ -214,7 +214,7 @@ typedef struct _ARBITER_INSTANCE
     PARB_QUERY_ARBITRATE QueryArbitrate; // Not used yet
     PARB_QUERY_CONFLICT QueryConflict; // Not used yet
     PARB_ADD_RESERVED AddReserved; // Not used yet
-    PARB_START_ARBITER StartArbiter; // Not used yet
+    PARB_START_ARBITER StartArbiter;
     PARB_PREPROCESS_ENTRY PreprocessEntry;
     PARB_ALLOCATE_ENTRY AllocateEntry;
     PARB_GET_NEXT_ALLOCATION_RANGE GetNextAllocationRange;
@@ -267,5 +267,20 @@ ArbBootAllocation(
     _In_ PARBITER_INSTANCE Arbiter,
     _In_ PLIST_ENTRY ArbitrationList
 );
+
+NTSTATUS
+NTAPI
+ArbTestAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PLIST_ENTRY ArbitrationList
+);
+
+BOOLEAN
+NTAPI
+ArbGetNextAllocationRange(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
+);
+
 
 /* EOF */

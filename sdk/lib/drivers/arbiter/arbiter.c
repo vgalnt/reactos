@@ -148,6 +148,7 @@ ArbArbiterHandler(
 
     KeSetEvent(Arbiter->MutexEvent, IO_NO_INCREMENT, FALSE);
 
+    DPRINT("ArbArbiterHandler: ret Status %X\n", Status);
     return Status;
 }
 
@@ -1076,11 +1077,11 @@ ArbQueryConflict(
     return STATUS_NOT_IMPLEMENTED;
 }
 
-/* FIXME: the prototype is not correct yet. */
 NTSTATUS
 NTAPI
 ArbStartArbiter(
-    _In_ PARBITER_INSTANCE Arbiter)
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PCM_RESOURCE_LIST CmResource)
 {
     PAGED_CODE();
 
