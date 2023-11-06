@@ -127,21 +127,24 @@ PciInitializeArbiters(
 
 NTSTATUS
 NTAPI
-PciInitializeArbiterRanges(IN PPCI_FDO_EXTENSION DeviceExtension,
-                           IN PCM_RESOURCE_LIST Resources)
+PciInitializeArbiterRanges(
+    _In_ PPCI_FDO_EXTENSION DeviceExtension,
+    _In_ PCM_RESOURCE_LIST CmResource)
 {
     PPCI_PDO_EXTENSION PdoExtension;
     //CM_RESOURCE_TYPE DesiredType;
-    PVOID Instance;
+    PPCI_ARBITER_INSTANCE PciArbiter;
     PCI_SIGNATURE ArbiterType;
 
-    UNREFERENCED_PARAMETER(Resources);
+    DPRINT("PciInitializeArbiterRanges: %p, %p\n", DeviceExtension, CmResource);
+
+    UNREFERENCED_PARAMETER(CmResource);
 
     /* Arbiters should not already be initialized */
     if (DeviceExtension->ArbitersInitialized)
     {
         /* Duplicated start request, fail initialization */
-        DPRINT1("PCI Warning hot start FDOx %p, resource ranges not checked.\n", DeviceExtension);
+        DPRINT1("PciInitializeArbiterRanges: Warning hot start FDOx %p, resource ranges not checked.\n", DeviceExtension);
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
@@ -156,7 +159,7 @@ PciInitializeArbiterRanges(IN PPCI_FDO_EXTENSION DeviceExtension,
         if (PdoExtension->Dependent.type1.SubtractiveDecode)
         {
             /* There is nothing to do regarding arbitration of resources */
-            DPRINT1("PCI Skipping arbiter initialization for subtractive bridge FDOX %p\n", DeviceExtension);
+            DPRINT1("PciInitializeArbiterRanges: Skipping arbiter initialization for subtractive bridge FDOX %p\n", DeviceExtension);
             return STATUS_SUCCESS;
         }
     }
@@ -182,9 +185,8 @@ PciInitializeArbiterRanges(IN PPCI_FDO_EXTENSION DeviceExtension,
         }
 
         /* Find an arbiter of this type */
-        Instance = PciFindNextSecondaryExtension(&DeviceExtension->SecondaryExtension,
-                                                 ArbiterType);
-        if (Instance)
+        PciArbiter = (PVOID)PciFindNextSecondaryExtension(&DeviceExtension->SecondaryExtension, ArbiterType);
+        if (PciArbiter)
         {
             /*
              * Now we should initialize it, not yet implemented because Arb
@@ -196,14 +198,13 @@ PciInitializeArbiterRanges(IN PPCI_FDO_EXTENSION DeviceExtension,
         else
         {
             /* The arbiter was not found, this is an error! */
-            DPRINT1("PCI - FDO ext 0x%p %s arbiter (REQUIRED) is missing.\n",
-                    DeviceExtension,
-                    PciArbiterNames[ArbiterType - PciArb_Io]);
+            DPRINT1("PciInitializeArbiterRanges: FDO ext %p '%s' arbiter (REQUIRED) is missing.\n", DeviceExtension, PciArbiterNames[ArbiterType - PciArb_Io]);
         }
     }
 
     /* Arbiters are now initialized */
     DeviceExtension->ArbitersInitialized = TRUE;
+
     return STATUS_SUCCESS;
 }
 
