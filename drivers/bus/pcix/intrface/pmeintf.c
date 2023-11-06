@@ -41,27 +41,67 @@ PciPmeInterfaceInitializer(
     return STATUS_UNSUCCESSFUL;
 }
 
+VOID
+NTAPI
+PciPmeGetInformation(
+  IN PDEVICE_OBJECT Pdo,
+  OUT PBOOLEAN PmeCapable,
+  OUT PBOOLEAN PmeStatus,
+  OUT PBOOLEAN PmeEnable)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+PciPmeClearPmeStatus(
+  IN PDEVICE_OBJECT Pdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+PciPmeUpdateEnable(
+  IN PDEVICE_OBJECT Pdo,
+  IN BOOLEAN PmeEnable)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
-PciPmeInterfaceConstructor(IN PVOID DeviceExtension,
-                           IN PVOID Instance,
-                           IN PVOID InterfaceData,
-                           IN USHORT Version,
-                           IN USHORT Size,
-                           IN PINTERFACE Interface)
+PciPmeInterfaceConstructor(
+    _In_ PVOID DeviceExtension,
+    _In_ PVOID Instance,
+    _In_ PVOID InterfaceData,
+    _In_ USHORT Version,
+    _In_ USHORT Size,
+    _In_ PINTERFACE Interface)
 {
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    PPCI_PME_INTERFACE PmeInterface = (PVOID)Interface;
+
+    DPRINT("PciPmeInterfaceConstructor: %p, %X\n", Interface, Version);
+
     UNREFERENCED_PARAMETER(Instance);
     UNREFERENCED_PARAMETER(InterfaceData);
     UNREFERENCED_PARAMETER(Size);
-    UNREFERENCED_PARAMETER(Interface);
 
     /* Only version 1 is supported */
-    if (Version != PCI_PME_INTRF_STANDARD_VER) return STATUS_NOINTERFACE;
+    if (Version != PCI_PME_INTRF_STANDARD_VER)
+        return STATUS_NOINTERFACE;
 
-    /* Not yet implemented */
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PmeInterface->Size = sizeof(*PmeInterface);
+    PmeInterface->Version = Version;
+    PmeInterface->Context = DeviceExtension;
+    PmeInterface->InterfaceReference = pcicbintrf_Dereference;
+    PmeInterface->InterfaceDereference = pcicbintrf_Dereference;
+
+    PmeInterface->GetPmeInformation = PciPmeGetInformation;
+    PmeInterface->ClearPmeStatus = PciPmeClearPmeStatus;
+    PmeInterface->UpdateEnable = PciPmeUpdateEnable;
+
+    return STATUS_SUCCESS;
 }
 
 /* EOF */

@@ -1461,6 +1461,12 @@ devpresent_Constructor(
     _In_ PINTERFACE Interface
 );
 
+VOID
+NTAPI
+pcicbintrf_Dereference(
+    _In_ PVOID Context
+);
+
 // PCI Enumeration and Resources
 
 NTSTATUS
