@@ -26,6 +26,8 @@ Device_SaveCurrentSettings(IN PPCI_CONFIGURATOR_CONTEXT Context)
     PULONG BarArray;
     ULONG Bar, BarMask, i;
 
+    DPRINT("PCIX: .. \n");
+
     /* Get variables from context */
     PciData = Context->Current;
     Resources = Context->PdoExtension->Resources;
@@ -122,6 +124,8 @@ Device_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
     PULONG BarArray;
     PIO_RESOURCE_DESCRIPTOR Limit;
     ULONG i;
+
+    DPRINT("PCIX: .. \n");
 
     /* Get pointers from the context */
     PdoExtension = Context->PdoExtension;
@@ -221,6 +225,8 @@ Device_MassageHeaderForLimitsDetermination(IN PPCI_CONFIGURATOR_CONTEXT Context)
     PPCI_PDO_EXTENSION PdoExtension;
     PULONG BarArray;
     ULONG i = 0;
+
+    DPRINT("PCIX: .. \n");
 
     /* Get pointers from context data */
     PdoExtension = Context->PdoExtension;

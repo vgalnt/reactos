@@ -31,7 +31,7 @@ PciArbiterDestructor(IN PPCI_ARBITER_INSTANCE Arbiter)
 {
     UNREFERENCED_PARAMETER(Arbiter);
     /* This function is not yet implemented */
-    UNIMPLEMENTED;
+    UNIMPLEMENTED_DBGBREAK();
     while (TRUE);
 }
 

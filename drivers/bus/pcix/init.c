@@ -48,6 +48,8 @@ PciAcpiFindRsdt(OUT PACPI_BIOS_MULTI_NODE *AcpiMultiNode)
         ACPI_BIOS_MULTI_NODE Node;
     } *Package;
 
+    DPRINT("PciAcpiFindRsdt()\n");
+
     /* So we know what to free at the end of the body */
     ValueInfo = NULL;
     KeyInfo = NULL;

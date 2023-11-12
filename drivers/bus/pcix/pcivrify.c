@@ -61,6 +61,8 @@ PciVerifierRetrieveFailureData(IN ULONG FailureCode)
 {
     PPCI_VERIFIER_DATA VerifierData;
 
+    DPRINT("PCIX: .. \n");
+
     /* Scan the verifier failure table for this code */
     VerifierData = PciVerifierFailureTable;
     while (VerifierData->FailureCode != FailureCode)

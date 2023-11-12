@@ -79,7 +79,9 @@ PciFdoIrpStartDevice(IN PIRP Irp,
 {
     NTSTATUS Status;
     PCM_RESOURCE_LIST Resources;
+
     PAGED_CODE();
+    DPRINT("PciFdoIrpStartDevice: %p\n", Irp);
 
     /* The device stack must be starting the FDO in a success path */
     if (!NT_SUCCESS(Irp->IoStatus.Status)) return STATUS_NOT_SUPPORTED;
@@ -129,7 +131,7 @@ PciFdoIrpQueryRemoveDevice(IN PIRP Irp,
     UNREFERENCED_PARAMETER(IoStackLocation);
     UNREFERENCED_PARAMETER(DeviceExtension);
 
-    UNIMPLEMENTED;
+    UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_SUPPORTED;
 }
 
@@ -210,7 +212,9 @@ PciFdoIrpQueryDeviceRelations(IN PIRP Irp,
                               IN PPCI_FDO_EXTENSION DeviceExtension)
 {
     NTSTATUS Status;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Are bus relations being queried? */
     if (IoStackLocation->Parameters.QueryDeviceRelations.Type != BusRelations)
@@ -237,6 +241,9 @@ PciFdoIrpQueryInterface(IN PIRP Irp,
                         IN PPCI_FDO_EXTENSION DeviceExtension)
 {
     NTSTATUS Status;
+
+    DPRINT("PciFdoIrpQueryInterface: %p\n", Irp);
+
     PAGED_CODE();
     ASSERT(DeviceExtension->ExtensionType == PciFdoExtensionType);
 
@@ -312,6 +319,9 @@ PciFdoIrpQueryCapabilities(IN PIRP Irp,
                            IN PPCI_FDO_EXTENSION DeviceExtension)
 {
     PDEVICE_CAPABILITIES Capabilities;
+
+    DPRINT("PCIX: .. \n");
+
     PAGED_CODE();
     ASSERT_FDO(DeviceExtension);
 
@@ -399,7 +409,9 @@ PciGetHotPlugParameters(IN PPCI_FDO_EXTENSION FdoExtension)
     PACPI_EVAL_OUTPUT_BUFFER OutputBuffer;
     ULONG Length;
     NTSTATUS Status;
+
     PAGED_CODE();
+    DPRINT("PciGetHotPlugParameters: %p\n", FdoExtension);
 
     /* We should receive 4 parameters, per the HPP specification */
     Length = sizeof(ACPI_EVAL_OUTPUT_BUFFER) + 4 * sizeof(ACPI_METHOD_ARGUMENT);
@@ -451,6 +463,8 @@ PciInitializeFdoExtensionCommonFields(PPCI_FDO_EXTENSION FdoExtension,
                                       IN PDEVICE_OBJECT DeviceObject,
                                       IN PDEVICE_OBJECT PhysicalDeviceObject)
 {
+    DPRINT("PciInitializeFdoExtensionCommonFields: %p, %p, %p\n", FdoExtension, DeviceObject, PhysicalDeviceObject);
+
     /* Initialize the extension */
     RtlZeroMemory(FdoExtension, sizeof(PCI_FDO_EXTENSION));
 
@@ -476,6 +490,8 @@ PciGetNextCmPartialDescriptor(
     _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
 {
     PCM_PARTIAL_RESOURCE_DESCRIPTOR NextDescriptor;
+
+    DPRINT("PCIX: .. \n");
 
     /* Assume the descriptors are the fixed size ones */
     NextDescriptor = (CmDescriptor + 1);

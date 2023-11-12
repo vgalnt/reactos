@@ -52,6 +52,8 @@ PciStallForPowerChange(IN PPCI_PDO_EXTENSION PdoExtension,
     PCI_PMCSR Pmcsr;
     KIRQL Irql;
 
+    DPRINT("PCIX: .. \n");
+
     /* Make sure the power state is valid, and the device can support it */
     ASSERT((PdoExtension->PowerState.CurrentDeviceState >= PowerDeviceD0) &&
            (PdoExtension->PowerState.CurrentDeviceState <= PowerDeviceD3));
@@ -125,6 +127,8 @@ PciSetPowerManagedDevicePowerState(IN PPCI_PDO_EXTENSION DeviceExtension,
     NTSTATUS Status;
     PCI_PM_CAPABILITY PmCaps;
     ULONG CapsOffset;
+
+    DPRINT("PCIX: .. \n");
 
     /* Assume success */
     Status = STATUS_SUCCESS;

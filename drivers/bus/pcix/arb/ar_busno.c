@@ -131,7 +131,7 @@ arbusno_Constructor(IN PVOID DeviceExtension,
         if (FdoExtension->ArbitersInitialized)
         {
             /* Not yet implemented */
-            UNIMPLEMENTED;
+            UNIMPLEMENTED_DBGBREAK();
             while (TRUE);
         }
         else

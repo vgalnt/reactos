@@ -72,6 +72,8 @@ PciStringToUSHORT(IN PWCHAR String,
     ULONG Low, High, Length;
     WCHAR Char;
 
+    //DPRINT("PciStringToUSHORT: .. \n");
+
     /* Initialize everything to zero */
     Short = 0;
     Length = 0;
@@ -403,6 +405,8 @@ PciFindParentPciFdoExtension(IN PDEVICE_OBJECT DeviceObject,
     PPCI_FDO_EXTENSION DeviceExtension;
     PPCI_PDO_EXTENSION SearchExtension, FoundExtension;
 
+    DPRINT("PciFindParentPciFdoExtension: %p\n", DeviceObject);
+
     /* Assume we'll find nothing */
     SearchExtension = DeviceObject->DeviceExtension;
     FoundExtension = NULL;
@@ -462,7 +466,9 @@ PciInsertEntryAtTail(IN PSINGLE_LIST_ENTRY ListHead,
                      IN PKEVENT Lock)
 {
     PSINGLE_LIST_ENTRY NextEntry;
+
     PAGED_CODE();
+    DPRINT("PciInsertEntryAtTail: %p, %p\n", ListHead, DeviceExtension);
 
     /* Check if a lock was specified */
     if (Lock)
@@ -492,6 +498,7 @@ PciInsertEntryAtHead(IN PSINGLE_LIST_ENTRY ListHead,
                      IN PKEVENT Lock)
 {
     PAGED_CODE();
+    //DPRINT("PciInsertEntryAtHead: %p, %p\n", ListHead, Entry);
 
     /* Check if a lock was specified */
     if (Lock)
@@ -523,6 +530,7 @@ PcipLinkSecondaryExtension(IN PSINGLE_LIST_ENTRY List,
                            IN PVOID Destructor)
 {
     PAGED_CODE();
+    DPRINT("PcipLinkSecondaryExtension: %p, %p, %X\n", List, SecondaryExtension, ExtensionType);
 
     /* Setup the extension data, and insert it into the primary's list */
     SecondaryExtension->ExtensionType = ExtensionType;
@@ -539,6 +547,9 @@ PciGetDeviceProperty(IN PDEVICE_OBJECT DeviceObject,
     NTSTATUS Status;
     ULONG BufferLength, ResultLength;
     PVOID Buffer;
+
+    DPRINT("PciGetDeviceProperty: %p, %X\n", DeviceObject, DeviceProperty);
+
     do
     {
         /* Query the requested property size */
@@ -600,7 +611,10 @@ PciSendIoctl(IN PDEVICE_OBJECT DeviceObject,
     KEVENT Event;
     IO_STATUS_BLOCK IoStatusBlock;
     PDEVICE_OBJECT AttachedDevice;
+
     PAGED_CODE();
+    DPRINT("PciSendIoctl: %p, %X, %p, %X, %p, %X\n", DeviceObject, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength);
+
 
     /* Initialize the pending IRP event */
     KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
@@ -647,6 +661,8 @@ PciFindNextSecondaryExtension(IN PSINGLE_LIST_ENTRY ListHead,
     PSINGLE_LIST_ENTRY NextEntry;
     PPCI_SECONDARY_EXTENSION Extension;
 
+    DPRINT("PciFindNextSecondaryExtension: %p, %X\n", ListHead, ExtensionType);
+
     /* Scan the list */
     for (NextEntry = ListHead; NextEntry; NextEntry = NextEntry->Next)
     {
@@ -671,7 +687,9 @@ PciGetHackFlags(IN USHORT VendorId,
     ULONGLONG HackFlags;
     ULONG LastWeight, MatchWeight;
     ULONG EntryFlags;
-    
+
+    DPRINT("PCIX: .. \n");
+
     /* ReactOS SetupLDR Hack */
     if (!PciHackTable) return 0;
 
@@ -732,6 +750,8 @@ NTAPI
 PciIsCriticalDeviceClass(IN UCHAR BaseClass,
                          IN UCHAR SubClass)
 {
+    DPRINT("PCIX: .. \n");
+
     /* Check for system or bridge devices */
     if (BaseClass == PCI_CLASS_BASE_SYSTEM_DEV)
     {
@@ -758,6 +778,8 @@ PciFindPdoByFunction(IN PPCI_FDO_EXTENSION DeviceExtension,
 {
     KIRQL Irql;
     PPCI_PDO_EXTENSION PdoExtension;
+
+    DPRINT("PCIX: .. \n");
 
     /* Get the current IRQL when this call was made */
     Irql = KeGetCurrentIrql();
@@ -811,6 +833,7 @@ NTAPI
 PciIsDeviceOnDebugPath(IN PPCI_PDO_EXTENSION DeviceExtension)
 {
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     UNREFERENCED_PARAMETER(DeviceExtension);
 
@@ -836,7 +859,9 @@ PciGetBiosConfig(IN PPCI_PDO_EXTENSION DeviceExtension,
     PKEY_VALUE_PARTIAL_INFORMATION PartialInfo = (PVOID)DataBuffer;
     NTSTATUS Status;
     ULONG ResultLength;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Open the PCI key */
     Status = IoOpenDeviceRegistryKey(DeviceExtension->ParentFdoExtension->
@@ -896,7 +921,9 @@ PciSaveBiosConfig(IN PPCI_PDO_EXTENSION DeviceExtension,
     UNICODE_STRING KeyName, KeyValue;
     WCHAR Buffer[32];
     NTSTATUS Status;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Open the PCI key */
     Status = IoOpenDeviceRegistryKey(DeviceExtension->ParentFdoExtension->
@@ -950,6 +977,8 @@ PciReadDeviceCapability(IN PPCI_PDO_EXTENSION DeviceExtension,
                         IN ULONG Length)
 {
     ULONG CapabilityCount = 0;
+
+    DPRINT("PCIX: .. \n");
 
     /* If the device has no capabilility list, fail */
     if (!Offset) return 0;
@@ -1019,6 +1048,8 @@ PciCanDisableDecodes(IN PPCI_PDO_EXTENSION DeviceExtension,
 {
     UCHAR BaseClass, SubClass;
     BOOLEAN IsVga;
+
+    DPRINT("PCIX: .. \n");
 
     /* Is there a device extension or should the PCI header be used? */
     if (DeviceExtension)
@@ -1110,6 +1141,8 @@ PCI_DEVICE_TYPES
 NTAPI
 PciClassifyDeviceType(IN PPCI_PDO_EXTENSION PdoExtension)
 {
+    DPRINT("PCIX: .. \n");
+
     ASSERT(PdoExtension->ExtensionType == PciPdoExtensionType);
 
     /* Differentiate between devices and bridges */
@@ -1129,6 +1162,8 @@ NTAPI
 PciExecuteCriticalSystemRoutine(IN ULONG_PTR IpiContext)
 {
     PPCI_IPI_CONTEXT Context = (PPCI_IPI_CONTEXT)IpiContext;
+
+    DPRINT("PCIX: .. \n");
 
     /* Check if the IPI is already running */
     if (!InterlockedDecrement(&Context->RunCount))
@@ -1160,7 +1195,9 @@ PciIsSlotPresentInParentMethod(IN PPCI_PDO_EXTENSION PdoExtension,
     PACPI_EVAL_OUTPUT_BUFFER OutputBuffer;
     ULONG i, Length;
     NTSTATUS Status;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Assume slot is not part of the parent method */
     FoundSlot = FALSE;
@@ -1219,6 +1256,8 @@ PciGetLengthFromBar(IN ULONG Bar)
 {
     ULONG Length;
 
+    DPRINT("PCIX: .. \n");
+
     /* I/O addresses vs. memory addresses start differently due to alignment */
     Length = 1 << ((Bar & PCI_ADDRESS_IO_SPACE) ? 2 : 4);
 
@@ -1238,6 +1277,8 @@ PciCreateIoDescriptorFromBarLimit(PIO_RESOURCE_DESCRIPTOR ResourceDescriptor,
 {
     ULONG CurrentBar, BarLength, BarMask;
     BOOLEAN Is64BitBar = FALSE;
+
+    DPRINT("PCIX: .. \n");
 
     /* Check if the BAR is nor I/O nor memory */
     CurrentBar = BarArray[0];
@@ -1330,6 +1371,8 @@ PciDecodeEnable(IN PPCI_PDO_EXTENSION PdoExtension,
 {
     USHORT CommandValue;
 
+    DPRINT("PCIX: .. \n");
+
     /*
      * If decodes are being disabled, make sure it's allowed, and in both cases,
      * make sure that a hackflag isn't preventing touching the decodes at all.
@@ -1378,6 +1421,8 @@ PciQueryBusInformation(IN PPCI_PDO_EXTENSION PdoExtension,
 {
     PPNP_BUS_INFORMATION BusInfo;
 
+    DPRINT("PCIX: .. \n");
+
     UNREFERENCED_PARAMETER(Buffer);
 
     /* Allocate a structure for the bus information */
@@ -1402,6 +1447,8 @@ PciDetermineSlotNumber(IN PPCI_PDO_EXTENSION PdoExtension,
     ULONG ResultLength;
     NTSTATUS Status;
     PSLOT_INFO SlotInfo;
+
+    DPRINT("PCIX: .. \n");
 
     /* Check if a $PIR from the BIOS is used (legacy IRQ routing) */
     ParentExtension = PdoExtension->ParentFdoExtension;
@@ -1469,7 +1516,9 @@ PciGetDeviceCapabilities(IN PDEVICE_OBJECT DeviceObject,
     PDEVICE_OBJECT AttachedDevice;
     PIO_STACK_LOCATION IoStackLocation;
     IO_STATUS_BLOCK IoStatusBlock;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Zero out capabilities and set undefined values to start with */
     RtlZeroMemory(DeviceCapability, sizeof(DEVICE_CAPABILITIES));
@@ -1542,6 +1591,8 @@ PciQueryPowerCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
     DEVICE_CAPABILITIES AttachedCaps;
     DEVICE_POWER_STATE NewPowerState, DevicePowerState, DeviceWakeLevel, DeviceWakeState;
     SYSTEM_POWER_STATE SystemWakeState, DeepestWakeState, CurrentState;
+
+    DPRINT("PCIX: .. \n");
 
     /* Nothing is known at first */
     DeviceWakeState = PowerDeviceUnspecified;
@@ -1788,6 +1839,8 @@ PciQueryCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
                      IN OUT PDEVICE_CAPABILITIES DeviceCapability)
 {
     NTSTATUS Status;
+
+    DPRINT("PCIX: .. \n");
 
     /* A PDO ID is never unique, and its address is its function and device */
     DeviceCapability->UniqueID = FALSE;

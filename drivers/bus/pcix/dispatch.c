@@ -26,6 +26,8 @@ PciSetEventCompletion(IN PDEVICE_OBJECT DeviceObject,
     PKEVENT Event = (PVOID)Context;
     ASSERT(Event);
 
+    DPRINT("PciSetEventCompletion: %p\n", Irp);
+
     UNREFERENCED_PARAMETER(DeviceObject);
     UNREFERENCED_PARAMETER(Irp);
 
@@ -41,8 +43,9 @@ PciCallDownIrpStack(IN PPCI_FDO_EXTENSION DeviceExtension,
 {
     NTSTATUS Status;
     KEVENT Event;
+
     PAGED_CODE();
-    DPRINT1("PciCallDownIrpStack ...\n");
+    DPRINT("PciCallDownIrpStack ...\n");
     ASSERT_FDO(DeviceExtension);
 
     /* Initialize the wait event */
@@ -72,7 +75,8 @@ PciPassIrpFromFdoToPdo(IN PPCI_FDO_EXTENSION DeviceExtension,
 {
     PIO_STACK_LOCATION IoStackLocation;
     NTSTATUS Status;
-    DPRINT1("Pci PassIrp ...\n");
+
+    DPRINT("Pci PassIrp ...\n");
 
     /* Get the stack location to check which function this is */
     IoStackLocation = IoGetCurrentIrpStackLocation(Irp);

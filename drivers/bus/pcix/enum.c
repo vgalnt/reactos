@@ -63,7 +63,9 @@ PciComputeNewCurrentSettings(IN PPCI_PDO_EXTENSION PdoExtension,
     BOOLEAN DrainPartial, RangeChange;
     ULONG i, j;
     PPCI_FUNCTION_RESOURCES PciResources;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Make sure we have either no resources, or at least one */
     ASSERT((ResourceList == NULL) || (ResourceList->Count == 1));
@@ -181,8 +183,8 @@ PciComputeNewCurrentSettings(IN PPCI_PDO_EXTENSION PdoExtension,
     if (!PciResources) return FALSE;
 
     //if... // MISSING CODE
-    UNIMPLEMENTED;
     DPRINT1("Missing sanity checking code!\n");
+    UNIMPLEMENTED_DBGBREAK();
 
     /* Loop all the PCI function resources */
     for (i = 0; i < 7; i++)
@@ -241,6 +243,8 @@ PcipUpdateHardware(IN PVOID Context,
     PPCI_PDO_EXTENSION PdoExtension = Context;
     PPCI_COMMON_HEADER PciData = Context2;
 
+    DPRINT("PCIX: .. \n");
+
     /* Check if we're allowed to disable decodes */
     PciData->Command = PdoExtension->CommandEnables;
     if (!(PdoExtension->HackFlags & PCI_HACK_PRESERVE_COMMAND))
@@ -266,6 +270,8 @@ PciUpdateHardware(IN PPCI_PDO_EXTENSION PdoExtension,
                   IN PPCI_COMMON_HEADER PciData)
 {
     PCI_IPI_CONTEXT Context;
+
+    DPRINT("PCIX: .. \n");
 
     /* Check for critical devices and PCI Debugging devices */
     if ((PdoExtension->HackFlags & PCI_HACK_CRITICAL_DEVICE) ||
@@ -294,6 +300,8 @@ PciAllocateIoRequirementsList(IN ULONG Count,
 {
     SIZE_T Size;
     PIO_RESOURCE_REQUIREMENTS_LIST RequirementsList;
+
+    DPRINT("PCIX: .. \n");
 
     /* Calculate the final size of the list, including each descriptor */
     Size = sizeof(IO_RESOURCE_REQUIREMENTS_LIST);
@@ -326,6 +334,8 @@ PciAllocateCmResourceList(IN ULONG Count,
 {
     SIZE_T Size;
     PCM_RESOURCE_LIST ResourceList;
+
+    DPRINT("PCIX: .. \n");
 
     /* Calculate the final size of the list, including each descriptor */
     Size = sizeof(CM_RESOURCE_LIST);
@@ -361,7 +371,9 @@ PciQueryResources(IN PPCI_PDO_EXTENSION PdoExtension,
     PCM_PARTIAL_RESOURCE_DESCRIPTOR Partial, Resource, LastResource;
     PCM_RESOURCE_LIST ResourceList;
     UCHAR InterruptLine;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Assume failure */
     Count = 0;
@@ -512,7 +524,9 @@ PciQueryTargetDeviceRelations(IN PPCI_PDO_EXTENSION PdoExtension,
                               IN OUT PDEVICE_RELATIONS *pDeviceRelations)
 {
     PDEVICE_RELATIONS DeviceRelations;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* If there were existing relations, free them */
     if (*pDeviceRelations) ExFreePoolWithTag(*pDeviceRelations, 0);
@@ -554,6 +568,8 @@ PciBuildRequirementsList(IN PPCI_PDO_EXTENSION PdoExtension,
 {
     PIO_RESOURCE_REQUIREMENTS_LIST RequirementsList;
 
+    DPRINT("PCIX: .. \n");
+
     UNREFERENCED_PARAMETER(PdoExtension);
     UNREFERENCED_PARAMETER(PciData);
 
@@ -585,7 +601,9 @@ PciQueryRequirements(IN PPCI_PDO_EXTENSION PdoExtension,
 {
     NTSTATUS Status;
     PCI_COMMON_HEADER PciHeader;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Check if the PDO has any resources, or at least an interrupt pin */
     if ((PdoExtension->Resources) || (PdoExtension->InterruptPin))
@@ -658,6 +676,8 @@ PciConfigureIdeController(IN PPCI_PDO_EXTENSION PdoExtension,
     UCHAR MasterMode, SlaveMode, MasterFixed, SlaveFixed, ProgIf, NewProgIf;
     BOOLEAN Switched;
     USHORT Command;
+
+    DPRINT("PCIX: .. \n");
 
     /* Assume it won't work */
     Switched = FALSE;
@@ -800,6 +820,8 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
     ULONG LegacyBaseAddress;
     USHORT Command;
     UCHAR RegValue;
+
+    DPRINT("PCIX: .. \n");
 
     UNREFERENCED_PARAMETER(SlotNumber);
 
@@ -1066,6 +1088,8 @@ PcipIsSameDevice(IN PPCI_PDO_EXTENSION DeviceExtension,
     BOOLEAN IdMatch, RevMatch, SubsysMatch;
     ULONGLONG HackFlags = DeviceExtension->HackFlags;
 
+    DPRINT("PCIX: .. \n");
+
     /* Check if the IDs match */
     IdMatch = (PciData->VendorID == DeviceExtension->VendorId) &&
               (PciData->DeviceID == DeviceExtension->DeviceId);
@@ -1099,6 +1123,8 @@ PciSkipThisFunction(IN PPCI_COMMON_HEADER PciData,
                     IN UCHAR OperationType,
                     IN ULONGLONG HackFlags)
 {
+    DPRINT("PCIX: .. \n");
+
     do
     {
         /* Check if this is device enumeration */
@@ -1175,7 +1201,9 @@ PciGetEnhancedCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
     DEVICE_POWER_STATE WakeLevel;
     PCI_CAPABILITIES_HEADER AgpCapability;
     PCI_PM_CAPABILITY PowerCapabilities;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Assume no known wake level */
     PdoExtension->PowerState.DeviceWakeLevel = PowerDeviceUnspecified;
@@ -1303,6 +1331,8 @@ PciWriteLimitsAndRestoreCurrent(IN PVOID Reserved,
     PPCI_COMMON_HEADER PciData, Current;
     PPCI_PDO_EXTENSION PdoExtension;
 
+    DPRINT("PCIX: .. \n");
+
     UNREFERENCED_PARAMETER(Reserved);
 
     /* Grab all parameters from the context */
@@ -1347,7 +1377,9 @@ PcipGetFunctionLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
     PCI_IPI_CONTEXT IpiContext;
     PIO_RESOURCE_DESCRIPTOR IoDescriptor;
     ULONG Offset;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Grab all parameters from the context */
     PdoExtension = Context->PdoExtension;
@@ -1489,6 +1521,8 @@ PciGetFunctionLimits(IN PPCI_PDO_EXTENSION PdoExtension,
     PCI_CONFIGURATOR_CONTEXT Context;
     PAGED_CODE();
 
+    DPRINT("PCIX: .. \n");
+
     /* Do the hackflags indicate this device should be skipped? */
     if (PciSkipThisFunction(Current,
                             PdoExtension->Slot,
@@ -1520,7 +1554,9 @@ PciProcessBus(IN PPCI_FDO_EXTENSION DeviceExtension)
 {
     PPCI_PDO_EXTENSION PdoExtension;
     PDEVICE_OBJECT PhysicalDeviceObject;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Get the PDO Extension */
     PhysicalDeviceObject = DeviceExtension->PhysicalDeviceObject;
@@ -1589,6 +1625,7 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
     USHORT SubVendorId, SubSystemId;
     PCI_CAPABILITIES_HEADER CapHeader, PcixCapHeader;
     UCHAR SecondaryBus;
+
     DPRINT1("PCI Scan Bus: FDO Extension @ 0x%p, Base Bus = 0x%x\n",
             DeviceExtension, DeviceExtension->BaseBus);
 
@@ -1801,7 +1838,7 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
             {
                 /* This path has not yet been fully tested by eVb */
                 DPRINT1("Have BIOS configuration!\n");
-                UNIMPLEMENTED;
+                UNIMPLEMENTED_DBGBREAK();
 
                 /* Check if the PCI BIOS configuration has changed */
                 if (!PcipIsSameDevice(NewExtension, BiosData))
@@ -2040,7 +2077,9 @@ PciQueryDeviceRelations(IN PPCI_FDO_EXTENSION DeviceExtension,
     PDEVICE_RELATIONS DeviceRelations, NewRelations;
     SIZE_T Size;
     PDEVICE_OBJECT DeviceObject, *ObjectArray;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Make sure the FDO is started */
     ASSERT(DeviceExtension->DeviceState == PciStarted);
@@ -2161,6 +2200,8 @@ PciSetResources(IN PPCI_PDO_EXTENSION PdoExtension,
     PCI_COMMON_HEADER PciData;
     BOOLEAN Native;
     PPCI_CONFIGURATOR Configurator;
+
+    DPRINT("PCIX: .. \n");
 
     UNREFERENCED_PARAMETER(SomethingSomethingDarkSide);
 

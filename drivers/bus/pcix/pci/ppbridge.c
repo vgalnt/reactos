@@ -747,7 +747,7 @@ PPBridge_ChangeResourceSettings(IN PPCI_PDO_EXTENSION PdoExtension,
         /* Loop each resource type (the BARs, ROM BAR and Prefetch) */
         for (i = 0; i < 6; i++)
         {
-            UNIMPLEMENTED;
+            UNIMPLEMENTED_DBGBREAK();
         }
     }
 

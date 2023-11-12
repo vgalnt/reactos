@@ -249,7 +249,7 @@ ario_Constructor(IN PVOID DeviceExtension,
         if (FdoExtension->ArbitersInitialized)
         {
             /* Not yet implemented */
-            UNIMPLEMENTED;
+            UNIMPLEMENTED_DBGBREAK();
             while (TRUE);
         }
         else
@@ -301,7 +301,7 @@ ario_ApplyBrokenVideoHack(IN PPCI_FDO_EXTENSION FdoExtension)
     ASSERT(NT_SUCCESS(Status));
 #else
     //Status = STATUS_SUCCESS;
-    UNIMPLEMENTED;
+    UNIMPLEMENTED_DBGBREAK();
     while (TRUE);
 #endif
     /* Now the hack has been applied */
@@ -410,7 +410,7 @@ armem_Constructor(IN PVOID DeviceExtension,
         if (FdoExtension->ArbitersInitialized)
         {
             /* Not yet implemented */
-            UNIMPLEMENTED;
+            UNIMPLEMENTED_DBGBREAK();
             while (TRUE);
         }
         else

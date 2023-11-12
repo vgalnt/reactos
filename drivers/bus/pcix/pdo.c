@@ -98,7 +98,7 @@ PciPdoSetPowerState(IN PIRP Irp,
     UNREFERENCED_PARAMETER(IoStackLocation);
     UNREFERENCED_PARAMETER(DeviceExtension);
 
-    UNIMPLEMENTED;
+    UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_SUPPORTED;
 }
 
@@ -125,7 +125,9 @@ PciPdoIrpStartDevice(IN PIRP Irp,
     NTSTATUS Status;
     BOOLEAN Changed, DoReset;
     POWER_STATE PowerState;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     UNREFERENCED_PARAMETER(Irp);
 
@@ -225,7 +227,7 @@ PciPdoIrpQueryRemoveDevice(IN PIRP Irp,
     UNREFERENCED_PARAMETER(IoStackLocation);
     UNREFERENCED_PARAMETER(DeviceExtension);
 
-    UNIMPLEMENTED;
+    UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_SUPPORTED;
 }
 
@@ -320,7 +322,9 @@ PciPdoIrpQueryDeviceRelations(IN PIRP Irp,
                               IN PPCI_PDO_EXTENSION DeviceExtension)
 {
     NTSTATUS Status;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Are ejection relations being queried? */
     if (IoStackLocation->Parameters.QueryDeviceRelations.Type == EjectionRelations)
@@ -354,6 +358,7 @@ PciPdoIrpQueryCapabilities(IN PIRP Irp,
                            IN PPCI_PDO_EXTENSION DeviceExtension)
 {
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     UNREFERENCED_PARAMETER(Irp);
 
@@ -370,6 +375,7 @@ PciPdoIrpQueryResources(IN PIRP Irp,
                         IN PPCI_PDO_EXTENSION DeviceExtension)
 {
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     UNREFERENCED_PARAMETER(IoStackLocation);
 
@@ -385,6 +391,7 @@ PciPdoIrpQueryResourceRequirements(IN PIRP Irp,
                                    IN PPCI_PDO_EXTENSION DeviceExtension)
 {
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     UNREFERENCED_PARAMETER(IoStackLocation);
 
@@ -401,6 +408,7 @@ PciPdoIrpQueryDeviceText(IN PIRP Irp,
                          IN PPCI_PDO_EXTENSION DeviceExtension)
 {
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Call the worker function */
     return PciQueryDeviceText(DeviceExtension,
@@ -418,6 +426,7 @@ PciPdoIrpQueryId(IN PIRP Irp,
                  IN PPCI_PDO_EXTENSION DeviceExtension)
 {
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Call the worker function */
     return PciQueryId(DeviceExtension,
@@ -432,6 +441,7 @@ PciPdoIrpQueryBusInformation(IN PIRP Irp,
                              IN PPCI_PDO_EXTENSION DeviceExtension)
 {
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     UNREFERENCED_PARAMETER(IoStackLocation);
 
@@ -479,7 +489,8 @@ PciPdoIrpQueryDeviceState(IN PIRP Irp,
     UNREFERENCED_PARAMETER(IoStackLocation);
     UNREFERENCED_PARAMETER(DeviceExtension);
 
-    UNIMPLEMENTED;
+        UNIMPLEMENTED_DBGBREAK();
+;
     return STATUS_NOT_SUPPORTED;
 }
 
@@ -537,7 +548,9 @@ PciPdoCreate(IN PPCI_FDO_EXTENSION DeviceExtension,
     PDEVICE_OBJECT DeviceObject;
     PPCI_PDO_EXTENSION PdoExtension;
     ULONG SequenceNumber;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
 
     /* Pick an atomically unique sequence number for this device */
     SequenceNumber = InterlockedIncrement(&PciPdoSequenceNumber);

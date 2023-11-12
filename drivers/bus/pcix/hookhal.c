@@ -33,7 +33,7 @@ PciTranslateBusAddress(IN INTERFACE_TYPE InterfaceType,
     UNREFERENCED_PARAMETER(AddressSpace);
 
     /* FIXME: Broken translation */
-    UNIMPLEMENTED;
+    UNIMPLEMENTED_DBGBREAK();
     TranslatedAddress->QuadPart = BusAddress.QuadPart;
     return TRUE;
 }
@@ -47,6 +47,8 @@ PciFindPdoByLocation(IN ULONG BusNumber,
     PPCI_PDO_EXTENSION PdoExtension;
     PCI_SLOT_NUMBER PciSlot;
     PciSlot.u.AsULONG = SlotNumber;
+
+    DPRINT("PCIX: .. \n");
 
     /* Acquire the global lock */
     KeEnterCriticalRegion();
@@ -133,7 +135,10 @@ PciAssignSlotResources(IN PUNICODE_STRING RegistryPath,
     PPCI_PDO_EXTENSION PdoExtension;
     NTSTATUS Status;
     PDEVICE_OBJECT ExistingDeviceObject;
+
     PAGED_CODE();
+    DPRINT("PCIX: .. \n");
+
     ASSERT(PcipSavedAssignSlotResources);
     ASSERT(BusType == PCIBus);
 
@@ -200,7 +205,7 @@ PciAssignSlotResources(IN PUNICODE_STRING RegistryPath,
                         ASSERT(Resources->Count == 1);
                         //ASSERT(PartialList->Count > 0);
 
-                        UNIMPLEMENTED;
+                        UNIMPLEMENTED_DBGBREAK();
 
                         /* Return the allocated resources, and success */
                         *AllocatedResources = Resources;
