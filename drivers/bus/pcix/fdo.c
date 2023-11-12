@@ -459,18 +459,19 @@ PciGetHotPlugParameters(IN PPCI_FDO_EXTENSION FdoExtension)
 
 VOID
 NTAPI
-PciInitializeFdoExtensionCommonFields(PPCI_FDO_EXTENSION FdoExtension,
-                                      IN PDEVICE_OBJECT DeviceObject,
-                                      IN PDEVICE_OBJECT PhysicalDeviceObject)
+PciInitializeFdoExtensionCommonFields(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PDEVICE_OBJECT Pdo)
 {
-    DPRINT("PciInitializeFdoExtensionCommonFields: %p, %p, %p\n", FdoExtension, DeviceObject, PhysicalDeviceObject);
+    DPRINT("PciInitializeFdoExtensionCommonFields: %p, %p, %p\n", FdoExtension, Fdo, Pdo);
 
     /* Initialize the extension */
     RtlZeroMemory(FdoExtension, sizeof(PCI_FDO_EXTENSION));
 
     /* Setup the common fields */
-    FdoExtension->PhysicalDeviceObject = PhysicalDeviceObject;
-    FdoExtension->FunctionalDeviceObject = DeviceObject;
+    FdoExtension->PhysicalDeviceObject = Pdo;
+    FdoExtension->FunctionalDeviceObject = Fdo;
     FdoExtension->ExtensionType = PciFdoExtensionType;
     FdoExtension->PowerState.CurrentSystemState = PowerSystemWorking;
     FdoExtension->PowerState.CurrentDeviceState = PowerDeviceD0;
