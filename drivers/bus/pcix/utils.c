@@ -399,11 +399,13 @@ PciBuildDefaultExclusionLists(VOID)
 
 PPCI_FDO_EXTENSION
 NTAPI
-PciFindParentPciFdoExtension(IN PDEVICE_OBJECT DeviceObject,
-                             IN PKEVENT Lock)
+PciFindParentPciFdoExtension(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PKEVENT Lock)
 {
-    PPCI_FDO_EXTENSION DeviceExtension;
-    PPCI_PDO_EXTENSION SearchExtension, FoundExtension;
+    PPCI_FDO_EXTENSION FdoExtension;
+    PPCI_PDO_EXTENSION SearchExtension;
+    PPCI_PDO_EXTENSION FoundExtension;
 
     DPRINT("PciFindParentPciFdoExtension: %p\n", DeviceObject);
 
@@ -420,31 +422,28 @@ PciFindParentPciFdoExtension(IN PDEVICE_OBJECT DeviceObject,
     }
 
     /* Now search for the extension */
-    DeviceExtension = (PPCI_FDO_EXTENSION)PciFdoExtensionListHead.Next;
-    while (DeviceExtension)
+    FdoExtension = (PPCI_FDO_EXTENSION)PciFdoExtensionListHead.Next;
+    while (FdoExtension)
     {
         /* Acquire this device's lock */
         KeEnterCriticalRegion();
-        KeWaitForSingleObject(&DeviceExtension->ChildListLock,
-                              Executive,
-                              KernelMode,
-                              FALSE,
-                              NULL);
+        KeWaitForSingleObject(&FdoExtension->ChildListLock, Executive, KernelMode, FALSE, NULL);
 
         /* Scan all children PDO, stop when no more PDOs, or found it */
-        for (FoundExtension = DeviceExtension->ChildPdoList;
-             ((FoundExtension) && (FoundExtension != SearchExtension));
+        for (FoundExtension = FdoExtension->ChildPdoList;
+             (FoundExtension && FoundExtension != SearchExtension);
              FoundExtension = FoundExtension->Next);
 
         /* Release this device's lock */
-        KeSetEvent(&DeviceExtension->ChildListLock, IO_NO_INCREMENT, FALSE);
+        KeSetEvent(&FdoExtension->ChildListLock, IO_NO_INCREMENT, FALSE);
         KeLeaveCriticalRegion();
 
         /* If we found it, break out */
-        if (FoundExtension) break;
+        if (FoundExtension)
+            break;
 
         /* Move to the next device */
-        DeviceExtension = (PPCI_FDO_EXTENSION)DeviceExtension->List.Next;
+        FdoExtension = (PPCI_FDO_EXTENSION)DeviceExtension->List.Next;
     }
 
     /* Check if we had acquired a lock previously */
@@ -456,7 +455,7 @@ PciFindParentPciFdoExtension(IN PDEVICE_OBJECT DeviceObject,
     }
 
     /* Return which extension was found, if any */
-    return DeviceExtension;
+    return FdoExtension;
 }
 
 VOID
