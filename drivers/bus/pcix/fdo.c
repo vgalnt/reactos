@@ -389,7 +389,8 @@ PciFdoIrpQueryLegacyBusInformation(
 
 VOID
 NTAPI
-PciGetHotPlugParameters(IN PPCI_FDO_EXTENSION FdoExtension)
+PciGetHotPlugParameters(
+    _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
     ACPI_EVAL_INPUT_BUFFER InputBuffer;
     PACPI_EVAL_OUTPUT_BUFFER OutputBuffer;
@@ -400,16 +401,22 @@ PciGetHotPlugParameters(IN PPCI_FDO_EXTENSION FdoExtension)
     DPRINT("PciGetHotPlugParameters: %p\n", FdoExtension);
 
     /* We should receive 4 parameters, per the HPP specification */
-    Length = sizeof(ACPI_EVAL_OUTPUT_BUFFER) + 4 * sizeof(ACPI_METHOD_ARGUMENT);
+    Length = (sizeof(ACPI_EVAL_OUTPUT_BUFFER) + 4 * sizeof(ACPI_METHOD_ARGUMENT));
 
     /* Allocate the buffer to hold the parameters */
     OutputBuffer = ExAllocatePoolWithTag(PagedPool, Length, PCI_POOL_TAG);
-    if (!OutputBuffer) return;
+    if (!OutputBuffer)
+    {
+        DPRINT1("PciGetHotPlugParameters: allocate failed\n");
+        return;
+    }
 
     /* Initialize the output and input buffers. The method is _HPP */
     RtlZeroMemory(OutputBuffer, Length);
+
     *(PULONG)InputBuffer.MethodName = 'PPH_';
     InputBuffer.Signature = ACPI_EVAL_INPUT_BUFFER_SIGNATURE;
+
     do
     {
         /* Send the IOCTL to the ACPI driver */
@@ -419,28 +426,31 @@ PciGetHotPlugParameters(IN PPCI_FDO_EXTENSION FdoExtension)
                               sizeof(InputBuffer),
                               OutputBuffer,
                               Length);
+
         if (!NT_SUCCESS(Status))
         {
+            DPRINT("PciGetHotPlugParameters: Status %X\n", Status);
+
             /* The method failed, check if we can salvage data from parent */
             if (!PCI_IS_ROOT_FDO(FdoExtension))
-            {
                 /* Copy the root bus' hot plug parameters */
                 FdoExtension->HotPlugParameters = FdoExtension->ParentFdoExtension->HotPlugParameters;
-            }
 
             /* Nothing more to do on this path */
             break;
         }
 
         /* ACPI sent back some data. 4 parameters are expected in the output */
-        if (OutputBuffer->Count != 4) break;
+        if (OutputBuffer->Count != 4)
+            break;
 
         /* HotPlug PCI Support not yet implemented */
         UNIMPLEMENTED_DBGBREAK();
-    } while (FALSE);
+    }
+    while (FALSE);
 
     /* Free the buffer and return */
-    ExFreePoolWithTag(OutputBuffer, 0);
+    ExFreePoolWithTag(OutputBuffer, PCI_POOL_TAG);
 }
 
 VOID
