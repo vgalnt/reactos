@@ -125,6 +125,25 @@ PciInitializeArbiters(
     return Status;
 }
 
+VOID
+NTAPI
+PcipInitializePartialListContext(
+    _In_ PPCI_PARTIAL_LIST_CONTEXT Context,
+    _In_ PCM_PARTIAL_RESOURCE_LIST PartialResourceList,
+    _In_ CM_RESOURCE_TYPE DesiredType)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+PCM_PARTIAL_RESOURCE_DESCRIPTOR
+NTAPI
+PcipGetNextRangeFromList(
+    _In_ PPCI_PARTIAL_LIST_CONTEXT Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 NTSTATUS
 NTAPI
 PciRangeListFromResourceList(
@@ -133,8 +152,327 @@ PciRangeListFromResourceList(
     _In_ ULONG DesiredType,
     _In_ PRTL_RANGE_LIST RangeList)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor = NULL;
+    PCM_FULL_RESOURCE_DESCRIPTOR CmFullList;
+    PCI_PARTIAL_LIST_CONTEXT Context;
+    PPCI_RANGE_LIST InitialPciRanges;
+    PPCI_RANGE_LIST CurrentPciRange;
+    PPCI_RANGE_LIST LowerPciRange;
+    PPCI_RANGE_LIST UpperPciRange;
+    PPCI_RANGE_LIST PciRangeList;
+    PPCI_RANGE_LIST NextPciRange;
+    ULONG Elements = 2;
+    ULONG PartialCount;
+    ULONG FullCount;
+    ULONGLONG Start;
+    ULONGLONG End;
+    ULONG nx;
+    NTSTATUS Status;
+
+    DPRINT("PciRangeListFromResourceList: %p, %X\n", CmResource, DesiredType);
+
+    PAGED_CODE();
+    ASSERT((DesiredType == CmResourceTypeMemory) || (DesiredType == CmResourceTypePort));
+
+    if (CmResource)
+    {
+        FullCount = CmResource->Count;
+        CmFullList = CmResource->List;
+
+        while (FullCount--)
+        {
+            PartialCount = CmFullList->PartialResourceList.Count;
+            CmDescriptor = CmFullList->PartialResourceList.PartialDescriptors;
+
+            while (PartialCount--)
+            {
+                if (CmDescriptor->Type == DesiredType)
+                {
+                    if (DesiredType == CmResourceTypePort)
+                    {
+                        if (CmDescriptor->Flags & 4)
+                            Elements += 0x3F;
+                        else if (CmDescriptor->Flags & 8)
+                            Elements += 0xF;
+                    }
+
+                    Elements++;
+                }
+
+                CmDescriptor = PciGetNextCmPartialDescriptor(CmDescriptor);
+            }
+
+            CmFullList = (PCM_FULL_RESOURCE_DESCRIPTOR)CmDescriptor;
+        }
+    }
+
+    DPRINT("PciRangeListFromResourceList: processing %X elements\n", (Elements - 2));
+
+    if (DesiredType == CmResourceTypeMemory && FdoExtension && !FdoExtension->BaseBus)
+        Elements += 3;
+
+    PciRangeList = ExAllocatePoolWithTag(PagedPool, (Elements * sizeof(PCI_RANGE_LIST)), 'BicP'); // POOL_TYPE 0x101
+    if (!PciRangeList)
+    {
+        DPRINT1("PciRangeListFromResourceList: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    nx = 2;
+    CurrentPciRange = (PciRangeList + 1);
+
+    PciRangeList[1].Start = 0;
+    PciRangeList[1].End = 0;
+    PciRangeList[1].Next = PciRangeList;
+    PciRangeList[1].Previous = PciRangeList;
+    PciRangeList[1].IsActive = FALSE;
+
+    PciRangeList[0].Start = 0xFFFFFFFFFFFFFFFF;
+    PciRangeList[0].End = 0xFFFFFFFFFFFFFFFF;
+    PciRangeList[0].Next = (PciRangeList + 1);
+    PciRangeList[0].Previous = (PciRangeList + 1);
+    PciRangeList[0].IsActive = FALSE;
+
+    if (DesiredType == CmResourceTypeMemory && FdoExtension && !FdoExtension->BaseBus)
+    {
+        PciRangeList[2].Start = 0x70;
+        PciRangeList[2].End = 0x70;
+        PciRangeList[2].IsActive = 1;
+        PciRangeList[2].Next = (PciRangeList + 3);
+        PciRangeList[2].Previous = CurrentPciRange;
+
+        PciRangeList[3].Start = 0x400;
+        PciRangeList[3].End = 0x4FF;
+        PciRangeList[3].IsActive = 1;
+        PciRangeList[3].Next = (PciRangeList + 4);
+        PciRangeList[3].Previous = (PciRangeList + 2);
+
+        PciRangeList[4].Start = 0xA0000;
+        PciRangeList[4].End = 0xBFFFF;
+        PciRangeList[4].IsActive = 1;
+        PciRangeList[4].Next = PciRangeList;
+        PciRangeList[4].Previous = (PciRangeList + 3);
+
+        nx = 5;
+        CurrentPciRange->Next = (PciRangeList + 2);
+
+        PciRangeList[0].Previous = (PciRangeList + 4);
+        InitialPciRanges = PciRangeList + 1;
+
+        DPRINT("    === PCI added default initial ranges ===\n");
+
+        do
+        {
+            if (InitialPciRanges->IsActive == 1)
+                DPRINT("    %I64X .. %I64X\n", InitialPciRanges->Start, InitialPciRanges->End);
+
+            InitialPciRanges = InitialPciRanges->Next;
+        }
+        while (InitialPciRanges != CurrentPciRange);
+
+        DPRINT("    === end added default initial ranges ===\n");
+    }
+
+    if (CmResource)
+    {
+        CmFullList = CmResource->List;
+        FullCount = CmResource->Count;
+
+        while (FullCount)
+        {
+            DPRINT("PciRangeListFromResourceList: CmFullList %p, FullCount %X\n", CmFullList, FullCount);
+
+            PcipInitializePartialListContext(&Context, &CmFullList->PartialResourceList, DesiredType);
+
+            while (TRUE)
+            {
+                CmDescriptor = PcipGetNextRangeFromList(&Context);
+                if (!CmDescriptor)
+                    break;
+
+                ASSERT(CmDescriptor->Type == DesiredType);
+
+                Start = (ULONGLONG)CmDescriptor->u.Generic.Start.QuadPart;
+                End = (Start + CmDescriptor->u.Generic.Length - 1);
+
+                DPRINT("PciRangeListFromResourceList: %p, %I64X, %I64X\n", CmDescriptor, Start, End);
+
+                LowerPciRange = CurrentPciRange;
+
+                while (Start > LowerPciRange->End)
+                    LowerPciRange = LowerPciRange->Next;
+
+                while (Start <= LowerPciRange->End)
+                {
+                    if (Start >= LowerPciRange->Start)
+                        break;
+
+                    LowerPciRange = LowerPciRange->Previous;
+                }
+
+                if (Start >= LowerPciRange->Start && End <= LowerPciRange->End)
+                {
+                    DPRINT("    -- (%I64X .. %I64X) swallows (%I64X .. %I64X)\n", LowerPciRange->Start, LowerPciRange->End, Start, End);
+                    CurrentPciRange = LowerPciRange;
+                    CurrentPciRange->IsActive = TRUE;
+                    continue;
+                }
+
+                UpperPciRange = LowerPciRange;
+
+                while (End > UpperPciRange->Start)
+                {
+                    if (End <= UpperPciRange->End)
+                        break;
+
+                    UpperPciRange = UpperPciRange->Next;
+                }
+
+                CurrentPciRange = &PciRangeList[nx];
+
+                CurrentPciRange->Start = Start;
+                CurrentPciRange->End = End;
+                CurrentPciRange->IsActive = TRUE;
+
+                nx++;
+
+                DPRINT("    (%I64X .. %I64X) <= (%I64X .. %I64X) <= (%I64X .. %I64X)\n", LowerPciRange->Start, LowerPciRange->End, Start, End, UpperPciRange->Start, UpperPciRange->End);
+
+                CurrentPciRange->Next = UpperPciRange;
+                CurrentPciRange->Previous = LowerPciRange;
+
+                UpperPciRange->Previous = CurrentPciRange;
+                LowerPciRange->Next = CurrentPciRange;
+
+                if (LowerPciRange->IsActive && Start > 0)
+                    Start--;
+
+                if (LowerPciRange->End >= Start)
+                {
+                    CurrentPciRange->Start = LowerPciRange->Start;
+                    CurrentPciRange->Previous = LowerPciRange->Previous;
+
+                    LowerPciRange = LowerPciRange->Previous;
+                    LowerPciRange->Next = CurrentPciRange;
+
+                    DPRINT("    -- Overlaps lower, merged to (%I64X .. %I64X)\n", CurrentPciRange->Start, CurrentPciRange->End);
+                }
+
+                if (UpperPciRange->IsActive && End < 0xFFFFFFFFFFFFFFFF)
+                    End++;
+
+                if (End >= UpperPciRange->Start && CurrentPciRange != UpperPciRange)
+                {
+                    CurrentPciRange->End = UpperPciRange->End;
+                    CurrentPciRange->Next = UpperPciRange->Next;
+
+                    UpperPciRange = UpperPciRange->Next;
+                    UpperPciRange->Previous = CurrentPciRange;
+
+                    DPRINT("    -- Overlaps upper, merged to (%I64X .. %I64X)\n", CurrentPciRange->Start, CurrentPciRange->End);
+                }
+            }
+
+            CmFullList = (PCM_FULL_RESOURCE_DESCRIPTOR)Context.PointToNextDescriptor;
+
+            FullCount--;
+            if (!FullCount)
+                break;
+        }
+    }
+
+    while (CurrentPciRange->IsActive)
+    {
+        LowerPciRange = CurrentPciRange->Previous;
+
+        if (!LowerPciRange->IsActive || LowerPciRange->Start > CurrentPciRange->Start) 
+            break;
+
+        CurrentPciRange = LowerPciRange;
+    }
+
+    LowerPciRange = CurrentPciRange;
+
+    if (!CurrentPciRange->IsActive)
+    {
+        DPRINT("    ==== No ranges in results list. ====\n");
+    }
+    else
+    {
+        DPRINT("    === ranges ===\n");
+
+        do
+        {
+            if (CurrentPciRange->IsActive)
+            {
+                DPRINT("    %I64X .. %I64X\n", CurrentPciRange->Start, CurrentPciRange->End);
+            }
+
+            CurrentPciRange = CurrentPciRange->Next;
+        }
+        while (CurrentPciRange != LowerPciRange);
+    }
+
+    if (!CurrentPciRange->IsActive)
+    {
+        DPRINT("    Adding to RtlRange  %I64X thru %I64X\n", Start, End);                                                         \
+
+        Status = RtlAddRange(RangeList, 0, 0xFFFFFFFFFFFFFFFF, 0, 0, NULL, NULL);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciRangeListFromResourceList: Status %X\n", Status);
+            ASSERT(NT_SUCCESS(Status));
+            goto Exit;
+        }
+
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    if (CurrentPciRange->Start)
+    {
+        DPRINT("    Adding to RtlRange  %I64X thru %I64X\n", Start, End);                                                         \
+
+        Status = RtlAddRange(RangeList, 0, (CurrentPciRange->Start - 1), 0, 0, NULL, NULL);
+        if (!NT_SUCCESS(Status))
+        {
+            ASSERT(NT_SUCCESS(Status));
+            goto Exit;
+        }
+    }
+
+    do
+    {
+        NextPciRange = CurrentPciRange->Next;
+
+        if (CurrentPciRange->IsActive)
+        {
+            Start = (CurrentPciRange->End + 1);
+            End = (NextPciRange->Start - 1);
+
+            if (End < Start || NextPciRange == PciRangeList)
+                End = 0xFFFFFFFFFFFFFFFF;
+
+            DPRINT("    Adding to RtlRange  %I64X thru %I64X\n", Start, End);  
+
+            Status = RtlAddRange(RangeList, Start, End, 0, 0, NULL, NULL);
+            if (!NT_SUCCESS(Status))
+            {
+                ASSERT(NT_SUCCESS(Status));
+                goto Exit;
+            }
+        }
+
+        CurrentPciRange = NextPciRange;
+    }
+    while (CurrentPciRange != LowerPciRange);
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    ExFreePoolWithTag(PciRangeList, 'BicP');
+    return Status;
 }
 
 NTSTATUS

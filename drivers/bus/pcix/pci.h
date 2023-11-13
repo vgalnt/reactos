@@ -478,6 +478,24 @@ typedef struct _PCI_LEGACY_DEVICE
     PPCI_PDO_EXTENSION PdoExtension;
 } PCI_LEGACY_DEVICE, *PPCI_LEGACY_DEVICE;
 
+typedef struct _PCI_RANGE_LIST
+{
+    struct _PCI_RANGE_LIST* Next;
+    struct _PCI_RANGE_LIST* Previous;
+    ULONGLONG Start;
+    ULONGLONG End;
+    BOOLEAN IsActive;
+} PCI_RANGE_LIST, *PPCI_RANGE_LIST;
+
+typedef struct _PCI_PARTIAL_LIST_CONTEXT
+{
+    PCM_PARTIAL_RESOURCE_LIST PartialList;
+    CM_RESOURCE_TYPE DesiredType;
+    ULONG Count;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR PointToNextDescriptor;
+    CM_PARTIAL_RESOURCE_DESCRIPTOR CurrentDescriptor;
+} PCI_PARTIAL_LIST_CONTEXT, *PPCI_PARTIAL_LIST_CONTEXT;
+
 /* FUNCTIONS ****************************************************************/
 
 // IRP Dispatch Routines
@@ -668,6 +686,12 @@ PciFdoIrpQueryLegacyBusInformation(
     _In_ PIRP Irp,
     _In_ PIO_STACK_LOCATION IoStackLocation,
     _In_ PPCI_FDO_EXTENSION DeviceExtension
+);
+
+PCM_PARTIAL_RESOURCE_DESCRIPTOR
+NTAPI
+PciGetNextCmPartialDescriptor(
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor
 );
 
 // Device PDO Routines

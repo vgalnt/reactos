@@ -498,7 +498,7 @@ PciGetNextCmPartialDescriptor(
 {
     PCM_PARTIAL_RESOURCE_DESCRIPTOR NextDescriptor;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciGetNextCmPartialDescriptor: %p\n", CmDescriptor);
 
     /* Assume the descriptors are the fixed size ones */
     NextDescriptor = (CmDescriptor + 1);
