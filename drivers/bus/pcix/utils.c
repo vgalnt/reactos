@@ -664,11 +664,12 @@ PciSendIoctl(
 
 PPCI_SECONDARY_EXTENSION
 NTAPI
-PciFindNextSecondaryExtension(IN PSINGLE_LIST_ENTRY ListHead,
-                              IN PCI_SIGNATURE ExtensionType)
+PciFindNextSecondaryExtension(
+    _In_ PSINGLE_LIST_ENTRY ListHead,
+    _In_ PCI_SIGNATURE ExtensionType)
 {
-    PSINGLE_LIST_ENTRY NextEntry;
     PPCI_SECONDARY_EXTENSION Extension;
+    PSINGLE_LIST_ENTRY NextEntry;
 
     DPRINT("PciFindNextSecondaryExtension: %p, %X\n", ListHead, ExtensionType);
 
@@ -677,7 +678,8 @@ PciFindNextSecondaryExtension(IN PSINGLE_LIST_ENTRY ListHead,
     {
         /* Grab each extension and check if it's the one requested */
         Extension = CONTAINING_RECORD(NextEntry, PCI_SECONDARY_EXTENSION, List);
-        if (Extension->ExtensionType == ExtensionType) return Extension;
+        if (Extension->ExtensionType == ExtensionType)
+            return Extension;
     }
 
     /* Nothing was found */
