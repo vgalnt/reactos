@@ -38,15 +38,17 @@ PciSetEventCompletion(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
-PciCallDownIrpStack(IN PPCI_FDO_EXTENSION DeviceExtension,
-                    IN PIRP Irp)
+PciCallDownIrpStack(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ PIRP Irp)
 {
     NTSTATUS Status;
     KEVENT Event;
 
     PAGED_CODE();
-    DPRINT("PciCallDownIrpStack ...\n");
-    ASSERT_FDO(DeviceExtension);
+    DPRINT("PciCallDownIrpStack: %p, %p\n", PciCallDownIrpStack, Irp);
+
+    ASSERT_FDO(FdoExtension);
 
     /* Initialize the wait event */
     KeInitializeEvent(&Event, SynchronizationEvent, 0);
@@ -56,7 +58,7 @@ PciCallDownIrpStack(IN PPCI_FDO_EXTENSION DeviceExtension,
     IoSetCompletionRoutine(Irp, PciSetEventCompletion, &Event, TRUE, TRUE, TRUE);
 
     /* Call the attached device */
-    Status = IoCallDriver(DeviceExtension->AttachedDeviceObject, Irp);
+    Status = IoCallDriver(FdoExtension->AttachedDeviceObject, Irp);
     if (Status == STATUS_PENDING)
     {
         /* Wait for it to complete the request, and get its status */
