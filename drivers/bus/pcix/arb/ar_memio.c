@@ -122,15 +122,119 @@ armemio_ScoreRequirement(
     return 0;
 }
 
-/*  Not correct yet, FIXME! */
+NTSTATUS
+NTAPI
+PciExcludeRangesFromWindow(
+    _In_ ULONGLONG Start,
+    _In_ ULONGLONG End,
+    _In_ PRTL_RANGE_LIST RangeList,
+    _In_ PRTL_RANGE_LIST ExcludeRangeList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 ario_StartArbiter(
     _In_ PARBITER_INSTANCE Arbiter,
     _In_ PCM_RESOURCE_LIST CmResource)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR PartialDescriptors;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PPCI_ARBITER_INSTANCE PciArbiter;
+    PPCI_FDO_EXTENSION FdoExtension;
+    PPCI_PDO_EXTENSION PdoExtension;
+    PRTL_RANGE_LIST RangeList = NULL;
+    ULONGLONG dummyStart;
+    ULONG Count;
+    NTSTATUS Status;
+
+    DPRINT("ario_StartArbiter: %p\n", Arbiter);
+
+    KeWaitForSingleObject(Arbiter->MutexEvent, Executive, KernelMode, FALSE, NULL);
+
+    FdoExtension = Arbiter->BusDeviceObject->DeviceExtension;
+    ASSERT((FdoExtension)->ExtensionType == PciFdoExtensionType);
+
+    if (!CmResource)
+    {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    ASSERT(CmResource->Count == 1);
+
+    if (FdoExtension == FdoExtension->BusRootFdoExtension)
+    {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    PdoExtension = FdoExtension->PhysicalDeviceObject->DeviceExtension;
+
+    if (PdoExtension->Dependent.type1.IsaBitSet)
+    {
+        DPRINT1("ario_StartArbiter: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    PartialDescriptors = CmResource->List[0].PartialResourceList.PartialDescriptors;
+    Count = CmResource->List[0].PartialResourceList.Count;
+
+    for (CmDescriptor = PartialDescriptors;
+         CmDescriptor < &PartialDescriptors[Count];
+         CmDescriptor++)
+    {
+        if (CmDescriptor->Type != 1)
+            continue;
+
+        if (RangeList)
+        {
+            Status = PciExcludeRangesFromWindow(CmDescriptor->u.Port.Start.QuadPart,
+                                                (CmDescriptor->u.Port.Length + CmDescriptor->u.Port.Start.QuadPart - 1),
+                                                Arbiter->Allocation,
+                                                RangeList);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("ario_StartArbiter: Status %X\n", Status);
+                return Status;
+            }
+        }
+
+        PciArbiter = (PVOID)PciFindNextSecondaryExtension(FdoExtension->ParentFdoExtension->BusRootFdoExtension->
+                                                          SecondaryExtension.Next, PciArb_Io);
+        if (!PciArbiter)
+        {
+            Status = STATUS_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        KeWaitForSingleObject(PciArbiter->CommonInstance.MutexEvent, Executive, KernelMode, FALSE, NULL);
+
+        PciExcludeRangesFromWindow(CmDescriptor->u.Port.Start.QuadPart,
+                                   (CmDescriptor->u.Port.Start.QuadPart + CmDescriptor->u.Port.Length - 1),
+                                   Arbiter->Allocation,
+                                   PciArbiter->CommonInstance.Allocation);
+
+        KeSetEvent(PciArbiter->CommonInstance.MutexEvent, 0, FALSE);
+
+        Status = RtlFindRange(Arbiter->Allocation, 0, 0xFFFFFFFFFFFFFFFF, 4, 4, 0, 0, 0, 0, &dummyStart);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ario_StartArbiter: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        goto Exit;
+    }
+
+Exit:
+
+    KeSetEvent(Arbiter->MutexEvent, 0, FALSE);
+
+    DPRINT("ario_StartArbiter: ret Status %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
