@@ -460,14 +460,15 @@ PciFindParentPciFdoExtension(
 
 VOID
 NTAPI
-PciInsertEntryAtTail(IN PSINGLE_LIST_ENTRY ListHead,
-                     IN PPCI_FDO_EXTENSION DeviceExtension,
-                     IN PKEVENT Lock)
+PciInsertEntryAtTail(
+    _In_ PSINGLE_LIST_ENTRY ListHead,
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ PKEVENT Lock)
 {
     PSINGLE_LIST_ENTRY NextEntry;
 
     PAGED_CODE();
-    DPRINT("PciInsertEntryAtTail: %p, %p\n", ListHead, DeviceExtension);
+    DPRINT("PciInsertEntryAtTail: %p, %p, %p\n", ListHead, FdoExtension, Lock);
 
     /* Check if a lock was specified */
     if (Lock)
@@ -478,8 +479,12 @@ PciInsertEntryAtTail(IN PSINGLE_LIST_ENTRY ListHead,
     }
 
     /* Loop the list until we get to the end, then insert this entry there */
-    for (NextEntry = ListHead; NextEntry->Next; NextEntry = NextEntry->Next);
-    NextEntry->Next = &DeviceExtension->List;
+    for (NextEntry = ListHead;
+         NextEntry->Next;
+         NextEntry = NextEntry->Next)
+        ;
+
+    NextEntry->Next = &FdoExtension->List;
 
     /* Check if we had acquired a lock previously */
     if (Lock)
