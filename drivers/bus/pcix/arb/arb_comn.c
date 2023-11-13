@@ -132,7 +132,15 @@ PcipInitializePartialListContext(
     _In_ PCM_PARTIAL_RESOURCE_LIST PartialResourceList,
     _In_ CM_RESOURCE_TYPE DesiredType)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ASSERT(DesiredType != CmResourceTypeNull);
+
+    Context->PartialList = PartialResourceList;
+    Context->DesiredType = DesiredType;
+    Context->Count = PartialResourceList->Count;
+    Context->PointToNextDescriptor = PartialResourceList->PartialDescriptors;
+    Context->CurrentDescriptor.Type = 0;
+
+    DPRINT("PcipInitializePartialListContext: Count %X, DesiredType %X\n", Context->Count, DesiredType);
 }
 
 PCM_PARTIAL_RESOURCE_DESCRIPTOR
