@@ -1605,6 +1605,38 @@ ErrorExit:
 
 NTSTATUS
 NTAPI
+ArbCopyOrderingList(
+    _Out_ ARBITER_ORDERING_LIST* OutList,
+    _In_ PARBITER_ORDERING_LIST SourceList)
+{
+    ULONG Size;
+
+    PAGED_CODE()
+    DPRINT("ArbCopyOrderingList: %p, %p\n", SourceList, OutList);
+
+    ASSERT(SourceList->Count <= SourceList->Maximum);
+    ASSERT(SourceList->Maximum > 0);
+
+    Size = (SourceList->Maximum * sizeof(ARBITER_ORDERING));
+
+    OutList->Orderings = ExAllocatePoolWithTag(PagedPool, Size, TAG_ARB_ORDERING);
+    if (!OutList->Orderings)
+    {
+        DPRINT1("ArbCopyOrderingList: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    OutList->Count = SourceList->Count;
+    OutList->Maximum = SourceList->Maximum;
+
+    if (SourceList->Count > 0)
+        RtlCopyMemory(OutList->Orderings, SourceList->Orderings, (SourceList->Count * sizeof(ARBITER_ORDERING)));
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 ArbInitializeArbiterInstance(
     _Inout_ PARBITER_INSTANCE Arbiter,
     _In_ PDEVICE_OBJECT BusDeviceObject,
