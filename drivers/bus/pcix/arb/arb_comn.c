@@ -148,8 +148,42 @@ NTAPI
 PcipGetNextRangeFromList(
     _In_ PPCI_PARTIAL_LIST_CONTEXT Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    ULONG Start;
+
+    DPRINT("PcipGetNextRangeFromList: Context %p, DesiredType %X\n", Context, Context->DesiredType);
+
+    if (Context->CurrentDescriptor.Type == Context->DesiredType)
+    {
+        if (Context->CurrentDescriptor.Flags & 4)
+            Start = (Context->CurrentDescriptor.u.Generic.Start.LowPart + 0x400);
+        else
+            Start = (Context->CurrentDescriptor.u.Generic.Start.LowPart + 0x1000);
+
+        if (Start < 0x10000)
+        {
+            Context->CurrentDescriptor.u.Generic.Start.LowPart = Start;
+            return &Context->CurrentDescriptor;
+        }
+
+        Context->CurrentDescriptor.Type = CmResourceTypeNull;
+    }
+
+    do
+    {
+        if (!Context->Count)
+            return NULL;
+
+        CmDescriptor = Context->PointToNextDescriptor;
+        Context->PointToNextDescriptor = PciGetNextCmPartialDescriptor(CmDescriptor);
+        Context->Count--;
+    }
+    while (CmDescriptor->Type != Context->DesiredType);
+
+    if (CmDescriptor->Type == CmResourceTypePort && (CmDescriptor->Flags & 0xC))
+        RtlCopyMemory(&Context->CurrentDescriptor, CmDescriptor, sizeof(Context->CurrentDescriptor));
+
+    return CmDescriptor;
 }
 
 NTSTATUS
