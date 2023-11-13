@@ -50,21 +50,17 @@ PciQueryInterface(IN PPCI_FDO_EXTENSION DeviceExtension,
                   IN PINTERFACE Interface,
                   IN BOOLEAN LastChance)
 {
+    PPCI_INTERFACE* InterfaceList;
+    PPCI_INTERFACE PciInterface;
     UNICODE_STRING GuidString;
     NTSTATUS Status;
-    PPCI_INTERFACE *InterfaceList;
-    PPCI_INTERFACE PciInterface;
+
     RtlStringFromGUID(InterfaceType, &GuidString);
-    DPRINT1("PCI - PciQueryInterface TYPE = %wZ\n", &GuidString);
+    DPRINT("PciQueryInterface: '%wZ', %X, %X, %p, '%s'\n", &GuidString, Size, Version, InterfaceData, (LastChance ? "TRUE" : "FALSE"));
     RtlFreeUnicodeString(&GuidString);
-    DPRINT1("      Size = %u, Version = %u, InterfaceData = %p, LastChance = %s\n",
-            Size,
-            Version,
-            InterfaceData,
-            LastChance ? "TRUE" : "FALSE");
 
     /* Loop all the available interfaces */
-    for (InterfaceList = LastChance ? PciInterfacesLastResort : PciInterfaces;
+    for (InterfaceList = (LastChance ? PciInterfacesLastResort : PciInterfaces);
          *InterfaceList;
          InterfaceList++)
     {
@@ -81,19 +77,17 @@ PciQueryInterface(IN PPCI_FDO_EXTENSION DeviceExtension,
             if (!(PciInterface->Flags & PCI_INTERFACE_FDO))
             {
                 /* This interface is not for FDOs, skip it */
-                DPRINT1("PCI - PciQueryInterface: guid = %wZ only for FDOs\n",
-                        &GuidString);
+                DPRINT1("PciQueryInterface: guid '%wZ' only for FDOs\n", &GuidString);
                 RtlFreeUnicodeString(&GuidString);
                 continue;
             }
 
             /* Check if the interface is for root FDO only */
             if ((PciInterface->Flags & PCI_INTERFACE_ROOT) &&
-                (!PCI_IS_ROOT_FDO(DeviceExtension)))
+                !PCI_IS_ROOT_FDO(DeviceExtension))
             {
                 /* This FDO isn't the root, skip the interface */
-                DPRINT1("PCI - PciQueryInterface: guid = %wZ only for ROOT\n",
-                        &GuidString);
+                DPRINT1("PciQueryInterface: guid '%wZ' only for ROOT\n", &GuidString);
                 RtlFreeUnicodeString(&GuidString);
                 continue;
             }
@@ -104,47 +98,40 @@ PciQueryInterface(IN PPCI_FDO_EXTENSION DeviceExtension,
             if (!(PciInterface->Flags & PCI_INTERFACE_PDO))
             {
                 /* It isn't, skip it */
-                DPRINT1("PCI - PciQueryInterface: guid = %wZ only for PDOs\n",
-                        &GuidString);
+                DPRINT1("PciQueryInterface: guid '%wZ' only for PDOs\n", &GuidString);
                 RtlFreeUnicodeString(&GuidString);
                 continue;
             }
         }
 
         /* Print the GUID for debugging, and then free the string */
-        DPRINT1("PCI - PciQueryInterface looking at guid = %wZ\n", &GuidString);
+        DPRINT1("PciQueryInterface: looking at guid '%wZ'\n", &GuidString);
         RtlFreeUnicodeString(&GuidString);
 
         /* Check if the GUID, version, and size all match */
         if ((IsEqualGUIDAligned(PciInterface->InterfaceType, InterfaceType)) &&
-            (Version >= PciInterface->MinVersion) &&
-            (Version <= PciInterface->MaxVersion) &&
-            (Size >= PciInterface->MinSize))
+            Version >= PciInterface->MinVersion &&
+            Version <= PciInterface->MaxVersion &&
+            Size >= PciInterface->MinSize)
         {
             /* Call the interface's constructor */
-            Status = PciInterface->Constructor(DeviceExtension,
-                                               PciInterface,
-                                               InterfaceData,
-                                               Version,
-                                               Size,
-                                               Interface);
+            Status = PciInterface->Constructor(DeviceExtension, PciInterface, InterfaceData, Version, Size, Interface);
             if (!NT_SUCCESS(Status))
             {
                 /* This interface was not initialized correctly, skip it */
-                DPRINT1("PCI - PciQueryInterface - Constructor %p = %08lx\n",
-                        PciInterface->Constructor, Status);
+                DPRINT1("PciQueryInterface: Constructor %p = %X\n", PciInterface->Constructor, Status);
                 continue;
             }
 
             /* Reference the interface and return success, all is good */
             Interface->InterfaceReference(Interface->Context);
-            DPRINT1("PCI - PciQueryInterface returning SUCCESS\n");
+            DPRINT1("PciQueryInterface: returning SUCCESS\n");
             return Status;
         }
     }
 
     /* An interface of this type, and for this device, could not be found */
-    DPRINT1("PCI - PciQueryInterface FAILED TO FIND INTERFACE\n");
+    DPRINT1("PciQueryInterface: FAILED TO FIND INTERFACE\n");
     return STATUS_NOT_SUPPORTED;
 }
 
