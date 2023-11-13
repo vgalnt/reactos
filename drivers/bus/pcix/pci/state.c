@@ -94,48 +94,49 @@ PciInitializeState(IN PPCI_FDO_EXTENSION DeviceExtension)
 
 NTSTATUS
 NTAPI
-PciBeginStateTransition(IN PPCI_FDO_EXTENSION DeviceExtension,
-                        IN PCI_STATE NewState)
+PciBeginStateTransition(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ PCI_STATE NewState)
 {
     PCI_STATE CurrentState;
     NTSTATUS Status;
-    DPRINT1("PCI Request to begin transition of Extension %p to %s ->",
-            DeviceExtension,
-            PciTransitionText[NewState]);
+
+    DPRINT1("PciBeginStateTransition: Request to begin transition of Extension %p to '%s' ->",
+            FdoExtension, PciTransitionText[NewState]);
 
     /* Assert the device isn't already in a pending transition */
-    ASSERT(DeviceExtension->TentativeNextState == DeviceExtension->DeviceState);
+    ASSERT(FdoExtension->TentativeNextState == FdoExtension->DeviceState);
 
     /* Assert this is a valid state */
-    CurrentState = DeviceExtension->DeviceState;
+    CurrentState = FdoExtension->DeviceState;
     ASSERT(CurrentState < PciMaxObjectState);
     ASSERT(NewState < PciMaxObjectState);
 
     /* Lookup if this state transition is valid */
     Status = PnpStateTransitionArray[CurrentState + 6 * NewState];
+
     if (Status == STATUS_FAIL_CHECK)
     {
         /* Invalid transition (logical fault) */
-        DPRINT1("ERROR\nPCI: Error trying to enter state \"%s\" "
-                "from state \"%s\"\n",
-                PciTransitionText[NewState],
-                PciTransitionText[CurrentState]);
+        DPRINT1("ERROR\nPciBeginStateTransition: Error trying to enter state '%s' from state '%s'\n",
+                PciTransitionText[NewState], PciTransitionText[CurrentState]);
+
         DbgBreakPoint();
     }
     else if (Status == STATUS_INVALID_DEVICE_REQUEST)
     {
         /* Invalid transition (illegal request) */
-        DPRINT1("ERROR\nPCI: Illegal request to try to enter state \"%s\" "
-                "from state \"%s\", rejecting",
-                PciTransitionText[NewState],
-                PciTransitionText[CurrentState]);
+        DPRINT1("ERROR\nPciBeginStateTransition: Illegal request to try to enter state '%s' from state '%s', rejecting",
+                PciTransitionText[NewState], PciTransitionText[CurrentState]);
     }
 
     /* New state must be different from current, unless request is at fault */
-    ASSERT((NewState != DeviceExtension->DeviceState) || (!NT_SUCCESS(Status)));
+    ASSERT((NewState != FdoExtension->DeviceState) || (!NT_SUCCESS(Status)));
 
     /* Enter the new state if successful, and return state status */
-    if (NT_SUCCESS(Status)) DeviceExtension->TentativeNextState = NewState;
+    if (NT_SUCCESS(Status))
+        FdoExtension->TentativeNextState = NewState;
+
     DbgPrint("%x\n", Status);
     return Status;
 }
