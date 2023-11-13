@@ -522,18 +522,20 @@ PciInsertEntryAtHead(IN PSINGLE_LIST_ENTRY ListHead,
 
 VOID
 NTAPI
-PcipLinkSecondaryExtension(IN PSINGLE_LIST_ENTRY List,
-                           IN PVOID Lock,
-                           IN PPCI_SECONDARY_EXTENSION SecondaryExtension,
-                           IN PCI_SIGNATURE ExtensionType,
-                           IN PVOID Destructor)
+PcipLinkSecondaryExtension(
+    _In_ PSINGLE_LIST_ENTRY List,
+    _In_ PVOID Lock,
+    _In_ PPCI_SECONDARY_EXTENSION SecondaryExtension,
+    _In_ PCI_SIGNATURE ExtensionType,
+    _In_ PVOID Destructor)
 {
     PAGED_CODE();
-    DPRINT("PcipLinkSecondaryExtension: %p, %p, %X\n", List, SecondaryExtension, ExtensionType);
+    DPRINT("PcipLinkSecondaryExtension: %p, %p, %p, %X\n", List, Lock, SecondaryExtension, ExtensionType);
 
     /* Setup the extension data, and insert it into the primary's list */
     SecondaryExtension->ExtensionType = ExtensionType;
     SecondaryExtension->Destructor = Destructor;
+
     PciInsertEntryAtHead(List, &SecondaryExtension->List, Lock);
 }
 
