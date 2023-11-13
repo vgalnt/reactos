@@ -604,29 +604,33 @@ PciGetDeviceProperty(
 
 NTSTATUS
 NTAPI
-PciSendIoctl(IN PDEVICE_OBJECT DeviceObject,
-             IN ULONG IoControlCode,
-             IN PVOID InputBuffer,
-             IN ULONG InputBufferLength,
-             IN PVOID OutputBuffer,
-             IN ULONG OutputBufferLength)
+PciSendIoctl(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ ULONG IoControlCode,
+    _In_ PVOID InputBuffer,
+    _In_ ULONG InputBufferLength,
+    _In_ PVOID OutputBuffer,
+    _In_ ULONG OutputBufferLength)
 {
+    PDEVICE_OBJECT AttachedDevice;
+    IO_STATUS_BLOCK IoStatusBlock;
+    KEVENT Event;
     PIRP Irp;
     NTSTATUS Status;
-    KEVENT Event;
-    IO_STATUS_BLOCK IoStatusBlock;
-    PDEVICE_OBJECT AttachedDevice;
 
     PAGED_CODE();
     DPRINT("PciSendIoctl: %p, %X, %p, %X, %p, %X\n", DeviceObject, IoControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength);
-
 
     /* Initialize the pending IRP event */
     KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
 
     /* Get a reference to the root PDO (ACPI) */
     AttachedDevice = IoGetAttachedDeviceReference(DeviceObject);
-    if (!AttachedDevice) return STATUS_INVALID_PARAMETER;
+    if (!AttachedDevice)
+    {
+        DPRINT1("PciSendIoctl: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
 
     /* Build the requested IOCTL IRP */
     Irp = IoBuildDeviceIoControlRequest(IoControlCode,
@@ -638,18 +642,18 @@ PciSendIoctl(IN PDEVICE_OBJECT DeviceObject,
                                         0,
                                         &Event,
                                         &IoStatusBlock);
-    if (!Irp) return STATUS_INSUFFICIENT_RESOURCES;
+    if (!Irp)
+    {
+        DPRINT1("PciSendIoctl: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     /* Send the IOCTL to the driver */
     Status = IoCallDriver(AttachedDevice, Irp);
     if (Status == STATUS_PENDING)
     {
         /* Wait for a response */
-        KeWaitForSingleObject(&Event,
-                              Executive,
-                              KernelMode,
-                              FALSE,
-                              NULL);
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
         Status = Irp->IoStatus.Status;
     }
 
