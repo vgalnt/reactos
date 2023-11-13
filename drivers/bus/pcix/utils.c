@@ -492,9 +492,10 @@ PciInsertEntryAtTail(IN PSINGLE_LIST_ENTRY ListHead,
 
 VOID
 NTAPI
-PciInsertEntryAtHead(IN PSINGLE_LIST_ENTRY ListHead,
-                     IN PSINGLE_LIST_ENTRY Entry,
-                     IN PKEVENT Lock)
+PciInsertEntryAtHead(
+    _In_ PSINGLE_LIST_ENTRY ListHead,
+    _In_ PSINGLE_LIST_ENTRY Entry,
+    _In_ PKEVENT Lock)
 {
     PAGED_CODE();
     //DPRINT("PciInsertEntryAtHead: %p, %p\n", ListHead, Entry);
