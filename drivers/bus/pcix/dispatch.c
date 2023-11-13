@@ -69,28 +69,30 @@ PciCallDownIrpStack(
 
 NTSTATUS
 NTAPI
-PciPassIrpFromFdoToPdo(IN PPCI_FDO_EXTENSION DeviceExtension,
-                       IN PIRP Irp)
+PciPassIrpFromFdoToPdo(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ PIRP Irp)
 {
-    PIO_STACK_LOCATION IoStackLocation;
+    PIO_STACK_LOCATION IoStack;
     NTSTATUS Status;
 
-    DPRINT("Pci PassIrp ...\n");
+    DPRINT("PciPassIrpFromFdoToPdo: %p, %p\n", FdoExtension, Irp);
 
     /* Get the stack location to check which function this is */
-    IoStackLocation = IoGetCurrentIrpStackLocation(Irp);
-    if (IoStackLocation->MajorFunction == IRP_MJ_POWER)
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->MajorFunction == IRP_MJ_POWER)
     {
         /* Power IRPs are special since we have to notify the Power Manager */
         IoCopyCurrentIrpStackLocationToNext(Irp);
         PoStartNextPowerIrp(Irp);
-        Status = PoCallDriver(DeviceExtension->AttachedDeviceObject, Irp);
+        Status = PoCallDriver(FdoExtension->AttachedDeviceObject, Irp);
     }
     else
     {
         /* For a normal IRP, just call the next driver in the stack */
         IoSkipCurrentIrpStackLocation(Irp);
-        Status = IoCallDriver(DeviceExtension->AttachedDeviceObject, Irp);
+        Status = IoCallDriver(FdoExtension->AttachedDeviceObject, Irp);
     }
 
     /* Return the status back to the caller */
