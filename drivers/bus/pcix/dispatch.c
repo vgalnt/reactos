@@ -15,24 +15,21 @@
 
 /* FUNCTIONS ******************************************************************/
 
-IO_COMPLETION_ROUTINE PciSetEventCompletion;
-
 NTSTATUS
 NTAPI
-PciSetEventCompletion(IN PDEVICE_OBJECT DeviceObject,
-                      IN PIRP Irp,
-                      IN PVOID Context)
+PciSetEventCompletion(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
 {
-    PKEVENT Event = (PVOID)Context;
+    PKEVENT Event = Context;
     ASSERT(Event);
 
-    DPRINT("PciSetEventCompletion: %p\n", Irp);
-
-    UNREFERENCED_PARAMETER(DeviceObject);
-    UNREFERENCED_PARAMETER(Irp);
+    DPRINT("PciSetEventCompletion: %p, %p, %p\n", DeviceObject, Irp, Context);
 
     /* Set the event and return the appropriate status code */
     KeSetEvent(Event, IO_NO_INCREMENT, FALSE);
+
     return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
