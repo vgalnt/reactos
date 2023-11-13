@@ -359,12 +359,12 @@ typedef struct _PCI_ARBITER_INSTANCE
 
 typedef struct _PCI_ARB_MEM_EXTENTION
 {
-    UCHAR Unknown1;
-    UCHAR Unknown2;
-    USHORT Unknown3;
-    ARBITER_ORDERING_LIST OrderingList1;
-    ARBITER_ORDERING_LIST OrderingList2;
-    ARBITER_ORDERING_LIST OrderingList3;
+    BOOLEAN IsPrefetchable;
+    BOOLEAN IsStarted;
+    USHORT Prefetches;
+    ARBITER_ORDERING_LIST PrefetchOrderingList;
+    ARBITER_ORDERING_LIST OrderingList;
+    ARBITER_ORDERING_LIST ArbiterOrderingList;
 } PCI_ARB_MEM_EXTENTION, *PPCI_ARB_MEM_EXTENTION;
 
 // PCI Verifier Data
@@ -1771,6 +1771,7 @@ extern BOOLEAN PciAssignBusNumbers;
 extern BOOLEAN PciEnableNativeModeATA;
 extern PPCI_IRQ_ROUTING_TABLE PciIrqRoutingTable;
 extern BOOLEAN PciExtendInterruptVector;
+extern ULONG PciSystemWideHackFlags;
 
 /* Exported by NTOS, should this go in the NDK? */
 extern NTSYSAPI BOOLEAN InitSafeBootMode;

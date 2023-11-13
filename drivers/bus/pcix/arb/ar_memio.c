@@ -412,15 +412,154 @@ ario_ApplyBrokenVideoHack(IN PPCI_FDO_EXTENSION FdoExtension)
     FdoExtension->BrokenVideoHackApplied = TRUE;
 }
 
-/*  Not correct yet, FIXME! */
 NTSTATUS
 NTAPI
 armem_StartArbiter(
     _In_ PARBITER_INSTANCE Arbiter,
     _In_ PCM_RESOURCE_LIST CmResource)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR PartialDescriptors;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PPCI_ARB_MEM_EXTENTION ArbExtension;
+    PPCI_FDO_EXTENSION FdoExtension;
+    PARBITER_ORDERING Orderings;
+    ULONGLONG Start;
+    ULONGLONG End;
+    ULONG Count;
+    NTSTATUS Status;
+
+    DPRINT("armem_StartArbiter: %p\n", Arbiter);
+    PAGED_CODE();
+
+    ArbExtension = Arbiter->Extension;
+
+    if (!ArbExtension->IsStarted)
+    {
+        ArbExtension->ArbiterOrderingList = Arbiter->OrderingList;
+        RtlZeroMemory(&Arbiter->OrderingList, sizeof(Arbiter->OrderingList));
+    }
+    else if (ArbExtension->IsPrefetchable)
+    {
+        ArbFreeOrderingList(&ArbExtension->PrefetchOrderingList);
+        ArbFreeOrderingList(&ArbExtension->OrderingList);
+    }
+
+    ArbExtension->IsPrefetchable = FALSE;
+    ArbExtension->Prefetches = 0;
+
+    if (CmResource)
+    {
+        ASSERT(CmResource->Count == 1);
+
+        PartialDescriptors = CmResource->List[0].PartialResourceList.PartialDescriptors;
+        Count = CmResource->List[0].PartialResourceList.Count;
+
+        for (CmDescriptor = PartialDescriptors;
+             CmDescriptor < &PartialDescriptors[Count];
+             CmDescriptor++)
+        {
+            if (CmDescriptor->Type == CmResourceTypeMemory &&
+                (CmDescriptor->Flags & CM_RESOURCE_MEMORY_PREFETCHABLE))
+            {
+                ArbExtension->IsPrefetchable = TRUE;
+                break;
+            }
+        }
+    }
+
+    if (PciSystemWideHackFlags & 1)
+    {
+        FdoExtension = Arbiter->BusDeviceObject->DeviceExtension;
+        ASSERT((FdoExtension)->ExtensionType == PciFdoExtensionType);
+
+        if (FdoExtension == FdoExtension->BusRootFdoExtension)
+            ArbExtension->IsPrefetchable = FALSE;
+    }
+
+    if (!ArbExtension->IsPrefetchable)
+    {
+        Arbiter->OrderingList = ArbExtension->ArbiterOrderingList;
+        return STATUS_SUCCESS;
+    }
+
+    Status = ArbInitializeOrderingList(&ArbExtension->PrefetchOrderingList);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("armem_StartArbiter: Status %X\n", Status);
+        return Status;
+    }
+
+    Status = ArbCopyOrderingList(&ArbExtension->OrderingList, &ArbExtension->ArbiterOrderingList);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("armem_StartArbiter: Status %X\n", Status);
+        return Status;
+    }
+
+    Status = ArbAddOrdering(&ArbExtension->OrderingList, 0, 0xFFFFFFFFFFFFFFFF);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("armem_StartArbiter: Status %X\n", Status);
+        return Status;
+    }
+
+    for (CmDescriptor = CmResource->List[0].PartialResourceList.PartialDescriptors;
+         CmDescriptor < (CmResource->List[0].PartialResourceList.PartialDescriptors + CmResource->List[0].PartialResourceList.Count);
+         CmDescriptor++)
+    {
+        if (CmDescriptor->Type == CmResourceTypeMemory &&
+            (CmDescriptor->Flags & CM_RESOURCE_MEMORY_PREFETCHABLE))
+        {
+            ArbExtension->Prefetches++;
+
+            Start = CmDescriptor->u.Memory.Start.QuadPart,
+            End = (CmDescriptor->u.Memory.Start.QuadPart + CmDescriptor->u.Memory.Length - 1);
+
+            Status = ArbAddOrdering(&ArbExtension->PrefetchOrderingList, Start, End);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("armem_StartArbiter: Status %X\n", Status);
+                return Status;
+            }
+
+            Status = ArbPruneOrdering(&ArbExtension->OrderingList, Start, End);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("armem_StartArbiter: Status %X\n", Status);
+                return Status;
+            }
+
+            DPRINT("armem_StartArbiter: Processed prefetchable range %I64X-%I64X\n", Start, End);
+        }
+    }
+
+    for (Orderings = Arbiter->ReservedList.Orderings;
+         Orderings < (Arbiter->ReservedList.Orderings + Arbiter->ReservedList.Count);
+         Orderings++)
+    {
+        Status = ArbPruneOrdering(&ArbExtension->PrefetchOrderingList, Orderings->Start, Orderings->End);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("armem_StartArbiter: Status %X\n", Status);
+            return Status;
+        }
+    }
+
+    for (Orderings = ArbExtension->OrderingList.Orderings;
+         Orderings < (ArbExtension->OrderingList.Orderings + ArbExtension->OrderingList.Count);
+         Orderings++)
+    {
+        Status = ArbAddOrdering(&ArbExtension->PrefetchOrderingList, Orderings->Start, Orderings->End);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("armem_StartArbiter: Status %X\n", Status);
+            return Status;
+        }
+    }
+
+    ArbExtension->IsStarted = TRUE;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
