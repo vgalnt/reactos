@@ -282,5 +282,39 @@ ArbGetNextAllocationRange(
     _Inout_ PARBITER_ALLOCATION_STATE ArbState
 );
 
+VOID
+NTAPI
+ArbFreeOrderingList(
+    _Out_ PARBITER_ORDERING_LIST OrderList
+);
+
+NTSTATUS
+NTAPI
+ArbInitializeOrderingList(
+    _Out_ PARBITER_ORDERING_LIST OrderList
+);
+
+NTSTATUS
+NTAPI
+ArbCopyOrderingList(
+    _Out_ ARBITER_ORDERING_LIST* OutList,
+    _In_ PARBITER_ORDERING_LIST SourceList
+);
+
+NTSTATUS
+NTAPI
+ArbAddOrdering(
+    _Out_ PARBITER_ORDERING_LIST OrderList,
+    _In_ ULONGLONG MinimumAddress,
+    _In_ ULONGLONG MaximumAddress
+);
+
+NTSTATUS
+NTAPI
+ArbPruneOrdering(
+    _Out_ PARBITER_ORDERING_LIST OrderList,
+    _In_ ULONGLONG MinimumAddress,
+    _In_ ULONGLONG MaximumAddress
+);
 
 /* EOF */
