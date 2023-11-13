@@ -443,7 +443,7 @@ PciFindParentPciFdoExtension(
             break;
 
         /* Move to the next device */
-        FdoExtension = (PPCI_FDO_EXTENSION)DeviceExtension->List.Next;
+        FdoExtension = (PPCI_FDO_EXTENSION)FdoExtension->List.Next;
     }
 
     /* Check if we had acquired a lock previously */
@@ -539,30 +539,26 @@ PcipLinkSecondaryExtension(IN PSINGLE_LIST_ENTRY List,
 
 NTSTATUS
 NTAPI
-PciGetDeviceProperty(IN PDEVICE_OBJECT DeviceObject,
-                     IN DEVICE_REGISTRY_PROPERTY DeviceProperty,
-                     OUT PVOID *OutputBuffer)
+PciGetDeviceProperty(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ DEVICE_REGISTRY_PROPERTY DeviceProperty,
+    _Out_ PVOID* OutputBuffer)
 {
-    NTSTATUS Status;
-    ULONG BufferLength, ResultLength;
     PVOID Buffer;
+    ULONG BufferLength;
+    ULONG ResultLength;
+    NTSTATUS Status;
 
     DPRINT("PciGetDeviceProperty: %p, %X\n", DeviceObject, DeviceProperty);
 
     do
     {
         /* Query the requested property size */
-        Status = IoGetDeviceProperty(DeviceObject,
-                                     DeviceProperty,
-                                     0,
-                                     NULL,
-                                     &BufferLength);
+        Status = IoGetDeviceProperty(DeviceObject, DeviceProperty, 0, NULL, &BufferLength);
         if (Status != STATUS_BUFFER_TOO_SMALL)
         {
             /* Call should've failed with buffer too small! */
-            DPRINT1("PCI - Unexpected status from GetDeviceProperty, saw %08X, expected %08X.\n",
-                    Status,
-                    STATUS_BUFFER_TOO_SMALL);
+            DPRINT1("PciGetDeviceProperty: Unexpected status from GetDeviceProperty, saw %X, expected %X\n", Status, STATUS_BUFFER_TOO_SMALL);
             *OutputBuffer = NULL;
             ASSERTMSG("PCI Successfully did the impossible!\n", FALSE);
             break;
@@ -573,24 +569,26 @@ PciGetDeviceProperty(IN PDEVICE_OBJECT DeviceObject,
         if (!Buffer)
         {
             /* No memory, fail the request */
-            DPRINT1("PCI - Failed to allocate DeviceProperty buffer (%u bytes).\n", BufferLength);
+            DPRINT1("PciGetDeviceProperty: Failed to allocate DeviceProperty buffer (%X bytes).\n", BufferLength);
             Status = STATUS_INSUFFICIENT_RESOURCES;
             break;
         }
 
         /* Do the actual property query call */
-        Status = IoGetDeviceProperty(DeviceObject,
-                                     DeviceProperty,
-                                     BufferLength,
-                                     Buffer,
-                                     &ResultLength);
-        if (!NT_SUCCESS(Status)) break;
+        Status = IoGetDeviceProperty(DeviceObject, DeviceProperty, BufferLength, Buffer, &ResultLength);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciGetDeviceProperty: Status %X\n", Status);
+            break;
+        }
 
         /* Return the buffer to the caller */
         ASSERT(BufferLength == ResultLength);
         *OutputBuffer = Buffer;
+
         return STATUS_SUCCESS;
-    } while (FALSE);
+    }
+    while (FALSE);
 
     /* Failure path */
     return STATUS_UNSUCCESSFUL;
