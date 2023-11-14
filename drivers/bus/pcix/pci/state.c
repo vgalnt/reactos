@@ -179,18 +179,18 @@ PciCancelStateTransition(IN PPCI_FDO_EXTENSION DeviceExtension,
 
 VOID
 NTAPI
-PciCommitStateTransition(IN PPCI_FDO_EXTENSION DeviceExtension,
-                         IN PCI_STATE NewState)
+PciCommitStateTransition(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ PCI_STATE NewState)
 {
-    DPRINT1("PCI Commit transition of Extension %p to %s\n",
-            DeviceExtension, PciTransitionText[NewState]);
+    DPRINT("PciCommitStateTransition: %p, '%s'\n", FdoExtension, PciTransitionText[NewState]);
 
     /* Make sure this is a valid commit */
     ASSERT(NewState != PciSynchronizedOperation);
-    ASSERT(DeviceExtension->TentativeNextState == NewState);
+    ASSERT(FdoExtension->TentativeNextState == NewState);
 
     /* Enter the new state */
-    DeviceExtension->DeviceState = NewState;
+    FdoExtension->DeviceState = NewState;
 }
 
 /* EOF */
