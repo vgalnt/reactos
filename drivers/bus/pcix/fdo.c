@@ -310,31 +310,32 @@ PciFdoIrpQueryInterface(
 
 NTSTATUS
 NTAPI
-PciFdoIrpQueryCapabilities(IN PIRP Irp,
-                           IN PIO_STACK_LOCATION IoStackLocation,
-                           IN PPCI_FDO_EXTENSION DeviceExtension)
+PciFdoIrpQueryCapabilities(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
     PDEVICE_CAPABILITIES Capabilities;
 
-    DPRINT("PCIX: .. \n");
-
+    DPRINT("PciFdoIrpQueryCapabilities: %p, %p %p\n", Irp, IoStack, FdoExtension);
     PAGED_CODE();
-    ASSERT_FDO(DeviceExtension);
 
-    UNREFERENCED_PARAMETER(Irp);
+    ASSERT_FDO(FdoExtension);
 
     /* Get the capabilities */
-    Capabilities = IoStackLocation->Parameters.DeviceCapabilities.Capabilities;
+    Capabilities = IoStack->Parameters.DeviceCapabilities.Capabilities;
 
     /* Inherit wake levels and power mappings from the higher-up capabilities */
-    DeviceExtension->PowerState.SystemWakeLevel = Capabilities->SystemWake;
-    DeviceExtension->PowerState.DeviceWakeLevel = Capabilities->DeviceWake;
-    RtlCopyMemory(DeviceExtension->PowerState.SystemStateMapping,
+    FdoExtension->PowerState.SystemWakeLevel = Capabilities->SystemWake;
+    FdoExtension->PowerState.DeviceWakeLevel = Capabilities->DeviceWake;
+
+    RtlCopyMemory(FdoExtension->PowerState.SystemStateMapping,
                   Capabilities->DeviceState,
-                  sizeof(DeviceExtension->PowerState.SystemStateMapping));
+                  sizeof(FdoExtension->PowerState.SystemStateMapping));
 
     /* Dump the capabilities and return success */
     PciDebugDumpQueryCapabilities(Capabilities);
+
     return STATUS_SUCCESS;
 }
 
