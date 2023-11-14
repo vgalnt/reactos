@@ -2068,28 +2068,36 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
 
 NTSTATUS
 NTAPI
-PciQueryDeviceRelations(IN PPCI_FDO_EXTENSION DeviceExtension,
-                        IN OUT PDEVICE_RELATIONS *pDeviceRelations)
+PciQueryDeviceRelations(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _Inout_ PDEVICE_RELATIONS* OutDeviceRelations)
 {
-    NTSTATUS Status;
     PPCI_PDO_EXTENSION PdoExtension;
-    ULONG PdoCount = 0;
-    PDEVICE_RELATIONS DeviceRelations, NewRelations;
+    PDEVICE_RELATIONS DeviceRelations;
+    PDEVICE_RELATIONS NewRelations;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_OBJECT* ObjectArray;
     SIZE_T Size;
-    PDEVICE_OBJECT DeviceObject, *ObjectArray;
+    SIZE_T OldSize;
+    ULONG PdoCount = 0;
+    NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciQueryDeviceRelations: %p\n", FdoExtension);
 
     /* Make sure the FDO is started */
-    ASSERT(DeviceExtension->DeviceState == PciStarted);
+    ASSERT(FdoExtension->DeviceState == PciStarted);
 
     /* Synchronize while we enumerate the bus */
-    Status = PciBeginStateTransition(DeviceExtension, PciSynchronizedOperation);
-    if (!NT_SUCCESS(Status)) return Status;
+    Status = PciBeginStateTransition(FdoExtension, PciSynchronizedOperation);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciQueryDeviceRelations: Status %X\n", Status);
+        return Status;
+    }
 
     /* Scan all children PDO */
-    for (PdoExtension = DeviceExtension->ChildPdoList;
+    for (PdoExtension = FdoExtension->ChildPdoList;
          PdoExtension;
          PdoExtension = PdoExtension->Next)
     {
@@ -2098,11 +2106,11 @@ PciQueryDeviceRelations(IN PPCI_FDO_EXTENSION DeviceExtension,
     }
 
     /* Scan the PCI Bus */
-    Status = PciScanBus(DeviceExtension);
+    Status = PciScanBus(FdoExtension);
     ASSERT(NT_SUCCESS(Status));
 
     /* Enumerate all children PDO again */
-    for (PdoExtension = DeviceExtension->ChildPdoList;
+    for (PdoExtension = FdoExtension->ChildPdoList;
          PdoExtension;
          PdoExtension = PdoExtension->Next)
     {
@@ -2111,8 +2119,7 @@ PciQueryDeviceRelations(IN PPCI_FDO_EXTENSION DeviceExtension,
         {
             /* This means this PDO existed before, but not anymore */
             PdoExtension->ReportedMissing = TRUE;
-            DPRINT1("PCI - Old device (pdox) %p not found on rescan.\n",
-                    PdoExtension);
+            DPRINT1("PciQueryDeviceRelations: Old device (pdox) %p not found on rescan.\n", PdoExtension);
         }
         else
         {
@@ -2122,48 +2129,46 @@ PciQueryDeviceRelations(IN PPCI_FDO_EXTENSION DeviceExtension,
     }
 
     /* Read the current relations and add the newly discovered relations */
-    DeviceRelations = *pDeviceRelations;
-    Size = FIELD_OFFSET(DEVICE_RELATIONS, Objects) +
-           PdoCount * sizeof(PDEVICE_OBJECT);
-    if (DeviceRelations) Size += sizeof(PDEVICE_OBJECT) * DeviceRelations->Count;
+    DeviceRelations = *OutDeviceRelations;
+    OldSize = (DeviceRelations->Count * sizeof(PDEVICE_OBJECT));
+
+    Size = (FIELD_OFFSET(DEVICE_RELATIONS, Objects) + PdoCount * sizeof(PDEVICE_OBJECT));
+    if (DeviceRelations)
+        Size += OldSize;
 
     /* Allocate the device relations */
-    NewRelations = (PDEVICE_RELATIONS)ExAllocatePoolWithTag(0, Size, 'BicP');
+    NewRelations = ExAllocatePoolWithTag(NonPagedPool, Size, 'BicP');
     if (!NewRelations)
     {
         /* Out of space, cancel the operation */
-        PciCancelStateTransition(DeviceExtension, PciSynchronizedOperation);
+        PciCancelStateTransition(FdoExtension, PciSynchronizedOperation);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     /* Check if there were any older relations */
     NewRelations->Count = 0;
+
     if (DeviceRelations)
     {
         /* Copy the old relations into the new buffer, then free the old one */
-        RtlCopyMemory(NewRelations,
-                      DeviceRelations,
-                      FIELD_OFFSET(DEVICE_RELATIONS, Objects) +
-                      DeviceRelations->Count * sizeof(PDEVICE_OBJECT));
-        ExFreePoolWithTag(DeviceRelations, 0);
+        RtlCopyMemory(NewRelations, DeviceRelations, (FIELD_OFFSET(DEVICE_RELATIONS, Objects) + OldSize));
+        ExFreePool(DeviceRelations);
     }
 
     /* Print out that we're ready to dump relations */
-    DPRINT1("PCI QueryDeviceRelations/BusRelations FDOx %p (bus 0x%02x)\n",
-            DeviceExtension,
-            DeviceExtension->BaseBus);
+    DPRINT1("PciQueryDeviceRelations: QueryDeviceRelations/BusRelations FDOx %p (bus %X)\n",
+            FdoExtension, FdoExtension->BaseBus);
 
     /* Loop the current PDO children and the device relation object array */
-    PdoExtension = DeviceExtension->ChildPdoList;
     ObjectArray = &NewRelations->Objects[NewRelations->Count];
-    while (PdoExtension)
+
+    for (PdoExtension = FdoExtension->ChildPdoList;
+         PdoExtension;
+         PdoExtension = PdoExtension->Next)
     {
         /* Dump this relation */
-        DPRINT1("  QDR PDO %p (x %p)%s\n",
-                PdoExtension->PhysicalDeviceObject,
-                PdoExtension,
-                PdoExtension->NotPresent ?
-                "<Omitted, device flaged not present>" : "");
+        DPRINT1("  QDR PDO %p (x %p) '%s'\n", PdoExtension->PhysicalDeviceObject, PdoExtension,
+                (PdoExtension->NotPresent ? "<Omitted, device flaged not present>" : ""));
 
         /* Is this PDO present? */
         if (!PdoExtension->NotPresent)
@@ -2171,21 +2176,18 @@ PciQueryDeviceRelations(IN PPCI_FDO_EXTENSION DeviceExtension,
             /* Reference it and add it to the array */
             DeviceObject = PdoExtension->PhysicalDeviceObject;
             ObReferenceObject(DeviceObject);
+
             *ObjectArray++ = DeviceObject;
         }
-
-        /* Go to the next PDO */
-        PdoExtension = PdoExtension->Next;
     }
 
     /* Terminate dumping the relations */
-    DPRINT1("  QDR Total PDO count = %u (%u already in list)\n",
-            NewRelations->Count + PdoCount,
-            NewRelations->Count);
+    DPRINT1("  QDR Total PDO count = %X (%X already in list)\n", (NewRelations->Count + PdoCount), NewRelations->Count);
 
     /* Return the final count and the new buffer */
     NewRelations->Count += PdoCount;
-    *pDeviceRelations = NewRelations;
+    *OutDeviceRelations = NewRelations;
+
     return STATUS_SUCCESS;
 }
 
