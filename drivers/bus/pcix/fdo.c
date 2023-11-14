@@ -217,31 +217,21 @@ PciFdoIrpCancelStopDevice(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciFdoIrpQueryDeviceRelations(IN PIRP Irp,
-                              IN PIO_STACK_LOCATION IoStackLocation,
-                              IN PPCI_FDO_EXTENSION DeviceExtension)
+PciFdoIrpQueryDeviceRelations(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
-    NTSTATUS Status;
-
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciFdoIrpQueryDeviceRelations: %p, %p %p\n", Irp, IoStack, FdoExtension);
 
     /* Are bus relations being queried? */
-    if (IoStackLocation->Parameters.QueryDeviceRelations.Type != BusRelations)
-    {
+    if (IoStack->Parameters.QueryDeviceRelations.Type != BusRelations)
         /* The FDO is a bus, so only bus relations can be obtained */
-        Status = STATUS_NOT_SUPPORTED;
-    }
-    else
-    {
-        /* Scan the PCI bus and build the device relations for the caller */
-        Status = PciQueryDeviceRelations(DeviceExtension,
-                                         (PDEVICE_RELATIONS*)
-                                         &Irp->IoStatus.Information);
-    }
+        return STATUS_NOT_SUPPORTED;
 
-    /* Return the enumeration status back */
-    return Status;
+    /* Scan the PCI bus and build the device relations for the caller */
+    return PciQueryDeviceRelations(FdoExtension, (PDEVICE_RELATIONS*)&Irp->IoStatus.Information);
 }
 
 NTSTATUS
