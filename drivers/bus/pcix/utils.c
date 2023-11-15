@@ -688,35 +688,37 @@ PciFindNextSecondaryExtension(
 
 ULONGLONG
 NTAPI
-PciGetHackFlags(IN USHORT VendorId,
-                IN USHORT DeviceId,
-                IN USHORT SubVendorId,
-                IN USHORT SubSystemId,
-                IN UCHAR RevisionId)
+PciGetHackFlags(
+    _In_ USHORT VendorId,
+    _In_ USHORT DeviceId,
+    _In_ USHORT SubVendorId,
+    _In_ USHORT SubSystemId,
+    _In_ UCHAR RevisionId)
 {
     PPCI_HACK_ENTRY HackEntry;
     ULONGLONG HackFlags;
     ULONG LastWeight, MatchWeight;
     ULONG EntryFlags;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciGetHackFlags: %X, %X, %X, %X, %X\n", VendorId, DeviceId, SubVendorId, SubSystemId, RevisionId);
 
-    /* ReactOS SetupLDR Hack */
-    if (!PciHackTable) return 0;
+    if (!PciHackTable)
+    {
+        DPRINT("PciGetHackFlags: ReactOS SetupLDR Hack!\n");
+        return 0;
+    }
 
     /* Initialize the variables before looping */
     LastWeight = 0;
     HackFlags = 0;
+
     ASSERT(PciHackTable);
 
     /* Scan the hack table */
-    for (HackEntry = PciHackTable;
-         HackEntry->VendorID != PCI_INVALID_VENDORID;
-         ++HackEntry)
+    for (HackEntry = PciHackTable; HackEntry->VendorID != PCI_INVALID_VENDORID; HackEntry++)
     {
         /* Check if there's an entry for this device */
-        if ((HackEntry->DeviceID == DeviceId) &&
-            (HackEntry->VendorID == VendorId))
+        if (HackEntry->DeviceID == DeviceId && HackEntry->VendorID == VendorId)
         {
             /* This is a basic match */
             EntryFlags = HackEntry->Flags;
@@ -726,7 +728,9 @@ PciGetHackFlags(IN USHORT VendorId,
             if (EntryFlags & PCI_HACK_HAS_REVISION_INFO)
             {
                 /* Check if the revision matches, if so, this is a better match */
-                if (HackEntry->RevisionID != RevisionId) continue;
+                if (HackEntry->RevisionID != RevisionId)
+                    continue;
+
                 MatchWeight = 3;
             }
 
@@ -734,11 +738,12 @@ PciGetHackFlags(IN USHORT VendorId,
             if (EntryFlags & PCI_HACK_HAS_SUBSYSTEM_INFO)
             {
                 /* Check if it matches, if so, this is the best possible match */
-                if ((HackEntry->SubVendorID != SubVendorId) ||
-                    (HackEntry->SubSystemID != SubSystemId))
-                {
+                if (HackEntry->SubVendorID != SubVendorId)
                     continue;
-                }
+
+                if (HackEntry->SubSystemID != SubSystemId)
+                    continue;
+
                 MatchWeight += 4;
             }
 
