@@ -18,32 +18,40 @@
 
 PWCHAR
 NTAPI
-PciGetDescriptionMessage(IN ULONG Identifier,
-                         OUT PULONG Length)
+PciGetDescriptionMessage(
+    _In_ ULONG Identifier,
+    _Out_ ULONG* OutLength)
 {
     PMESSAGE_RESOURCE_ENTRY Entry;
-    ULONG TextLength;
-    PWCHAR Description, Buffer;
     ANSI_STRING MessageString;
     UNICODE_STRING UnicodeString;
+    PWCHAR Description;
+    PWCHAR Buffer;
+    ULONG TextLength;
     NTSTATUS Status;
+
+    DPRINT("PciGetDescriptionMessage: %X\n", Identifier);
 
     /* Find the message identifier in the message table */
     MessageString.Buffer = NULL;
+
     Status = RtlFindMessage(PciDriverObject->DriverStart,
                             11, // RT_MESSAGETABLE
                             LANG_NEUTRAL,
                             Identifier,
                             &Entry);
-    if (!NT_SUCCESS(Status)) return NULL;
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciGetDescriptionMessage: Status %X\n", Status);
+        return NULL;
+    }
 
     /* Check if the resource data is Unicode or ANSI */
     if (Entry->Flags & MESSAGE_RESOURCE_UNICODE)
     {
         /* Subtract one space for the end-of-message terminator */
-        TextLength = Entry->Length -
-                     FIELD_OFFSET(MESSAGE_RESOURCE_ENTRY, Text) -
-                     sizeof(WCHAR);
+        TextLength = (Entry->Length - FIELD_OFFSET(MESSAGE_RESOURCE_ENTRY, Text) - sizeof(WCHAR));
 
         /* Grab the text */
         Description = (PWCHAR)Entry->Text;
@@ -54,14 +62,19 @@ PciGetDescriptionMessage(IN ULONG Identifier,
 
         /* Allocate the buffer to hold the message string */
         Buffer = ExAllocatePoolWithTag(PagedPool, TextLength, 'BicP');
-        if (!Buffer) return NULL;
+        if (!Buffer)
+        {
+            DPRINT1("PciGetDescriptionMessage: allocate failed\n");
+            return NULL;
+        }
 
         /* Copy the message, minus the newline character, and terminate it */
-        RtlCopyMemory(Buffer, Entry->Text, TextLength - 1);
+        RtlCopyMemory(Buffer, Entry->Text, (TextLength - 1));
         Buffer[TextLength / sizeof(WCHAR)] = UNICODE_NULL;
 
         /* Return the length to the caller, minus the terminating NULL */
-        if (Length) *Length = TextLength - 1;
+        if (OutLength)
+            *OutLength = (TextLength - 1);
     }
     else
     {
@@ -76,7 +89,8 @@ PciGetDescriptionMessage(IN ULONG Identifier,
         Buffer = UnicodeString.Buffer;
 
         /* Return the length to the caller */
-        if (Length) *Length = UnicodeString.Length;
+        if (OutLength)
+            *OutLength = UnicodeString.Length;
     }
 
     /* Return the message buffer to the caller */
