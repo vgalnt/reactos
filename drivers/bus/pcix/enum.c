@@ -835,6 +835,8 @@ PciApplyHacks(
          */
         case PCI_HACK_FIXUP_BEFORE_CONFIGURATION:
 
+            ASSERT(PdoExtension == NULL);
+
             /* Note that the i82375 PCI/EISA and the i82378 PCI/ISA bridges that
              * are present on certain DEC/NT Alpha machines are pre-PCI 2.0 devices
              * and appear as non-classified, so their correct class/subclass data
@@ -877,11 +879,10 @@ PciApplyHacks(
              * Native IDE functionality on this controller, so it would seem OPTi
              * simply frelled up this controller.
              */
-            if (PciData->VendorID == 0x1045 && PciData->DeviceID != 0xC621)
+            if (PciData->VendorID == 0x1045 && PciData->DeviceID == 0xC621)
             {
                 /* Disable native mode */
                 PciData->ProgIf &= ~5;
-                PciData->u.type0.InterruptPin = 0;
 
                 /*
                  * Because the software is modifying the actual header data from
@@ -893,9 +894,6 @@ PciApplyHacks(
             else if (PciData->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR &&
                      PciData->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR)
             {
-                /* For other IDE controllers, start out in compatible mode */
-                PdoExtension->BIOSAllowsIDESwitchToNativeMode = FALSE;
-
                 /*
                  * Registry must have enabled native mode (typically as a result
                  * of an INF file directive part of the IDE controller's driver)
@@ -926,20 +924,29 @@ PciApplyHacks(
                 {
                     /* The platform supports it, remember that */
                     PdoExtension->BIOSAllowsIDESwitchToNativeMode = TRUE;
-
-                    /*
-                     * Now switch the controller into native mode if both channels
-                     * support native IDE mode. See "How Windows Switches an ATA
-                     * Controller to Native Mode" in the Storage section of the
-                     * Windows Driver Kit for more details.
-                     */
-                    PdoExtension->IDEInNativeMode = PciConfigureIdeController(PdoExtension, PciData, TRUE);
+                }
+                else
+                {
+                    /* For other IDE controllers, start out in compatible mode */
+                    PdoExtension->BIOSAllowsIDESwitchToNativeMode = FALSE;
                 }
 
-                /* Is native mode enabled after all? */
-                if ((PciData->ProgIf & 5) != 5)
-                    /* Compatible mode, so force ISA-style IRQ14 and IRQ 15 */
-                    PciData->u.type0.InterruptPin = 0;
+                /*
+                 * Now switch the controller into native mode if both channels
+                 * support native IDE mode. See "How Windows Switches an ATA
+                 * Controller to Native Mode" in the Storage section of the
+                 * Windows Driver Kit for more details.
+                 */
+                PdoExtension->IDEInNativeMode = PciConfigureIdeController(PdoExtension, PciData, TRUE);
+            }
+
+            /* Is native mode enabled after all? */
+            if (PciData->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR &&
+                PciData->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR &&
+                (PciData->ProgIf & 5) != 5)
+            {
+                /* Compatible mode, so force ISA-style IRQ14 and IRQ 15 */
+                PciData->u.type0.InterruptPin = 0;
             }
 
             /* Is this a PCI device with legacy VGA card decodes on the root bus? */
