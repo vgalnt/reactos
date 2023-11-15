@@ -58,6 +58,8 @@ PciReadWriteConfigSpace(
     PBUS_HANDLER BusHandler;
     PPCIBUSDATA BusData;
     PciReadWriteConfig HalFunction;
+    PCI_READ_WRITE_CONFIG InterfaceFunction;
+    ULONG RetLength;
 
     DPRINT("PciReadWriteConfigSpace: %X, %X, %X, %X\n", Slot.u.AsULONG, Offset, Length, IsRead);
 
@@ -85,8 +87,17 @@ PciReadWriteConfigSpace(
         return;
     }
 
-    /* Currently this driver only supports the legacy HAL interface */
-    UNIMPLEMENTED_DBGBREAK();
+    if (IsRead)
+        InterfaceFunction = PciInterface->ReadConfig;
+    else
+        InterfaceFunction = PciInterface->WriteConfig;
+
+    RetLength = InterfaceFunction(PciInterface->Context, ParentFdoExt->BaseBus, Slot.u.AsULONG, Buffer, Offset, Length);
+    if (RetLength == Length)
+        return;
+
+    DPRINT1("PciReadWriteConfigSpace: KeBugCheckEx(..)! %X, %X, %X, %X\n", Slot.u.AsULONG, Offset, Length, IsRead);
+    KeBugCheckEx(0xC0, ParentFdoExt->BaseBus, Slot.u.AsULONG, Offset, IsRead);
 }
 
 VOID
