@@ -1604,104 +1604,95 @@ PciProcessBus(IN PPCI_FDO_EXTENSION DeviceExtension)
 
 NTSTATUS
 NTAPI
-PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
+PciScanBus(
+    _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
-    ULONG MaxDevice = PCI_MAX_DEVICES;
-    BOOLEAN ProcessFlag = FALSE;
-    ULONG i, j, k, Size;
-    USHORT CapOffset, TempOffset;
-    LONGLONG HackFlags;
-    PDEVICE_OBJECT DeviceObject;
     UCHAR Buffer[PCI_COMMON_HDR_LENGTH];
     UCHAR BiosBuffer[PCI_COMMON_HDR_LENGTH];
     PPCI_COMMON_HEADER PciData = (PVOID)Buffer;
     PPCI_COMMON_HEADER BiosData = (PVOID)BiosBuffer;
-    PCI_SLOT_NUMBER PciSlot;
-    PCHAR Name;
-    NTSTATUS Status;
-    PPCI_PDO_EXTENSION PdoExtension, NewExtension;
+    PPCI_PDO_EXTENSION PdoExtension;
+    PPCI_PDO_EXTENSION NewExtension;
     PPCI_PDO_EXTENSION* BridgeExtension;
+    PDEVICE_OBJECT DeviceObject;
     PWCHAR DescriptionText;
-    USHORT SubVendorId, SubSystemId;
-    PCI_CAPABILITIES_HEADER CapHeader, PcixCapHeader;
+    PCHAR Name;
+    PCI_CAPABILITIES_HEADER PcixCapHeader;
+    PCI_CAPABILITIES_HEADER CapHeader;
+    PCI_SLOT_NUMBER PciSlot;
+    LONGLONG HackFlags;
+    ULONG MaxDevice = PCI_MAX_DEVICES;
+    ULONG Size;
+    ULONG ix, jx, kx;
+    USHORT SubVendorId;
+    USHORT SubSystemId;
+    USHORT CapOffset;
+    USHORT TempOffset;
     UCHAR SecondaryBus;
+    BOOLEAN ProcessFlag = FALSE;
+    NTSTATUS Status;
 
-    DPRINT1("PCI Scan Bus: FDO Extension @ 0x%p, Base Bus = 0x%x\n",
-            DeviceExtension, DeviceExtension->BaseBus);
+    DPRINT("PciScanBus: %p, %X\n", FdoExtension, FdoExtension->BaseBus);
 
     /* Is this the root FDO? */
-    if (!PCI_IS_ROOT_FDO(DeviceExtension))
+    if (!PCI_IS_ROOT_FDO(FdoExtension))
     {
         /* Get the PDO for the child bus */
-        PdoExtension = DeviceExtension->PhysicalDeviceObject->DeviceExtension;
+        PdoExtension = FdoExtension->PhysicalDeviceObject->DeviceExtension;
         ASSERT_PDO(PdoExtension);
 
         /* Check for hack which only allows bus to have one child device */
-        if (PdoExtension->HackFlags & PCI_HACK_ONE_CHILD) MaxDevice = 1;
+        if (PdoExtension->HackFlags & PCI_HACK_ONE_CHILD)
+            MaxDevice = 1;
       
         /* Check if the secondary bus number has changed */
-        PciReadDeviceConfig(PdoExtension,
-                            &SecondaryBus,
-                            FIELD_OFFSET(PCI_COMMON_HEADER, u.type1.SecondaryBus),
-                            sizeof(UCHAR));
+        PciReadDeviceConfig(PdoExtension, &SecondaryBus, FIELD_OFFSET(PCI_COMMON_HEADER, u.type1.SecondaryBus), sizeof(UCHAR));
+
         if (SecondaryBus != PdoExtension->Dependent.type1.SecondaryBus)
         {
-            UNIMPLEMENTED_DBGBREAK("PCI: Bus numbers have been changed!  Restoring originals.\n");
+            UNIMPLEMENTED_DBGBREAK("PciScanBus: Bus numbers have been changed! Restoring originals.\n");
         }
     }
 
     /* Loop every device on the bus */
     PciSlot.u.bits.Reserved = 0;
-    i = DeviceExtension->BaseBus;
-    for (j = 0; j < MaxDevice; j++)
+    ix = FdoExtension->BaseBus;
+
+    for (jx = 0; jx < MaxDevice; jx++)
     {
         /* Loop every function of each device */
-        PciSlot.u.bits.DeviceNumber = j;
-        for (k = 0; k < PCI_MAX_FUNCTION; k++)
+        PciSlot.u.bits.DeviceNumber = jx;
+
+        for (kx = 0; kx < PCI_MAX_FUNCTION; kx++)
         {
             /* Build the final slot structure */
-            PciSlot.u.bits.FunctionNumber = k;
+            PciSlot.u.bits.FunctionNumber = kx;
 
             /* Read the vendor for this slot */
-            PciReadSlotConfig(DeviceExtension,
-                              PciSlot,
-                              PciData,
-                              0,
-                              sizeof(USHORT));
+            PciReadSlotConfig(FdoExtension, PciSlot, PciData, 0, sizeof(USHORT));
 
             /* Skip invalid device */
-            if (PciData->VendorID == PCI_INVALID_VENDORID) continue;
+            if (PciData->VendorID == PCI_INVALID_VENDORID)
+                continue;
 
             /* Now read the whole header */
-            PciReadSlotConfig(DeviceExtension,
-                              PciSlot,
-                              &PciData->DeviceID,
-                              sizeof(USHORT),
-                              PCI_COMMON_HDR_LENGTH - sizeof(USHORT));
+            PciReadSlotConfig(FdoExtension, PciSlot, &PciData->DeviceID, sizeof(USHORT), (PCI_COMMON_HDR_LENGTH - sizeof(USHORT)));
 
             /* Apply any hacks before even analyzing the configuration header */
-            PciApplyHacks(DeviceExtension,
-                          PciData,
-                          PciSlot,
-                          PCI_HACK_FIXUP_BEFORE_CONFIGURATION,
-                          NULL);
+            PciApplyHacks(FdoExtension, PciData, PciSlot, PCI_HACK_FIXUP_BEFORE_CONFIGURATION, NULL);
 
             /* Dump device that was found */
-            DPRINT1("Scan Found Device 0x%x (b=0x%x, d=0x%x, f=0x%x)\n",
-                    PciSlot.u.AsULONG,
-                    i,
-                    j,
-                    k);
+            DPRINT("PciScanBus: Scan Found Device %X (b %X, d %X, f %X)\n", PciSlot.u.AsULONG, ix, jx, kx);
 
             /* Dump the device's header */
             PciDebugDumpCommonConfig(PciData);
 
             /* Find description for this device for the debugger's sake */
-            DescriptionText = PciGetDeviceDescriptionMessage(PciData->BaseClass,
-                                                             PciData->SubClass);
-            DPRINT1("Device Description \"%S\".\n",
-                    DescriptionText ? DescriptionText : L"(NULL)");
-            if (DescriptionText) ExFreePoolWithTag(DescriptionText, 0);
+            DescriptionText = PciGetDeviceDescriptionMessage(PciData->BaseClass, PciData->SubClass);
+            DPRINT("PciScanBus: Device Description '%S'.\n", (DescriptionText ? DescriptionText : L"(NULL)"));
+
+            if (DescriptionText)
+                ExFreePool(DescriptionText);
 
             /* Check if there is an ACPI Watchdog Table */
             if (WdTable)
@@ -1711,8 +1702,8 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
             }
 
             /* Check for non-simple devices */
-            if ((PCI_MULTIFUNCTION_DEVICE(PciData)) ||
-                (PciData->BaseClass == PCI_CLASS_BRIDGE_DEV))
+            if (PCI_MULTIFUNCTION_DEVICE(PciData) ||
+                PciData->BaseClass == PCI_CLASS_BRIDGE_DEV)
             {
                 /* No subsystem data defined for these kinds of bridges */
                 SubVendorId = 0;
@@ -1726,11 +1717,7 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
             }
 
             /* Get any hack flags for this device */
-            HackFlags = PciGetHackFlags(PciData->VendorID,
-                                        PciData->DeviceID,
-                                        SubVendorId,
-                                        SubSystemId,
-                                        PciData->RevisionID);
+            HackFlags = PciGetHackFlags(PciData->VendorID, PciData->DeviceID, SubVendorId, SubSystemId, PciData->RevisionID);
 
             /* Check if this device is considered critical by the OS */
             if (PciIsCriticalDeviceClass(PciData->BaseClass, PciData->SubClass))
@@ -1739,36 +1726,29 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
                 if (!(HackFlags & PCI_HACK_DONT_DISABLE_DECODES))
                 {
                     /* Because this device is critical, don't disable them */
-                    DPRINT1("Not allowing PM Because device is critical\n");
+                    DPRINT1("PciScanBus: Not allowing PM Because device is critical\n");
                     HackFlags |= PCI_HACK_CRITICAL_DEVICE;
                 }
             }
 
             /* PCI bridges with a VGA card are also considered critical */
-            if ((PciData->BaseClass == PCI_CLASS_BRIDGE_DEV) &&
-                (PciData->SubClass == PCI_SUBCLASS_BR_PCI_TO_PCI) &&
+            if (PciData->BaseClass == PCI_CLASS_BRIDGE_DEV &&
+                PciData->SubClass == PCI_SUBCLASS_BR_PCI_TO_PCI &&
                 (PciData->u.type1.BridgeControl & PCI_ENABLE_BRIDGE_VGA) &&
                !(HackFlags & PCI_HACK_DONT_DISABLE_DECODES))
             {
                 /* Do not disable their decodes either */
-                DPRINT1("Not allowing PM because device is VGA\n");
+                DPRINT1("PciScanBus: Not allowing PM because device is VGA\n");
                 HackFlags |= PCI_HACK_CRITICAL_DEVICE;
             }
 
             /* Check if the device should be skipped for whatever reason */
-            if (PciSkipThisFunction(PciData,
-                                    PciSlot,
-                                    PCI_SKIP_DEVICE_ENUMERATION,
-                                    HackFlags))
-            {
+            if (PciSkipThisFunction(PciData, PciSlot, PCI_SKIP_DEVICE_ENUMERATION, HackFlags))
                 /* Skip this device */
                 continue;
-            }
 
             /* Check if a PDO has already been created for this device */
-            PdoExtension = PciFindPdoByFunction(DeviceExtension,
-                                                PciSlot.u.AsULONG,
-                                                PciData);
+            PdoExtension = PciFindPdoByFunction(FdoExtension, PciSlot.u.AsULONG, PciData);
             if (PdoExtension)
             {
                 /* Rescan scenarios are not yet implemented */
@@ -1779,8 +1759,9 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
             ProcessFlag = TRUE;
 
             /* Create the PDO for this device */
-            Status = PciPdoCreate(DeviceExtension, PciSlot, &DeviceObject);
+            Status = PciPdoCreate(FdoExtension, PciSlot, &DeviceObject);
             ASSERT(NT_SUCCESS(Status));
+
             NewExtension = (PPCI_PDO_EXTENSION)DeviceObject->DeviceExtension;
 
             /* Check for broken devices with wrong/no class codes */
@@ -1804,31 +1785,26 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
             NewExtension->HeaderType = PCI_CONFIGURATION_TYPE(PciData);
 
             /* Check for modern bridge types, which are managed by the driver */
-            if ((NewExtension->BaseClass == PCI_CLASS_BRIDGE_DEV) &&
-                ((NewExtension->SubClass == PCI_SUBCLASS_BR_PCI_TO_PCI) ||
-                 (NewExtension->SubClass == PCI_SUBCLASS_BR_CARDBUS)))
+            if (NewExtension->BaseClass == PCI_CLASS_BRIDGE_DEV &&
+                (NewExtension->SubClass == PCI_SUBCLASS_BR_PCI_TO_PCI ||
+                 NewExtension->SubClass == PCI_SUBCLASS_BR_CARDBUS))
             {
                 /* Acquire this device's lock */
                 KeEnterCriticalRegion();
-                KeWaitForSingleObject(&DeviceExtension->ChildListLock,
-                                      Executive,
-                                      KernelMode,
-                                      FALSE,
-                                      NULL);
+                KeWaitForSingleObject(&FdoExtension->ChildListLock, Executive, KernelMode, FALSE, NULL);
 
                 /* Scan the bridge list until the first free entry */
-                for (BridgeExtension = &DeviceExtension->ChildBridgePdoList;
+                for (BridgeExtension = &FdoExtension->ChildBridgePdoList;
                      *BridgeExtension;
-                     BridgeExtension = &(*BridgeExtension)->NextBridge);
+                     BridgeExtension = &(*BridgeExtension)->NextBridge)
+                    ;
 
                 /* Add this PDO as a bridge */
                 *BridgeExtension = NewExtension;
                 ASSERT(NewExtension->NextBridge == NULL);
 
                 /* Release this device's lock */
-                KeSetEvent(&DeviceExtension->ChildListLock,
-                           IO_NO_INCREMENT,
-                           FALSE);
+                KeSetEvent(&FdoExtension->ChildListLock, IO_NO_INCREMENT, FALSE);
                 KeLeaveCriticalRegion();
             }
 
@@ -1837,7 +1813,7 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
             if (NT_SUCCESS(Status))
             {
                 /* This path has not yet been fully tested by eVb */
-                DPRINT1("Have BIOS configuration!\n");
+                DPRINT1("PciScanBus: Have BIOS configuration!\n");
                 UNIMPLEMENTED_DBGBREAK();
 
                 /* Check if the PCI BIOS configuration has changed */
@@ -1849,14 +1825,12 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
                 else
                 {
                     /* Data is still correct, check for interrupt line change */
-                    if (BiosData->u.type0.InterruptLine !=
-                        PciData->u.type0.InterruptLine)
+                    if (BiosData->u.type0.InterruptLine != PciData->u.type0.InterruptLine)
                     {
                         /* Update the current BIOS with the saved interrupt line */
                         PciWriteDeviceConfig(NewExtension,
                                              &BiosData->u.type0.InterruptLine,
-                                             FIELD_OFFSET(PCI_COMMON_HEADER,
-                                                          u.type0.InterruptLine),
+                                             FIELD_OFFSET(PCI_COMMON_HEADER, u.type0.InterruptLine),
                                              sizeof(UCHAR));
                     }
 
@@ -1892,11 +1866,7 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
             PciSetPowerManagedDevicePowerState(NewExtension, PowerDeviceD0, FALSE);
 
             /* Apply any device hacks required for enumeration */
-            PciApplyHacks(DeviceExtension,
-                          PciData,
-                          PciSlot,
-                          PCI_HACK_FIXUP_AFTER_CONFIGURATION,
-                          NewExtension);
+            PciApplyHacks(FdoExtension, PciData, PciSlot, PCI_HACK_FIXUP_AFTER_CONFIGURATION, NewExtension);
 
             /* Save interrupt pin */
             NewExtension->InterruptPin = PciData->u.type0.InterruptPin;
@@ -1925,16 +1895,11 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
             while (CapOffset)
             {
                 /* Read this header */
-                TempOffset = PciReadDeviceCapability(NewExtension,
-                                                     CapOffset,
-                                                     0,
-                                                     &CapHeader,
-                                                     sizeof(PCI_CAPABILITIES_HEADER));
+                TempOffset = PciReadDeviceCapability(NewExtension, CapOffset, 0, &CapHeader, sizeof(PCI_CAPABILITIES_HEADER));
                 if (TempOffset != CapOffset)
                 {
                     /* This is a strange issue that shouldn't happen normally */
-                    DPRINT1("PCI - Failed to read PCI capability at offset 0x%02x\n",
-                            CapOffset);
+                    DPRINT1("PciScanBus: Failed to read PCI capability at offset %X\n", CapOffset);
                     ASSERT(TempOffset == CapOffset);
                 }
 
@@ -1970,34 +1935,28 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
                 if (Size)
                 {
                     /* Read the whole capability data */
-                    TempOffset = PciReadDeviceCapability(NewExtension,
-                                                         CapOffset,
-                                                         CapHeader.CapabilityID,
-                                                         &CapHeader,
-                                                         Size);
-
+                    TempOffset = PciReadDeviceCapability(NewExtension, CapOffset, CapHeader.CapabilityID, &CapHeader, Size);
                     if (TempOffset != CapOffset)
                     {
                         /* Again, a strange issue that shouldn't be seen */
-                        DPRINT1("- Failed to read capability data. ***\n");
+                        DPRINT1("PciScanBus: Failed to read capability data. ***\n");
                         ASSERT(TempOffset == CapOffset);
                     }
                 }
 
                 /* Dump this capability */
-                DPRINT1("CAP @%02x ID %02x (%s)\n",
-                        CapOffset, CapHeader.CapabilityID, Name);
-                for (i = 0; i < Size; i += 2)
-                    DPRINT1("  %04x\n", *(PUSHORT)((ULONG_PTR)&CapHeader + i));
-                DPRINT1("\n");
+                DPRINT("CAP @%02x ID %02x (%s)\n", CapOffset, CapHeader.CapabilityID, Name);
+            for (ix = 0; ix < Size; ix += 2)
+                DPRINT("  %04x\n", *(PUSHORT)((ULONG_PTR)&CapHeader + ix));
+                DPRINT("\n");
 
                 /* Check the next capability */
                 CapOffset = CapHeader.Next;
             }
 
             /* Check for IDE controllers */
-            if ((NewExtension->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR) &&
-                (NewExtension->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR))
+            if (NewExtension->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR &&
+                NewExtension->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR)
             {
                 /* Do not allow them to power down completely */
                 NewExtension->DisablePowerDown = TRUE;
@@ -2008,12 +1967,11 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
              * bridge that is present on certain NT Alpha machines appears as
              * non-classified so detect it manually by scanning for its VID/PID.
              */
-            if (((NewExtension->BaseClass == PCI_CLASS_BRIDGE_DEV) &&
-                ((NewExtension->SubClass == PCI_SUBCLASS_BR_ISA) ||
-                 (NewExtension->SubClass == PCI_SUBCLASS_BR_EISA) ||
-                 (NewExtension->SubClass == PCI_SUBCLASS_BR_MCA))) ||
-                ((NewExtension->VendorId == 0x8086) &&
-                 (NewExtension->DeviceId == 0x482)))
+            if ((NewExtension->BaseClass == PCI_CLASS_BRIDGE_DEV &&
+                (NewExtension->SubClass == PCI_SUBCLASS_BR_ISA ||
+                 NewExtension->SubClass == PCI_SUBCLASS_BR_EISA ||
+                 NewExtension->SubClass == PCI_SUBCLASS_BR_MCA)) ||
+                (NewExtension->VendorId == 0x8086 && NewExtension->DeviceId == 0x0482))
             {
                 /* Do not allow these legacy bridges to be powered down */
                 NewExtension->DisablePowerDown = TRUE;
@@ -2042,11 +2000,10 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
                      * was required, and the value used here below.
                      */
                     if (!(PciData->LatencyTimer) ||
-                        ((TempOffset) && (PciData->LatencyTimer == 64)))
+                        (TempOffset && PciData->LatencyTimer == 0x40))
                     {
                         /* Keep track of the fact that it needs configuration */
-                        DPRINT1("PCI - ScanBus, PDOx %p found unconfigured\n",
-                                NewExtension);
+                        DPRINT1("PciScanBus: ScanBus, PDOx %p found unconfigured\n", NewExtension);
                         NewExtension->NeedsHotPlugConfiguration = TRUE;
                     }
                 }
@@ -2062,7 +2019,9 @@ PciScanBus(IN PPCI_FDO_EXTENSION DeviceExtension)
     }
 
     /* Enumeration completed, do a final pass now that all devices are found */
-    if (ProcessFlag) PciProcessBus(DeviceExtension);
+    if (ProcessFlag)
+        PciProcessBus(FdoExtension);
+
     return STATUS_SUCCESS;
 }
 
