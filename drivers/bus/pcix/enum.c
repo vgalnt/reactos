@@ -811,17 +811,18 @@ PciConfigureIdeController(IN PPCI_PDO_EXTENSION PdoExtension,
 
 VOID
 NTAPI
-PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
-              IN PPCI_COMMON_HEADER PciData,
-              IN PCI_SLOT_NUMBER SlotNumber,
-              IN ULONG OperationType,
-              PPCI_PDO_EXTENSION PdoExtension)
+PciApplyHacks(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ PPCI_COMMON_HEADER PciData,
+    _In_ PCI_SLOT_NUMBER SlotNumber,
+    _In_ ULONG OperationType,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
     ULONG LegacyBaseAddress;
     USHORT Command;
     UCHAR RegValue;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciApplyHacks: %p, %p, %X, %p\n", FdoExtension, PciData, OperationType, PdoExtension);
 
     UNREFERENCED_PARAMETER(SlotNumber);
 
@@ -839,12 +840,11 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
              * and appear as non-classified, so their correct class/subclass data
              * is written here instead.
              */
-            if ((PciData->VendorID == 0x8086) &&
-                ((PciData->DeviceID == 0x482) || (PciData->DeviceID == 0x484)))
+            if (PciData->VendorID == 0x8086 &&
+                (PciData->DeviceID == 0x0482 || PciData->DeviceID == 0x0484))
             {
-                /* Note that 0x482 is the i82375 (EISA), 0x484 is the i82378 (ISA) */
-                PciData->SubClass = PciData->DeviceID == 0x482 ?
-                                    PCI_SUBCLASS_BR_EISA : PCI_SUBCLASS_BR_ISA;
+                /* Note that 0x0482 is the i82375 (EISA), 0x0484 is the i82378 (ISA) */
+                PciData->SubClass = (PciData->DeviceID == 0x0482 ? PCI_SUBCLASS_BR_EISA : PCI_SUBCLASS_BR_ISA);
                 PciData->BaseClass = PCI_CLASS_BRIDGE_DEV;
 
                 /*
@@ -852,7 +852,8 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
                  * the BIOS, this flag tells the driver to ignore failures when
                  * comparing the original BIOS data with the PCI data.
                  */
-                if (PdoExtension) PdoExtension->ExpectedWritebackFailure = TRUE;
+                if (PdoExtension)
+                    PdoExtension->ExpectedWritebackFailure = TRUE;
             }
 
             /* Note that in this case, an immediate return is issued */
@@ -876,7 +877,7 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
              * Native IDE functionality on this controller, so it would seem OPTi
              * simply frelled up this controller.
              */
-            if ((PciData->VendorID == 0x1045) && (PciData->DeviceID != 0xC621))
+            if (PciData->VendorID == 0x1045 && PciData->DeviceID != 0xC621)
             {
                 /* Disable native mode */
                 PciData->ProgIf &= ~5;
@@ -889,8 +890,8 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
                  */
                 PdoExtension->ExpectedWritebackFailure = TRUE;
             }
-            else if ((PciData->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR) &&
-                    (PciData->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR))
+            else if (PciData->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR &&
+                     PciData->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR)
             {
                 /* For other IDE controllers, start out in compatible mode */
                 PdoExtension->BIOSAllowsIDESwitchToNativeMode = FALSE;
@@ -920,9 +921,8 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
                  *  can be switched, the process of switching the controller begins
                  *  with the next step.
                  */
-                if ((PciEnableNativeModeATA) &&
-                    !(InitSafeBootMode) &&
-                    (PciIsSlotPresentInParentMethod(PdoExtension, 'ATAN')))
+                if (PciEnableNativeModeATA && !InitSafeBootMode &&
+                    PciIsSlotPresentInParentMethod(PdoExtension, 'ATAN'))
                 {
                     /* The platform supports it, remember that */
                     PdoExtension->BIOSAllowsIDESwitchToNativeMode = TRUE;
@@ -933,37 +933,33 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
                      * Controller to Native Mode" in the Storage section of the
                      * Windows Driver Kit for more details.
                      */
-                    PdoExtension->IDEInNativeMode =
-                        PciConfigureIdeController(PdoExtension, PciData, TRUE);
+                    PdoExtension->IDEInNativeMode = PciConfigureIdeController(PdoExtension, PciData, TRUE);
                 }
 
                 /* Is native mode enabled after all? */
                 if ((PciData->ProgIf & 5) != 5)
-                {
                     /* Compatible mode, so force ISA-style IRQ14 and IRQ 15 */
                     PciData->u.type0.InterruptPin = 0;
-                }
             }
 
             /* Is this a PCI device with legacy VGA card decodes on the root bus? */
             if ((PdoExtension->HackFlags & PCI_HACK_VIDEO_LEGACY_DECODE) &&
-                (PCI_IS_ROOT_FDO(DeviceExtension)) &&
-                !(DeviceExtension->BrokenVideoHackApplied))
+                PCI_IS_ROOT_FDO(FdoExtension) &&
+                !FdoExtension->BrokenVideoHackApplied)
             {
                 /* Tell the arbiter to apply a hack for these older devices */
-                ario_ApplyBrokenVideoHack(DeviceExtension);
+                ario_ApplyBrokenVideoHack(FdoExtension);
             }
 
             /* Is this a Compaq PCI Hotplug Controller (r17) on a PAE system ? */
-            if ((PciData->VendorID == 0xE11) &&
-                (PciData->DeviceID == 0xA0F7) &&
-                (PciData->RevisionID == 17) &&
-                (ExIsProcessorFeaturePresent(PF_PAE_ENABLED)))
+            if (PciData->VendorID == 0x0E11 && PciData->DeviceID == 0xA0F7 && PciData->RevisionID == 0x11 &&
+                ExIsProcessorFeaturePresent(PF_PAE_ENABLED))
             {
                 /* Turn off the decodes immediately */
                 PciData->Command &= ~(PCI_ENABLE_IO_SPACE |
                                       PCI_ENABLE_MEMORY_SPACE |
                                       PCI_ENABLE_BUS_MASTER);
+
                 PciWriteDeviceConfig(PdoExtension,
                                      &PciData->Command,
                                      FIELD_OFFSET(PCI_COMMON_HEADER, Command),
@@ -973,6 +969,7 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
                 PdoExtension->CommandEnables &= ~(PCI_ENABLE_IO_SPACE |
                                                   PCI_ENABLE_MEMORY_SPACE |
                                                   PCI_ENABLE_BUS_MASTER);
+
                 PdoExtension->HackFlags |= PCI_HACK_PRESERVE_COMMAND;
             }
             break;
@@ -989,14 +986,10 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
             ASSERT(PdoExtension);
 
             /* Is this an IBM 20H2999 PCI Docking Bridge, used on Thinkpads? */
-            if ((PdoExtension->VendorId == 0x1014) &&
-                (PdoExtension->DeviceId == 0x95))
+            if (PdoExtension->VendorId == 0x1014 && PdoExtension->DeviceId == 0x0095)
             {
                 /* Read the current command */
-                PciReadDeviceConfig(PdoExtension,
-                                    &Command,
-                                    FIELD_OFFSET(PCI_COMMON_HEADER, Command),
-                                    sizeof(USHORT));
+                PciReadDeviceConfig(PdoExtension, &Command, FIELD_OFFSET(PCI_COMMON_HEADER, Command), sizeof(USHORT));
 
                 /* Turn off the decodes */
                 PciDecodeEnable(PdoExtension, FALSE, &Command);
@@ -1008,11 +1001,7 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
                 PciWriteDeviceConfig(PdoExtension, &RegValue, 0xE0, sizeof(UCHAR));
 
                 /* Restore the command to its original value */
-                PciWriteDeviceConfig(PdoExtension,
-                                     &Command,
-                                     FIELD_OFFSET(PCI_COMMON_HEADER, Command),
-                                     sizeof(USHORT));
-
+                PciWriteDeviceConfig(PdoExtension, &Command, FIELD_OFFSET(PCI_COMMON_HEADER, Command), sizeof(USHORT));
             }
 
             /*
@@ -1020,13 +1009,13 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
              * i820, i840, i845 Chipsets) that have subtractive decode enabled,
              * and whose hack flags do not specify that this support is broken.
              */
-            if ((PdoExtension->HeaderType == PCI_BRIDGE_TYPE) &&
-                (PdoExtension->Dependent.type1.SubtractiveDecode) &&
-                ((PdoExtension->VendorId == 0x8086) &&
-                 ((PdoExtension->DeviceId == 0x2418) ||
-                  (PdoExtension->DeviceId == 0x2428) ||
-                  (PdoExtension->DeviceId == 0x244E) ||
-                  (PdoExtension->DeviceId == 0x2448))) &&
+            if (PdoExtension->HeaderType == PCI_BRIDGE_TYPE &&
+                PdoExtension->Dependent.type1.SubtractiveDecode &&
+                (PdoExtension->VendorId == 0x8086 &&
+                 (PdoExtension->DeviceId == 0x2418 ||
+                  PdoExtension->DeviceId == 0x2428 ||
+                  PdoExtension->DeviceId == 0x244E ||
+                  PdoExtension->DeviceId == 0x2448)) &&
                !(PdoExtension->HackFlags & PCI_HACK_BROKEN_SUBTRACTIVE_DECODE))
             {
                 /*
@@ -1073,9 +1062,10 @@ PciApplyHacks(IN PPCI_FDO_EXTENSION DeviceExtension,
          * Whitepaper on WHDC.
          */
         LegacyBaseAddress = 0;
+
         PciWriteDeviceConfig(PdoExtension,
                              &LegacyBaseAddress,
-                             sizeof(PCI_COMMON_HEADER) + sizeof(ULONG),
+                             (sizeof(PCI_COMMON_HEADER) + sizeof(ULONG)),
                              sizeof(ULONG));
     }
 }
