@@ -51,10 +51,12 @@ PciGetDescriptionMessage(
     if (Entry->Flags & MESSAGE_RESOURCE_UNICODE)
     {
         /* Subtract one space for the end-of-message terminator */
-        TextLength = (Entry->Length - FIELD_OFFSET(MESSAGE_RESOURCE_ENTRY, Text) - sizeof(WCHAR));
+        TextLength = (Entry->Length - FIELD_OFFSET(MESSAGE_RESOURCE_ENTRY, Text) - 2 * sizeof(WCHAR));
 
         /* Grab the text */
         Description = (PWCHAR)Entry->Text;
+        if (!Description[TextLength / sizeof(WCHAR)])
+            TextLength -= sizeof(WCHAR);
 
         /* Validate valid message length, ending with a newline character */
         ASSERT(TextLength > 1);
@@ -69,8 +71,8 @@ PciGetDescriptionMessage(
         }
 
         /* Copy the message, minus the newline character, and terminate it */
-        RtlCopyMemory(Buffer, Entry->Text, (TextLength - 1));
-        Buffer[TextLength / sizeof(WCHAR)] = UNICODE_NULL;
+        RtlCopyMemory(Buffer, Entry->Text, (TextLength - sizeof(WCHAR)));
+        Buffer[TextLength / sizeof(WCHAR) - 1] = UNICODE_NULL;
 
         /* Return the length to the caller, minus the terminating NULL */
         if (OutLength)
