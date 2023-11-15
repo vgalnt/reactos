@@ -1702,7 +1702,7 @@ PciScanBus(
             }
 
             /* Check for non-simple devices */
-            if (PCI_MULTIFUNCTION_DEVICE(PciData) ||
+            if (PCI_CONFIGURATION_TYPE(PciData) != 0 ||
                 PciData->BaseClass == PCI_CLASS_BRIDGE_DEV)
             {
                 /* No subsystem data defined for these kinds of bridges */
@@ -1751,8 +1751,9 @@ PciScanBus(
             PdoExtension = PciFindPdoByFunction(FdoExtension, PciSlot.u.AsULONG, PciData);
             if (PdoExtension)
             {
-                /* Rescan scenarios are not yet implemented */
-                UNIMPLEMENTED_DBGBREAK();
+                PdoExtension->NotPresent = FALSE;
+                ASSERT(PdoExtension->DeviceState != PciDeleted);
+                goto Continue;
             }
 
             /* Bus processing will need to happen */
@@ -1760,7 +1761,12 @@ PciScanBus(
 
             /* Create the PDO for this device */
             Status = PciPdoCreate(FdoExtension, PciSlot, &DeviceObject);
-            ASSERT(NT_SUCCESS(Status));
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PciScanBus: Status %X\n", Status);
+                ASSERT(NT_SUCCESS(Status));
+                return Status;
+            }
 
             NewExtension = (PPCI_PDO_EXTENSION)DeviceObject->DeviceExtension;
 
@@ -1843,6 +1849,8 @@ PciScanBus(
             /* Check if no saved data was present or if it was a mismatch */
             if (!NT_SUCCESS(Status))
             {
+                DPRINT1("PciScanBus: Status %X\n", Status);
+
                 /* Save the new data */
                 Status = PciSaveBiosConfig(NewExtension, PciData);
                 ASSERT(NT_SUCCESS(Status));
@@ -1858,9 +1866,6 @@ PciScanBus(
 
             /* Get power, AGP, and other capability data */
             PciGetEnhancedCapabilities(NewExtension, PciData);
-
-            /* Now configure the BARs */
-            Status = PciGetFunctionLimits(NewExtension, PciData, HackFlags);
 
             /* Power up the device */
             PciSetPowerManagedDevicePowerState(NewExtension, PowerDeviceD0, FALSE);
@@ -1882,6 +1887,20 @@ PciScanBus(
             /* Check if this device is used for PCI debugger cards */
             NewExtension->OnDebugPath = PciIsDeviceOnDebugPath(NewExtension);
 
+            /* Now configure the BARs */
+            Status = PciGetFunctionLimits(NewExtension, PciData, HackFlags);
+
+            /* Power up the device */
+            PciSetPowerManagedDevicePowerState(NewExtension, NewExtension->PowerState.CurrentDeviceState, FALSE);
+
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PciScanBus: FIXME! Status %X\n", Status);
+                ASSERT(NT_SUCCESS(Status));
+                //PciPdoDestroy(DeviceObject);
+                return Status;
+            }
+
             /* Check for devices with invalid/bogus subsystem data */
             if (HackFlags & PCI_HACK_NO_SUBSYSTEM)
             {
@@ -1901,6 +1920,7 @@ PciScanBus(
                     /* This is a strange issue that shouldn't happen normally */
                     DPRINT1("PciScanBus: Failed to read PCI capability at offset %X\n", CapOffset);
                     ASSERT(TempOffset == CapOffset);
+                    break;
                 }
 
                 /* Check for capabilities that this driver cares about */
@@ -1931,6 +1951,9 @@ PciScanBus(
                         break;
                 }
 
+                /* Dump this capability */
+                DPRINT("CAP @%02X ID %02X (%s)\n", CapOffset, CapHeader.CapabilityID, Name);
+
                 /* Check if this is a capability that should be dumped */
                 if (Size)
                 {
@@ -1941,13 +1964,13 @@ PciScanBus(
                         /* Again, a strange issue that shouldn't be seen */
                         DPRINT1("PciScanBus: Failed to read capability data. ***\n");
                         ASSERT(TempOffset == CapOffset);
+                        break;
                     }
+
+                    for (ix = 0; ix < Size; ix += 2)
+                        DPRINT("  %04X\n", *(PUSHORT)((ULONG_PTR)&CapHeader + ix));
                 }
 
-                /* Dump this capability */
-                DPRINT("CAP @%02x ID %02x (%s)\n", CapOffset, CapHeader.CapabilityID, Name);
-            for (ix = 0; ix < Size; ix += 2)
-                DPRINT("  %04x\n", *(PUSHORT)((ULONG_PTR)&CapHeader + ix));
                 DPRINT("\n");
 
                 /* Check the next capability */
@@ -1999,11 +2022,11 @@ PciScanBus(
                      * header is 64, not 0, hence why the check for PCI-X caps
                      * was required, and the value used here below.
                      */
-                    if (!(PciData->LatencyTimer) ||
+                    if (!PciData->LatencyTimer ||
                         (TempOffset && PciData->LatencyTimer == 0x40))
                     {
                         /* Keep track of the fact that it needs configuration */
-                        DPRINT1("PciScanBus: ScanBus, PDOx %p found unconfigured\n", NewExtension);
+                        DPRINT1("PciScanBus: PDOx %p found unconfigured\n", NewExtension);
                         NewExtension->NeedsHotPlugConfiguration = TRUE;
                     }
                 }
@@ -2015,6 +2038,9 @@ PciScanBus(
 
             /* The PDO is now ready to go */
             DeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
+Continue:
+            if (!kx && !PCI_MULTIFUNCTION_DEVICE(PciData))
+                break;
         }
     }
 
