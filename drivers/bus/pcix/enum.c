@@ -596,53 +596,60 @@ PciBuildRequirementsList(IN PPCI_PDO_EXTENSION PdoExtension,
 
 NTSTATUS
 NTAPI
-PciQueryRequirements(IN PPCI_PDO_EXTENSION PdoExtension,
-                     IN OUT PIO_RESOURCE_REQUIREMENTS_LIST *RequirementsList)
+PciQueryRequirements(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _Inout_ PIO_RESOURCE_REQUIREMENTS_LIST* OutIoResources)
 {
-    NTSTATUS Status;
     PCI_COMMON_HEADER PciHeader;
+    NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciQueryRequirements: %p\n", PdoExtension);
 
     /* Check if the PDO has any resources, or at least an interrupt pin */
-    if ((PdoExtension->Resources) || (PdoExtension->InterruptPin))
+    if (!PdoExtension->Resources && !PdoExtension->InterruptPin)
     {
-        /* Read the current PCI header */
-        PciReadDeviceConfig(PdoExtension, &PciHeader, 0, PCI_COMMON_HDR_LENGTH);
+        /* There aren't any resources, so simply return NULL */
+        DPRINT1("PciQueryRequirements: returning NULL requirements list\n");
 
-        /* Use it to build a list of requirements */
-        Status = PciBuildRequirementsList(PdoExtension, &PciHeader, RequirementsList);
-        if (!NT_SUCCESS(Status)) return Status;
+        *OutIoResources = NULL;
 
-        /* Is this a Compaq PCI Hotplug Controller (r17) on a PAE system ? */
-        if ((PciHeader.VendorID == 0xE11) &&
-            (PciHeader.DeviceID == 0xA0F7) &&
-            (PciHeader.RevisionID == 17) &&
-            (ExIsProcessorFeaturePresent(PF_PAE_ENABLED)))
-        {
-            /* Have not tested this on eVb's machine yet */
-            UNIMPLEMENTED_DBGBREAK();
-        }
+        /* This call always succeeds (but maybe with no requirements) */
+        return STATUS_SUCCESS;
+    }
 
-        /* Check if the requirements are actually the zero list */
-        if (*RequirementsList == PciZeroIoResourceRequirements)
-        {
-            /* A simple NULL will suffice for the PnP Manager */
-            *RequirementsList = NULL;
-            DPRINT1("Returning NULL requirements list\n");
-        }
-        else
-        {
-            /* Otherwise, print out the requirements list */
-            PciDebugPrintIoResReqList(*RequirementsList);
-        }
+    /* Read the current PCI header */
+    PciReadDeviceConfig(PdoExtension, &PciHeader, 0, PCI_COMMON_HDR_LENGTH);
+
+    /* Use it to build a list of requirements */
+    Status = PciBuildRequirementsList(PdoExtension, &PciHeader, OutIoResources);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciQueryRequirements: Status %X\n", Status);
+        return Status;
+    }
+
+    /* Is this a Compaq PCI Hotplug Controller (r17) on a PAE system ? */
+    if (PciHeader.VendorID == 0x0E11 &&
+        PciHeader.DeviceID == 0xA0F7 &&
+        PciHeader.RevisionID == 0x11 &&
+        ExIsProcessorFeaturePresent(PF_PAE_ENABLED))
+    {
+        /* Have not tested this on eVb's machine yet */
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    /* Check if the requirements are actually the zero list */
+    if (*OutIoResources == PciZeroIoResourceRequirements)
+    {
+        /* A simple NULL will suffice for the PnP Manager */
+        DPRINT1("PciQueryRequirements: Returning NULL requirements list\n");
+        *OutIoResources = NULL;
     }
     else
     {
-        /* There aren't any resources, so simply return NULL */
-        DPRINT1("PciQueryRequirements returning NULL requirements list\n");
-        *RequirementsList = NULL;
+        /* Otherwise, print out the requirements list */
+        PciDebugPrintIoResReqList(*OutIoResources);
     }
 
     /* This call always succeeds (but maybe with no requirements) */
