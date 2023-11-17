@@ -353,19 +353,16 @@ PciPdoIrpQueryDeviceRelations(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciPdoIrpQueryCapabilities(IN PIRP Irp,
-                           IN PIO_STACK_LOCATION IoStackLocation,
-                           IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpQueryCapabilities(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
-
-    UNREFERENCED_PARAMETER(Irp);
+    DPRINT("PciPdoIrpQueryCapabilities: %p, %p, %p\n", Irp, IoStack, PdoExtension);
 
     /* Call the worker function */
-    return PciQueryCapabilities(DeviceExtension,
-                                IoStackLocation->
-                                Parameters.DeviceCapabilities.Capabilities);
+    return PciQueryCapabilities(PdoExtension, IoStack->Parameters.DeviceCapabilities.Capabilities);
 }
 
 NTSTATUS
