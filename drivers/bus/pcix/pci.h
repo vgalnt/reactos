@@ -64,6 +64,10 @@
 // PCI ID Buffer ANSI Strings
 #define MAX_ANSI_STRINGS                    0x08
 
+#ifndef Add2Ptr
+  #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
+#endif
+
 /* STRUCTURES ***************************************************************/
 
 // Device Extension, Interface, Translator and Arbiter Signatures
