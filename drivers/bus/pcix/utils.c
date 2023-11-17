@@ -1251,16 +1251,21 @@ PciGetLengthFromBar(IN ULONG Bar)
 {
     ULONG Length;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciGetLengthFromBar: %X\n", Bar);
 
     /* I/O addresses vs. memory addresses start differently due to alignment */
-    Length = 1 << ((Bar & PCI_ADDRESS_IO_SPACE) ? 2 : 4);
+    Length = (1 << ((Bar & PCI_ADDRESS_IO_SPACE) ? 2 : 4));
 
     /* Keep going until a set bit */
-    while (!(Length & Bar) && (Length)) Length <<= 1;
+    while (!(Length & Bar) && Length)
+        Length <<= 1;
 
     /* Return the length (might be 0 on 64-bit because it's the low-word) */
-    if ((Bar & PCI_ADDRESS_MEMORY_TYPE_MASK) != PCI_TYPE_64BIT) ASSERT(Length);
+    if ((Bar & PCI_ADDRESS_MEMORY_TYPE_MASK) != PCI_TYPE_64BIT)
+    {
+        ASSERT(Length);
+    }
+
     return Length;
 }
 
