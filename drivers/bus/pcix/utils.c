@@ -1499,21 +1499,23 @@ PciDetermineSlotNumber(
 
 NTSTATUS
 NTAPI
-PciGetDeviceCapabilities(IN PDEVICE_OBJECT DeviceObject,
-                         IN OUT PDEVICE_CAPABILITIES DeviceCapability)
+PciGetDeviceCapabilities(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Inout_ PDEVICE_CAPABILITIES DeviceCapability)
 {
-    PIRP Irp;
-    NTSTATUS Status;
-    KEVENT Event;
-    PDEVICE_OBJECT AttachedDevice;
-    PIO_STACK_LOCATION IoStackLocation;
     IO_STATUS_BLOCK IoStatusBlock;
+    PDEVICE_OBJECT AttachedDevice;
+    PIO_STACK_LOCATION IoStack;
+    PIRP Irp;
+    KEVENT Event;
+    NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciGetDeviceCapabilities: %p, %p\n", DeviceObject, DeviceCapability);
 
     /* Zero out capabilities and set undefined values to start with */
     RtlZeroMemory(DeviceCapability, sizeof(DEVICE_CAPABILITIES));
+
     DeviceCapability->Size = sizeof(DEVICE_CAPABILITIES);
     DeviceCapability->Version = 1;
     DeviceCapability->Address = -1;
@@ -1526,15 +1528,11 @@ PciGetDeviceCapabilities(IN PDEVICE_OBJECT DeviceObject,
     AttachedDevice = IoGetAttachedDeviceReference(DeviceObject);
 
     /* And build an IRP for it */
-    Irp = IoBuildSynchronousFsdRequest(IRP_MJ_PNP,
-                                       AttachedDevice,
-                                       NULL,
-                                       0,
-                                       NULL,
-                                       &Event,
-                                       &IoStatusBlock);
+    Irp = IoBuildSynchronousFsdRequest(IRP_MJ_PNP, AttachedDevice, NULL, 0, NULL, &Event, &IoStatusBlock);
     if (!Irp)
     {
+        DPRINT1("PciGetDeviceCapabilities: STATUS_INSUFFICIENT_RESOURCES\n");
+
         /* The IRP failed, fail the request as well */
         ObDereferenceObject(AttachedDevice);
         return STATUS_INSUFFICIENT_RESOURCES;
@@ -1545,14 +1543,15 @@ PciGetDeviceCapabilities(IN PDEVICE_OBJECT DeviceObject,
     Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
 
     /* Get a stack location in this IRP */
-    IoStackLocation = IoGetNextIrpStackLocation(Irp);
-    ASSERT(IoStackLocation);
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    ASSERT(IoStack);
 
     /* Initialize it as a query capabilities IRP, with no completion routine */
-    RtlZeroMemory(IoStackLocation, sizeof(IO_STACK_LOCATION));
-    IoStackLocation->MajorFunction = IRP_MJ_PNP;
-    IoStackLocation->MinorFunction = IRP_MN_QUERY_CAPABILITIES;
-    IoStackLocation->Parameters.DeviceCapabilities.Capabilities = DeviceCapability;
+    RtlZeroMemory(IoStack, sizeof(IO_STACK_LOCATION));
+
+    IoStack->MajorFunction = IRP_MJ_PNP;
+    IoStack->MinorFunction = IRP_MN_QUERY_CAPABILITIES;
+    IoStack->Parameters.DeviceCapabilities.Capabilities = DeviceCapability;
     IoSetCompletionRoutine(Irp, NULL, NULL, FALSE, FALSE, FALSE);
 
     /* Send the IOCTL to the driver */
@@ -1560,16 +1559,13 @@ PciGetDeviceCapabilities(IN PDEVICE_OBJECT DeviceObject,
     if (Status == STATUS_PENDING)
     {
         /* Wait for a response and update the actual status */
-        KeWaitForSingleObject(&Event,
-                              Executive,
-                              KernelMode,
-                              FALSE,
-                              NULL);
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
         Status = Irp->IoStatus.Status;
     }
 
     /* Done, dereference the attached device and return the final result */
     ObDereferenceObject(AttachedDevice);
+
     return Status;
 }
 
