@@ -380,33 +380,35 @@ PciQueryId(
 
 NTSTATUS
 NTAPI
-PciQueryDeviceText(IN PPCI_PDO_EXTENSION PdoExtension,
-                   IN DEVICE_TEXT_TYPE QueryType,
-                   IN ULONG Locale,
-                   OUT PWCHAR *Buffer)
+PciQueryDeviceText(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ DEVICE_TEXT_TYPE QueryType,
+    _In_ ULONG Locale,
+    _Out_ PWCHAR* OutDeviceText)
 {
-    PWCHAR MessageBuffer, LocationBuffer;
+    PWCHAR MessageBuffer;
+    PWCHAR LocationBuffer;
     ULONG Length;
     NTSTATUS Status;
-    
-    UNREFERENCED_PARAMETER(Locale);
+
+    DPRINT("PciQueryId: %p, %X, %X\n", PdoExtension, QueryType, Locale);
 
     /* Check what the caller is requesting */
     switch (QueryType)
     {
         case DeviceTextDescription:
-        
+        {
             /* Get the message from the resource section */
-            MessageBuffer = PciGetDeviceDescriptionMessage(PdoExtension->BaseClass,
-                                                           PdoExtension->SubClass);
-                                                           
+            MessageBuffer = PciGetDeviceDescriptionMessage(PdoExtension->BaseClass, PdoExtension->SubClass);
+
             /* Return it to the caller, and select proper status code */
-            *Buffer = MessageBuffer;
-            Status = MessageBuffer ? STATUS_SUCCESS : STATUS_NOT_SUPPORTED;
+            *OutDeviceText = MessageBuffer;
+
+            Status = (MessageBuffer ? STATUS_SUCCESS : STATUS_NOT_SUPPORTED);
             break;
-        
+        }
         case DeviceTextLocationInformation:
-        
+        {
             /* Get the message from the resource section */
             MessageBuffer = PciGetDescriptionMessage(0x10000, &Length);
             if (!MessageBuffer)
@@ -415,39 +417,36 @@ PciQueryDeviceText(IN PPCI_PDO_EXTENSION PdoExtension,
                 Status = STATUS_NOT_SUPPORTED;
                 break;
             }
-            
+
             /* Add space for a null-terminator, and allocate the buffer */
-            Length += 2 * sizeof(UNICODE_NULL);
-            LocationBuffer = ExAllocatePoolWithTag(PagedPool,
-                                                   Length * sizeof(WCHAR),
-                                                   'BicP');
-            *Buffer = LocationBuffer;
-            
+            Length += (2 * sizeof(UNICODE_NULL));
+
+            *OutDeviceText = LocationBuffer = ExAllocatePoolWithTag(PagedPool, Length * sizeof(WCHAR), 'BicP');
+
             /* Check if the allocation succeeded */
             if (LocationBuffer)
             {
                 /* Build the location string based on bus, function, and device */
-                swprintf(LocationBuffer,
-                         MessageBuffer,
-                         PdoExtension->ParentFdoExtension->BaseBus,
-                         PdoExtension->Slot.u.bits.FunctionNumber,
-                         PdoExtension->Slot.u.bits.DeviceNumber);
+                swprintf(LocationBuffer, MessageBuffer, PdoExtension->ParentFdoExtension->BaseBus,
+                         PdoExtension->Slot.u.bits.FunctionNumber, PdoExtension->Slot.u.bits.DeviceNumber);
             }
-            
+
             /* Free the original string from the resource section */
-            ExFreePoolWithTag(MessageBuffer, 0);
-            
+            ExFreePool(MessageBuffer);
+
             /* Select the correct status */
-            Status = LocationBuffer ? STATUS_SUCCESS : STATUS_INSUFFICIENT_RESOURCES;
+            Status = (LocationBuffer ? STATUS_SUCCESS : STATUS_INSUFFICIENT_RESOURCES);
             break;
-            
+        }
         default:
-            
+        {
             /* Anything else is unsupported */
+            DPRINT1("PciQueryId: unsupported QueryType %X\n", QueryType);
             Status = STATUS_NOT_SUPPORTED;
             break;
+        }
     }
-    
+
     /* Return whether or not a device text string was indeed found */
     return Status;
 }
