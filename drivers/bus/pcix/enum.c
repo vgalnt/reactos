@@ -1375,17 +1375,19 @@ PciWriteLimitsAndRestoreCurrent(IN PVOID Reserved,
 
 NTSTATUS
 NTAPI
-PcipGetFunctionLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
+PcipGetFunctionLimits(
+    _In_ PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    PPCI_CONFIGURATOR Configurator;
-    PPCI_COMMON_HEADER PciData, Current;
-    PPCI_PDO_EXTENSION PdoExtension;
-    PCI_IPI_CONTEXT IpiContext;
     PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    PPCI_PDO_EXTENSION PdoExtension;
+    PPCI_CONFIGURATOR Configurator;
+    PPCI_COMMON_HEADER PciData;
+    PPCI_COMMON_HEADER Current;
+    PCI_IPI_CONTEXT IpiContext;
     ULONG Offset;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PcipGetFunctionLimits: %p\n", Context);
 
     /* Grab all parameters from the context */
     PdoExtension = Context->PdoExtension;
@@ -1398,9 +1400,7 @@ PcipGetFunctionLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
 
     /* Now that they're saved, clear the status, and disable all decodes */
     Current->Status = 0;
-    Current->Command &= ~(PCI_ENABLE_IO_SPACE |
-                          PCI_ENABLE_MEMORY_SPACE |
-                          PCI_ENABLE_BUS_MASTER);
+    Current->Command &= ~(PCI_ENABLE_IO_SPACE | PCI_ENABLE_MEMORY_SPACE | PCI_ENABLE_BUS_MASTER);
 
     /* Make a copy of the current PCI configuration header (with decodes off) */
     RtlCopyMemory(PciData, Current, PCI_COMMON_HDR_LENGTH);
@@ -1413,8 +1413,7 @@ PcipGetFunctionLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
     Configurator->Initialize(Context);
 
     /* Check for critical devices and PCI Debugging devices */
-    if ((PdoExtension->HackFlags & PCI_HACK_CRITICAL_DEVICE) ||
-        (PdoExtension->OnDebugPath))
+    if ((PdoExtension->HackFlags & PCI_HACK_CRITICAL_DEVICE) || PdoExtension->OnDebugPath)
     {
         /* Specifically check for a PCI Debugging device */
         if (PdoExtension->OnDebugPath)
@@ -1437,10 +1436,12 @@ PcipGetFunctionLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
         IpiContext.DeviceExtension = PdoExtension;
         IpiContext.Function = PciWriteLimitsAndRestoreCurrent;
         IpiContext.Context = Context;
+
         KeIpiGenericCall(PciExecuteCriticalSystemRoutine, (ULONG_PTR)&IpiContext);
 
         /* Re-enable the debugger if this was a PCI Debugging Device */
-        if (PdoExtension->OnDebugPath) KdEnableDebugger();
+        if (PdoExtension->OnDebugPath)
+            KdEnableDebugger();
     }
     else
     {
@@ -1459,14 +1460,14 @@ PcipGetFunctionLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
     if (!PdoExtension->ExpectedWritebackFailure)
     {
         /* Read the current PCI header now, after discovery has completed */
-        PciReadDeviceConfig(PdoExtension, PciData + 1, 0, PCI_COMMON_HDR_LENGTH);
+        PciReadDeviceConfig(PdoExtension, (PciData + 1), 0, PCI_COMMON_HDR_LENGTH);
 
         /* Check if the current header at entry, is equal to the header now */
-        Offset = RtlCompareMemory(PciData + 1, Current, PCI_COMMON_HDR_LENGTH);
+        Offset = RtlCompareMemory((PciData + 1), Current, PCI_COMMON_HDR_LENGTH);
         if (Offset != PCI_COMMON_HDR_LENGTH)
         {
             /* It's not, which means configuration somehow changed, dump this */
-            DPRINT1("PCI - CFG space write verify failed at offset 0x%x\n", Offset);
+            DPRINT1("PcipGetFunctionLimits: CFG space write verify failed at offset %X\n", Offset);
             PciDebugDumpCommonConfig(PciData + 1);
             DPRINT1("----------\n");
             PciDebugDumpCommonConfig(Current);
@@ -1477,10 +1478,12 @@ PcipGetFunctionLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
     ASSERT(PdoExtension->Resources == NULL);
 
     /* Allocate the structure that will hold the discovered resources and limits */
-    PdoExtension->Resources = ExAllocatePoolWithTag(NonPagedPool,
-                                                    sizeof(PCI_FUNCTION_RESOURCES),
-                                                    'BicP');
-    if (!PdoExtension->Resources) return STATUS_INSUFFICIENT_RESOURCES;
+    PdoExtension->Resources = ExAllocatePoolWithTag(NonPagedPool, sizeof(PCI_FUNCTION_RESOURCES), 'BicP');
+    if (!PdoExtension->Resources)
+    {
+        DPRINT1("PcipGetFunctionLimits: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     /* Clear it out for now */
     RtlZeroMemory(PdoExtension->Resources, sizeof(PCI_FUNCTION_RESOURCES));
@@ -1497,16 +1500,17 @@ PcipGetFunctionLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
     {
         /* Keep going until a non-null descriptor is found */
         IoDescriptor--;
-        if (IoDescriptor->Type != CmResourceTypeNull) break;
+        if (IoDescriptor->Type != CmResourceTypeNull)
+            break;
 
         /* This is a null descriptor, is it the last one? */
         if (IoDescriptor == &PdoExtension->Resources->Limit[PCI_TYPE0_ADDRESSES + 1])
         {
             /* This means the descriptor is NULL, which means discovery failed */
-            DPRINT1("PCI Resources fail!\n");
+            DPRINT1("PcipGetFunctionLimits: PCI Resources fail!\n");
 
             /* No resources will be assigned for the device */
-            ExFreePoolWithTag(PdoExtension->Resources, 0);
+            ExFreePoolWithTag(PdoExtension->Resources, 'BicP');
             PdoExtension->Resources = NULL;
             break;
         }
