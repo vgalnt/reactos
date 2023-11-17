@@ -920,58 +920,52 @@ PciGetBiosConfig(
 
 NTSTATUS
 NTAPI
-PciSaveBiosConfig(IN PPCI_PDO_EXTENSION DeviceExtension,
-                  IN PPCI_COMMON_HEADER PciData)
+PciSaveBiosConfig(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _Out_ PPCI_COMMON_HEADER PciData)
 {
-    HANDLE KeyHandle, SubKeyHandle;
     OBJECT_ATTRIBUTES ObjectAttributes;
-    UNICODE_STRING KeyName, KeyValue;
+    UNICODE_STRING KeyName;
+    UNICODE_STRING KeyValue;
+    HANDLE KeyHandle;
+    HANDLE SubKeyHandle;
     WCHAR Buffer[32];
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciSaveBiosConfig: %p, %p\n", PdoExtension, PciData);
 
     /* Open the PCI key */
-    Status = IoOpenDeviceRegistryKey(DeviceExtension->ParentFdoExtension->
-                                     PhysicalDeviceObject,
+    Status = IoOpenDeviceRegistryKey(PdoExtension->ParentFdoExtension->PhysicalDeviceObject,
                                      TRUE,
-                                     KEY_READ | KEY_WRITE,
+                                     (KEY_READ | KEY_WRITE),
                                      &KeyHandle);
-    if (!NT_SUCCESS(Status)) return Status;
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciSaveBiosConfig: Status %X\n", Status);
+        return Status;
+    }
 
     /* Create a volatile BIOS configuration key */
     RtlInitUnicodeString(&KeyName, L"BiosConfig");
-    InitializeObjectAttributes(&ObjectAttributes,
-                               &KeyName,
-                               OBJ_KERNEL_HANDLE,
-                               KeyHandle,
-                               NULL);
-    Status = ZwCreateKey(&SubKeyHandle,
-                         KEY_READ | KEY_WRITE,
-                         &ObjectAttributes,
-                         0,
-                         NULL,
-                         REG_OPTION_VOLATILE,
-                         NULL);
+    InitializeObjectAttributes(&ObjectAttributes, &KeyName, OBJ_KERNEL_HANDLE, KeyHandle, NULL);
+
+    Status = ZwCreateKey(&SubKeyHandle, (KEY_READ | KEY_WRITE), &ObjectAttributes, 0, NULL, REG_OPTION_VOLATILE, NULL);
     ZwClose(KeyHandle);
-    if (!NT_SUCCESS(Status)) return Status;
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciSaveBiosConfig: Status %X\n", Status);
+        return Status;
+    }
 
     /* Create the key value based on the device and function number */
-    swprintf(Buffer,
-             L"DEV_%02x&FUN_%02x",
-             DeviceExtension->Slot.u.bits.DeviceNumber,
-             DeviceExtension->Slot.u.bits.FunctionNumber);
+    swprintf(Buffer, L"DEV_%02x&FUN_%02x", PdoExtension->Slot.u.bits.DeviceNumber, PdoExtension->Slot.u.bits.FunctionNumber);
     RtlInitUnicodeString(&KeyValue, Buffer);
 
     /* Set the value data (the PCI BIOS configuration header) */
-    Status = ZwSetValueKey(SubKeyHandle,
-                           &KeyValue,
-                           0,
-                           REG_BINARY,
-                           PciData,
-                           PCI_COMMON_HDR_LENGTH);
+    Status = ZwSetValueKey(SubKeyHandle, &KeyValue, 0, REG_BINARY, PciData, PCI_COMMON_HDR_LENGTH);
     ZwClose(SubKeyHandle);
+
     return Status;
 }
 
