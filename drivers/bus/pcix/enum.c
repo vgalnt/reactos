@@ -1115,12 +1115,13 @@ PcipIsSameDevice(IN PPCI_PDO_EXTENSION DeviceExtension,
 
 BOOLEAN
 NTAPI
-PciSkipThisFunction(IN PPCI_COMMON_HEADER PciData,
-                    IN PCI_SLOT_NUMBER Slot,
-                    IN UCHAR OperationType,
-                    IN ULONGLONG HackFlags)
+PciSkipThisFunction(
+    _In_ PPCI_COMMON_HEADER PciData,
+    _In_ PCI_SLOT_NUMBER Slot,
+    _In_ UCHAR OperationType,
+    _In_ ULONGLONG HackFlags)
 {
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciSkipThisFunction: %p, %X, %X, %I64X\n", PciData, Slot.u.AsULONG, OperationType, HackFlags);
 
     do
     {
@@ -1128,46 +1129,44 @@ PciSkipThisFunction(IN PPCI_COMMON_HEADER PciData,
         if (OperationType == PCI_SKIP_DEVICE_ENUMERATION)
         {
             /* Check if there's a hackflag saying not to enumerate this device */
-            if (HackFlags & PCI_HACK_NO_ENUM_AT_ALL) break;
+            if (HackFlags & PCI_HACK_NO_ENUM_AT_ALL)
+                break;
 
             /* Check if this is the high end of a double decker device */
-            if ((HackFlags & PCI_HACK_DOUBLE_DECKER) &&
-                (Slot.u.bits.DeviceNumber >= 16))
+            if ((HackFlags & PCI_HACK_DOUBLE_DECKER) && Slot.u.bits.DeviceNumber >= 0x10)
             {
                 /* It belongs to the same device, so skip it */
-                DPRINT1("    Device (Ven %04x Dev %04x (d=0x%x, f=0x%x)) is a ghost.\n",
-                        PciData->VendorID,
-                        PciData->DeviceID,
-                        Slot.u.bits.DeviceNumber,
-                        Slot.u.bits.FunctionNumber);
+                DPRINT1("PciSkipThisFunction: Device (Ven %04X Dev %04X (d %X, f %X)) is a ghost.\n",
+                        PciData->VendorID, PciData->DeviceID, Slot.u.bits.DeviceNumber, Slot.u.bits.FunctionNumber);
                 break;
             }
         }
         else if (OperationType == PCI_SKIP_RESOURCE_ENUMERATION)
         {
             /* Resource enumeration, check for a hackflag saying not to do it */
-            if (HackFlags & PCI_HACK_ENUM_NO_RESOURCE) break;
+            if (HackFlags & PCI_HACK_ENUM_NO_RESOURCE)
+                break;
         }
         else
         {
             /* Logic error in the driver */
-            ASSERTMSG("PCI Skip Function - Operation type unknown.\n", FALSE);
+            ASSERTMSG("PciSkipThisFunction: Operation type unknown.\n", FALSE);
         }
 
         /* Check for legacy bridges during resource enumeration */
-        if ((PciData->BaseClass == PCI_CLASS_BRIDGE_DEV) &&
-            (PciData->SubClass <= PCI_SUBCLASS_BR_MCA) &&
-            (OperationType == PCI_SKIP_RESOURCE_ENUMERATION))
+        if (PciData->BaseClass == PCI_CLASS_BRIDGE_DEV &&
+            PciData->SubClass <= PCI_SUBCLASS_BR_MCA &&
+            OperationType == PCI_SKIP_RESOURCE_ENUMERATION)
         {
             /* Their resources are not enumerated, only PCI and Cardbus/PCMCIA */
             break;
         }
-        else if (PciData->BaseClass == PCI_CLASS_NOT_DEFINED)
+
+        if (PciData->BaseClass == PCI_CLASS_NOT_DEFINED)
         {
             /* Undefined base class (usually a PCI BIOS/ROM bug) */
-            DPRINT1("    Vendor %04x, Device %04x has class code of PCI_CLASS_NOT_DEFINED\n",
-                    PciData->VendorID,
-                    PciData->DeviceID);
+            DPRINT1("PciSkipThisFunction: Vendor %04X, Device %04X has class code of PCI_CLASS_NOT_DEFINED\n",
+                    PciData->VendorID, PciData->DeviceID);
 
             /*
              * The Alder has an Intel Extended Express System Support Controller
@@ -1177,15 +1176,19 @@ PciSkipThisFunction(IN PPCI_COMMON_HEADER PciData,
              * actual IO-APIC, the remaining five bars seem to be spurious
              * resources, so ignore this device completely.
              */
-            if ((PciData->VendorID == 0x8086) && (PciData->DeviceID == 8)) break;
+            if (PciData->VendorID == 0x8086 && PciData->DeviceID == 8)
+                break;
         }
 
         /* Other normal PCI cards and bridges are enumerated */
-        if (PCI_CONFIGURATION_TYPE(PciData) <= PCI_CARDBUS_BRIDGE_TYPE) return FALSE;
-    } while (FALSE);
+        if (PCI_CONFIGURATION_TYPE(PciData) <= PCI_CARDBUS_BRIDGE_TYPE)
+            return FALSE;
+    }
+    while (FALSE);
 
     /* Hit one of the known bugs/hackflags, or this is a new kind of PCI unit */
-    DPRINT1("   Device skipped (not enumerated).\n");
+    DPRINT1("PciSkipThisFunction: Device skipped (not enumerated).\n");
+
     return TRUE;
 }
 
