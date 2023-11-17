@@ -1562,29 +1562,29 @@ PciGetFunctionLimits(
 
 VOID
 NTAPI
-PciProcessBus(IN PPCI_FDO_EXTENSION DeviceExtension)
+PciProcessBus(
+    _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
     PPCI_PDO_EXTENSION PdoExtension;
     PDEVICE_OBJECT PhysicalDeviceObject;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciProcessBus: %p\n", FdoExtension);
 
     /* Get the PDO Extension */
-    PhysicalDeviceObject = DeviceExtension->PhysicalDeviceObject;
-    PdoExtension = (PPCI_PDO_EXTENSION)PhysicalDeviceObject->DeviceExtension;
+    PhysicalDeviceObject = FdoExtension->PhysicalDeviceObject;
+    PdoExtension = PhysicalDeviceObject->DeviceExtension;
 
     /* Cheeck if this is the root bus */
-    if (!PCI_IS_ROOT_FDO(DeviceExtension))
+    if (!PCI_IS_ROOT_FDO(FdoExtension))
     {
         /* Not really handling this year */
         UNIMPLEMENTED_DBGBREAK();
 
         /* Check for PCI bridges with the ISA bit set, or required */
-        if ((PdoExtension) &&
-            (PciClassifyDeviceType(PdoExtension) == PciTypePciBridge) &&
-            ((PdoExtension->Dependent.type1.IsaBitRequired) ||
-             (PdoExtension->Dependent.type1.IsaBitSet)))
+        if (PdoExtension &&
+            PciClassifyDeviceType(PdoExtension) == PciTypePciBridge &&
+            (PdoExtension->Dependent.type1.IsaBitRequired || PdoExtension->Dependent.type1.IsaBitSet))
         {
             /* We'll need to do some legacy support */
             UNIMPLEMENTED_DBGBREAK();
@@ -1593,7 +1593,7 @@ PciProcessBus(IN PPCI_FDO_EXTENSION DeviceExtension)
     else
     {
         /* Scan all of the root bus' children bridges */
-        for (PdoExtension = DeviceExtension->ChildBridgePdoList;
+        for (PdoExtension = FdoExtension->ChildBridgePdoList;
              PdoExtension;
              PdoExtension = PdoExtension->NextBridge)
         {
