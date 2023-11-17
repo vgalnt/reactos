@@ -120,34 +120,34 @@ PciStallForPowerChange(IN PPCI_PDO_EXTENSION PdoExtension,
 
 NTSTATUS
 NTAPI
-PciSetPowerManagedDevicePowerState(IN PPCI_PDO_EXTENSION DeviceExtension,
-                                   IN DEVICE_POWER_STATE DeviceState,
-                                   IN BOOLEAN IrpSet)
+PciSetPowerManagedDevicePowerState(
+    IN PPCI_PDO_EXTENSION PdoExtension,
+    IN DEVICE_POWER_STATE DeviceState,
+    IN BOOLEAN IsSetIrp)
 {
     NTSTATUS Status;
     PCI_PM_CAPABILITY PmCaps;
     ULONG CapsOffset;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciSetPowerManagedDevicePowerState: %p, %X, %X\n", PdoExtension, DeviceState, IsSetIrp);
 
     /* Assume success */
     Status = STATUS_SUCCESS;
 
     /* Check if this device can support low power states */
-    if (!(PciCanDisableDecodes(DeviceExtension, NULL, 0, TRUE)) &&
-         (DeviceState != PowerDeviceD0))
+    if (!(PciCanDisableDecodes(PdoExtension, NULL, 0, TRUE)) && DeviceState != PowerDeviceD0)
     {
         /* Simply return success, ignoring this request */
-        DPRINT1("Cannot disable decodes on this device, ignoring PM request...\n");
+        DPRINT1("PciSetPowerManagedDevicePowerState: Cannot disable decodes on this device\n");
         return Status;
     }
 
     /* Does the device support power management at all? */
-    if (!(DeviceExtension->HackFlags & PCI_HACK_NO_PM_CAPS))
+    if (!(PdoExtension->HackFlags & PCI_HACK_NO_PM_CAPS))
     {
         /* Get the PM capabilities register */
-        CapsOffset = PciReadDeviceCapability(DeviceExtension,
-                                             DeviceExtension->CapabilitiesPtr,
+        CapsOffset = PciReadDeviceCapability(PdoExtension,
+                                             PdoExtension->CapabilitiesPtr,
                                              PCI_CAPABILITY_ID_POWER_MANAGEMENT,
                                              &PmCaps.Header,
                                              sizeof(PCI_PM_CAPABILITY));
@@ -162,43 +162,42 @@ PciSetPowerManagedDevicePowerState(IN PPCI_PDO_EXTENSION DeviceExtension,
 
             /* Check if the device supports Cold-D3 poweroff */
             if (PmCaps.PMC.Capabilities.Support.PMED3Cold)
-            {
                 /* If there was a pending PME, clear it */
                 PmCaps.PMCSR.ControlStatus.PMEStatus = 1;
-            }
         }
         else
         {
             /* Otherwise, just set the new power state, converting from NT */
-            PmCaps.PMCSR.ControlStatus.PowerState = DeviceState - 1;
+            PmCaps.PMCSR.ControlStatus.PowerState = (DeviceState - 1);
         }
 
         /* Write the new power state in the PMCSR */
-        PciWriteDeviceConfig(DeviceExtension,
+        PciWriteDeviceConfig(PdoExtension,
                              &PmCaps.PMCSR,
-                             CapsOffset + FIELD_OFFSET(PCI_PM_CAPABILITY, PMCSR),
+                             (CapsOffset + FIELD_OFFSET(PCI_PM_CAPABILITY, PMCSR)),
                              sizeof(PCI_PMCSR));
 
         /* Now wait for the change to "stick" based on the spec-mandated time */
-        Status = PciStallForPowerChange(DeviceExtension, DeviceState, CapsOffset);
-        if (!NT_SUCCESS(Status)) return Status;
+        Status = PciStallForPowerChange(PdoExtension, DeviceState, CapsOffset);
+        if (!NT_SUCCESS(Status))
+        {
+            /* Simply return success, ignoring this request */
+            DPRINT1("PciSetPowerManagedDevicePowerState: Status %X\n", Status);
+            return Status;
+        }
     }
     else
     {
         /* Nothing to do! */
-        DPRINT1("No PM on this device, ignoring request\n");
+        DPRINT("PciSetPowerManagedDevicePowerState: No PM on this device, ignoring request\n");
     }
 
     /* Check if new resources have to be assigned */
-    if (IrpSet)
+    if (IsSetIrp && DeviceState < PdoExtension->PowerState.CurrentDeviceState)
     {
-        /* Check if the new device state is lower (higher power) than now */
-        if (DeviceState < DeviceExtension->PowerState.CurrentDeviceState)
-        {
-            /* We would normally re-assign resources after powerup */
-            UNIMPLEMENTED_DBGBREAK();
-            Status = STATUS_NOT_IMPLEMENTED;
-        }
+        /* We would normally re-assign resources after powerup */
+        UNIMPLEMENTED_DBGBREAK();
+        Status = STATUS_NOT_IMPLEMENTED;
     }
 
     /* Return the power state change status */
