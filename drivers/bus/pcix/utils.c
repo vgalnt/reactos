@@ -1136,17 +1136,23 @@ PCI_DEVICE_TYPES
 NTAPI
 PciClassifyDeviceType(IN PPCI_PDO_EXTENSION PdoExtension)
 {
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciClassifyDeviceType: %p\n", PdoExtension);
 
     ASSERT(PdoExtension->ExtensionType == PciPdoExtensionType);
 
     /* Differentiate between devices and bridges */
-    if (PdoExtension->BaseClass != PCI_CLASS_BRIDGE_DEV) return PciTypeDevice;
+    if (PdoExtension->BaseClass != PCI_CLASS_BRIDGE_DEV)
+        return PciTypeDevice;
 
     /* The PCI Bus driver handles only CardBus and PCI bridges (plus host) */
-    if (PdoExtension->SubClass == PCI_SUBCLASS_BR_HOST) return PciTypeHostBridge;
-    if (PdoExtension->SubClass == PCI_SUBCLASS_BR_PCI_TO_PCI) return PciTypePciBridge;
-    if (PdoExtension->SubClass == PCI_SUBCLASS_BR_CARDBUS) return PciTypeCardbusBridge;
+    if (PdoExtension->SubClass == PCI_SUBCLASS_BR_HOST)
+        return PciTypeHostBridge;
+
+    if (PdoExtension->SubClass == PCI_SUBCLASS_BR_PCI_TO_PCI)
+        return PciTypePciBridge;
+
+    if (PdoExtension->SubClass == PCI_SUBCLASS_BR_CARDBUS)
+        return PciTypeCardbusBridge;
 
     /* Any other kind of bridge is treated like a device */
     return PciTypeDevice;
