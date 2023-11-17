@@ -1575,16 +1575,22 @@ PciGetDeviceCapabilities(IN PDEVICE_OBJECT DeviceObject,
 
 NTSTATUS
 NTAPI
-PciQueryPowerCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
-                          IN PDEVICE_CAPABILITIES DeviceCapability)
+PciQueryPowerCapabilities(
+    _In_ IN PPCI_PDO_EXTENSION PdoExtension,
+    _In_ IN PDEVICE_CAPABILITIES DeviceCapability)
 {
     PDEVICE_OBJECT DeviceObject;
-    NTSTATUS Status;
+    SYSTEM_POWER_STATE DeepestWakeState;
+    SYSTEM_POWER_STATE SystemWakeState;
+    SYSTEM_POWER_STATE CurrentState;
+    DEVICE_POWER_STATE DevicePowerState;
+    DEVICE_POWER_STATE DeviceWakeLevel;
+    DEVICE_POWER_STATE DeviceWakeState;
+    DEVICE_POWER_STATE NewPowerState;
     DEVICE_CAPABILITIES AttachedCaps;
-    DEVICE_POWER_STATE NewPowerState, DevicePowerState, DeviceWakeLevel, DeviceWakeState;
-    SYSTEM_POWER_STATE SystemWakeState, DeepestWakeState, CurrentState;
+    NTSTATUS Status;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciQueryPowerCapabilities: %p, %p\n", PdoExtension, DeviceCapability);
 
     /* Nothing is known at first */
     DeviceWakeState = PowerDeviceUnspecified;
@@ -1592,23 +1598,24 @@ PciQueryPowerCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
 
     /* Get the PCI capabilities for the parent PDO */
     DeviceObject = PdoExtension->ParentFdoExtension->PhysicalDeviceObject;
+
     Status = PciGetDeviceCapabilities(DeviceObject, &AttachedCaps);
-    ASSERT(NT_SUCCESS(Status));
-    if (!NT_SUCCESS(Status)) return Status;
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciQueryPowerCapabilities: Status %X\n", Status);
+        ASSERT(NT_SUCCESS(Status));
+        return Status;
+    }
 
     /* Check if there's not an existing device state for S0 */
     if (!AttachedCaps.DeviceState[PowerSystemWorking])
-    {
         /* Set D0<->S0 mapping */
         AttachedCaps.DeviceState[PowerSystemWorking] = PowerDeviceD0;
-    }
 
     /* Check if there's not an existing device state for S3 */
     if (!AttachedCaps.DeviceState[PowerSystemShutdown])
-    {
         /* Set D3<->S3 mapping */
         AttachedCaps.DeviceState[PowerSystemShutdown] = PowerDeviceD3;
-    }
 
     /* Check for a PDO with broken, or no, power capabilities */
     if (PdoExtension->HackFlags & PCI_HACK_NO_PM_CAPS)
@@ -1628,15 +1635,15 @@ PciQueryPowerCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
         DeviceCapability->WakeFromD3 = FALSE;
 
         /* For the rest, copy whatever the parent PDO had */
-        RtlCopyMemory(DeviceCapability->DeviceState,
-                      AttachedCaps.DeviceState,
-                      sizeof(DeviceCapability->DeviceState));
+        RtlCopyMemory(DeviceCapability->DeviceState, AttachedCaps.DeviceState, sizeof(DeviceCapability->DeviceState));
+
         return STATUS_SUCCESS;
     }
 
     /* The PCI Device has power capabilities, so read which ones are supported */
     DeviceCapability->DeviceD1 = PdoExtension->PowerCapabilities.Support.D1;
     DeviceCapability->DeviceD2 = PdoExtension->PowerCapabilities.Support.D2;
+
     DeviceCapability->WakeFromD0 = PdoExtension->PowerCapabilities.Support.PMED0;
     DeviceCapability->WakeFromD1 = PdoExtension->PowerCapabilities.Support.PMED1;
     DeviceCapability->WakeFromD2 = PdoExtension->PowerCapabilities.Support.PMED2;
@@ -1647,56 +1654,42 @@ PciQueryPowerCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
         /* It can't, so check if this PDO supports hot D3 wake */
         DeviceCapability->WakeFromD3 = PdoExtension->PowerCapabilities.Support.PMED3Hot;
     }
+    /* It can, is this the root bus? */
+    else if (PCI_IS_ROOT_FDO(PdoExtension->ParentFdoExtension))
+    {
+        /* This is the root bus, so just check if it supports hot D3 wake */
+        DeviceCapability->WakeFromD3 = PdoExtension->PowerCapabilities.Support.PMED3Hot;
+    }
     else
     {
-        /* It can, is this the root bus? */
-        if (PCI_IS_ROOT_FDO(PdoExtension->ParentFdoExtension))
-        {
-            /* This is the root bus, so just check if it supports hot D3 wake */
-            DeviceCapability->WakeFromD3 = PdoExtension->PowerCapabilities.Support.PMED3Hot;
-        }
-        else
-        {
-            /* Take the minimums? -- need to check with briang at work */
-            UNIMPLEMENTED;
-        }
+        /* Take the minimums? -- need to check with briang at work */
+        UNIMPLEMENTED;
     }
 
     /* Now loop each system power state to determine its device state mapping */
-    for (CurrentState = PowerSystemWorking;
-         CurrentState < PowerSystemMaximum;
-         CurrentState++)
+    for (CurrentState = PowerSystemWorking; CurrentState < PowerSystemMaximum; CurrentState++)
     {
         /* Read the current mapping from the attached device */
         DevicePowerState = AttachedCaps.DeviceState[CurrentState];
         NewPowerState = DevicePowerState;
 
         /* The attachee supports D1, but this PDO does not */
-        if ((NewPowerState == PowerDeviceD1) &&
-            !(PdoExtension->PowerCapabilities.Support.D1))
-        {
+        if (NewPowerState == PowerDeviceD1 && !PdoExtension->PowerCapabilities.Support.D1)
             /* Fall back to D2 */
             NewPowerState = PowerDeviceD2;
-        }
 
         /* The attachee supports D2, but this PDO does not */
-        if ((NewPowerState == PowerDeviceD2) &&
-            !(PdoExtension->PowerCapabilities.Support.D2))
-        {
+        if (NewPowerState == PowerDeviceD2 && !PdoExtension->PowerCapabilities.Support.D2)
             /* Fall back to D3 */
             NewPowerState = PowerDeviceD3;
-        }
 
         /* Set the mapping based on the best state supported */
         DeviceCapability->DeviceState[CurrentState] = NewPowerState;
 
         /* Check if sleep states are being processed, and a mapping was found */
-        if ((CurrentState < PowerSystemHibernate) &&
-            (NewPowerState != PowerDeviceUnspecified))
-        {
+        if (CurrentState < PowerSystemHibernate && NewPowerState != PowerDeviceUnspecified)
             /* Save this state as being the deepest one found until now */
             DeepestWakeState = CurrentState;
-        }
 
         /*
          * Finally, check if the computed sleep state is within the states that
@@ -1712,16 +1705,14 @@ PciQueryPowerCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
          * might also be at D3, this would require a Cold D3 wake, so check that
          * the device actually support this.
          */
-        if ((CurrentState < AttachedCaps.SystemWake) &&
-            (NewPowerState >= DevicePowerState) &&
-            (DevicePowerState != PowerDeviceUnspecified) &&
-            (((NewPowerState == PowerDeviceD0) && (DeviceCapability->WakeFromD0)) ||
-             ((NewPowerState == PowerDeviceD1) && (DeviceCapability->WakeFromD1)) ||
-             ((NewPowerState == PowerDeviceD2) && (DeviceCapability->WakeFromD2)) ||
-             ((NewPowerState == PowerDeviceD3) &&
-              (PdoExtension->PowerCapabilities.Support.PMED3Hot) &&
-              ((DevicePowerState < PowerDeviceD3) ||
-               (PdoExtension->PowerCapabilities.Support.PMED3Cold)))))
+        if (CurrentState < AttachedCaps.SystemWake &&
+            NewPowerState >= DevicePowerState &&
+            DevicePowerState != PowerDeviceUnspecified &&
+            ((NewPowerState == PowerDeviceD0 && DeviceCapability->WakeFromD0) ||
+             (NewPowerState == PowerDeviceD1 && DeviceCapability->WakeFromD1) ||
+             (NewPowerState == PowerDeviceD2 && DeviceCapability->WakeFromD2) ||
+             (NewPowerState == PowerDeviceD3 && PdoExtension->PowerCapabilities.Support.PMED3Hot &&
+              (DevicePowerState < PowerDeviceD3 || PdoExtension->PowerCapabilities.Support.PMED3Cold))))
         {
             /* The mapping is valid, so this will be the lowest wake state */
             SystemWakeState = CurrentState;
@@ -1733,95 +1724,85 @@ PciQueryPowerCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
     DeviceWakeLevel = PdoExtension->PowerState.DeviceWakeLevel;
 
     /* Check if the attachee's wake levels are valid, and the PDO's is higher */
-    if ((AttachedCaps.SystemWake != PowerSystemUnspecified) &&
-        (AttachedCaps.DeviceWake != PowerDeviceUnspecified) &&
-        (DeviceWakeLevel != PowerDeviceUnspecified) &&
-        (DeviceWakeLevel >= AttachedCaps.DeviceWake))
-    {
-        /* Inherit the system wake from the attachee, and this PDO's wake level */
-        DeviceCapability->SystemWake = AttachedCaps.SystemWake;
-        DeviceCapability->DeviceWake = DeviceWakeLevel;
-
-        /* Now check if the wake level is D0, but the PDO doesn't support it */
-        if ((DeviceCapability->DeviceWake == PowerDeviceD0) &&
-            !(DeviceCapability->WakeFromD0))
-        {
-            /* Bump to D1 */
-            DeviceCapability->DeviceWake = PowerDeviceD1;
-        }
-
-        /* Now check if the wake level is D1, but the PDO doesn't support it */
-        if ((DeviceCapability->DeviceWake == PowerDeviceD1) &&
-            !(DeviceCapability->WakeFromD1))
-        {
-            /* Bump to D2 */
-            DeviceCapability->DeviceWake = PowerDeviceD2;
-        }
-
-        /* Now check if the wake level is D2, but the PDO doesn't support it */
-        if ((DeviceCapability->DeviceWake == PowerDeviceD2) &&
-            !(DeviceCapability->WakeFromD2))
-        {
-            /* Bump it to D3 */
-            DeviceCapability->DeviceWake = PowerDeviceD3;
-        }
-
-        /* Now check if the wake level is D3, but the PDO doesn't support it */
-        if ((DeviceCapability->DeviceWake == PowerDeviceD3) &&
-            !(DeviceCapability->WakeFromD3))
-        {
-            /* Then no valid wake state exists */
-            DeviceCapability->DeviceWake = PowerDeviceUnspecified;
-            DeviceCapability->SystemWake = PowerSystemUnspecified;
-        }
-
-        /* Check if no valid wake state was found */
-        if ((DeviceCapability->DeviceWake == PowerDeviceUnspecified) ||
-            (DeviceCapability->SystemWake == PowerSystemUnspecified))
-        {
-            /* Check if one was computed earlier */
-            if ((SystemWakeState != PowerSystemUnspecified) &&
-                (DeviceWakeState != PowerDeviceUnspecified))
-            {
-                /* Use the wake state that had been computed earlier */
-                DeviceCapability->DeviceWake = DeviceWakeState;
-                DeviceCapability->SystemWake = SystemWakeState;
-
-                /* If that state was D3, then the device supports Hot/Cold D3 */
-                if (DeviceWakeState == PowerDeviceD3) DeviceCapability->WakeFromD3 = TRUE;
-            }
-        }
-
-        /*
-         * Finally, check for off states (lower than S3, such as hibernate) and
-         * make sure that the device both supports waking from D3 as well as
-         * supports a Cold wake
-         */
-        if ((DeviceCapability->SystemWake > PowerSystemSleeping3) &&
-            ((DeviceCapability->DeviceWake != PowerDeviceD3) ||
-             !(PdoExtension->PowerCapabilities.Support.PMED3Cold)))
-        {
-            /* It doesn't, so pick the computed lowest wake state from earlier */
-            DeviceCapability->SystemWake = DeepestWakeState;
-        }
-
-        /* Set the PCI Specification mandated maximum latencies for transitions */
-        DeviceCapability->D1Latency = 0;
-        DeviceCapability->D2Latency = 2;
-        DeviceCapability->D3Latency = 100;
-
-        /* Sanity check */
-        ASSERT(DeviceCapability->DeviceState[PowerSystemWorking] == PowerDeviceD0);
-    }
-    else
+    if (AttachedCaps.SystemWake == PowerSystemUnspecified ||
+        AttachedCaps.DeviceWake == PowerDeviceUnspecified ||
+        DeviceWakeLevel == PowerDeviceUnspecified ||
+        DeviceWakeLevel < AttachedCaps.DeviceWake)
     {
         /* No valid sleep states, no latencies to worry about */
         DeviceCapability->D1Latency = 0;
         DeviceCapability->D2Latency = 0;
         DeviceCapability->D3Latency = 0;
+
+        /* This function always succeeds, even without power management support */
+        return STATUS_SUCCESS;
     }
 
-    /* This function always succeeds, even without power management support */
+    /* Inherit the system wake from the attachee, and this PDO's wake level */
+    DeviceCapability->SystemWake = AttachedCaps.SystemWake;
+    DeviceCapability->DeviceWake = DeviceWakeLevel;
+
+    /* Now check if the wake level is D0, but the PDO doesn't support it */
+    if (DeviceCapability->DeviceWake == PowerDeviceD0 && !DeviceCapability->WakeFromD0)
+        /* Bump to D1 */
+        DeviceCapability->DeviceWake = PowerDeviceD1;
+
+    /* Now check if the wake level is D1, but the PDO doesn't support it */
+    if (DeviceCapability->DeviceWake == PowerDeviceD1 && !DeviceCapability->WakeFromD1)
+        /* Bump to D2 */
+        DeviceCapability->DeviceWake = PowerDeviceD2;
+
+    /* Now check if the wake level is D2, but the PDO doesn't support it */
+    if (DeviceCapability->DeviceWake == PowerDeviceD2 && !DeviceCapability->WakeFromD2)
+        /* Bump it to D3 */
+        DeviceCapability->DeviceWake = PowerDeviceD3;
+
+    /* Now check if the wake level is D3, but the PDO doesn't support it */
+    if (DeviceCapability->DeviceWake == PowerDeviceD3 && !DeviceCapability->WakeFromD3)
+    {
+        /* Then no valid wake state exists */
+        DeviceCapability->DeviceWake = PowerDeviceUnspecified;
+        DeviceCapability->SystemWake = PowerSystemUnspecified;
+    }
+
+    /* Check if no valid wake state was found */
+    if (DeviceCapability->DeviceWake == PowerDeviceUnspecified ||
+        DeviceCapability->SystemWake == PowerSystemUnspecified)
+    {
+        /* Check if one was computed earlier */
+        if (SystemWakeState != PowerSystemUnspecified &&
+            DeviceWakeState != PowerDeviceUnspecified)
+        {
+            /* Use the wake state that had been computed earlier */
+            DeviceCapability->DeviceWake = DeviceWakeState;
+            DeviceCapability->SystemWake = SystemWakeState;
+
+            /* If that state was D3, then the device supports Hot/Cold D3 */
+            if (DeviceWakeState == PowerDeviceD3)
+                DeviceCapability->WakeFromD3 = TRUE;
+        }
+    }
+
+    /*
+     * Finally, check for off states (lower than S3, such as hibernate) and
+     * make sure that the device both supports waking from D3 as well as
+     * supports a Cold wake
+     */
+    if (DeviceCapability->SystemWake > PowerSystemSleeping3 &&
+        (DeviceCapability->DeviceWake != PowerDeviceD3 || !PdoExtension->PowerCapabilities.Support.PMED3Cold))
+    {
+        /* It doesn't, so pick the computed lowest wake state from earlier */
+        DeviceCapability->SystemWake = DeepestWakeState;
+    }
+
+    /* Set the PCI Specification mandated maximum latencies for transitions */
+    DeviceCapability->D1Latency = 0;
+    DeviceCapability->D2Latency = 2;
+    DeviceCapability->D3Latency = 0x64; // 100
+
+    /* Sanity check */
+    ASSERT(DeviceCapability->DeviceState[PowerSystemWorking] == PowerDeviceD0);
+
     return STATUS_SUCCESS;
 }
 
