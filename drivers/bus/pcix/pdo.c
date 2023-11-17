@@ -511,16 +511,37 @@ PciPdoIrpSurpriseRemoval(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciPdoIrpQueryLegacyBusInformation(IN PIRP Irp,
-                                   IN PIO_STACK_LOCATION IoStackLocation,
-                                   IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpQueryLegacyBusInformation(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    PLEGACY_BUS_INFORMATION BusInfo;
 
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_SUPPORTED;
+    PAGED_CODE();
+    DPRINT("PciPdoIrpQueryLegacyBusInformation: %p, %p, %p\n", Irp, IoStack, PdoExtension);
+
+    if (PciClassifyDeviceType(PdoExtension) != PciTypeCardbusBridge)
+    {
+        DPRINT1("PciPdoIrpQueryLegacyBusInformation: STATUS_NOT_SUPPORTED\n");
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    BusInfo = ExAllocatePoolWithTag(PagedPool, sizeof(*BusInfo), 'BicP');
+    if (!BusInfo)
+    {
+        DPRINT1("PciPdoIrpQueryLegacyBusInformation: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlCopyMemory(&BusInfo->BusTypeGuid, &GUID_BUS_TYPE_PCI, sizeof(GUID));
+
+    BusInfo->LegacyBusType = PCIBus;
+    BusInfo->BusNumber = PdoExtension->Dependent.type1.SecondaryBus;
+
+    Irp->IoStatus.Information = (ULONG_PTR)BusInfo;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
