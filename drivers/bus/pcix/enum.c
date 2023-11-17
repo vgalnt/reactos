@@ -1518,39 +1518,41 @@ PcipGetFunctionLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
 
 NTSTATUS
 NTAPI
-PciGetFunctionLimits(IN PPCI_PDO_EXTENSION PdoExtension,
-                     IN PPCI_COMMON_HEADER Current,
-                     IN ULONGLONG HackFlags)
+PciGetFunctionLimits(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER Current,
+    _In_ ULONGLONG HackFlags)
 {
-    NTSTATUS Status;
-    PPCI_COMMON_HEADER PciData;
     PCI_CONFIGURATOR_CONTEXT Context;
-    PAGED_CODE();
+    PPCI_COMMON_HEADER PciData;
+    NTSTATUS Status;
 
-    DPRINT("PCIX: .. \n");
+    PAGED_CODE();
+    DPRINT("PciGetFunctionLimits: %p, %p, %I64X\n", PdoExtension, Current, HackFlags);
 
     /* Do the hackflags indicate this device should be skipped? */
-    if (PciSkipThisFunction(Current,
-                            PdoExtension->Slot,
-                            PCI_SKIP_RESOURCE_ENUMERATION,
-                            HackFlags))
-    {
+    if (PciSkipThisFunction(Current, PdoExtension->Slot, PCI_SKIP_RESOURCE_ENUMERATION, HackFlags))
         /* Do not process its resources */
         return STATUS_SUCCESS;
-    }
 
     /* Allocate a buffer to hold two PCI configuration headers */
-    PciData = ExAllocatePoolWithTag(0, 2 * PCI_COMMON_HDR_LENGTH, 'BicP');
-    if (!PciData) return STATUS_INSUFFICIENT_RESOURCES;
+    PciData = ExAllocatePoolWithTag(NonPagedPool, (2 * PCI_COMMON_HDR_LENGTH), 'BicP');
+    if (!PciData)
+    {
+        DPRINT1("PciGetFunctionLimits: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     /* Set up the context for the resource enumeration, and do it */
     Context.Current = Current;
     Context.PciData = PciData;
     Context.PdoExtension = PdoExtension;
+
     Status = PcipGetFunctionLimits(&Context);
 
     /* Enumeration is completed, free the PCI headers and return the status */
-    ExFreePoolWithTag(PciData, 0);
+    ExFreePoolWithTag(PciData, 'BicP');
+
     return Status;
 }
 
