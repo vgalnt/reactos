@@ -1562,6 +1562,99 @@ PciGetFunctionLimits(
 
 VOID
 NTAPI
+PciConfigureBusNumbers(
+    _In_ PPCI_FDO_EXTENSION FdoExtension)
+{
+    PPCI_PDO_EXTENSION PdoExtension = NULL;
+    PPCI_PDO_EXTENSION Bridge;
+    UCHAR ConfiguredBridgeCount = 0;
+    UCHAR BridgeCount = 0;
+
+    PAGED_CODE();
+    DPRINT("PciConfigureBusNumbers: %p\n", FdoExtension);
+
+    if (FdoExtension != FdoExtension->BusRootFdoExtension)
+        PdoExtension = FdoExtension->PhysicalDeviceObject->DeviceExtension;
+
+    KeEnterCriticalRegion();
+    KeWaitForSingleObject(&FdoExtension->ChildListLock, Executive, KernelMode, FALSE, NULL);
+
+    for (Bridge = FdoExtension->ChildBridgePdoList;
+         Bridge;
+         Bridge = Bridge->NextBridge)
+    {
+        if (Bridge->NotPresent)
+        {
+            DPRINT("PciConfigureBusNumbers: Skipping not present bridge %p\n", Bridge);
+            continue;
+        }
+
+        BridgeCount++;
+
+        if ((PdoExtension && PdoExtension->Dependent.type1.WeChangedBusNumbers && Bridge->DeviceState == PciNotStarted) ||
+            !PciAreBusNumbersConfigured(Bridge))
+        {
+            DPRINT1("PciConfigureBusNumbers: FIXME\n");
+            ASSERT(FALSE);
+        }
+        else
+        {
+            ConfiguredBridgeCount++;
+        }
+    }
+
+    KeSetEvent(&FdoExtension->ChildListLock, IO_NO_INCREMENT, FALSE);
+    KeLeaveCriticalRegion();
+
+    if (!BridgeCount)
+    {
+        DPRINT("PciConfigureBusNumbers: No bridges found on bus %X\n", FdoExtension->BaseBus);
+    }
+    else if (BridgeCount == ConfiguredBridgeCount)
+    {
+        DPRINT("PciConfigureBusNumbers: %X bridges found on bus %X - all already configured\n",
+               BridgeCount, FdoExtension->BaseBus);
+    }
+    else if (!ConfiguredBridgeCount)
+    {
+        DPRINT("PciConfigureBusNumbers: %X bridges found on bus %X - all need configuration\n",
+               BridgeCount, FdoExtension->BaseBus);
+
+        DPRINT1("PciConfigureBusNumbers: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        ASSERT(ConfiguredBridgeCount < BridgeCount);
+
+        DPRINT("PciConfigureBusNumbers: %X bridges found on bus %X - %X need configuration\n",
+               BridgeCount, FdoExtension->BaseBus, BridgeCount - ConfiguredBridgeCount);
+
+        for (Bridge = FdoExtension->ChildBridgePdoList;
+             Bridge;
+             Bridge = Bridge->NextBridge)
+        {
+            if (Bridge->NotPresent)
+            {
+                DPRINT("PciConfigureBusNumbers: Skipping not present bridge %p\n", Bridge);
+                continue;
+            }
+            if ((PdoExtension && PdoExtension->Dependent.type1.WeChangedBusNumbers && Bridge->DeviceState == PciNotStarted) ||
+                !PciAreBusNumbersConfigured(Bridge))
+            {
+                ASSERT(Bridge->Dependent.type1.PrimaryBus == 0 &&
+                       Bridge->Dependent.type1.SecondaryBus == 0 &&
+                       Bridge->Dependent.type1.SubordinateBus == 0);
+
+                DPRINT1("PciConfigureBusNumbers: FIXME\n");
+                ASSERT(FALSE);
+            }
+        }
+    }
+}
+
+VOID
+NTAPI
 PciProcessBus(
     _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
@@ -1608,10 +1701,7 @@ PciProcessBus(
 
     /* Check for ACPI systems where the OS assigns bus numbers */
     if (PciAssignBusNumbers)
-    {
-        /* Not yet supported */
-        UNIMPLEMENTED_DBGBREAK();
-    }
+        PciConfigureBusNumbers(FdoExtension);
 }
 
 NTSTATUS
