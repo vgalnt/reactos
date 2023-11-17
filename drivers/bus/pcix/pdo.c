@@ -538,19 +538,20 @@ PciPdoIrpQueryLegacyBusInformation(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciPdoCreate(IN PPCI_FDO_EXTENSION DeviceExtension,
-             IN PCI_SLOT_NUMBER Slot,
-             OUT PDEVICE_OBJECT *PdoDeviceObject)
+PciPdoCreate(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ PCI_SLOT_NUMBER Slot,
+    _Out_ PDEVICE_OBJECT* OutPdo)
 {
-    WCHAR DeviceName[32];
-    UNICODE_STRING DeviceString;
-    NTSTATUS Status;
-    PDEVICE_OBJECT DeviceObject;
     PPCI_PDO_EXTENSION PdoExtension;
+    PDEVICE_OBJECT DeviceObject;
+    UNICODE_STRING DeviceString;
     ULONG SequenceNumber;
+    WCHAR DeviceName[32];
+    NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciPdoCreate: %p, %X\n", FdoExtension, Slot.u.AsULONG);
 
     /* Pick an atomically unique sequence number for this device */
     SequenceNumber = InterlockedIncrement(&PciPdoSequenceNumber);
@@ -560,7 +561,7 @@ PciPdoCreate(IN PPCI_FDO_EXTENSION DeviceExtension,
     RtlInitUnicodeString(&DeviceString, DeviceName);
 
     /* Create the actual device now */
-    Status = IoCreateDevice(DeviceExtension->FunctionalDeviceObject->DriverObject,
+    Status = IoCreateDevice(FdoExtension->FunctionalDeviceObject->DriverObject,
                             sizeof(PCI_PDO_EXTENSION),
                             &DeviceString,
                             FILE_DEVICE_BUS_EXTENDER,
@@ -570,13 +571,10 @@ PciPdoCreate(IN PPCI_FDO_EXTENSION DeviceExtension,
     ASSERT(NT_SUCCESS(Status));
 
     /* Get the extension for it */
-    PdoExtension = (PPCI_PDO_EXTENSION)DeviceObject->DeviceExtension;
-    DPRINT1("PCI: New PDO (b=0x%x, d=0x%x, f=0x%x) @ %p, ext @ %p\n",
-            DeviceExtension->BaseBus,
-            Slot.u.bits.DeviceNumber,
-            Slot.u.bits.FunctionNumber,
-            DeviceObject,
-            DeviceObject->DeviceExtension);
+    PdoExtension = DeviceObject->DeviceExtension;
+
+    DPRINT1("PciPdoCreate: New PDO (b %X, d %X, f %X) %p (%p)\n", FdoExtension->BaseBus,
+            Slot.u.bits.DeviceNumber, Slot.u.bits.FunctionNumber, DeviceObject, DeviceObject->DeviceExtension);
 
     /* Configure the extension */
     PdoExtension->ExtensionType = PciPdoExtensionType;
@@ -585,22 +583,20 @@ PciPdoCreate(IN PPCI_FDO_EXTENSION DeviceExtension,
     PdoExtension->Slot = Slot;
     PdoExtension->PowerState.CurrentSystemState = PowerDeviceD0;
     PdoExtension->PowerState.CurrentDeviceState = PowerDeviceD0;
-    PdoExtension->ParentFdoExtension = DeviceExtension;
+    PdoExtension->ParentFdoExtension = FdoExtension;
 
     /* Initialize the lock for arbiters and other interfaces */
     KeInitializeEvent(&PdoExtension->SecondaryExtLock, SynchronizationEvent, TRUE);
 
     /* Initialize the state machine */
-    PciInitializeState((PPCI_FDO_EXTENSION)PdoExtension);
+    PciInitializeState((PVOID)PdoExtension);
 
     /* Add the PDO to the parent's list */
     PdoExtension->Next = NULL;
-    PciInsertEntryAtTail((PSINGLE_LIST_ENTRY)&DeviceExtension->ChildPdoList,
-                         (PPCI_FDO_EXTENSION)PdoExtension,
-                         &DeviceExtension->ChildListLock);
+    PciInsertEntryAtTail((PVOID)&FdoExtension->ChildPdoList, (PVOID)PdoExtension, &FdoExtension->ChildListLock);
 
     /* And finally return it to the caller */
-    *PdoDeviceObject = DeviceObject;
+    *OutPdo = DeviceObject;
     return STATUS_SUCCESS;
 }
 
