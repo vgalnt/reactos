@@ -1042,95 +1042,91 @@ PciReadDeviceCapability(IN PPCI_PDO_EXTENSION DeviceExtension,
 
 BOOLEAN
 NTAPI
-PciCanDisableDecodes(IN PPCI_PDO_EXTENSION DeviceExtension,
-                     IN PPCI_COMMON_HEADER Config,
-                     IN ULONGLONG HackFlags,
-                     IN BOOLEAN ForPowerDown)
+PciCanDisableDecodes(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER Config,
+    _In_ ULONGLONG HackFlags,
+    _In_ BOOLEAN ForPowerDown)
 {
-    UCHAR BaseClass, SubClass;
+    UCHAR BaseClass;
+    UCHAR SubClass;
     BOOLEAN IsVga;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciCanDisableDecodes: %p, %p, %I64X, %X\n", PdoExtension, Config, HackFlags, ForPowerDown);
 
     /* Is there a device extension or should the PCI header be used? */
-    if (DeviceExtension)
+    if (PdoExtension)
     {
         /* Never disable decodes for a debug PCI Device */
-        if (DeviceExtension->OnDebugPath) return FALSE;
+        if (PdoExtension->OnDebugPath)
+            return FALSE;
 
         /* Hack flags will be obtained from the extension, not the caller */
         ASSERT(HackFlags == 0);
 
         /* Get hacks and classification from the device extension */
-        HackFlags = DeviceExtension->HackFlags;
-        SubClass = DeviceExtension->SubClass;
-        BaseClass = DeviceExtension->BaseClass;
+        HackFlags = PdoExtension->HackFlags;
+        SubClass = PdoExtension->SubClass;
+        BaseClass = PdoExtension->BaseClass;
     }
     else
     {
         /* There must be a PCI header, go read the classification information */
         ASSERT(Config != NULL);
+
         BaseClass = Config->BaseClass;
         SubClass = Config->SubClass;
     }
 
     /* Check for hack flags that prevent disabling the decodes */
-    if (HackFlags & (PCI_HACK_PRESERVE_COMMAND |
-                     PCI_HACK_CB_SHARE_CMD_BITS |
-                     PCI_HACK_DONT_DISABLE_DECODES))
-    {
+    if (HackFlags & (PCI_HACK_PRESERVE_COMMAND | PCI_HACK_CB_SHARE_CMD_BITS | PCI_HACK_DONT_DISABLE_DECODES))
         /* Don't do it */
         return FALSE;
-    }
 
     /* Is this a VGA adapter? */
-    if ((BaseClass == PCI_CLASS_DISPLAY_CTLR) &&
-        (SubClass == PCI_SUBCLASS_VID_VGA_CTLR))
-    {
+    if (BaseClass == PCI_CLASS_DISPLAY_CTLR && SubClass == PCI_SUBCLASS_VID_VGA_CTLR)
         /* Never disable decodes if this is for power down */
         return ForPowerDown;
-    }
 
     /* Check for legacy devices */
     if (BaseClass == PCI_CLASS_PRE_20)
     {
         /* Never disable video adapter cards if this is for power down */
-        if (SubClass == PCI_SUBCLASS_PRE_20_VGA) return ForPowerDown;
+        if (SubClass == PCI_SUBCLASS_PRE_20_VGA)
+            return ForPowerDown;
     }
     else if (BaseClass == PCI_CLASS_DISPLAY_CTLR)
     {
         /* Never disable VGA adapters if this is for power down */
-        if (SubClass == PCI_SUBCLASS_VID_VGA_CTLR) return ForPowerDown;
+        if (SubClass == PCI_SUBCLASS_VID_VGA_CTLR)
+            return ForPowerDown;
     }
     else if (BaseClass == PCI_CLASS_BRIDGE_DEV)
     {
         /* Check for legacy bridges */
-        if ((SubClass == PCI_SUBCLASS_BR_ISA) ||
-            (SubClass == PCI_SUBCLASS_BR_EISA) ||
-            (SubClass == PCI_SUBCLASS_BR_MCA) ||
-            (SubClass == PCI_SUBCLASS_BR_HOST) ||
-            (SubClass == PCI_SUBCLASS_BR_OTHER))
+        if (SubClass == PCI_SUBCLASS_BR_ISA ||
+            SubClass == PCI_SUBCLASS_BR_EISA ||
+            SubClass == PCI_SUBCLASS_BR_MCA ||
+            SubClass == PCI_SUBCLASS_BR_HOST ||
+            SubClass == PCI_SUBCLASS_BR_OTHER)
         {
             /* Never disable these */
             return FALSE;
         }
-        else if ((SubClass == PCI_SUBCLASS_BR_PCI_TO_PCI) ||
-                 (SubClass == PCI_SUBCLASS_BR_CARDBUS))
+
+        if (SubClass == PCI_SUBCLASS_BR_PCI_TO_PCI || SubClass == PCI_SUBCLASS_BR_CARDBUS)
         {
             /* This is a supported bridge, but does it have a VGA card? */
-            if (!DeviceExtension)
-            {
+            if (!PdoExtension)
                 /* Read the bridge control flag from the PCI header */
-                IsVga = Config->u.type1.BridgeControl & PCI_ENABLE_BRIDGE_VGA;
-            }
+                IsVga = (Config->u.type1.BridgeControl & PCI_ENABLE_BRIDGE_VGA);
             else
-            {
                 /* Read the cached flag in the device extension */
-                IsVga = DeviceExtension->Dependent.type1.VgaBitSet;
-            }
+                IsVga = PdoExtension->Dependent.type1.VgaBitSet;
 
             /* Never disable VGA adapters if this is for power down */
-            if (IsVga) return ForPowerDown;
+            if (IsVga)
+                return ForPowerDown;
         }
     }
 
