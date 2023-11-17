@@ -1330,16 +1330,16 @@ Finish:
 
 VOID
 NTAPI
-PciWriteLimitsAndRestoreCurrent(IN PVOID Reserved,
-                                IN PVOID Context2)
+PciWriteLimitsAndRestoreCurrent(
+    _In_ PVOID Reserved,
+    _In_ PVOID InContext)
 {
-    PPCI_CONFIGURATOR_CONTEXT Context = Context2;
-    PPCI_COMMON_HEADER PciData, Current;
+    PPCI_CONFIGURATOR_CONTEXT Context = InContext;
+    PPCI_COMMON_HEADER PciData;
+    PPCI_COMMON_HEADER Current;
     PPCI_PDO_EXTENSION PdoExtension;
 
-    DPRINT("PCIX: .. \n");
-
-    UNREFERENCED_PARAMETER(Reserved);
+    DPRINT("PciWriteLimitsAndRestoreCurrent: %X, %p\n", Reserved, InContext);
 
     /* Grab all parameters from the context */
     PdoExtension = Context->PdoExtension;
