@@ -1428,8 +1428,6 @@ PciQueryBusInformation(
 
     DPRINT("PciQueryBusInformation: %p\n", PdoExtension);
 
-    UNREFERENCED_PARAMETER(OutBusInfo);
-
     /* Allocate a structure for the bus information */
     BusInfo = ExAllocatePoolWithTag(PagedPool, sizeof(PNP_BUS_INFORMATION), 'BicP');
     if (!BusInfo)
@@ -1442,6 +1440,8 @@ PciQueryBusInformation(
     BusInfo->BusTypeGuid = GUID_BUS_TYPE_PCI;
     BusInfo->LegacyBusType = PCIBus;
     BusInfo->BusNumber = PdoExtension->ParentFdoExtension->BaseBus;
+
+    *OutBusInfo = BusInfo;
 
     return STATUS_SUCCESS;
 }
