@@ -669,25 +669,29 @@ PciQueryRequirements(IN PPCI_PDO_EXTENSION PdoExtension,
  */
 BOOLEAN
 NTAPI
-PciConfigureIdeController(IN PPCI_PDO_EXTENSION PdoExtension,
-                          IN PPCI_COMMON_HEADER PciData,
-                          IN BOOLEAN Initial)
+PciConfigureIdeController(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER PciData,
+    _In_ BOOLEAN IsDisableIoSpace)
 {
-    UCHAR MasterMode, SlaveMode, MasterFixed, SlaveFixed, ProgIf, NewProgIf;
-    BOOLEAN Switched;
     USHORT Command;
+    UCHAR MasterMode;
+    UCHAR SlaveMode;
+    UCHAR MasterFixed;
+    UCHAR SlaveFixed;
+    UCHAR ProgIf;
+    UCHAR NewProgIf;
 
-    DPRINT("PCIX: .. \n");
-
-    /* Assume it won't work */
-    Switched = FALSE;
+    DPRINT("PciConfigureIdeController: %p, %X, %X\n", PdoExtension, PciData, IsDisableIoSpace);
 
     /* Get master and slave current settings, and programmability flag */
     ProgIf = PciData->ProgIf;
-    MasterMode = (ProgIf & 1) == 1;
-    MasterFixed = (ProgIf & 2) == 0;
-    SlaveMode = (ProgIf & 4) == 4;
-    SlaveFixed = (ProgIf & 8) == 0;
+
+    MasterMode = ((ProgIf & 1) == 1);
+    MasterFixed = ((ProgIf & 2) == 0);
+
+    SlaveMode = ((ProgIf & 4) == 4);
+    SlaveFixed = ((ProgIf & 8) == 0);
 
     /*
      * [..] In order for Windows XP SP1 and Windows Server 2003 to switch an ATA
@@ -699,20 +703,20 @@ PciConfigureIdeController(IN PPCI_PDO_EXTENSION PdoExtension,
      *   not support switching only one IDE channel to native mode. See the PCI IDE
      *   Controller Specification Revision 1.0 for details.
      */
-    if ((MasterMode != SlaveMode) || (MasterFixed != SlaveFixed))
+    if (MasterMode != SlaveMode || MasterFixed != SlaveFixed)
     {
         /* Windows does not support this configuration, fail */
-        DPRINT1("PCI: Warning unsupported IDE controller configuration for VEN_%04x&DEV_%04x!",
-                PdoExtension->VendorId,
-                PdoExtension->DeviceId);
-        return Switched;
+        DPRINT1("PciConfigureIdeController: Warning unsupported IDE controller configuration for VEN_%04X&DEV_%04X!",
+                PdoExtension->VendorId, PdoExtension->DeviceId);
+
+        return FALSE;
     }
 
     /* Check if the controller is already in native mode */
-    if ((MasterMode) && (SlaveMode))
+    if (MasterMode && SlaveMode)
     {
         /* Check if I/O decodes should be disabled */
-        if ((Initial) || (PdoExtension->IoSpaceUnderNativeIdeControl))
+        if (IsDisableIoSpace || (PdoExtension->IoSpaceUnderNativeIdeControl))
         {
             /* Read the current command */
             PciReadDeviceConfig(PdoExtension,
@@ -734,79 +738,75 @@ PciConfigureIdeController(IN PPCI_PDO_EXTENSION PdoExtension,
         }
 
         /* The controller is now in native mode */
-        Switched = TRUE;
+        return TRUE;
     }
-    else if (!(MasterFixed) &&
-             !(SlaveFixed) &&
-             (PdoExtension->BIOSAllowsIDESwitchToNativeMode) &&
-             !(PdoExtension->HackFlags & PCI_HACK_DISABLE_IDE_NATIVE_MODE))
+
+    if (MasterFixed || SlaveFixed || !PdoExtension->BIOSAllowsIDESwitchToNativeMode ||
+        (PdoExtension->HackFlags & PCI_HACK_DISABLE_IDE_NATIVE_MODE))
     {
-        /* Turn off decodes */
-        PciDecodeEnable(PdoExtension, FALSE, NULL);
+        return FALSE;
+    }
 
-        /* Update the current command */
-        PciReadDeviceConfig(PdoExtension,
-                            &PciData->Command,
-                            FIELD_OFFSET(PCI_COMMON_HEADER, Command),
-                            sizeof(USHORT));
+    /* Turn off decodes */
+    PciDecodeEnable(PdoExtension, FALSE, NULL);
 
-        /* Enable native mode */
-        ProgIf = PciData->ProgIf | 5;
-        PciWriteDeviceConfig(PdoExtension,
-                             &ProgIf,
-                             FIELD_OFFSET(PCI_COMMON_HEADER, ProgIf),
-                             sizeof(UCHAR));
+    /* Update the current command */
+    PciReadDeviceConfig(PdoExtension,
+                        &PciData->Command,
+                        FIELD_OFFSET(PCI_COMMON_HEADER, Command),
+                        sizeof(USHORT));
 
-        /* Verify the setting "stuck" */
-        PciReadDeviceConfig(PdoExtension,
-                            &NewProgIf,
-                            FIELD_OFFSET(PCI_COMMON_HEADER, ProgIf),
-                            sizeof(UCHAR));
-        if (NewProgIf == ProgIf)
-        {
-            /* Update the header and PDO data with the new programming mode */
-            PciData->ProgIf = ProgIf;
-            PdoExtension->ProgIf = NewProgIf;
+    /* Enable native mode */
+    ProgIf = PciData->ProgIf | 5;
+    PciWriteDeviceConfig(PdoExtension,
+                         &ProgIf,
+                         FIELD_OFFSET(PCI_COMMON_HEADER, ProgIf),
+                         sizeof(UCHAR));
 
-            /* Clear the first four BARs to reset current BAR settings */
-            PciData->u.type0.BaseAddresses[0] = 0;
-            PciData->u.type0.BaseAddresses[1] = 0;
-            PciData->u.type0.BaseAddresses[2] = 0;
-            PciData->u.type0.BaseAddresses[3] = 0;
-            PciWriteDeviceConfig(PdoExtension,
-                                 PciData->u.type0.BaseAddresses,
-                                 FIELD_OFFSET(PCI_COMMON_HEADER,
-                                              u.type0.BaseAddresses),
-                                 4 * sizeof(ULONG));
+    /* Verify the setting "stuck" */
+    PciReadDeviceConfig(PdoExtension,
+                        &NewProgIf,
+                        FIELD_OFFSET(PCI_COMMON_HEADER, ProgIf),
+                        sizeof(UCHAR));
 
-            /* Re-read the BARs to have the latest data for native mode IDE */
-            PciReadDeviceConfig(PdoExtension,
-                                PciData->u.type0.BaseAddresses,
-                                FIELD_OFFSET(PCI_COMMON_HEADER,
-                                             u.type0.BaseAddresses),
-                                4 * sizeof(ULONG));
+    if (NewProgIf != ProgIf)
+    {
+        /* Settings did not work, fail */
+        DPRINT1("PciConfigureIdeController: Warning failed switch to native mode for IDE controller VEN_%04X&DEV_%04X!",
+                PciData->VendorID, PciData->DeviceID);
 
-            /* Re-read the interrupt pin used for native mode IDE */
-            PciReadDeviceConfig(PdoExtension,
-                                &PciData->u.type0.InterruptPin,
-                                FIELD_OFFSET(PCI_COMMON_HEADER,
-                                             u.type0.InterruptPin),
-                                sizeof(UCHAR));
+        return FALSE;
+    }
 
-            /* The IDE Controller is now in native mode */
-            Switched = TRUE;
-        }
-        else
-        {
-            /* Settings did not work, fail */
-            DPRINT1("PCI: Warning failed switch to native mode for IDE controller VEN_%04x&DEV_%04x!",
-                    PciData->VendorID,
-                    PciData->DeviceID);
-        }
-   }
+    /* Update the header and PDO data with the new programming mode */
+    PciData->ProgIf = ProgIf;
+    PdoExtension->ProgIf = NewProgIf;
 
-   /* Return whether or not native mode was enabled on the IDE controller */
-   return Switched;
+    /* Clear the first four BARs to reset current BAR settings */
+    PciData->u.type0.BaseAddresses[0] = 0;
+    PciData->u.type0.BaseAddresses[1] = 0;
+    PciData->u.type0.BaseAddresses[2] = 0;
+    PciData->u.type0.BaseAddresses[3] = 0;
+
+    PciWriteDeviceConfig(PdoExtension,
+                         PciData->u.type0.BaseAddresses,
+                         FIELD_OFFSET(PCI_COMMON_HEADER, u.type0.BaseAddresses),
+                         (4 * sizeof(ULONG)));
+
+    /* Re-read the BARs to have the latest data for native mode IDE */
+    PciReadDeviceConfig(PdoExtension,
+                        PciData->u.type0.BaseAddresses,
+                        FIELD_OFFSET(PCI_COMMON_HEADER, u.type0.BaseAddresses),
+                        (4 * sizeof(ULONG)));
+
+    /* Re-read the interrupt pin used for native mode IDE */
+    PciReadDeviceConfig(PdoExtension,
+                        &PciData->u.type0.InterruptPin,
+                        FIELD_OFFSET(PCI_COMMON_HEADER, u.type0.InterruptPin),
+                        sizeof(UCHAR));
+
+    /* The IDE Controller is now in native mode */
+     return TRUE;
 }
 
 VOID
