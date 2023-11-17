@@ -1154,26 +1154,28 @@ PciClassifyDeviceType(IN PPCI_PDO_EXTENSION PdoExtension)
 
 ULONG_PTR
 NTAPI
-PciExecuteCriticalSystemRoutine(IN ULONG_PTR IpiContext)
+PciExecuteCriticalSystemRoutine(
+    _In_ ULONG_PTR IpiContext)
 {
     PPCI_IPI_CONTEXT Context = (PPCI_IPI_CONTEXT)IpiContext;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciExecuteCriticalSystemRoutine: %p\n", IpiContext);
 
     /* Check if the IPI is already running */
-    if (!InterlockedDecrement(&Context->RunCount))
-    {
-        /* Nope, this is the first instance, so execute the IPI function */
-        Context->Function(Context->DeviceExtension, Context->Context);
-
-        /* Notify anyone that was spinning that they can stop now */
-        Context->Barrier = 0;
-    }
-    else
+    if (InterlockedDecrement(&Context->RunCount))
     {
         /* Spin until it has finished running */
-        while (Context->Barrier);
+        while (Context->Barrier)
+            ;
+
+        return 0;
     }
+
+    /* Nope, this is the first instance, so execute the IPI function */
+    Context->Function(Context->DeviceExtension, Context->Context);
+
+    /* Notify anyone that was spinning that they can stop now */
+    Context->Barrier = 0;
 
     /* Done */
     return 0;
@@ -1247,7 +1249,8 @@ PciIsSlotPresentInParentMethod(IN PPCI_PDO_EXTENSION PdoExtension,
 
 ULONG
 NTAPI
-PciGetLengthFromBar(IN ULONG Bar)
+PciGetLengthFromBar(
+    _In_ ULONG Bar)
 {
     ULONG Length;
 
