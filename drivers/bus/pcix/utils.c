@@ -784,14 +784,15 @@ PciIsCriticalDeviceClass(
 
 PPCI_PDO_EXTENSION
 NTAPI
-PciFindPdoByFunction(IN PPCI_FDO_EXTENSION DeviceExtension,
-                     IN ULONG FunctionNumber,
-                     IN PPCI_COMMON_HEADER PciData)
+PciFindPdoByFunction(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ ULONG FunctionNumber,
+    _In_ PPCI_COMMON_HEADER PciData)
 {
-    KIRQL Irql;
     PPCI_PDO_EXTENSION PdoExtension;
+    KIRQL Irql;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciFindPdoByFunction: %p, %X, %p\n", FdoExtension, FunctionNumber, PciData);
 
     /* Get the current IRQL when this call was made */
     Irql = KeGetCurrentIrql();
@@ -801,30 +802,26 @@ PciFindPdoByFunction(IN PPCI_FDO_EXTENSION DeviceExtension,
     {
         /* Acquire this device's lock */
         KeEnterCriticalRegion();
-        KeWaitForSingleObject(&DeviceExtension->ChildListLock,
-                              Executive,
-                              KernelMode,
-                              FALSE,
-                              NULL);
+        KeWaitForSingleObject(&FdoExtension->ChildListLock, Executive, KernelMode, FALSE, NULL);
     }
 
     /* Loop every child PDO */
-    for (PdoExtension = DeviceExtension->ChildPdoList;
+    for (PdoExtension = FdoExtension->ChildPdoList;
          PdoExtension;
          PdoExtension = PdoExtension->Next)
     {
         /* Find only enumerated PDOs */
-        if (!PdoExtension->ReportedMissing)
+        if (PdoExtension->ReportedMissing)
+            continue;
+
+        /* Check if the function number and header data matches */
+        if (FunctionNumber == PdoExtension->Slot.u.AsULONG &&
+            PdoExtension->VendorId == PciData->VendorID &&
+            PdoExtension->DeviceId == PciData->DeviceID &&
+            PdoExtension->RevisionId == PciData->RevisionID)
         {
-            /* Check if the function number and header data matches */
-            if ((FunctionNumber == PdoExtension->Slot.u.AsULONG) &&
-                (PdoExtension->VendorId == PciData->VendorID) &&
-                (PdoExtension->DeviceId == PciData->DeviceID) &&
-                (PdoExtension->RevisionId == PciData->RevisionID))
-            {
-                /* This is considered to be the same PDO */
-                break;
-            }
+            /* This is considered to be the same PDO */
+            break;
         }
     }
 
@@ -832,7 +829,7 @@ PciFindPdoByFunction(IN PPCI_FDO_EXTENSION DeviceExtension,
     if (Irql < DISPATCH_LEVEL)
     {
         /* Release this device's lock */
-        KeSetEvent(&DeviceExtension->ChildListLock, IO_NO_INCREMENT, FALSE);
+        KeSetEvent(&FdoExtension->ChildListLock, IO_NO_INCREMENT, FALSE);
         KeLeaveCriticalRegion();
     }
 
