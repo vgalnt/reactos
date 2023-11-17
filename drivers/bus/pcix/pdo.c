@@ -421,17 +421,16 @@ PciPdoIrpQueryDeviceText(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciPdoIrpQueryId(IN PIRP Irp,
-                 IN PIO_STACK_LOCATION IoStackLocation,
-                 IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpQueryId(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciPdoCreate: %p, %p, %p\n", Irp, IoStack, PdoExtension);
 
     /* Call the worker function */
-    return PciQueryId(DeviceExtension,
-                      IoStackLocation->Parameters.QueryId.IdType,
-                      (PWCHAR*)&Irp->IoStatus.Information);
+    return PciQueryId(PdoExtension, IoStack->Parameters.QueryId.IdType, (PWCHAR*)&Irp->IoStatus.Information);
 }
 
 NTSTATUS
