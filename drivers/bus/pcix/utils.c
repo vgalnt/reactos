@@ -763,27 +763,23 @@ PciGetHackFlags(
 
 BOOLEAN
 NTAPI
-PciIsCriticalDeviceClass(IN UCHAR BaseClass,
-                         IN UCHAR SubClass)
+PciIsCriticalDeviceClass(
+    _In_ UCHAR BaseClass,
+    _In_ UCHAR SubClass)
 {
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciIsCriticalDeviceClass: %X, %X\n", BaseClass, SubClass);
 
     /* Check for system or bridge devices */
     if (BaseClass == PCI_CLASS_BASE_SYSTEM_DEV)
-    {
         /* Interrupt controllers are critical */
         return SubClass == PCI_SUBCLASS_SYS_INTERRUPT_CTLR;
-    }
-    else if (BaseClass == PCI_CLASS_BRIDGE_DEV)
-    {
+
+    if (BaseClass == PCI_CLASS_BRIDGE_DEV)
         /* ISA Bridges are critical */
         return SubClass == PCI_SUBCLASS_BR_ISA;
-    }
-    else
-    {
-        /* All display controllers are critical */
-        return BaseClass == PCI_CLASS_DISPLAY_CTLR;
-    }
+
+    /* All display controllers are critical */
+    return BaseClass == PCI_CLASS_DISPLAY_CTLR;
 }
 
 PPCI_PDO_EXTENSION
