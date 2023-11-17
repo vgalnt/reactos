@@ -246,8 +246,12 @@ Device_MassageHeaderForLimitsDetermination(
     }
 
     /* Set all the bits on, which will allow us to recover the limit data */
-    for (ix = 0; ix < PCI_TYPE0_ADDRESSES; ix++)
+    do
+    {
         BarArray[ix] = 0xFFFFFFFF;
+        ix++;
+    }
+    while (ix < PCI_TYPE0_ADDRESSES);
 
     /* Do the same for the PCI ROM BAR */
     PciData->u.type0.ROMBaseAddress = PCI_ADDRESS_ROM_ADDRESS_MASK;
