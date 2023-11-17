@@ -213,195 +213,168 @@ PciIdPrintfAppend(IN PPCI_ID_BUFFER IdBuffer,
 
 NTSTATUS
 NTAPI
-PciQueryId(IN PPCI_PDO_EXTENSION DeviceExtension,
-           IN BUS_QUERY_ID_TYPE QueryType,
-           OUT PWCHAR *Buffer)
+PciQueryId(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ BUS_QUERY_ID_TYPE QueryType,
+    _Out_ PWCHAR* OutId)
 {
-    ULONG SubsysId;
-    CHAR VendorString[22];
-    PPCI_PDO_EXTENSION PdoExtension;
-    PPCI_FDO_EXTENSION ParentExtension;
-    PWCHAR StringBuffer;
-    ULONG i, Size;
-    NTSTATUS Status;
-    PANSI_STRING NextString;
+    PPCI_FDO_EXTENSION ParentFdoExtension;
+    PPCI_PDO_EXTENSION ParentPdoExtension;
     UNICODE_STRING DestinationString;
+    PANSI_STRING NextString;
     PCI_ID_BUFFER IdBuffer;
+    CHAR VendorString[22];
+    PWCHAR StringBuffer;
+    ULONG SubsysId;
+    ULONG Size;
+    ULONG ix;
+    NTSTATUS Status = STATUS_SUCCESS;
+
     PAGED_CODE();
-  
+    DPRINT("PciQueryId: %p, %X\n", PdoExtension, QueryType);
+
     /* Assume failure */
-    Status = STATUS_SUCCESS;
-    *Buffer = NULL;
-    
+    *OutId = NULL;
+
     /* Start with the genric vendor string, which is the vendor ID + device ID */
-    sprintf(VendorString,
-            "PCI\\VEN_%04X&DEV_%04X",
-            DeviceExtension->VendorId,
-            DeviceExtension->DeviceId);
-    
+    sprintf(VendorString, "PCI\\VEN_%04X&DEV_%04X", PdoExtension->VendorId, PdoExtension->DeviceId);
+
     /* Initialize the PCI ID Buffer */
     PciInitIdBuffer(&IdBuffer);
-    
+
     /* Build the subsystem ID as shown in PCI ID Strings */
-    SubsysId = DeviceExtension->SubsystemVendorId | (DeviceExtension->SubsystemId << 16);
-  
+    SubsysId = (PdoExtension->SubsystemVendorId | (PdoExtension->SubsystemId << 16));
+
     /* Check what the caller is requesting */
     switch (QueryType)
     {
         case BusQueryDeviceID:
-        
+        {
             /* A single ID, the vendor string + the revision ID */
-            PciIdPrintf(&IdBuffer,
-                        "%s&SUBSYS_%08X&REV_%02X",
-                        VendorString,
-                        SubsysId,
-                        DeviceExtension->RevisionId);
+            PciIdPrintf(&IdBuffer, "%s&SUBSYS_%08X&REV_%02X", VendorString, SubsysId, PdoExtension->RevisionId);
             break;
-        
+        }
         case BusQueryHardwareIDs:
-        
+        {
             /* First the vendor string + the subsystem ID + the revision ID */
-            PciIdPrintf(&IdBuffer,
-                        "%s&SUBSYS_%08X&REV_%02X",
-                        VendorString,
-                        SubsysId,
-                        DeviceExtension->RevisionId);
-            
+            PciIdPrintf(&IdBuffer, "%s&SUBSYS_%08X&REV_%02X", VendorString, SubsysId, PdoExtension->RevisionId);
+
             /* Next, without the revision */
-            PciIdPrintf(&IdBuffer,
-                        "%s&SUBSYS_%08X",
-                        VendorString,
-                        SubsysId);
-            
+            PciIdPrintf(&IdBuffer, "%s&SUBSYS_%08X", VendorString, SubsysId);
+
             /* Next, the vendor string + the base class + sub class + progif */
-            PciIdPrintf(&IdBuffer,
-                        "%s&CC_%02X%02X%02X",
-                        VendorString,
-                        DeviceExtension->BaseClass,
-                        DeviceExtension->SubClass,
-                        DeviceExtension->ProgIf);
+            PciIdPrintf(&IdBuffer, "%s&CC_%02X%02X%02X",
+                        VendorString, PdoExtension->BaseClass, PdoExtension->SubClass, PdoExtension->ProgIf);
 
             /* Next, without the progif */
-            PciIdPrintf(&IdBuffer,
-                        "%s&CC_%02X%02X",
-                        VendorString,
-                        DeviceExtension->BaseClass,
-                        DeviceExtension->SubClass);
-            
+            PciIdPrintf(&IdBuffer, "%s&CC_%02X%02X", VendorString, PdoExtension->BaseClass, PdoExtension->SubClass);
+
             /* And finally, a terminator */
             PciIdPrintf(&IdBuffer, "\0");
             break;
-        
+        }
         case BusQueryCompatibleIDs:
-        
+        {
             /* First, the vendor + revision ID only */
-            PciIdPrintf(&IdBuffer,
-                        "%s&REV_%02X",
-                        VendorString,
-                        DeviceExtension->RevisionId);
+            PciIdPrintf(&IdBuffer, "%s&REV_%02X", VendorString, PdoExtension->RevisionId);
 
             /* Next, the vendor string alone */
             PciIdPrintf(&IdBuffer, "%s", VendorString);
-            
+
             /* Next, the vendor ID + the base class + the sub class + progif */
-            PciIdPrintf(&IdBuffer,
-                         "PCI\\VEN_%04X&CC_%02X%02X%02X",
-                         DeviceExtension->VendorId,
-                         DeviceExtension->BaseClass,
-                         DeviceExtension->SubClass,
-                         DeviceExtension->ProgIf);
+            PciIdPrintf(&IdBuffer, "PCI\\VEN_%04X&CC_%02X%02X%02X",
+                        PdoExtension->VendorId, PdoExtension->BaseClass, PdoExtension->SubClass, PdoExtension->ProgIf);
 
             /* Now without the progif */
-            PciIdPrintf(&IdBuffer,
-                        "PCI\\VEN_%04X&CC_%02X%02X",
-                        DeviceExtension->VendorId,
-                        DeviceExtension->BaseClass,
-                        DeviceExtension->SubClass);
+            PciIdPrintf(&IdBuffer, "PCI\\VEN_%04X&CC_%02X%02X",
+                        PdoExtension->VendorId, PdoExtension->BaseClass, PdoExtension->SubClass);
 
             /* And then just the vendor ID itself */
-            PciIdPrintf(&IdBuffer,
-                        "PCI\\VEN_%04X",
-                        DeviceExtension->VendorId);
+            PciIdPrintf(&IdBuffer, "PCI\\VEN_%04X", PdoExtension->VendorId);
 
             /* Then the base class + subclass + progif, without any vendor */
-            PciIdPrintf(&IdBuffer,
-                        "PCI\\CC_%02X%02X%02X",
-                        DeviceExtension->BaseClass,
-                        DeviceExtension->SubClass,
-                        DeviceExtension->ProgIf);
+            PciIdPrintf(&IdBuffer, "PCI\\CC_%02X%02X%02X",
+                        PdoExtension->BaseClass, PdoExtension->SubClass, PdoExtension->ProgIf);
 
             /* Next, without the progif */
-            PciIdPrintf(&IdBuffer,
-                        "PCI\\CC_%02X%02X",
-                        DeviceExtension->BaseClass,
-                        DeviceExtension->SubClass);
-                        
+            PciIdPrintf(&IdBuffer, "PCI\\CC_%02X%02X", PdoExtension->BaseClass, PdoExtension->SubClass);
+
             /* And finally, a terminator */
             PciIdPrintf(&IdBuffer, "\0");
             break;
-        
+        }
         case BusQueryInstanceID:
-        
+        {
             /* Start with a terminator */
             PciIdPrintf(&IdBuffer, "\0");
-        
+
             /* And then encode the device and function number */
-            PciIdPrintfAppend(&IdBuffer,
-                              "%02X",
-                              (DeviceExtension->Slot.u.bits.DeviceNumber << 3) |
-                              DeviceExtension->Slot.u.bits.FunctionNumber);
-          
+            PciIdPrintfAppend(&IdBuffer, "%02X",
+                              ((PdoExtension->Slot.u.bits.DeviceNumber << 3) | PdoExtension->Slot.u.bits.FunctionNumber));
+
             /* Loop every parent until the root */
-            ParentExtension = DeviceExtension->ParentFdoExtension;
-            while (!PCI_IS_ROOT_FDO(ParentExtension))
+            ParentFdoExtension = PdoExtension->ParentFdoExtension;
+            while (!PCI_IS_ROOT_FDO(ParentFdoExtension))
             {
                 /* And encode the parent's device and function number as well */
-                PdoExtension = ParentExtension->PhysicalDeviceObject->DeviceExtension;
-                PciIdPrintfAppend(&IdBuffer,
-                                  "%02X",
-                                  (PdoExtension->Slot.u.bits.DeviceNumber << 3) |
-                                  PdoExtension->Slot.u.bits.FunctionNumber);
+                ParentPdoExtension = ParentFdoExtension->PhysicalDeviceObject->DeviceExtension;
+
+                PciIdPrintfAppend(&IdBuffer, "%02X",
+                                  (ParentPdoExtension->Slot.u.bits.DeviceNumber << 3) |
+                                   ParentPdoExtension->Slot.u.bits.FunctionNumber);
             }
             break;
-        
+        }
         default:
-        
+        {
             /* Unknown query type */
-            DPRINT1("PciQueryId expected ID type = %d\n", QueryType);
+            DPRINT1("PciQueryId: PciQueryId expected ID type %X\n", QueryType);
             return STATUS_NOT_SUPPORTED;
+        }
     }
-    
+
     /* Something should've been generated if this has been reached */
     ASSERT(IdBuffer.Count > 0);
-    
+
     /* Allocate the final string buffer to hold the ID */
     StringBuffer = ExAllocatePoolWithTag(PagedPool, IdBuffer.TotalLength, 'BicP');
-    if (!StringBuffer) return STATUS_INSUFFICIENT_RESOURCES;
-    
+    if (!StringBuffer)
+    {
+        DPRINT1("PciQueryId: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
     /* Build the UNICODE_STRING structure for it */
-    DPRINT1("PciQueryId(%d)\n", QueryType);
+    DPRINT1("PciQueryId: QueryType %X\n", QueryType);
+
     DestinationString.Buffer = StringBuffer;
     DestinationString.MaximumLength = IdBuffer.TotalLength;
-    
+
     /* Loop every ID in the buffer */
-    for (i = 0; i < IdBuffer.Count; i++)
+    for (ix = 0; ix < IdBuffer.Count; ix++)
     {
         /* Select the ANSI_STRING for the ID */
-        NextString = &IdBuffer.Strings[i];
-        DPRINT1("    <- \"%s\"\n", NextString->Buffer);
-        
+        NextString = &IdBuffer.Strings[ix];
+
+        DPRINT1("'%s'\n", NextString->Buffer);
+
         /* Convert it to a UNICODE_STRING */
         Status = RtlAnsiStringToUnicodeString(&DestinationString, NextString, FALSE);
-        ASSERT(NT_SUCCESS(Status));
-        
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciQueryId: Status %X\n", Status);
+            ASSERT(NT_SUCCESS(Status));
+        }
+
         /* Add it into the final destination buffer */
-        Size = IdBuffer.StringSize[i];
+        Size = IdBuffer.StringSize[ix];
         DestinationString.MaximumLength -= Size;
         DestinationString.Buffer += (Size / sizeof(WCHAR));
     }
 
     /* Return the buffer to the caller and return status (should be success) */
-    *Buffer = StringBuffer;
+    *OutId = StringBuffer;
+
     return Status;
 }
 
