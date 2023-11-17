@@ -17,16 +17,19 @@
 
 VOID
 NTAPI
-Device_SaveCurrentSettings(IN PPCI_CONFIGURATOR_CONTEXT Context)
+Device_SaveCurrentSettings(
+    _In_ PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    PPCI_COMMON_HEADER PciData;
-    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
     PPCI_FUNCTION_RESOURCES Resources;
+    PPCI_COMMON_HEADER PciData;
     PULONG BarArray;
-    ULONG Bar, BarMask, i;
+    ULONG BarMask;
+    ULONG Bar;
+    ULONG ix;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("Device_SaveCurrentSettings: %p\n", Context);
 
     /* Get variables from context */
     PciData = Context->Current;
@@ -34,25 +37,27 @@ Device_SaveCurrentSettings(IN PPCI_CONFIGURATOR_CONTEXT Context)
 
     /* Loop all the PCI BARs */
     BarArray = PciData->u.type0.BaseAddresses;
-    for (i = 0; i <= PCI_TYPE0_ADDRESSES; i++)
+    for (ix = 0; ix <= PCI_TYPE0_ADDRESSES; ix++)
     {
         /* Get the resource descriptor and limit descriptor for this BAR */
-        CmDescriptor = &Resources->Current[i];
-        IoDescriptor = &Resources->Limit[i];
+        CmDescriptor = &Resources->Current[ix];
+        IoDescriptor = &Resources->Limit[ix];
 
         /* Build the resource descriptor based on the limit descriptor */
         CmDescriptor->Type = IoDescriptor->Type;
-        if (CmDescriptor->Type == CmResourceTypeNull) continue;
+        if (CmDescriptor->Type == CmResourceTypeNull)
+            continue;
+
         CmDescriptor->Flags = IoDescriptor->Flags;
         CmDescriptor->ShareDisposition = IoDescriptor->ShareDisposition;
         CmDescriptor->u.Generic.Start.HighPart = 0;
         CmDescriptor->u.Generic.Length = IoDescriptor->u.Generic.Length;
 
         /* Check if we're handling PCI BARs, or the ROM BAR */
-        if (i < PCI_TYPE0_ADDRESSES)
+        if (ix < PCI_TYPE0_ADDRESSES)
         {
             /* Read the actual BAR value */
-            Bar = BarArray[i];
+            Bar = BarArray[ix];
 
             /* Check if this is an I/O BAR */
             if (Bar & PCI_ADDRESS_IO_SPACE)
@@ -69,15 +74,11 @@ Device_SaveCurrentSettings(IN PPCI_CONFIGURATOR_CONTEXT Context)
 
                 /* Check if it's a 64-bit BAR */
                 if ((Bar & PCI_ADDRESS_MEMORY_TYPE_MASK) == PCI_TYPE_64BIT)
-                {
                     /* The next BAR value is actually the high 32-bits */
-                    CmDescriptor->u.Memory.Start.HighPart = BarArray[i + 1];
-                }
+                    CmDescriptor->u.Memory.Start.HighPart = BarArray[ix + 1];
                 else if ((Bar & PCI_ADDRESS_MEMORY_TYPE_MASK) == PCI_TYPE_20BIT)
-                {
                     /* Legacy BAR, don't read more than 20 bits of the address */
                     BarMask = 0xFFFF0;
-                }
             }
         }
         else
@@ -106,7 +107,7 @@ Device_SaveCurrentSettings(IN PPCI_CONFIGURATOR_CONTEXT Context)
         {
             /* Skip these descriptors */
             CmDescriptor->Type = CmResourceTypeNull;
-            DPRINT1("Invalid BAR\n");
+            DPRINT1("Device_SaveCurrentSettings: Invalid BAR\n");
         }
     }
 
