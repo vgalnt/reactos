@@ -1420,25 +1420,29 @@ PciDecodeEnable(IN PPCI_PDO_EXTENSION PdoExtension,
 
 NTSTATUS
 NTAPI
-PciQueryBusInformation(IN PPCI_PDO_EXTENSION PdoExtension,
-                       IN PPNP_BUS_INFORMATION* Buffer)
+PciQueryBusInformation(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPNP_BUS_INFORMATION* OutBusInfo)
 {
     PPNP_BUS_INFORMATION BusInfo;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciQueryBusInformation: %p\n", PdoExtension);
 
-    UNREFERENCED_PARAMETER(Buffer);
+    UNREFERENCED_PARAMETER(OutBusInfo);
 
     /* Allocate a structure for the bus information */
-    BusInfo = ExAllocatePoolWithTag(PagedPool,
-                                    sizeof(PNP_BUS_INFORMATION),
-                                    'BicP');
-    if (!BusInfo) return STATUS_INSUFFICIENT_RESOURCES;
+    BusInfo = ExAllocatePoolWithTag(PagedPool, sizeof(PNP_BUS_INFORMATION), 'BicP');
+    if (!BusInfo)
+    {
+        DPRINT1("PciQueryBusInformation: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     /* Write the correct GUID and bus type identifier, and fill the bus number */
     BusInfo->BusTypeGuid = GUID_BUS_TYPE_PCI;
     BusInfo->LegacyBusType = PCIBus;
     BusInfo->BusNumber = PdoExtension->ParentFdoExtension->BaseBus;
+
     return STATUS_SUCCESS;
 }
 
