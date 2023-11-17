@@ -219,14 +219,15 @@ Device_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
 
 VOID
 NTAPI
-Device_MassageHeaderForLimitsDetermination(IN PPCI_CONFIGURATOR_CONTEXT Context)
+Device_MassageHeaderForLimitsDetermination(
+    _In_ PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    PPCI_COMMON_HEADER PciData;
     PPCI_PDO_EXTENSION PdoExtension;
+    PPCI_COMMON_HEADER PciData;
     PULONG BarArray;
-    ULONG i = 0;
+    ULONG ix = 0;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("Device_MassageHeaderForLimitsDetermination: %p\n", Context);
 
     /* Get pointers from context data */
     PdoExtension = Context->PdoExtension;
@@ -236,16 +237,17 @@ Device_MassageHeaderForLimitsDetermination(IN PPCI_CONFIGURATOR_CONTEXT Context)
     BarArray = PciData->u.type0.BaseAddresses;
 
     /* Check for IDE controllers that are not in native mode */
-    if ((PdoExtension->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR) &&
-        (PdoExtension->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR) &&
+    if (PdoExtension->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR &&
+        PdoExtension->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR &&
         (PdoExtension->ProgIf & 5) != 5)
     {
         /* These controllers only use legacy resources */
-        i = 4;
+        ix = 4;
     }
 
     /* Set all the bits on, which will allow us to recover the limit data */
-    for (i = 0; i < PCI_TYPE0_ADDRESSES; i++) BarArray[i] = 0xFFFFFFFF;
+    for (ix = 0; ix < PCI_TYPE0_ADDRESSES; ix++)
+        BarArray[ix] = 0xFFFFFFFF;
 
     /* Do the same for the PCI ROM BAR */
     PciData->u.type0.ROMBaseAddress = PCI_ADDRESS_ROM_ADDRESS_MASK;
