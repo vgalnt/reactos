@@ -2173,14 +2173,10 @@ PciQueryDeviceRelations(
     DPRINT("PciQueryDeviceRelations: %p\n", FdoExtension);
 
     /* Make sure the FDO is started */
-    ASSERT(FdoExtension->DeviceState == PciStarted);
-
-    /* Synchronize while we enumerate the bus */
-    Status = PciBeginStateTransition(FdoExtension, PciSynchronizedOperation);
-    if (!NT_SUCCESS(Status))
+    if (FdoExtension->DeviceState != PciStarted)
     {
-        DPRINT1("PciQueryDeviceRelations: Status %X\n", Status);
-        return Status;
+        ASSERT(FdoExtension->DeviceState == PciStarted);
+        return STATUS_INVALID_DEVICE_REQUEST;
     }
 
     /* Scan all children PDO */
@@ -2215,13 +2211,15 @@ PciQueryDeviceRelations(
         }
     }
 
+    Size = (FIELD_OFFSET(DEVICE_RELATIONS, Objects) + PdoCount * sizeof(PDEVICE_OBJECT));
+
     /* Read the current relations and add the newly discovered relations */
     DeviceRelations = *OutDeviceRelations;
-    OldSize = (DeviceRelations->Count * sizeof(PDEVICE_OBJECT));
-
-    Size = (FIELD_OFFSET(DEVICE_RELATIONS, Objects) + PdoCount * sizeof(PDEVICE_OBJECT));
     if (DeviceRelations)
+    {
+        OldSize = (DeviceRelations->Count * sizeof(PDEVICE_OBJECT));
         Size += OldSize;
+    }
 
     /* Allocate the device relations */
     NewRelations = ExAllocatePoolWithTag(NonPagedPool, Size, 'BicP');
