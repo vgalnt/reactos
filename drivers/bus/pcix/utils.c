@@ -839,16 +839,16 @@ PciFindPdoByFunction(
 
 BOOLEAN
 NTAPI
-PciIsDeviceOnDebugPath(IN PPCI_PDO_EXTENSION DeviceExtension)
+PciIsDeviceOnDebugPath(
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
-
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    //DPRINT("PciIsDeviceOnDebugPath: %p\n", PdoExtension);
 
     /* Check for too many, or no, debug ports */
     ASSERT(PciDebugPortsCount <= MAX_DEBUGGING_DEVICES_SUPPORTED);
-    if (!PciDebugPortsCount) return FALSE;
+    if (!PciDebugPortsCount)
+        return FALSE;
 
     /* eVb has not been able to test such devices yet */
     UNIMPLEMENTED_DBGBREAK();
