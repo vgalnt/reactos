@@ -400,19 +400,18 @@ PciPdoIrpQueryResourceRequirements(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciPdoIrpQueryDeviceText(IN PIRP Irp,
-                         IN PIO_STACK_LOCATION IoStackLocation,
-                         IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpQueryDeviceText(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciPdoIrpQueryDeviceText: %p, %p, %p\n", Irp, IoStack, PdoExtension);
 
     /* Call the worker function */
-    return PciQueryDeviceText(DeviceExtension,
-                              IoStackLocation->
-                              Parameters.QueryDeviceText.DeviceTextType,
-                              IoStackLocation->
-                              Parameters.QueryDeviceText.LocaleId,
+    return PciQueryDeviceText(PdoExtension,
+                              IoStack->Parameters.QueryDeviceText.DeviceTextType,
+                              IoStack->Parameters.QueryDeviceText.LocaleId,
                               (PWCHAR*)&Irp->IoStatus.Information);
 }
 
