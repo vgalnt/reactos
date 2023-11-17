@@ -119,13 +119,14 @@ VOID
 NTAPI
 Device_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    PPCI_COMMON_HEADER Current, PciData;
     PPCI_PDO_EXTENSION PdoExtension;
-    PULONG BarArray;
     PIO_RESOURCE_DESCRIPTOR Limit;
-    ULONG i;
+    PPCI_COMMON_HEADER Current;
+    PPCI_COMMON_HEADER PciData;
+    PULONG BarArray;
+    ULONG ix;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("Device_SaveLimits: %p\n", Context);
 
     /* Get pointers from the context */
     PdoExtension = Context->PdoExtension;
@@ -136,8 +137,8 @@ Device_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
     BarArray = PciData->u.type0.BaseAddresses;
 
     /* First, check for IDE controllers that are not in native mode */
-    if ((PdoExtension->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR) &&
-        (PdoExtension->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR) &&
+    if (PdoExtension->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR &&
+        PdoExtension->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR &&
         (PdoExtension->ProgIf & 5) != 5)
     {
         /* They should not be using any non-legacy resources */
@@ -146,9 +147,8 @@ Device_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
         BarArray[2] = 0;
         BarArray[3] = 0;
     }
-    else if ((PdoExtension->VendorId == 0x5333) &&
-             ((PdoExtension->DeviceId == 0x88F0) ||
-              (PdoExtension->DeviceId == 0x8880)))
+    else if (PdoExtension->VendorId == 0x5333 &&
+             (PdoExtension->DeviceId == 0x88F0 || PdoExtension->DeviceId == 0x8880))
     {
         /*
          * The problem is caused by the S3 Vision 968/868 video controller which
@@ -157,20 +157,20 @@ Device_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
          * The 968/868 claims to require 32 MB of memory, but it actually decodes
          * 64 MB of memory.
          */
-        for (i = 0; i < PCI_TYPE0_ADDRESSES; i++)
+        for (ix = 0; ix < PCI_TYPE0_ADDRESSES; ix++)
         {
             /* Find its 32MB RAM BAR */
-            if (BarArray[i] == 0xFE000000)
+            if (BarArray[ix] == 0xFE000000)
             {
                 /* Increase it to 64MB to make sure nobody touches the buffer */
-                BarArray[i] = 0xFC000000;
-                DPRINT1("PCI - Adjusted broken S3 requirement from 32MB to 64MB\n");
+                BarArray[ix] = 0xFC000000;
+                DPRINT1("Device_SaveLimits: Adjusted broken S3 requirement from 32MB to 64MB\n");
             }
         }
     }
 
     /* Check for Cirrus Logic GD5430/5440 cards */
-    if ((PdoExtension->VendorId == 0x1013) && (PdoExtension->DeviceId == 0xA0))
+    if (PdoExtension->VendorId == 0x1013 && PdoExtension->DeviceId == 0x00A0)
     {
         /* Check for the I/O port requirement */
         if (BarArray[1] == 0xFC01)
@@ -180,41 +180,38 @@ Device_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
             {
                 /* Ignore it */
                 BarArray[1] = 0;
-                DPRINT1("PCI - Ignored Cirrus GD54xx broken IO requirement (400 ports)\n");
+                DPRINT1("Device_SaveLimits: Ignored Cirrus GD54xx broken IO requirement (400 ports)\n");
             }
             else
             {
                 /* Otherwise, this BAR seems okay */
-                DPRINT1("PCI - Cirrus GD54xx 400 port IO requirement has a valid setting (%08x)\n",
+                DPRINT1("Device_SaveLimits: Cirrus GD54xx 400 port IO requirement has a valid setting (%X)\n",
                         Current->u.type0.BaseAddresses[1]);
             }
         }
         else if (BarArray[1])
         {
             /* Strange, the I/O BAR was not found as expected (or at all) */
-            DPRINT1("PCI - Warning Cirrus Adapter 101300a0 has unexpected resource requirement (%08x)\n",
-                    BarArray[1]);
+            DPRINT1("Device_SaveLimits: Warning Cirrus Adapter 101300a0 has unexpected resource requirement (%X)\n", BarArray[1]);
         }
     }
 
     /* Finally, process all the limit descriptors */
     Limit = PdoExtension->Resources->Limit;
-    for (i = 0; i < PCI_TYPE0_ADDRESSES; i++)
+    for (ix = 0; ix < PCI_TYPE0_ADDRESSES; ix++)
     {
         /* And build them based on the BARs */
-        if (PciCreateIoDescriptorFromBarLimit(&Limit[i], &BarArray[i], FALSE))
+        if (PciCreateIoDescriptorFromBarLimit(&Limit[ix], &BarArray[ix], FALSE))
         {
             /* This function returns TRUE if the BAR was 64-bit, handle this */
-            ASSERT((i + 1) < PCI_TYPE0_ADDRESSES);
-            i++;
-            Limit[i].Type = CmResourceTypeNull;
+            ASSERT((ix + 1) < PCI_TYPE0_ADDRESSES);
+            ix++;
+            Limit[ix].Type = CmResourceTypeNull;
         }
     }
 
     /* Create the last descriptor based on the ROM address */
-    PciCreateIoDescriptorFromBarLimit(&Limit[i],
-                                      &PciData->u.type0.ROMBaseAddress,
-                                      TRUE);
+    PciCreateIoDescriptorFromBarLimit(&Limit[ix], &PciData->u.type0.ROMBaseAddress, TRUE);
 }
 
 VOID
