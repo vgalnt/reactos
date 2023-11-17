@@ -1839,30 +1839,25 @@ PciQueryPowerCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
 
 NTSTATUS
 NTAPI
-PciQueryCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
-                     IN OUT PDEVICE_CAPABILITIES DeviceCapability)
+PciQueryCapabilities(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _Inout_ PDEVICE_CAPABILITIES DeviceCapability)
 {
     NTSTATUS Status;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciQueryCapabilities: %p, %p\n", PdoExtension, DeviceCapability);
 
     /* A PDO ID is never unique, and its address is its function and device */
     DeviceCapability->UniqueID = FALSE;
-    DeviceCapability->Address = PdoExtension->Slot.u.bits.FunctionNumber |
-                                (PdoExtension->Slot.u.bits.DeviceNumber << 16);
+    DeviceCapability->Address = (PdoExtension->Slot.u.bits.FunctionNumber | (PdoExtension->Slot.u.bits.DeviceNumber << 16));
 
     /* Check for host bridges */
-    if ((PdoExtension->BaseClass == PCI_CLASS_BRIDGE_DEV) &&
-        (PdoExtension->SubClass == PCI_SUBCLASS_BR_HOST))
-    {
+    if (PdoExtension->BaseClass == PCI_CLASS_BRIDGE_DEV && PdoExtension->SubClass == PCI_SUBCLASS_BR_HOST)
         /* Raw device opens to a host bridge are acceptable */
         DeviceCapability->RawDeviceOK = TRUE;
-    }
     else
-    {
         /* Otherwise, other PDOs cannot be directly opened */
         DeviceCapability->RawDeviceOK = FALSE;
-    }
 
     /* PCI PDOs are pretty fixed things */
     DeviceCapability->LockSupported = FALSE;
@@ -1877,7 +1872,9 @@ PciQueryCapabilities(IN PPCI_PDO_EXTENSION PdoExtension,
     Status = PciQueryPowerCapabilities(PdoExtension, DeviceCapability);
 
     /* Dump the capabilities if it all worked, and return the status */
-    if (NT_SUCCESS(Status)) PciDebugDumpQueryCapabilities(DeviceCapability);
+    if (NT_SUCCESS(Status))
+        PciDebugDumpQueryCapabilities(DeviceCapability);
+
     return Status;
 }
 
