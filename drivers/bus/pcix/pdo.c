@@ -428,19 +428,16 @@ PciPdoIrpQueryId(
 
 NTSTATUS
 NTAPI
-PciPdoIrpQueryBusInformation(IN PIRP Irp,
-                             IN PIO_STACK_LOCATION IoStackLocation,
-                             IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpQueryBusInformation(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
-
-    UNREFERENCED_PARAMETER(IoStackLocation);
+    DPRINT("PciPdoIrpQueryResourceRequirements: %p, %p, %p\n", Irp, IoStack, PdoExtension);
 
     /* Call the worker function */
-    return PciQueryBusInformation(DeviceExtension,
-                                  (PPNP_BUS_INFORMATION*)&Irp->
-                                  IoStatus.Information);
+    return PciQueryBusInformation(PdoExtension,(PPNP_BUS_INFORMATION*)&Irp->IoStatus.Information);
 }
 
 NTSTATUS
