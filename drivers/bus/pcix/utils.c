@@ -1444,43 +1444,36 @@ PciQueryBusInformation(IN PPCI_PDO_EXTENSION PdoExtension,
 
 NTSTATUS
 NTAPI
-PciDetermineSlotNumber(IN PPCI_PDO_EXTENSION PdoExtension,
-                       OUT PULONG SlotNumber)
+PciDetermineSlotNumber(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _Out_ ULONG* OutSlotNumber)
 {
-    PPCI_FDO_EXTENSION ParentExtension;
-    ULONG ResultLength;
-    NTSTATUS Status;
+    PPCI_FDO_EXTENSION ParentExtension = PdoExtension->ParentFdoExtension;
     PSLOT_INFO SlotInfo;
+    ULONG ResultLength;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciDetermineSlotNumber: Slot lookup for %X.%X.%X\n", (ParentExtension ? ParentExtension->BaseBus : -1),
+           PdoExtension->Slot.u.bits.DeviceNumber, PdoExtension->Slot.u.bits.FunctionNumber);
 
     /* Check if a $PIR from the BIOS is used (legacy IRQ routing) */
-    ParentExtension = PdoExtension->ParentFdoExtension;
-    DPRINT1("Slot lookup for %d.%u.%u\n",
-            ParentExtension ? ParentExtension->BaseBus : -1,
-            PdoExtension->Slot.u.bits.DeviceNumber,
-            PdoExtension->Slot.u.bits.FunctionNumber);
-    if ((PciIrqRoutingTable) && (ParentExtension))
+    if (PciIrqRoutingTable && ParentExtension)
     {
         /* Read every slot information entry */
         SlotInfo = &PciIrqRoutingTable->Slot[0];
-        DPRINT1("PIR$ %p is %lx bytes, slot 0 is at: %p\n",
-                PciIrqRoutingTable, PciIrqRoutingTable->TableSize, SlotInfo);
-        while (SlotInfo < (PSLOT_INFO)((ULONG_PTR)PciIrqRoutingTable +
-                                       PciIrqRoutingTable->TableSize))
+
+        DPRINT("PciDetermineSlotNumber: %p, %X, %p\n", PciIrqRoutingTable, PciIrqRoutingTable->TableSize, SlotInfo);
+
+        while (SlotInfo < (PSLOT_INFO)((ULONG_PTR)PciIrqRoutingTable + PciIrqRoutingTable->TableSize))
         {
-            DPRINT1("Slot Info: %u.%u->#%u\n",
-                    SlotInfo->BusNumber,
-                    SlotInfo->DeviceNumber,
-                    SlotInfo->SlotNumber);
+            DPRINT("PciDetermineSlotNumber: %X.%X->#%X\n", SlotInfo->BusNumber, SlotInfo->DeviceNumber, SlotInfo->SlotNumber);
 
             /* Check if this slot information matches the PDO being queried */
-            if ((ParentExtension->BaseBus == SlotInfo->BusNumber) &&
-                (PdoExtension->Slot.u.bits.DeviceNumber == SlotInfo->DeviceNumber >> 3) &&
-                (SlotInfo->SlotNumber))
+            if (ParentExtension->BaseBus == SlotInfo->BusNumber &&
+                PdoExtension->Slot.u.bits.DeviceNumber == (SlotInfo->DeviceNumber >> 3) &&
+                SlotInfo->SlotNumber)
             {
                 /* We found it, return it and return success */
-                *SlotNumber = SlotInfo->SlotNumber;
+                *OutSlotNumber = SlotInfo->SlotNumber;
                 return STATUS_SUCCESS;
             }
 
@@ -1493,20 +1486,15 @@ PciDetermineSlotNumber(IN PPCI_PDO_EXTENSION PdoExtension,
     if (PCI_IS_ROOT_FDO(ParentExtension))
     {
         /* The root FDO doesn't have a slot number */
-        Status = STATUS_UNSUCCESSFUL;
-    }
-    else
-    {
-        /* Otherwise, query the slot/UI address/number as a device property */
-        Status = IoGetDeviceProperty(ParentExtension->PhysicalDeviceObject,
-                                     DevicePropertyUINumber,
-                                     sizeof(ULONG),
-                                     SlotNumber,
-                                     &ResultLength);
+        return STATUS_UNSUCCESSFUL;
     }
 
-    /* Return the status of this endeavour */
-    return Status;
+    /* Otherwise, query the slot/UI address/number as a device property */
+    return IoGetDeviceProperty(ParentExtension->PhysicalDeviceObject,
+                               DevicePropertyUINumber,
+                               sizeof(ULONG),
+                               OutSlotNumber,
+                               &ResultLength);
 }
 
 NTSTATUS
