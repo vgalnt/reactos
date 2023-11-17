@@ -1266,50 +1266,54 @@ PciGetLengthFromBar(IN ULONG Bar)
 
 BOOLEAN
 NTAPI
-PciCreateIoDescriptorFromBarLimit(PIO_RESOURCE_DESCRIPTOR ResourceDescriptor,
-                                  IN PULONG BarArray,
-                                  IN BOOLEAN Rom)
+PciCreateIoDescriptorFromBarLimit(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
+    _In_ PULONG BarArray,
+    _In_ BOOLEAN IsRomAddress)
 {
-    ULONG CurrentBar, BarLength, BarMask;
+    ULONG CurrentBar;
+    ULONG BarLength;
+    ULONG BarMask;
     BOOLEAN Is64BitBar = FALSE;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciCreateIoDescriptorFromBarLimit: %p, %p, %X\n", IoDescriptor, BarArray, IsRomAddress);
 
     /* Check if the BAR is nor I/O nor memory */
     CurrentBar = BarArray[0];
     if (!(CurrentBar & ~PCI_ADDRESS_IO_SPACE))
     {
         /* Fail this descriptor */
-        ResourceDescriptor->Type = CmResourceTypeNull;
+        IoDescriptor->Type = CmResourceTypeNull;
         return FALSE;
     }
 
     /* Set default flag and clear high words */
-    ResourceDescriptor->Flags = 0;
-    ResourceDescriptor->u.Generic.MaximumAddress.HighPart = 0;
-    ResourceDescriptor->u.Generic.MinimumAddress.LowPart = 0;
-    ResourceDescriptor->u.Generic.MinimumAddress.HighPart = 0;
+    IoDescriptor->Flags = 0;
+    IoDescriptor->u.Generic.MaximumAddress.HighPart = 0;
+    IoDescriptor->u.Generic.MinimumAddress.LowPart = 0;
+    IoDescriptor->u.Generic.MinimumAddress.HighPart = 0;
 
     /* Check for ROM Address */
-    if (Rom)
+    if (IsRomAddress)
     {
         /* Clean up the BAR to get just the address */
         CurrentBar &= PCI_ADDRESS_ROM_ADDRESS_MASK;
         if (!CurrentBar)
         {
             /* Invalid ar, fail this descriptor */
-            ResourceDescriptor->Type = CmResourceTypeNull;
+            IoDescriptor->Type = CmResourceTypeNull;
             return FALSE;
         }
 
         /* ROM Addresses are always read only */
-        ResourceDescriptor->Flags = CM_RESOURCE_MEMORY_READ_ONLY;
+        IoDescriptor->Flags = CM_RESOURCE_MEMORY_READ_ONLY;
     }
 
     /* Compute the length, assume it's the alignment for now */
     BarLength = PciGetLengthFromBar(CurrentBar);
-    ResourceDescriptor->u.Generic.Length = BarLength;
-    ResourceDescriptor->u.Generic.Alignment = BarLength;
+
+    IoDescriptor->u.Generic.Length = BarLength;
+    IoDescriptor->u.Generic.Alignment = BarLength;
 
     /* Check what kind of BAR this is */
     if (CurrentBar & PCI_ADDRESS_IO_SPACE)
@@ -1318,8 +1322,8 @@ PciCreateIoDescriptorFromBarLimit(PIO_RESOURCE_DESCRIPTOR ResourceDescriptor,
         BarMask = PCI_ADDRESS_IO_ADDRESS_MASK;
 
         /* Set this as an I/O Port descriptor */
-        ResourceDescriptor->Type = CmResourceTypePort;
-        ResourceDescriptor->Flags = CM_RESOURCE_PORT_IO;
+        IoDescriptor->Type = CmResourceTypePort;
+        IoDescriptor->Flags = CM_RESOURCE_PORT_IO;
     }
     else
     {
@@ -1327,13 +1331,13 @@ PciCreateIoDescriptorFromBarLimit(PIO_RESOURCE_DESCRIPTOR ResourceDescriptor,
         BarMask = PCI_ADDRESS_MEMORY_ADDRESS_MASK;
 
         /* Set this as a memory descriptor */
-        ResourceDescriptor->Type = CmResourceTypeMemory;
+        IoDescriptor->Type = CmResourceTypeMemory;
 
         /* Check if it's 64-bit or 20-bit decode */
         if ((CurrentBar & PCI_ADDRESS_MEMORY_TYPE_MASK) == PCI_TYPE_64BIT)
         {
             /* The next BAR has the high word, read it */
-            ResourceDescriptor->u.Port.MaximumAddress.HighPart = BarArray[1];
+            IoDescriptor->u.Port.MaximumAddress.HighPart = BarArray[1];
             Is64BitBar = TRUE;
         }
         else if ((CurrentBar & PCI_ADDRESS_MEMORY_TYPE_MASK) == PCI_TYPE_20BIT)
@@ -1344,15 +1348,12 @@ PciCreateIoDescriptorFromBarLimit(PIO_RESOURCE_DESCRIPTOR ResourceDescriptor,
 
         /* Check if the BAR is listed as prefetchable memory */
         if (CurrentBar & PCI_ADDRESS_MEMORY_PREFETCHABLE)
-        {
             /* Mark the descriptor in the same way */
-            ResourceDescriptor->Flags |= CM_RESOURCE_MEMORY_PREFETCHABLE;
-        }
+            IoDescriptor->Flags |= CM_RESOURCE_MEMORY_PREFETCHABLE;
     }
 
     /* Now write down the maximum address based on the base + length */
-    ResourceDescriptor->u.Port.MaximumAddress.QuadPart = (CurrentBar & BarMask) +
-                                                         BarLength - 1;
+    IoDescriptor->u.Port.MaximumAddress.QuadPart = ((CurrentBar & BarMask) + BarLength - 1);
 
     /* Return if this is a 64-bit BAR, so the loop code knows to skip the next one */
     return Is64BitBar;
