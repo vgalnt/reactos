@@ -294,31 +294,38 @@ PciUpdateHardware(IN PPCI_PDO_EXTENSION PdoExtension,
 
 PIO_RESOURCE_REQUIREMENTS_LIST
 NTAPI
-PciAllocateIoRequirementsList(IN ULONG Count,
-                              IN ULONG BusNumber,
-                              IN ULONG SlotNumber)
+PciAllocateIoRequirementsList(
+    _In_ ULONG Count,
+    _In_ ULONG BusNumber,
+    _In_ ULONG SlotNumber)
 {
-    SIZE_T Size;
     PIO_RESOURCE_REQUIREMENTS_LIST RequirementsList;
+    SIZE_T Size;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciAllocateIoRequirementsList: %X, %X, %X\n", Count, BusNumber, SlotNumber);
 
     /* Calculate the final size of the list, including each descriptor */
     Size = sizeof(IO_RESOURCE_REQUIREMENTS_LIST);
-    if (Count > 1) Size = sizeof(IO_RESOURCE_DESCRIPTOR) * (Count - 1) +
-                          sizeof(IO_RESOURCE_REQUIREMENTS_LIST);
+    if (Count > 1)
+        Size += ((Count - 1) * sizeof(IO_RESOURCE_DESCRIPTOR));
 
     /* Allocate the list */
     RequirementsList = ExAllocatePoolWithTag(PagedPool, Size, 'BicP');
-    if (!RequirementsList) return NULL;
+    if (!RequirementsList)
+    {
+        DPRINT1("PciAllocateIoRequirementsList: allocate failed\n");
+        return NULL;
+    }
 
     /* Initialize it */
     RtlZeroMemory(RequirementsList, Size);
+
     RequirementsList->AlternativeLists = 1;
     RequirementsList->BusNumber = BusNumber;
     RequirementsList->SlotNumber = SlotNumber;
     RequirementsList->InterfaceType = PCIBus;
     RequirementsList->ListSize = Size;
+
     RequirementsList->List[0].Count = Count;
     RequirementsList->List[0].Version = 1;
     RequirementsList->List[0].Revision = 1;
