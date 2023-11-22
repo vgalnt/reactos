@@ -687,6 +687,22 @@ PciGetInterruptAssignment(
     return STATUS_RESOURCE_TYPE_NOT_FOUND;
 }
 
+VOID
+NTAPI
+PciPrivateResourceInitialize(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
+    _In_ ULONG Data0,
+    _In_ ULONG Data1)
+{
+    IoDescriptor->Option = 0;
+    IoDescriptor->Type = 0x81;
+    IoDescriptor->ShareDisposition = 1;
+    IoDescriptor->Flags = 0;
+
+    IoDescriptor->u.DevicePrivate.Data[0] = Data0;
+    IoDescriptor->u.DevicePrivate.Data[1] = Data1;
+}
+
 NTSTATUS
 NTAPI
 PciBuildRequirementsList(IN PPCI_PDO_EXTENSION PdoExtension,
