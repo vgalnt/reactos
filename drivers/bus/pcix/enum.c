@@ -671,6 +671,24 @@ PciGetInUseRanges(
 
 NTSTATUS
 NTAPI
+PciGetInterruptAssignment(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _Out_ ULONG* OutMinVector,
+    _Out_ ULONG* OutMaxVector)
+{
+    DPRINT("PciGetInterruptAssignment: %p\n", PdoExtension);
+
+    if (!PdoExtension->InterruptPin)
+        return STATUS_RESOURCE_TYPE_NOT_FOUND;
+
+    DPRINT1("PciGetInterruptAssignment: FIXME\n");
+    ASSERT(FALSE);
+
+    return STATUS_RESOURCE_TYPE_NOT_FOUND;
+}
+
+NTSTATUS
+NTAPI
 PciBuildRequirementsList(IN PPCI_PDO_EXTENSION PdoExtension,
                          IN PPCI_COMMON_HEADER PciData,
                          OUT PIO_RESOURCE_REQUIREMENTS_LIST* Buffer)
