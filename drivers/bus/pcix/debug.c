@@ -295,7 +295,7 @@ PciDebugPrintIoResource(
     for (ix = 0; ix < 6; ix += 3)
     {
         /* Dump it in 32-bit triplets */
-        DPRINT1("        Data[%u] = %08X  %08X  %08X\n", ix, Data[0], Data[1], Data[2]);
+        DPRINT1("        Data[%u] = %08X  %08X  %08X\n", ix, Data[ix + 0], Data[ix + 1], Data[ix + 2]);
     }
 }
 
