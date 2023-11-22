@@ -705,33 +705,38 @@ PciPrivateResourceInitialize(
 
 NTSTATUS
 NTAPI
-PciBuildRequirementsList(IN PPCI_PDO_EXTENSION PdoExtension,
-                         IN PPCI_COMMON_HEADER PciData,
-                         OUT PIO_RESOURCE_REQUIREMENTS_LIST* Buffer)
+PciBuildRequirementsList(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER PciData,
+    _Out_ PIO_RESOURCE_REQUIREMENTS_LIST* OutIoResources)
 {
-    PIO_RESOURCE_REQUIREMENTS_LIST RequirementsList;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciBuildRequirementsList: Bus %X, Dev %X, Func %X\n", PdoExtension->ParentFdoExtension->BaseBus,
+           PdoExtension->Slot.u.bits.DeviceNumber, PdoExtension->Slot.u.bits.FunctionNumber);
 
-    UNREFERENCED_PARAMETER(PdoExtension);
     UNREFERENCED_PARAMETER(PciData);
 
     {
         /* There aren't, so use the zero descriptor */
-        RequirementsList = PciZeroIoResourceRequirements;
+        IoResources = PciZeroIoResourceRequirements;
 
         /* Does it actually exist yet? */
         if (!PciZeroIoResourceRequirements)
         {
             /* Allocate it, and use it for future use */
-            RequirementsList = PciAllocateIoRequirementsList(0, 0, 0);
-            PciZeroIoResourceRequirements = RequirementsList;
-            if (!PciZeroIoResourceRequirements) return STATUS_INSUFFICIENT_RESOURCES;
+            PciZeroIoResourceRequirements = IoResources = PciAllocateIoRequirementsList(0, 0, 0);
+            if (!PciZeroIoResourceRequirements)
+            {
+                DPRINT1("PciBuildRequirementsList: STATUS_INSUFFICIENT_RESOURCES\n");
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
         }
 
         /* Return the zero requirements list to the caller */
-        *Buffer = RequirementsList;
-        DPRINT1("PCI - build resource reqs - early out, 0 resources\n");
+        *OutIoResources = IoResources;
+
+        DPRINT("PciBuildRequirementsList: early out, 0 resources\n");
         return STATUS_SUCCESS;
     }
     return STATUS_SUCCESS;
