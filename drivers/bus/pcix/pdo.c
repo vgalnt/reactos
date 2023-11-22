@@ -303,16 +303,52 @@ PciPdoIrpCancelStopDevice(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciPdoIrpQueryInterface(IN PIRP Irp,
-                        IN PIO_STACK_LOCATION IoStackLocation,
-                        IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpQueryInterface(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    PPCI_FDO_EXTENSION FdoExtension;
+    NTSTATUS Status;
 
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_SUPPORTED;
+    DPRINT("PciPdoIrpQueryInterface: %p\n", Irp);
+
+    PAGED_CODE();
+    UNREFERENCED_PARAMETER(Irp);
+
+    Status = PciQueryInterface((PVOID)PdoExtension,
+                               IoStack->Parameters.QueryInterface.InterfaceType,
+                               IoStack->Parameters.QueryInterface.Size,
+                               IoStack->Parameters.QueryInterface.Version,
+                               IoStack->Parameters.QueryInterface.InterfaceSpecificData,
+                               IoStack->Parameters.QueryInterface.Interface,
+                               0);
+    if (NT_SUCCESS(Status))
+        return Status;
+
+    FdoExtension = PdoExtension->BridgeFdoExtension;
+    if (!FdoExtension)
+    {
+        DPRINT1("PciPdoIrpQueryInterface: Status %X\n", Status);
+        return Status;
+    }
+
+    if (FdoExtension->Fake != 1)
+    {
+        DPRINT1("PciPdoIrpQueryInterface: Status %X\n", Status);
+        return Status;
+    }
+
+    ASSERT((PdoExtension->BaseClass == PCI_CLASS_BRIDGE_DEV) && (PdoExtension->SubClass == PCI_SUBCLASS_BR_CARDBUS));
+
+    Status = PciQueryInterface(FdoExtension,
+                               IoStack->Parameters.QueryInterface.InterfaceType,
+                               IoStack->Parameters.QueryInterface.Size,
+                               IoStack->Parameters.QueryInterface.Version,
+                               IoStack->Parameters.QueryInterface.InterfaceSpecificData,
+                               IoStack->Parameters.QueryInterface.Interface,
+                               0);
+    return Status;
 }
 
 NTSTATUS
