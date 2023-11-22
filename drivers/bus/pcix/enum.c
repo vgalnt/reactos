@@ -618,6 +618,57 @@ PciIoSpaceNotRequired(
     return Result;
 }
 
+VOID
+NTAPI
+PciGetInUseRanges(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER PciConfig,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
+{
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR Current;
+    PPCI_FUNCTION_RESOURCES Resources;
+    ULONG ix;
+    BOOLEAN IsEnableMemory;
+    BOOLEAN IsEnableIo;
+
+    DPRINT("PciGetInUseRanges: %p\n", PdoExtension);
+
+    Resources = PdoExtension->Resources;
+
+    if ((PciConfig->Command & PCI_ENABLE_IO_SPACE) || (PdoExtension->InitialCommand & PCI_ENABLE_IO_SPACE))
+        IsEnableIo = TRUE;
+    else
+        IsEnableIo = FALSE;
+
+    if ((PciConfig->Command & PCI_ENABLE_MEMORY_SPACE) || (PdoExtension->InitialCommand & PCI_ENABLE_MEMORY_SPACE))
+        IsEnableMemory = TRUE;
+    else
+        IsEnableMemory = FALSE;
+
+    Current = Resources->Current;
+
+    for (ix = 0; ix < 7; ix++, CmDescriptor++, Current++)
+    {
+        CmDescriptor->Type = CmResourceTypeNull;
+
+        if (Resources->Limit[ix].Type == CmResourceTypeNull)
+            continue;
+
+        if ((Current->Type == CmResourceTypePort && IsEnableIo) ||
+            (Current->Type == CmResourceTypeMemory && IsEnableMemory))
+        {
+            if (!Current->u.Generic.Length)
+                continue;
+
+            if (Current->u.Generic.Start.QuadPart ||
+                ((PciConfig->HeaderType & 0x7F) == 1 && Current->Type == CmResourceTypePort))
+            {
+                *CmDescriptor = *Current;
+            }
+        }
+    }
+}
+
 NTSTATUS
 NTAPI
 PciBuildRequirementsList(IN PPCI_PDO_EXTENSION PdoExtension,
