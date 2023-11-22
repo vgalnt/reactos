@@ -336,26 +336,33 @@ PciAllocateIoRequirementsList(
 
 PCM_RESOURCE_LIST
 NTAPI
-PciAllocateCmResourceList(IN ULONG Count,
-                          IN ULONG BusNumber)
+PciAllocateCmResourceList(
+    _In_ ULONG Count,
+    _In_ ULONG BusNumber)
 {
-    SIZE_T Size;
     PCM_RESOURCE_LIST ResourceList;
+    SIZE_T Size;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciAllocateCmResourceList: %X, %X\n", Count, BusNumber);
 
     /* Calculate the final size of the list, including each descriptor */
     Size = sizeof(CM_RESOURCE_LIST);
-    if (Count > 1) Size = sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR) * (Count - 1) +
-                          sizeof(CM_RESOURCE_LIST);
+    if (Count > 1)
+        Size += ((Count - 1) * sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR));
 
     /* Allocate the list */
     ResourceList = ExAllocatePoolWithTag(PagedPool, Size, 'BicP');
-    if (!ResourceList) return NULL;
+    if (!ResourceList)
+    {
+        DPRINT1("PciAllocateCmResourceList: allocate failed\n");
+        return NULL;
+    }
 
     /* Initialize it */
     RtlZeroMemory(ResourceList, Size);
+
     ResourceList->Count = 1;
+
     ResourceList->List[0].BusNumber = BusNumber;
     ResourceList->List[0].InterfaceType = PCIBus;
     ResourceList->List[0].PartialResourceList.Version = 1;
