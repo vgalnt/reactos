@@ -710,13 +710,99 @@ PciBuildRequirementsList(
     _In_ PPCI_COMMON_HEADER PciData,
     _Out_ PIO_RESOURCE_REQUIREMENTS_LIST* OutIoResources)
 {
+    CM_PARTIAL_RESOURCE_DESCRIPTOR cmDescriptor[7];
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
     PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    PIO_RESOURCE_DESCRIPTOR NextNewIoDescriptor;
+    PIO_RESOURCE_DESCRIPTOR NewIoDescriptor;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    PCI_DEVICE_TYPES PciDeviceType;
+    ULONG BaseResourceCount = 0;
+    ULONG MinimumVector;
+    ULONG MaximumVector;
+    ULONG FinalResCount;
+    ULONG Alignment;
+    ULONG Length;
+    ULONG Count;
+    ULONG ix;
+    BOOLEAN IsAssignInterrupt;
+    BOOLEAN IsPreferred;
+    NTSTATUS Status;
 
     DPRINT("PciBuildRequirementsList: Bus %X, Dev %X, Func %X\n", PdoExtension->ParentFdoExtension->BaseBus,
            PdoExtension->Slot.u.bits.DeviceNumber, PdoExtension->Slot.u.bits.FunctionNumber);
 
-    UNREFERENCED_PARAMETER(PciData);
+    if (PdoExtension->Resources)
+    {
+        IoDescriptor = PdoExtension->Resources->Limit;
+        CmDescriptor = cmDescriptor;
 
+        PciGetInUseRanges(PdoExtension, PciData, CmDescriptor);
+
+        Count = 7;
+    }
+    else
+    {
+        Count = 0;
+    }
+
+    PdoExtension->IoSpaceNotRequired = PciIoSpaceNotRequired(PdoExtension);
+
+    DPRINT("PciBuildRequirementsList: IoSpaceNotRequired %X\n", PdoExtension->IoSpaceNotRequired);
+
+    for (ix = 0; ix < Count; ix++, CmDescriptor++, IoDescriptor++)
+    {
+        if (IoDescriptor->Type == CmResourceTypePort && PdoExtension->IoSpaceNotRequired)
+            continue;
+
+        if (IoDescriptor->Type == CmResourceTypeNull)
+            continue;
+
+        if (CmDescriptor->Type != CmResourceTypeNull)
+        {
+            BaseResourceCount++;
+            DPRINT("    Index %X, Preferred = TRUE\n", ix);
+        }
+        else if (IoDescriptor->u.Generic.Length)
+        {
+            if (IoDescriptor->Type == CmResourceTypeMemory &&
+                IoDescriptor->Flags == CM_RESOURCE_MEMORY_READ_ONLY)
+            {
+                continue;
+            }
+        }
+        else
+        {
+            if (IoDescriptor->Type == CmResourceTypePort && PdoExtension->Dependent.type1.VgaBitSet)
+                continue;
+
+            if (IoDescriptor->Type == CmResourceTypeMemory)
+            {
+                BaseResourceCount += 8;
+                continue;
+            }
+        }
+
+        BaseResourceCount += 2;
+        DPRINT("    Index %X, Base Resource = TRUE\n", ix);
+    }
+
+    Status = PciGetInterruptAssignment(PdoExtension, &MinimumVector, &MaximumVector);
+    if (NT_SUCCESS(Status))
+    {
+        BaseResourceCount++;
+        IsAssignInterrupt = TRUE;
+    }
+    else
+    {
+        IsAssignInterrupt = FALSE;
+    }
+
+    BaseResourceCount += PdoExtension->AdditionalResourceCount;
+
+    DPRINT("PciBuildRequirementsList: BaseResourceCount %X\n", BaseResourceCount);
+
+    if (!BaseResourceCount)
     {
         /* There aren't, so use the zero descriptor */
         IoResources = PciZeroIoResourceRequirements;
@@ -739,6 +825,155 @@ PciBuildRequirementsList(
         DPRINT("PciBuildRequirementsList: early out, 0 resources\n");
         return STATUS_SUCCESS;
     }
+
+    IoResources = PciAllocateIoRequirementsList(BaseResourceCount,
+                                                PdoExtension->ParentFdoExtension->BaseBus,
+                                                PdoExtension->Slot.u.AsULONG);
+    if (!IoResources)
+    {
+        DPRINT1("PciBuildRequirementsList: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    if (Count)
+    {
+        CmDescriptor = cmDescriptor;
+        IoDescriptor = PdoExtension->Resources->Limit;
+    }
+
+    NewIoDescriptor = IoResources->List[0].Descriptors;
+
+    for (ix = 0; ix < Count; ix++, CmDescriptor++, IoDescriptor++)
+    {
+        if (IoDescriptor->Type == CmResourceTypeNull)
+            continue;
+
+        if (IoDescriptor->Type == CmResourceTypePort && PdoExtension->IoSpaceNotRequired)
+            continue;
+
+        Length = IoDescriptor->u.Generic.Length;
+        Alignment = IoDescriptor->u.Generic.Alignment;
+
+        if (CmDescriptor->Type == CmResourceTypeNull)
+        {
+            IsPreferred = FALSE;
+
+            if (IoDescriptor->u.Generic.Length)
+            {
+                if (IoDescriptor->Type == CmResourceTypeMemory && IoDescriptor->Flags == 1)
+                    continue;
+            }
+            else
+            {
+                if (IoDescriptor->Type != CmResourceTypeMemory)
+                {
+                    if (IoDescriptor->Type != CmResourceTypePort)
+                        continue;
+
+                    if (PdoExtension->Dependent.type1.VgaBitSet)
+                        continue;
+                }
+
+                PciDeviceType = PciClassifyDeviceType(PdoExtension);
+
+                if (PciDeviceType == PciTypePciBridge)
+                {
+                    DPRINT1("PciBuildRequirementsList: FIXME\n");
+                    ASSERT(FALSE);
+                }
+                else if (PciDeviceType == PciTypeCardbusBridge)
+                {
+                    DPRINT1("PciBuildRequirementsList: FIXME\n");
+                    ASSERT(FALSE);
+                }
+            }
+
+            DPRINT("    Index %X, Setting Base Resource, not setting preferred.\n", ix);
+        }
+        else
+        {
+            IsPreferred = TRUE;
+            Length = CmDescriptor->u.Generic.Length;
+
+            DPRINT("    Index %X, Setting Base Resource, setting preferred.\n", ix);
+        }
+
+        ASSERT((NewIoDescriptor + (IsPreferred ? 3 : 2) - IoResources->List[0].Descriptors) <= (LONG)BaseResourceCount);
+
+        RtlCopyMemory(NewIoDescriptor, IoDescriptor, sizeof(*NewIoDescriptor));
+
+        NewIoDescriptor->ShareDisposition = CmResourceShareDeviceExclusive;
+
+        NewIoDescriptor->u.Generic.Length = Length;
+        NewIoDescriptor->u.Generic.Alignment = Alignment;
+
+        if (IoDescriptor->Type == CmResourceTypePort)
+            NewIoDescriptor->Flags |= 0x30;
+
+        if (IsPreferred)
+        {
+            DPRINT("  Duplicating for preferred locn.\n");
+
+            NextNewIoDescriptor = (NewIoDescriptor + 1),
+            RtlCopyMemory(NextNewIoDescriptor, NewIoDescriptor, sizeof(*NextNewIoDescriptor));
+
+            NewIoDescriptor->Option = 1;
+
+            NewIoDescriptor->u.Generic.MinimumAddress = CmDescriptor->u.Generic.Start;
+            NewIoDescriptor->u.Generic.MaximumAddress.QuadPart = (CmDescriptor->u.Generic.Start.QuadPart + Length - 1);
+            NewIoDescriptor->u.Generic.Alignment = 1;
+
+            if (PciLockDeviceResources ||
+                PdoExtension->LegacyDriver ||
+                PdoExtension->OnDebugPath ||
+                (PdoExtension->ParentFdoExtension->BusHackFlags & 1) ||
+                (PdoExtension->VendorId == 0x11C1 && PdoExtension->DeviceId == 0x0441 && PdoExtension->SubsystemVendorId == 0x1179 &&
+                 (PdoExtension->SubsystemId == 1 || PdoExtension->SubsystemId == 2)))
+            {
+                RtlCopyMemory(NextNewIoDescriptor, NewIoDescriptor, sizeof(*NextNewIoDescriptor));
+            }
+
+            NextNewIoDescriptor->Option = 8;
+            NewIoDescriptor++;
+        }
+
+        NextNewIoDescriptor = (NewIoDescriptor + 1),
+        PciPrivateResourceInitialize(NextNewIoDescriptor, 1, ix);
+
+        NewIoDescriptor += 2;
+    }
+
+    if (IsAssignInterrupt)
+    {
+        DPRINT("  Assigning INT descriptor\n");
+
+        NewIoDescriptor->Option = 0;
+        NewIoDescriptor->Type = CmResourceTypeInterrupt;
+        NewIoDescriptor->ShareDisposition = 3;
+        NewIoDescriptor->Flags = 0;
+
+        NewIoDescriptor->u.Interrupt.MinimumVector = MinimumVector;
+        NewIoDescriptor->u.Interrupt.MaximumVector = MaximumVector;
+
+        NewIoDescriptor++;
+    }
+
+    if (PdoExtension->AdditionalResourceCount)
+    {
+        DPRINT1("PciBuildRequirementsList: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    ASSERT(IoResources->ListSize == ((ULONG_PTR)NewIoDescriptor - (ULONG_PTR)IoResources));
+
+    FinalResCount = (((ULONG_PTR)NewIoDescriptor - (ULONG_PTR)IoResources->List[0].Descriptors) / sizeof(IO_RESOURCE_DESCRIPTOR));
+
+    DPRINT("PciBuildRequirementsList: final resource count == %X\n", FinalResCount);
+
+    ASSERT((NewIoDescriptor - IoResources->List[0].Descriptors) != 0);
+
+    *OutIoResources = IoResources;
+
     return STATUS_SUCCESS;
 }
 
