@@ -276,24 +276,26 @@ PciDebugCmResourceTypeToText(IN UCHAR Type)
 
 VOID
 NTAPI
-PciDebugPrintIoResource(IN PIO_RESOURCE_DESCRIPTOR Descriptor)
+PciDebugPrintIoResource(
+    _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor)
 {
-    ULONG i;
     PULONG Data;
+    ULONG ix;
 
     /* Print out the header */
-    DPRINT1("     IoResource Descriptor dump:  Descriptor @0x%p\n", Descriptor);
-    DPRINT1("        Option           = 0x%x\n", Descriptor->Option);
-    DPRINT1("        Type             = %u (%s)\n", Descriptor->Type, PciDebugCmResourceTypeToText(Descriptor->Type));
-    DPRINT1("        ShareDisposition = %u\n", Descriptor->ShareDisposition);
-    DPRINT1("        Flags            = 0x%04X\n", Descriptor->Flags);
+    DPRINT1("     IoResource IoDescriptor dump:  IoDescriptor %p\n", IoDescriptor);
+    DPRINT1("        Option           = %X\n", IoDescriptor->Option);
+    DPRINT1("        Type             = %X (%s)\n", IoDescriptor->Type, PciDebugCmResourceTypeToText(IoDescriptor->Type));
+    DPRINT1("        ShareDisposition = %X\n", IoDescriptor->ShareDisposition);
+    DPRINT1("        Flags            = %X\n", IoDescriptor->Flags);
 
     /* Loop private data */
-    Data = (PULONG)&Descriptor->u.DevicePrivate;
-    for (i = 0; i < 6; i += 3)
+    Data = (PULONG)&IoDescriptor->u.DevicePrivate;
+
+    for (ix = 0; ix < 6; ix += 3)
     {
         /* Dump it in 32-bit triplets */
-        DPRINT1("        Data[%u] = %08x  %08x  %08x\n", i, Data[0], Data[1], Data[2]);
+        DPRINT1("        Data[%u] = %08X  %08X  %08X\n", ix, Data[0], Data[1], Data[2]);
     }
 }
 
