@@ -582,6 +582,42 @@ PciQueryEjectionRelations(IN PPCI_PDO_EXTENSION PdoExtension,
     return STATUS_NOT_IMPLEMENTED;
 }
 
+BOOLEAN
+NTAPI
+PciIoSpaceNotRequired(
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
+{
+    HANDLE DevInstRegKey = NULL;
+    PVOID Value;
+    ULONG ResultLength;
+    NTSTATUS Status;
+    BOOLEAN Result = FALSE;
+
+    PAGED_CODE();
+    DPRINT("PciIoSpaceNotRequired: %p\n", PdoExtension);
+
+    Status = IoOpenDeviceRegistryKey(PdoExtension->PhysicalDeviceObject, TRUE, KEY_READ, &DevInstRegKey);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciIoSpaceNotRequired: Status %X\n", Status);
+        return STATUS_SUCCESS;
+    }
+
+    Status = PciGetRegistryValue(L"IoNotRequired",
+                                 L"E5B3B5AC-9725-4F78-963F-03DFB1D828C7",
+                                 DevInstRegKey,
+                                 4,
+                                 &Value,
+                                 &ResultLength);
+
+    if (NT_SUCCESS(Status) && ResultLength == 4)
+        Result = *(PBOOLEAN)Value;
+
+    ZwClose(DevInstRegKey);
+
+    return Result;
+}
+
 NTSTATUS
 NTAPI
 PciBuildRequirementsList(IN PPCI_PDO_EXTENSION PdoExtension,
