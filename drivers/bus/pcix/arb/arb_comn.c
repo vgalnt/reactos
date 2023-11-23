@@ -40,6 +40,19 @@ PciReferenceArbiter(
 
 VOID
 NTAPI
+PciDereferenceArbiter(
+    _In_ PVOID Context)
+{
+    PPCI_ARBITER_INSTANCE Instance;
+
+    DPRINT("PciDereferenceArbiter: %p\n", Context);
+
+    Instance = CONTAINING_RECORD(Context, PCI_ARBITER_INSTANCE, CommonInstance);
+    InterlockedDecrement(&Instance->CommonInstance.ReferenceCount);
+}
+
+VOID
+NTAPI
 PciArbiterDestructor(IN PPCI_ARBITER_INSTANCE Arbiter)
 {
     UNREFERENCED_PARAMETER(Arbiter);
