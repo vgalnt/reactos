@@ -630,46 +630,46 @@ armem_Initializer(
 
 NTSTATUS
 NTAPI
-armem_Constructor(IN PVOID DeviceExtension,
-                  IN PVOID PciInterface,
-                  IN PVOID InterfaceData,
-                  IN USHORT Version,
-                  IN USHORT Size,
-                  IN PINTERFACE Interface)
+armem_Constructor(
+    _In_ PVOID DeviceExtension,
+    _In_ PVOID PciInterface,
+    _In_ PVOID InterfaceData,
+    _In_ USHORT Version,
+    _In_ USHORT Size,
+    _In_ PINTERFACE Interface)
 {
-    PPCI_FDO_EXTENSION FdoExtension = (PPCI_FDO_EXTENSION)DeviceExtension;
-    NTSTATUS Status;
+    PARBITER_INTERFACE ArbInterface = (PVOID)Interface;
+    PPCI_FDO_EXTENSION FdoExtension = DeviceExtension;
+
+    DPRINT("armem_Constructor: %p\n", Interface);
     PAGED_CODE();
 
     UNREFERENCED_PARAMETER(PciInterface);
     UNREFERENCED_PARAMETER(Version);
     UNREFERENCED_PARAMETER(Size);
-    UNREFERENCED_PARAMETER(Interface);
 
     /* Make sure it's the expected interface */
     if ((ULONG_PTR)InterfaceData != CmResourceTypeMemory)
     {
-        /* Arbiter support must have been initialized first */
-        if (FdoExtension->ArbitersInitialized)
-        {
-            /* Not yet implemented */
-            UNIMPLEMENTED_DBGBREAK();
-            while (TRUE);
-        }
-        else
-        {
-            /* No arbiters for this FDO */
-            Status = STATUS_NOT_SUPPORTED;
-        }
-    }
-    else
-    {
         /* Not the right interface */
-        Status = STATUS_INVALID_PARAMETER_5;
+        DPRINT1("armem_Constructor: STATUS_INVALID_PARAMETER_5\n");
+        return STATUS_INVALID_PARAMETER_5;
     }
 
-    /* Return the status */
-    return Status;
+    if (!FdoExtension->ArbitersInitialized)
+    {
+        DPRINT1("armem_Constructor: STATUS_NOT_SUPPORTED\n");
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    ArbInterface->Version = 0;
+    ArbInterface->Flags = 0;
+    ArbInterface->Size = sizeof(ARBITER_INTERFACE);
+    ArbInterface->InterfaceReference = PciReferenceArbiter;
+    ArbInterface->InterfaceDereference = PciDereferenceArbiter;
+    ArbInterface->ArbiterHandler = ArbArbiterHandler;
+
+    return PciArbiterInitializeInterface(DeviceExtension, PciArb_Memory, ArbInterface);
 }
 
 /* EOF */
