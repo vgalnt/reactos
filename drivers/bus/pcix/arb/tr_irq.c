@@ -43,18 +43,23 @@ tranirq_Initializer(
 
 NTSTATUS
 NTAPI
-tranirq_Constructor(IN PVOID DeviceExtension,
-                    IN PVOID Instance,
-                    IN PVOID InterfaceData,
-                    IN USHORT Version,
-                    IN USHORT Size,
-                    IN PINTERFACE Interface)
+tranirq_Constructor(
+    _In_ PVOID DeviceExtension,
+    _In_ PVOID Instance,
+    _In_ PVOID InterfaceData,
+    _In_ USHORT Version,
+    _In_ USHORT Size,
+    _In_ PINTERFACE Interface)
 {
-    PPCI_FDO_EXTENSION FdoExtension = (PPCI_FDO_EXTENSION)DeviceExtension;
-    ULONG BaseBus, ParentBus;
+    PPCI_FDO_EXTENSION FdoExtension = DeviceExtension;
+    PPCI_PDO_EXTENSION PdoExtension;
     INTERFACE_TYPE ParentInterface;
-    ASSERT_FDO(FdoExtension);
+    ULONG ParentBus;
+    ULONG BaseBus;
 
+    DPRINT("tranirq_Constructor: %p\n", Interface);
+
+    ASSERT_FDO(FdoExtension);
     UNREFERENCED_PARAMETER(Instance);
     UNREFERENCED_PARAMETER(Version);
     UNREFERENCED_PARAMETER(Size);
@@ -63,8 +68,7 @@ tranirq_Constructor(IN PVOID DeviceExtension,
     if ((ULONG_PTR)InterfaceData != CmResourceTypeInterrupt)
     {
         /* Fail this invalid request */
-        DPRINT1("PCI - IRQ trans constructor doesn't like %p in InterfaceSpecificData\n",
-                InterfaceData);
+        DPRINT1("tranirq_Constructor: doesn't like %p in InterfaceSpecificData\n", InterfaceData);
         return STATUS_INVALID_PARAMETER_3;
     }
 
@@ -78,17 +82,16 @@ tranirq_Constructor(IN PVOID DeviceExtension,
         /* It is, so there is no parent, and it's connected on the system bus */
         ParentBus = 0;
         ParentInterface = Internal;
+
         DPRINT1("      Is root FDO\n");
     }
     else
     {
-        /* It's not, so we have to get the root bus' bus number instead */
-        #if 0 // when have PDO commit
-        ParentBus = FdoExtension->PhysicalDeviceObject->DeviceExtension->ParentFdoExtension->BaseBus;
+        PdoExtension = FdoExtension->PhysicalDeviceObject->DeviceExtension;
+        ParentBus = PdoExtension->ParentFdoExtension->BaseBus;
         ParentInterface = PCIBus;
-        DPRINT1("      Is bridge FDO, parent bus %x, secondary bus %x\n",
-                ParentBus, BaseBus);
-        #endif
+
+        DPRINT1("      Is bridge FDO, parent bus %X, secondary bus %X\n", ParentBus, BaseBus);
     }
 
     /* Now call the legacy HAL interface to get the correct translator */
