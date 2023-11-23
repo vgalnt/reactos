@@ -1225,6 +1225,26 @@ PciInitializeArbiterRanges(
     _In_ PCM_RESOURCE_LIST Resources
 );
 
+VOID
+NTAPI
+PciReferenceArbiter(
+    _In_ PVOID Context
+);
+
+VOID
+NTAPI
+PciDereferenceArbiter(
+    _In_ PVOID Context
+);
+
+NTSTATUS
+NTAPI
+PciArbiterInitializeInterface(
+    _In_ PVOID DeviceExtension,
+    _In_ PCI_SIGNATURE Signature,
+    _In_ PARBITER_INTERFACE ArbInterface
+);
+
 // Debug Helpers
 
 BOOLEAN
