@@ -676,15 +676,77 @@ PciGetInterruptAssignment(
     _Out_ ULONG* OutMinVector,
     _Out_ ULONG* OutMaxVector)
 {
+    PIO_RESOURCE_REQUIREMENTS_LIST IoList;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    ULONG MinVector;
+    ULONG MaxVector;
+    UCHAR InterruptLine;
+    NTSTATUS Status;
+
     DPRINT("PciGetInterruptAssignment: %p\n", PdoExtension);
 
     if (!PdoExtension->InterruptPin)
+    {
+        DPRINT1("PciGetInterruptAssignment: STATUS_RESOURCE_TYPE_NOT_FOUND\n");
         return STATUS_RESOURCE_TYPE_NOT_FOUND;
+    }
 
-    DPRINT1("PciGetInterruptAssignment: FIXME\n");
-    ASSERT(FALSE);
+    IoList = PciAllocateIoRequirementsList(1, PdoExtension->ParentFdoExtension->BaseBus, PdoExtension->Slot.u.AsULONG);
+    if (!IoList)
+    {
+        DPRINT1("PciGetInterruptAssignment: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
-    return STATUS_RESOURCE_TYPE_NOT_FOUND;
+    IoDescriptor = IoList->List[0].Descriptors;
+
+    IoDescriptor->Option = 0;
+    IoDescriptor->Type = 2;
+    IoDescriptor->ShareDisposition = 3;
+    IoDescriptor->Flags = 0;
+
+    IoDescriptor->u.Interrupt.MinimumVector = 0;
+    IoDescriptor->u.Interrupt.MaximumVector = (PciExtendInterruptVector ? 0xFFFFFFFF : 0xFF);
+
+    Status = HalAdjustResourceList(&IoList);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("    PIN %X, HAL FAILED Interrupt Assignment, status %\n", PdoExtension->InterruptPin, Status);
+        Status = STATUS_UNSUCCESSFUL;
+        goto Exit;
+    }
+
+    MinVector = IoList->List[0].Descriptors[0].u.Interrupt.MinimumVector;
+    MaxVector = IoList->List[0].Descriptors[0].u.Interrupt.MaximumVector;
+
+    if (MinVector <= IoList->List[0].Descriptors[0].u.Interrupt.MaximumVector)
+    {
+        *OutMinVector = MinVector;
+        *OutMaxVector = MaxVector;
+
+        DPRINT("    Interrupt assigned = %X through %X\n", MinVector, MaxVector);
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    PciReadDeviceConfig(PdoExtension, &InterruptLine, FIELD_OFFSET(PCI_COMMON_CONFIG, u.type0.InterruptLine), 1);
+
+    if (InterruptLine || !PdoExtension->RawInterruptLine)
+    {
+        DPRINT("    PIN %X, HAL could not assign interrupt.\n", PdoExtension->InterruptPin);
+        Status = STATUS_UNSUCCESSFUL;
+        goto Exit;
+    }
+
+    *OutMaxVector = PdoExtension->RawInterruptLine;
+    *OutMinVector = PdoExtension->RawInterruptLine;
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    ExFreePool(IoList);
+    return Status;
 }
 
 VOID
