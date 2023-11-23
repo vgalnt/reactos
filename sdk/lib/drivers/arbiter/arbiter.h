@@ -317,4 +317,11 @@ ArbPruneOrdering(
     _In_ ULONGLONG MaximumAddress
 );
 
+VOID
+NTAPI
+ArbAddAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
+);
+
 /* EOF */

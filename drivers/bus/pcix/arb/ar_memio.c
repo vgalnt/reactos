@@ -243,8 +243,143 @@ ario_PreprocessEntry(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCI_PDO_EXTENSION PdoExtension;
+    PARBITER_ALTERNATIVE Current;
+    PDEVICE_OBJECT DeviceObject;
+    INTERFACE_TYPE InterfaceType;
+    PCI_DEVICE_TYPES Type;
+    ULONGLONG Maximum = 0;
+    USHORT Flags;
+    BOOLEAN IsNotPciDecode = FALSE;
+    BOOLEAN WindowDetected = FALSE;
+
+    DPRINT("ario_PreprocessEntry: %p\n", Arbiter);
+    PAGED_CODE();
+
+    if (ArbState->WorkSpace & 1)
+        return STATUS_SUCCESS;
+
+    ArbState->WorkSpace |= 1;
+
+    DeviceObject = ArbState->Entry->PhysicalDeviceObject;
+
+    if (DeviceObject->DriverObject == PciDriverObject &&
+        ArbState->Entry->RequestSource == 4)
+    {
+        PdoExtension = DeviceObject->DeviceExtension;
+        ASSERT(PdoExtension->ExtensionType == PciPdoExtensionType);
+
+        if (PdoExtension->LegacyDriver)
+            return STATUS_DEVICE_BUSY;
+    }
+
+    Current = ArbState->Alternatives;
+    while (Current < &ArbState->Alternatives[ArbState->AlternativeCount])
+    {
+        ASSERT(Current->Descriptor->Type == CmResourceTypePort);
+        ASSERT(Current->Descriptor->Flags == ArbState->Alternatives->Descriptor->Flags);
+
+        if (Current->Maximum > Maximum)
+            Maximum = Current->Maximum;
+
+        if (Current->Descriptor->Flags & CM_RESOURCE_PORT_WINDOW_DECODE)
+        {
+            if (Current != ArbState->Alternatives)
+                ASSERT(WindowDetected);
+
+            WindowDetected = TRUE;
+        }
+
+        if (!(Current->Descriptor->Flags & (CM_RESOURCE_PORT_10_BIT_DECODE |
+                                            CM_RESOURCE_PORT_12_BIT_DECODE |
+                                            CM_RESOURCE_PORT_16_BIT_DECODE |
+                                            CM_RESOURCE_PORT_POSITIVE_DECODE)))
+        {
+            IsNotPciDecode = TRUE;
+        }
+
+        Current++;
+    }
+
+    if (!IsNotPciDecode)
+    {
+        Current = ArbState->Alternatives;
+        while (Current < &ArbState->Alternatives[ArbState->AlternativeCount])
+        {
+            if ((Current->Descriptor->Flags & CM_RESOURCE_PORT_10_BIT_DECODE) && Maximum > 0x3FF)
+            {
+                Current->Descriptor->Flags &= ~CM_RESOURCE_PORT_10_BIT_DECODE;
+                Current->Descriptor->Flags |= CM_RESOURCE_PORT_16_BIT_DECODE;
+            }
+
+            Current++;
+        }
+    }
+    else
+    {
+        ArbState->WorkSpace |= 2;
+        InterfaceType = ArbState->Entry->InterfaceType;
+
+        if (InterfaceType == Isa || InterfaceType == PNPISABus)
+        {
+            if (SharedUserData->AlternativeArchitecture != 1 && Maximum <= 0x3FF)
+                Flags = CM_RESOURCE_PORT_10_BIT_DECODE;
+        }
+        else if (InterfaceType == PCIBus)
+        {
+            Flags = CM_RESOURCE_PORT_POSITIVE_DECODE;
+        }
+        else
+        {
+            Flags = CM_RESOURCE_PORT_16_BIT_DECODE;
+        }
+
+        Current = ArbState->Alternatives;
+        while (Current < &ArbState->Alternatives[ArbState->AlternativeCount])
+        {
+            Current->Descriptor->Flags |= Flags;
+            Current++;
+        }
+    }
+
+    if (WindowDetected)
+    {
+        DeviceObject = ArbState->Entry->PhysicalDeviceObject;
+        if (DeviceObject->DriverObject != PciDriverObject)
+        {
+            ASSERT(ArbState->Entry->PhysicalDeviceObject->DriverObject == PciDriverObject);
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        PdoExtension = DeviceObject->DeviceExtension;
+        if (PdoExtension->ExtensionType != PciPdoExtensionType)
+        {
+            ASSERT(PdoExtension->ExtensionType == PciPdoExtensionType);
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        Type = PciClassifyDeviceType(DeviceObject->DeviceExtension);
+        if (Type != PciTypePciBridge && Type != PciTypeCardbusBridge)
+        {
+            ASSERT(Type == PciTypePciBridge || Type == PciTypeCardbusBridge);
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        if (PdoExtension->Dependent.type1.IsaBitSet)
+        {
+            if (Type == PciTypePciBridge)
+                ArbState->WorkSpace |= 4;
+            else
+                ASSERT(Type == PciTypePciBridge);
+        }
+
+        ArbState->WorkSpace |= 8;
+    }
+
+    if (ArbState->Alternatives->Descriptor->Flags & CM_RESOURCE_PORT_POSITIVE_DECODE)
+        ArbState->RangeAttributes |= 0x20;
+
+    return STATUS_SUCCESS;
 }
 
 BOOLEAN
@@ -269,11 +404,23 @@ ario_FindSuitableRange(
 
 VOID
 NTAPI
+ario_AddOrBacktrackAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState,
+    _In_ PARB_ADD_ALLOCATION Function)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 ario_AddAllocation(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PAGED_CODE();
+    DPRINT("PciArbiterInitializeInterface: %p\n", Arbiter);
+    ario_AddOrBacktrackAllocation(Arbiter, ArbState, ArbAddAllocation);
 }
 
 VOID
