@@ -633,4 +633,43 @@ PciInitializeArbiterRanges(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+PciArbiterInitializeInterface(
+    _In_ PVOID DeviceExtension,
+    _In_ PCI_SIGNATURE Signature,
+    _In_ PARBITER_INTERFACE ArbInterface)
+{
+    PPCI_FDO_EXTENSION FdoExtension = DeviceExtension;
+    PPCI_ARBITER_INSTANCE PciArbiter;
+    PPCI_PDO_EXTENSION PdoExtension;
+
+    DPRINT("PciArbiterInitializeInterface: %p\n", DeviceExtension);
+
+    PciArbiter = (PVOID)PciFindNextSecondaryExtension(FdoExtension->SecondaryExtension.Next, Signature);
+    if (PciArbiter)
+    {
+        DPRINT("PciArbiterInitializeInterface: '%S' Arbiter Interface Initialized\n", PciArbiter->CommonInstance.Name);
+        ArbInterface->Context = &PciArbiter->CommonInstance;
+        return STATUS_SUCCESS;
+    }
+
+    if (FdoExtension != FdoExtension->BusRootFdoExtension)
+    {
+        PdoExtension = FdoExtension->PhysicalDeviceObject->DeviceExtension;
+        ASSERT((PdoExtension)->ExtensionType == PciPdoExtensionType);
+
+        if (PdoExtension->Dependent.type1.SubtractiveDecode)
+        {
+            DPRINT1("PciArbiterInitializeInterface: STATUS_INVALID_PARAMETER_2");
+            return STATUS_INVALID_PARAMETER_2;
+        }
+    }
+
+    DPRINT1("PciArbiterInitializeInterface: STATUS_INVALID_PARAMETER_5");
+    ASSERTMSG("PciArbiterInitializeInterface: couldn't locate arbiter for resource.", PciArbiter);
+
+    return STATUS_INVALID_PARAMETER_5;
+}
+
 /* EOF */
