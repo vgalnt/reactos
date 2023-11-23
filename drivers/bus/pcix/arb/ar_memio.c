@@ -399,8 +399,41 @@ ario_GetNextAlias(
     _In_ ULONGLONG Start,
     _Out_ ULONGLONG* OutNewStart)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONGLONG NewStart;
+
+    DPRINT("ario_GetNextAlias: %I64X, %X\n", Start, Flags);
+    PAGED_CODE();
+
+    if (Flags & CM_RESOURCE_PORT_10_BIT_DECODE)
+    {
+        NewStart = (Start + 0x400);
+        goto Finish;
+    }
+
+    if (Flags & CM_RESOURCE_PORT_12_BIT_DECODE)
+    {
+        NewStart = (Start + 0x1000);
+        goto Finish;
+    }
+
+    if (Flags & CM_RESOURCE_PORT_POSITIVE_DECODE)
+        return FALSE;
+
+    if (Flags & CM_RESOURCE_PORT_16_BIT_DECODE)
+        return FALSE;
+
+    DPRINT("ario_GetNextAlias: FIXME\n");
+    ASSERT(FALSE);
     return FALSE;
+
+Finish:
+
+    if (NewStart > 0xFFFF)
+        return FALSE;
+
+     *OutNewStart = NewStart;
+
+     return TRUE;
 }
 
 BOOLEAN
