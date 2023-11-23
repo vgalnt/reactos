@@ -394,6 +394,17 @@ ario_GetNextAllocationRange(
 
 BOOLEAN
 NTAPI
+ario_GetNextAlias(
+    _In_ ULONG Flags,
+    _In_ ULONGLONG Start,
+    _Out_ ULONGLONG* OutNewStart)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
 ario_FindSuitableRange(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
@@ -409,7 +420,41 @@ ario_AddOrBacktrackAllocation(
     _Inout_ PARBITER_ALLOCATION_STATE ArbState,
     _In_ PARB_ADD_ALLOCATION Function)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ARBITER_ALLOCATION_STATE NewAllocation;
+
+    PAGED_CODE();
+    DPRINT("ario_AddOrBacktrackAllocation: %p\n", Arbiter);
+
+    ASSERT(Arbiter);
+    ASSERT(ArbState);
+
+    RtlCopyMemory(&NewAllocation, ArbState, sizeof(NewAllocation));
+
+    if ((ArbState->WorkSpace & 8) && (ArbState->WorkSpace & 4) && ArbState->Start < 0xFFFF)
+    {
+        ASSERT(ArbState->End <= 0xFFFF);
+
+        for (;
+             NewAllocation.Start < ArbState->End && NewAllocation.Start < 0xFFFF;
+             NewAllocation.Start += 0x400)
+        {
+            NewAllocation.End = (NewAllocation.Start + 0xFF);
+            Function(Arbiter, &NewAllocation);
+        }
+
+        return;
+    }
+
+    Function(Arbiter, ArbState);
+
+    if (!(ArbState->CurrentAlternative->Descriptor->Flags & CM_RESOURCE_PORT_POSITIVE_DECODE))
+        NewAllocation.RangeAttributes |= 0x10;
+
+    while (ario_GetNextAlias(ArbState->CurrentAlternative->Descriptor->Flags, NewAllocation.Start, &NewAllocation.Start))
+    {
+        NewAllocation.End = NewAllocation.Start + ArbState->CurrentAlternative->Length - 1;
+        Function(Arbiter, &NewAllocation);
+    }
 }
 
 VOID
@@ -419,7 +464,7 @@ ario_AddAllocation(
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
     PAGED_CODE();
-    DPRINT("PciArbiterInitializeInterface: %p\n", Arbiter);
+    DPRINT("ario_AddAllocation: %p\n", Arbiter);
     ario_AddOrBacktrackAllocation(Arbiter, ArbState, ArbAddAllocation);
 }
 
