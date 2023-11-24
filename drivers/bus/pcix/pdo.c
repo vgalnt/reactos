@@ -118,100 +118,93 @@ PciPdoIrpQueryPower(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciPdoIrpStartDevice(IN PIRP Irp,
-                     IN PIO_STACK_LOCATION IoStackLocation,
-                     IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpStartDevice(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
-    NTSTATUS Status;
-    BOOLEAN Changed, DoReset;
     POWER_STATE PowerState;
+    BOOLEAN Changed;
+    BOOLEAN DoReset = FALSE;
+    NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
-
-    UNREFERENCED_PARAMETER(Irp);
-
-    DoReset = FALSE;
+    DPRINT("PciPdoIrpStartDevice: %p\n", Irp);
 
     /* Begin entering the start phase */
-    Status = PciBeginStateTransition((PVOID)DeviceExtension, PciStarted);
-    if (!NT_SUCCESS(Status)) return Status;
+    Status = PciBeginStateTransition((PVOID)PdoExtension, PciStarted);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciPdoIrpStartDevice: Status %X\n", Status);
+        return Status;
+    }
 
     /* Check if this is a VGA device */
-    if (((DeviceExtension->BaseClass == PCI_CLASS_PRE_20) &&
-         (DeviceExtension->SubClass == PCI_SUBCLASS_PRE_20_VGA)) ||
-        ((DeviceExtension->BaseClass == PCI_CLASS_DISPLAY_CTLR) &&
-         (DeviceExtension->SubClass == PCI_SUBCLASS_VID_VGA_CTLR)))
+    if ((PdoExtension->BaseClass == PCI_CLASS_PRE_20 && PdoExtension->SubClass == PCI_SUBCLASS_PRE_20_VGA) ||
+        (PdoExtension->BaseClass == PCI_CLASS_DISPLAY_CTLR && PdoExtension->SubClass == PCI_SUBCLASS_VID_VGA_CTLR))
     {
         /* Always force it on */
-        DeviceExtension->CommandEnables |= (PCI_ENABLE_IO_SPACE |
-                                            PCI_ENABLE_MEMORY_SPACE);
+        PdoExtension->CommandEnables |= (PCI_ENABLE_IO_SPACE | PCI_ENABLE_MEMORY_SPACE);
     }
 
     /* Check if native IDE is enabled and it owns the I/O ports */
-    if (DeviceExtension->IoSpaceUnderNativeIdeControl)
-    {
+    if (PdoExtension->IoSpaceUnderNativeIdeControl)
         /* Then don't allow I/O access */
-        DeviceExtension->CommandEnables &= ~PCI_ENABLE_IO_SPACE;
-    }
+        PdoExtension->CommandEnables &= ~PCI_ENABLE_IO_SPACE;
 
     /* Always enable bus mastering */
-    DeviceExtension->CommandEnables |= PCI_ENABLE_BUS_MASTER;
+    PdoExtension->CommandEnables |= PCI_ENABLE_BUS_MASTER;
 
     /* Check if the OS assigned resources differ from the PCI configuration */
-    Changed = PciComputeNewCurrentSettings(DeviceExtension,
-                                           IoStackLocation->Parameters.
-                                           StartDevice.AllocatedResources);
+    Changed = PciComputeNewCurrentSettings(PdoExtension, IoStack->Parameters.StartDevice.AllocatedResources);
+
     if (Changed)
     {
         /* Remember this for later */
-        DeviceExtension->MovedDevice = TRUE;
+        PdoExtension->MovedDevice = TRUE;
     }
     else
     {
         /* All good */
-        DPRINT1("PCI - START not changing resource settings.\n");
+        DPRINT("PciPdoIrpStartDevice: START not changing resource settings.\n");
     }
 
     /* Check if the device was sleeping */
-    if (DeviceExtension->PowerState.CurrentDeviceState != PowerDeviceD0)
+    if (PdoExtension->PowerState.CurrentDeviceState != PowerDeviceD0)
     {
         /* Power it up */
-        Status = PciSetPowerManagedDevicePowerState(DeviceExtension,
-                                                    PowerDeviceD0,
-                                                    FALSE);
+        Status = PciSetPowerManagedDevicePowerState(PdoExtension, PowerDeviceD0, FALSE);
         if (!NT_SUCCESS(Status))
         {
             /* Powerup fail, fail the request */
-            PciCancelStateTransition((PVOID)DeviceExtension, PciStarted);
+            DPRINT1("PciPdoIrpStartDevice: Status %X\n", Status);
+            PciCancelStateTransition((PVOID)PdoExtension, PciStarted);
             return STATUS_DEVICE_POWER_FAILURE;
         }
 
         /* Tell the power manager that the device is powered up */
         PowerState.DeviceState = PowerDeviceD0;
-        PoSetPowerState(DeviceExtension->PhysicalDeviceObject,
-                        DevicePowerState,
-                        PowerState);
+        PoSetPowerState(PdoExtension->PhysicalDeviceObject, DevicePowerState, PowerState);
 
         /* Update internal state */
-        DeviceExtension->PowerState.CurrentDeviceState = PowerDeviceD0;
+        PdoExtension->PowerState.CurrentDeviceState = PowerDeviceD0;
 
         /* This device's resources and decodes will need to be reset */
         DoReset = TRUE;
     }
 
     /* Update resource information now that the device is powered up and active */
-    Status = PciSetResources(DeviceExtension, DoReset, TRUE);
+    Status = PciSetResources(PdoExtension, DoReset, TRUE);
     if (!NT_SUCCESS(Status))
     {
         /* That failed, so cancel the transition */
-        PciCancelStateTransition((PVOID)DeviceExtension, PciStarted);
+        DPRINT1("PciPdoIrpStartDevice: Status %X\n", Status);
+        PciCancelStateTransition((PVOID)PdoExtension, PciStarted);
+        return Status;
     }
-    else
-    {
-        /* Fully commit, as the device is now started up and ready to go */
-        PciCommitStateTransition((PVOID)DeviceExtension, PciStarted);
-    }
+
+    /* Fully commit, as the device is now started up and ready to go */
+    PciCommitStateTransition((PVOID)PdoExtension, PciStarted);
 
     /* Return the result of the start request */
     return Status;
