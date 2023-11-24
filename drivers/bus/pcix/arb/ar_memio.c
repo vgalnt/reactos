@@ -793,8 +793,64 @@ armem_PreprocessEntry(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCI_ARB_MEM_EXTENTION ArbExtension;
+    PPCI_PDO_EXTENSION PdoExtension;
+    PARBITER_ALTERNATIVE Current;
+    BOOLEAN IsPrefetchable;
+
+    PAGED_CODE();
+    DPRINT("armem_PreprocessEntry: %p\n", Arbiter);
+
+    ArbExtension = Arbiter->Extension;
+    ASSERT(ArbExtension);
+
+    if (ArbState->Entry->PhysicalDeviceObject->DriverObject == PciDriverObject &&
+        ArbState->Entry->RequestSource == ArbiterRequestPnpEnumerated)
+    {
+        PdoExtension = ArbState->Entry->PhysicalDeviceObject->DeviceExtension;    
+        ASSERT(PdoExtension->ExtensionType == PciPdoExtensionType);
+
+        if (PdoExtension->LegacyDriver)
+        {
+            DPRINT1("armem_PreprocessEntry: STATUS_DEVICE_BUSY\n");
+            return STATUS_DEVICE_BUSY;
+        }
+    }
+
+    if ((ArbState->Alternatives[0].Descriptor->Flags & CM_RESOURCE_MEMORY_READ_ONLY) ||
+        ((ArbState->Alternatives[0].Flags & 2) && ArbState->AlternativeCount == 1 && ArbState->Entry->RequestSource == ArbiterRequestLegacyReported))
+    {
+        if (ArbState->Alternatives[0].Descriptor->Flags & CM_RESOURCE_MEMORY_READ_ONLY)
+        {
+            ASSERT(ArbState->Alternatives[0].Flags & 2);//ARBITER_ALTERNATIVE_FLAG_FIXED
+        }
+
+        ArbState->RangeAvailableAttributes |= 0x10;
+        ArbState->RangeAttributes |= 0x10;
+        ArbState->Flags |= 8;
+    }
+
+    if (!ArbExtension->IsPrefetchable)
+    {
+        Arbiter->OrderingList = ArbExtension->ArbiterOrderingList;
+        return STATUS_SUCCESS;
+    }
+
+    IsPrefetchable = ((ArbState->Alternatives[0].Descriptor->Flags & CM_RESOURCE_MEMORY_PREFETCHABLE) == CM_RESOURCE_MEMORY_PREFETCHABLE);
+
+    if (IsPrefetchable)
+        Arbiter->OrderingList = ArbExtension->PrefetchOrderingList;
+    else
+        Arbiter->OrderingList = ArbExtension->OrderingList;
+
+    Current = ArbState->Alternatives;
+    while (Current < &ArbState->Alternatives[ArbState->AlternativeCount])
+    {
+        ASSERT(((Current->Descriptor->Flags & CM_RESOURCE_MEMORY_PREFETCHABLE) == CM_RESOURCE_MEMORY_PREFETCHABLE) == IsPrefetchable);
+        Current++;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 BOOLEAN
