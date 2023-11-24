@@ -196,12 +196,55 @@ PciGetInterruptRoutingInfoEx(
 
 NTSTATUS
 NTAPI
-PciSetRoutingToken(
+PciSetLegacyDeviceToken(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PROUTING_TOKEN RoutingToken)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciSetRoutingToken(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PROUTING_TOKEN RoutingToken)
+{
+    PPCI_ROUTING_EXTENSION RoutingExtension;
+    PPCI_PDO_EXTENSION PdoExtension;
+    NTSTATUS status;
+
+    DPRINT("PciSetRoutingToken: %p\n", Pdo);
+
+    status = PciSetLegacyDeviceToken(Pdo, RoutingToken);
+    if (NT_SUCCESS(status))
+        return STATUS_SUCCESS;
+
+    PdoExtension = Pdo->DeviceExtension;
+
+    RoutingExtension = (PVOID)PciFindNextSecondaryExtension(PdoExtension->SecondaryExtension.Next, PciInterface_IntRouteHandler);
+    if (RoutingExtension)
+    {
+        DPRINT("PciSetRoutingToken: *** redundant PCI routing extesion being created ***\n");
+    }
+    ASSERT(RoutingExtension == NULL);
+
+    RoutingExtension = ExAllocatePool(PagedPool, sizeof(*PdoExtension)); // POOL_TYPE 0x101
+    if (!RoutingExtension)
+    {
+        DPRINT1("PciSetRoutingToken: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RoutingExtension->RoutingToken = *RoutingToken;
+
+    PcipLinkSecondaryExtension(&PdoExtension->SecondaryExtension,
+                               &PdoExtension->SecondaryExtLock,
+                               &RoutingExtension->SecondaryExtension,
+                               PciInterface_IntRouteHandler,
+                               NULL);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS

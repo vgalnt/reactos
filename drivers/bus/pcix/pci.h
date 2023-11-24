@@ -500,6 +500,12 @@ typedef struct _PCI_PARTIAL_LIST_CONTEXT
     CM_PARTIAL_RESOURCE_DESCRIPTOR CurrentDescriptor;
 } PCI_PARTIAL_LIST_CONTEXT, *PPCI_PARTIAL_LIST_CONTEXT;
 
+typedef struct _PCI_ROUTING_EXTENSION
+{
+    PCI_SECONDARY_EXTENSION SecondaryExtension;
+    ROUTING_TOKEN RoutingToken;
+} PCI_ROUTING_EXTENSION, *PPCI_ROUTING_EXTENSION;
+
 /* FUNCTIONS ****************************************************************/
 
 // IRP Dispatch Routines
