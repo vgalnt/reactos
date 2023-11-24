@@ -196,12 +196,21 @@ PciGetInterruptRoutingInfoEx(
 
 NTSTATUS
 NTAPI
-PciSetRoutingTokenEx(
+PciSetRoutingToken(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PROUTING_TOKEN RoutingToken)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciSetRoutingTokenEx(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PROUTING_TOKEN RoutingToken)
+{
+    return PciSetRoutingToken(Pdo, RoutingToken);
 }
 
 VOID
