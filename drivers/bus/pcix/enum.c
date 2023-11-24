@@ -52,45 +52,44 @@ PCI_CONFIGURATOR PciConfigurators[] =
 
 BOOLEAN
 NTAPI
-PciComputeNewCurrentSettings(IN PPCI_PDO_EXTENSION PdoExtension,
-                             IN PCM_RESOURCE_LIST ResourceList)
+PciComputeNewCurrentSettings(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PCM_RESOURCE_LIST ResourceList)
 {
-    PCM_PARTIAL_RESOURCE_DESCRIPTOR Partial, InterruptResource;
-    PCM_PARTIAL_RESOURCE_DESCRIPTOR BaseResource, CurrentDescriptor;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR PreviousDescriptor;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CurrentDescriptor;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR InterruptResource = NULL;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR BaseResource;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR Partial = NULL;
     CM_PARTIAL_RESOURCE_DESCRIPTOR ResourceArray[7];
     PCM_FULL_RESOURCE_DESCRIPTOR FullList;
-    BOOLEAN DrainPartial, RangeChange;
-    ULONG i, j;
     PPCI_FUNCTION_RESOURCES PciResources;
+    ULONG ix, jx;
+    BOOLEAN DrainPartial;
+    BOOLEAN RangeChange = FALSE;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciComputeNewCurrentSettings: %p, %p\n", PdoExtension, ResourceList);
 
     /* Make sure we have either no resources, or at least one */
     ASSERT((ResourceList == NULL) || (ResourceList->Count == 1));
 
-    /* Initialize no partial, interrupt descriptor, or range change */
-    Partial = NULL;
-    InterruptResource = NULL;
-    RangeChange = FALSE;
-
     /* Check if there's not actually any resources */
-    if (!(ResourceList) || !(ResourceList->Count))
-    {
+    if (!ResourceList || !ResourceList->Count)
         /* Then just return the hardware update state */
         return PdoExtension->UpdateHardware;
-    }
 
     /* Print the new specified resource list */
     PciDebugPrintCmResList(ResourceList);
 
     /* Clear the temporary resource array */
-    for (i = 0; i < 7; i++) ResourceArray[i].Type = CmResourceTypeNull;
+    for (ix = 0; ix < 7; ix++)
+        ResourceArray[ix].Type = CmResourceTypeNull;
 
     /* Loop the full resource descriptor */
     FullList = ResourceList->List;
-    for (i = 0; i < ResourceList->Count; i++)
+
+    for (ix = 0; ix < ResourceList->Count; ix++)
     {
         /* Initialize loop variables */
         DrainPartial = FALSE;
@@ -98,7 +97,8 @@ PciComputeNewCurrentSettings(IN PPCI_PDO_EXTENSION PdoExtension,
 
         /* Loop the partial descriptors */
         Partial = FullList->PartialResourceList.PartialDescriptors;
-        for (j = 0; j < FullList->PartialResourceList.Count; j++)
+
+        for (jx = 0; jx < FullList->PartialResourceList.Count; jx++)
         {
             /* Check if we were supposed to drain a partial due to device data */
             if (DrainPartial)
@@ -126,19 +126,16 @@ PciComputeNewCurrentSettings(IN PPCI_PDO_EXTENSION PdoExtension,
                     /* Make sure it's a compatible (and the only) PCI interrupt */
                     ASSERT(InterruptResource == NULL);
                     ASSERT(Partial->u.Interrupt.Level == Partial->u.Interrupt.Vector);
+
                     InterruptResource = Partial;
 
                     /* Only 255 interrupts on x86/x64 hardware */
                     if (Partial->u.Interrupt.Level < 256)
-                    {
                         /* Use the passed interrupt line */
                         PdoExtension->AdjustedInterruptLine = Partial->u.Interrupt.Level;
-                    }
                     else
-                    {
                         /* Invalid vector, so ignore it */
                         PdoExtension->AdjustedInterruptLine = 0;
-                    }
 
                     break;
 
@@ -180,28 +177,27 @@ PciComputeNewCurrentSettings(IN PPCI_PDO_EXTENSION PdoExtension,
 
     /* Check the current assigned PCI resources */
     PciResources = PdoExtension->Resources;
-    if (!PciResources) return FALSE;
+    if (!PciResources)
+        return FALSE;
 
     //if... // MISSING CODE
-    DPRINT1("Missing sanity checking code!\n");
-    UNIMPLEMENTED_DBGBREAK();
+    UNIMPLEMENTED;
+    DPRINT1("PciComputeNewCurrentSettings: Missing sanity checking code!\n");
 
     /* Loop all the PCI function resources */
-    for (i = 0; i < 7; i++)
+    for (ix = 0; ix < 7; ix++)
     {
         /* Get the current function resource descriptor, and the new one */
-        CurrentDescriptor = &PciResources->Current[i];
-        Partial = &ResourceArray[i];
+        CurrentDescriptor = &PciResources->Current[ix];
+        Partial = &ResourceArray[ix];
 
         /* Previous is current during the first loop iteration */
-        PreviousDescriptor = &PciResources->Current[(i == 0) ? (0) : (i - 1)];
+        PreviousDescriptor = &PciResources->Current[!ix ? 0 : (ix - 1)];
 
         /* Check if this new descriptor is different than the old one */
-        if (((Partial->Type != CurrentDescriptor->Type) ||
-             (Partial->Type != CmResourceTypeNull)) &&
-            ((Partial->u.Generic.Start.QuadPart !=
-              CurrentDescriptor->u.Generic.Start.QuadPart) ||
-             (Partial->u.Generic.Length != CurrentDescriptor->u.Generic.Length)))
+        if ((Partial->Type != CurrentDescriptor->Type || Partial->Type != CmResourceTypeNull) &&
+            (Partial->u.Generic.Start.QuadPart != CurrentDescriptor->u.Generic.Start.QuadPart ||
+             Partial->u.Generic.Length != CurrentDescriptor->u.Generic.Length))
         {
             /* Record a change */
             RangeChange = TRUE;
@@ -232,7 +228,7 @@ PciComputeNewCurrentSettings(IN PPCI_PDO_EXTENSION PdoExtension,
     }
 
     /* Either the hardware was updated, or a resource range changed */
-    return ((RangeChange) || (PdoExtension->UpdateHardware));
+    return (RangeChange || PdoExtension->UpdateHardware);
 }
 
 VOID
