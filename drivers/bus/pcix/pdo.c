@@ -495,19 +495,35 @@ PciPdoIrpWriteConfig(IN PIRP Irp,
     return STATUS_NOT_SUPPORTED;
 }
 
+BOOLEAN
+NTAPI
+PciIsOnVGAPath(
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 NTSTATUS
 NTAPI
-PciPdoIrpQueryDeviceState(IN PIRP Irp,
-                          IN PIO_STACK_LOCATION IoStackLocation,
-                          IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpQueryDeviceState(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    PAGED_CODE();
+    DPRINT("PciPdoIrpQueryDeviceState: %p\n", PdoExtension);
 
-        UNIMPLEMENTED_DBGBREAK();
-;
-    return STATUS_NOT_SUPPORTED;
+    UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(IoStack);
+
+    if (PdoExtension->BaseClass == 6 && !PdoExtension->SubClass)
+        Irp->IoStatus.Information |= 0x20;
+
+    if (PdoExtension->HeaderType == 1 && PciIsOnVGAPath(PdoExtension))
+        Irp->IoStatus.Information |= 0x20;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
