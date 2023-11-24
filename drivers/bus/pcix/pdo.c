@@ -346,35 +346,30 @@ PciPdoIrpQueryInterface(
 
 NTSTATUS
 NTAPI
-PciPdoIrpQueryDeviceRelations(IN PIRP Irp,
-                              IN PIO_STACK_LOCATION IoStackLocation,
-                              IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpQueryDeviceRelations(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciPdoIrpQueryDeviceRelations: %p, %p, %p\n", Irp, IoStack, PdoExtension);
 
     /* Are ejection relations being queried? */
-    if (IoStackLocation->Parameters.QueryDeviceRelations.Type == EjectionRelations)
-    {
+    if (IoStack->Parameters.QueryDeviceRelations.Type == EjectionRelations)
         /* Call the worker function */
-        Status = PciQueryEjectionRelations(DeviceExtension,
-                                           (PDEVICE_RELATIONS*)&Irp->
-                                           IoStatus.Information);
-    }
-    else if (IoStackLocation->Parameters.QueryDeviceRelations.Type == TargetDeviceRelation)
-    {
-        /* The only other relation supported is the target device relation */
-        Status = PciQueryTargetDeviceRelations(DeviceExtension,
-                                               (PDEVICE_RELATIONS*)&Irp->
-                                               IoStatus.Information);
-    }
-    else
+        return PciQueryEjectionRelations(PdoExtension,(PDEVICE_RELATIONS*)&Irp->IoStatus.Information);
+
+    if (IoStack->Parameters.QueryDeviceRelations.Type != TargetDeviceRelation)
     {
         /* All other relations are unsupported */
-        Status = STATUS_NOT_SUPPORTED;
+        DPRINT1("PciPdoIrpQueryDeviceRelations: STATUS_NOT_SUPPORTED\n");
+        return STATUS_NOT_SUPPORTED;
     }
+
+    /* The only other relation supported is the target device relation */
+    Status = PciQueryTargetDeviceRelations(PdoExtension, (PDEVICE_RELATIONS*)&Irp->IoStatus.Information);
 
     /* Return either the result of the worker function, or unsupported status */
     return Status;
