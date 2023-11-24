@@ -1527,37 +1527,40 @@ PciApplyHacks(
 
 BOOLEAN
 NTAPI
-PcipIsSameDevice(IN PPCI_PDO_EXTENSION DeviceExtension,
-                 IN PPCI_COMMON_HEADER PciData)
+PcipIsSameDevice(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER PciData)
 {
-    BOOLEAN IdMatch, RevMatch, SubsysMatch;
-    ULONGLONG HackFlags = DeviceExtension->HackFlags;
+    ULONGLONG HackFlags = PdoExtension->HackFlags;
+    BOOLEAN SubsysMatch;
+    BOOLEAN RevMatch;
+    BOOLEAN IdMatch;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PcipIsSameDevice: %p, %p\n", PdoExtension, PciData);
 
     /* Check if the IDs match */
-    IdMatch = (PciData->VendorID == DeviceExtension->VendorId) &&
-              (PciData->DeviceID == DeviceExtension->DeviceId);
-    if (!IdMatch) return FALSE;
+    IdMatch = (PciData->VendorID == PdoExtension->VendorId && PciData->DeviceID == PdoExtension->DeviceId);
+    if (!IdMatch)
+        return FALSE;
 
     /* If the device has a valid revision, check if it matches */
-    RevMatch = (HackFlags & PCI_HACK_NO_REVISION_AFTER_D3) ||
-               (PciData->RevisionID == DeviceExtension->RevisionId);
-    if (!RevMatch) return FALSE;
+    RevMatch = ((HackFlags & PCI_HACK_NO_REVISION_AFTER_D3) || PciData->RevisionID == PdoExtension->RevisionId);
+    if (!RevMatch)
+        return FALSE;
 
     /* For multifunction devices, this is enough to assume they're the same */
-    if (PCI_MULTIFUNCTION_DEVICE(PciData)) return TRUE;
+    if (PCI_MULTIFUNCTION_DEVICE(PciData))
+        return TRUE;
 
     /* For bridge devices, there's also nothing else that can be checked */
-    if (DeviceExtension->BaseClass == PCI_CLASS_BRIDGE_DEV) return TRUE;
+    if (PdoExtension->BaseClass == PCI_CLASS_BRIDGE_DEV)
+        return TRUE;
 
     /* Devices, on the other hand, have subsystem data that can be compared */
-    SubsysMatch = (HackFlags & (PCI_HACK_NO_SUBSYSTEM |
-                                PCI_HACK_NO_SUBSYSTEM_AFTER_D3)) ||
-                  ((DeviceExtension->SubsystemVendorId ==
-                    PciData->u.type0.SubVendorID) &&
-                   (DeviceExtension->SubsystemId ==
-                    PciData->u.type0.SubSystemID));
+    SubsysMatch = (HackFlags & (PCI_HACK_NO_SUBSYSTEM | PCI_HACK_NO_SUBSYSTEM_AFTER_D3)) ||
+                  (PdoExtension->SubsystemVendorId == PciData->u.type0.SubVendorID &&
+                   PdoExtension->SubsystemId == PciData->u.type0.SubSystemID);
+
     return SubsysMatch;
 }
 
