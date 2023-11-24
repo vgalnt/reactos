@@ -64,8 +64,20 @@ PciFindLegacyDevice(
     _Out_ PDEVICE_OBJECT* OutParentPdo,
     _Out_ ROUTING_TOKEN* OutRoutingToken)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCI_LEGACY_DEVICE LegacyDevice;
+    NTSTATUS Status = STATUS_NOT_FOUND;
+
+    PAGED_CODE();
+    DPRINT("PciFindLegacyDevice: %p\n", Pdo);
+
+    LegacyDevice = PciLegacyDeviceHead;
+    if (!LegacyDevice)
+        return Status;
+
+    DPRINT1("PciFindLegacyDevice: FIXME\n");
+    ASSERT(FALSE);
+
+    return Status;
 }
 
 NTSTATUS
