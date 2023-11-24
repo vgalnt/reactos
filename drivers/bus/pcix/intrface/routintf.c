@@ -200,8 +200,23 @@ PciSetLegacyDeviceToken(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PROUTING_TOKEN RoutingToken)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCI_LEGACY_DEVICE LegacyDevice;
+
+    PAGED_CODE();
+    DPRINT("PciSetLegacyDeviceToken: %p\n", Pdo);
+
+    for (LegacyDevice = PciLegacyDeviceHead;
+         LegacyDevice;
+         LegacyDevice = LegacyDevice->Next)
+    {
+        if (LegacyDevice->DeviceObject == Pdo)
+        {
+            LegacyDevice->RoutingToken = *RoutingToken;
+            return STATUS_SUCCESS;
+        }
+    }
+
+    return STATUS_NOT_FOUND;
 }
 
 NTSTATUS
