@@ -53,6 +53,23 @@ pcicbintrf_Dereference(
 
 NTSTATUS
 NTAPI
+PciFindLegacyDevice(
+    _In_ PDEVICE_OBJECT Pdo,
+    _Out_ ULONG* OutBus,
+    _Out_ ULONG* OutPciSlot,
+    _Out_ UCHAR* OutInterruptLine,
+    _Out_ UCHAR* OutInterruptPin,
+    _Out_ UCHAR* OutClassCode,
+    _Out_ UCHAR* OutSubClassCode,
+    _Out_ PDEVICE_OBJECT* OutParentPdo,
+    _Out_ ROUTING_TOKEN* OutRoutingToken)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PciGetInterruptRoutingInfo(
     _In_ PDEVICE_OBJECT Pdo,
     _Out_ ULONG* OutBus,
@@ -62,10 +79,74 @@ PciGetInterruptRoutingInfo(
     _Out_ UCHAR* OutClassCode,
     _Out_ UCHAR* OutSubClassCode,
     _Out_ PDEVICE_OBJECT* OutParentPdo,
-    _Out_ ROUTING_TOKEN* OutRoutingToken,
+    _Out_ ROUTING_TOKEN* OutRoutingToken)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCI_SECONDARY_EXTENSION Extension;
+    PPCI_PDO_EXTENSION PdoExtension;
+    NTSTATUS Status;
+
+    DPRINT("PciGetInterruptRoutingInfo: %p\n", Pdo);
+
+    PdoExtension = Pdo->DeviceExtension;
+
+    ASSERT(OutBus);
+    ASSERT(OutPciSlot);
+    ASSERT(OutInterruptLine);
+    ASSERT(OutInterruptPin);
+    ASSERT(OutClassCode);
+    ASSERT(OutSubClassCode);
+    ASSERT(OutParentPdo);
+    ASSERT(OutRoutingToken);
+
+    Status = PciFindLegacyDevice(Pdo,
+                                 OutBus,
+                                 OutPciSlot,
+                                 OutInterruptLine,
+                                 OutInterruptPin,
+                                 OutClassCode,
+                                 OutSubClassCode,
+                                 OutParentPdo,
+                                 OutRoutingToken);
+    if (NT_SUCCESS(Status))
+        return Status;
+
+    DPRINT("PciGetInterruptRoutingInfo: Status %X\n", Status);
+
+    if (!PdoExtension)
+    {
+        DPRINT1("PciGetInterruptRoutingInfo: STATUS_NOT_FOUND\n");
+        return STATUS_NOT_FOUND;
+    }
+
+    if (PdoExtension->ExtensionType != PciPdoExtensionType)
+    {
+        DPRINT1("PciGetInterruptRoutingInfo: STATUS_NOT_FOUND\n");
+        return STATUS_NOT_FOUND;
+    }
+
+    *OutBus = PdoExtension->ParentFdoExtension->BaseBus;
+    *OutPciSlot = PdoExtension->Slot.u.AsULONG;
+    *OutInterruptLine = PdoExtension->RawInterruptLine;
+    *OutInterruptPin = PdoExtension->InterruptPin;
+    *OutClassCode = PdoExtension->BaseClass;
+    *OutSubClassCode = PdoExtension->SubClass;
+    *OutParentPdo = PdoExtension->ParentFdoExtension->PhysicalDeviceObject;
+
+    Extension = PciFindNextSecondaryExtension(PdoExtension->SecondaryExtension.Next, PciInterface_IntRouteHandler);
+
+    if (Extension)
+    {
+        DPRINT1("PciGetInterruptRoutingInfo: %p\n", Pdo);
+        ASSERT(FALSE);
+    }
+    else
+    {
+        OutRoutingToken->LinkNode = NULL;
+        OutRoutingToken->StaticVector = 0;
+        OutRoutingToken->Flags = 0;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
