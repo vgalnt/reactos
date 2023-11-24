@@ -2726,22 +2726,23 @@ PciQueryDeviceRelations(
 
 NTSTATUS
 NTAPI
-PciSetResources(IN PPCI_PDO_EXTENSION PdoExtension,
-                IN BOOLEAN DoReset,
-                IN BOOLEAN SomethingSomethingDarkSide)
+PciSetResources(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ BOOLEAN DoReset,
+    _In_ BOOLEAN SomethingSomethingDarkSide)
 {
     PPCI_FDO_EXTENSION FdoExtension;
-    UCHAR NewCacheLineSize, NewLatencyTimer;
-    PCI_COMMON_HEADER PciData;
-    BOOLEAN Native;
     PPCI_CONFIGURATOR Configurator;
+    PCI_COMMON_HEADER PciData;
+    UCHAR NewCacheLineSize;
+    UCHAR NewLatencyTimer;
+    BOOLEAN Native;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciSetResources: %p, %X\n", PdoExtension, DoReset);
 
     UNREFERENCED_PARAMETER(SomethingSomethingDarkSide);
 
-    /* Get the FDO and read the configuration data */
-    FdoExtension = PdoExtension->ParentFdoExtension;
+    /* Read the configuration data */
     PciReadDeviceConfig(PdoExtension, &PciData, 0, PCI_COMMON_HDR_LENGTH);
 
     /* Make sure this is still the same device */
@@ -2753,26 +2754,24 @@ PciSetResources(IN PPCI_PDO_EXTENSION PdoExtension,
     }
 
     /* Nothing to set for a host bridge */
-    if ((PdoExtension->BaseClass == PCI_CLASS_BRIDGE_DEV) &&
-        (PdoExtension->SubClass == PCI_SUBCLASS_BR_HOST))
-    {
+    if (PdoExtension->BaseClass == PCI_CLASS_BRIDGE_DEV && PdoExtension->SubClass == PCI_SUBCLASS_BR_HOST)
         /* Fake success */
         return STATUS_SUCCESS;
-    }
 
     /* Check if an IDE controller is being reset */
-    if ((DoReset) &&
-        (PdoExtension->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR) &&
-        (PdoExtension->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR))
+    if (DoReset &&
+        PdoExtension->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR && PdoExtension->SubClass == PCI_SUBCLASS_MSC_IDE_CTLR)
     {
         /* Turn off native mode */
         Native = PciConfigureIdeController(PdoExtension, &PciData, FALSE);
         ASSERT(Native == PdoExtension->IDEInNativeMode);
     }
 
+    /* Get the FDO */
+    FdoExtension = PdoExtension->ParentFdoExtension;
+
     /* Check for update of a hotplug device, or first configuration of one */
-    if ((PdoExtension->NeedsHotPlugConfiguration) &&
-        (FdoExtension->HotPlugParameters.Acquired))
+    if (PdoExtension->NeedsHotPlugConfiguration && FdoExtension->HotPlugParameters.Acquired)
     {
         /* Don't have hotplug devices to test with yet, QEMU 0.14 should */
         UNIMPLEMENTED_DBGBREAK();
@@ -2800,10 +2799,8 @@ PciSetResources(IN PPCI_PDO_EXTENSION PdoExtension,
     if (PciData.LatencyTimer != NewLatencyTimer)
     {
         /* Debug notification */
-        DPRINT1("PCI (pdox %p) changing latency from %02x to %02x.\n",
-                PdoExtension,
-                PciData.LatencyTimer,
-                NewLatencyTimer);
+        DPRINT("PciSetResources: (pdox %p) changing latency from %02X to %02X.\n",
+               PdoExtension, PciData.LatencyTimer, NewLatencyTimer);
     }
 
     /* Check if the cache line changed */
@@ -2811,10 +2808,8 @@ PciSetResources(IN PPCI_PDO_EXTENSION PdoExtension,
     if (PciData.CacheLineSize != NewCacheLineSize)
     {
         /* Debug notification */
-        DPRINT1("PCI (pdox %p) changing cache line size from %02x to %02x.\n",
-                PdoExtension,
-                PciData.CacheLineSize,
-                NewCacheLineSize);
+        DPRINT("PciSetResources: (pdox %p) changing cache line size from %02X to %02X.\n",
+               PdoExtension, PciData.CacheLineSize, NewCacheLineSize);
     }
 
     /* Inherit data from PDO extension */
@@ -2823,18 +2818,12 @@ PciSetResources(IN PPCI_PDO_EXTENSION PdoExtension,
     PciData.u.type0.InterruptLine = PdoExtension->RawInterruptLine;
 
     /* Apply any resource hacks required */
-    PciApplyHacks(FdoExtension,
-                  &PciData,
-                  PdoExtension->Slot,
-                  PCI_HACK_FIXUP_BEFORE_UPDATE,
-                  PdoExtension);
+    PciApplyHacks(FdoExtension, &PciData, PdoExtension->Slot, PCI_HACK_FIXUP_BEFORE_UPDATE, PdoExtension);
 
     /* Check if I/O space was disabled by administrator or driver */
     if (PdoExtension->IoSpaceNotRequired)
-    {
         /* Don't turn on the decode */
         PdoExtension->CommandEnables &= ~PCI_ENABLE_IO_SPACE;
-    }
 
     /* Update the device with the new settings */
     PciUpdateHardware(PdoExtension, &PciData);
@@ -2842,6 +2831,7 @@ PciSetResources(IN PPCI_PDO_EXTENSION PdoExtension,
     /* Update complete */
     PdoExtension->RawInterruptLine = PciData.u.type0.InterruptLine;
     PdoExtension->NeedsHotPlugConfiguration = FALSE;
+
     return STATUS_SUCCESS;
 }
 
