@@ -53,6 +53,23 @@ pcicbintrf_Dereference(
 
 NTSTATUS
 NTAPI
+PciGetInterruptRoutingInfo(
+    _In_ PDEVICE_OBJECT Pdo,
+    _Out_ ULONG* OutBus,
+    _Out_ ULONG* OutPciSlot,
+    _Out_ UCHAR* OutInterruptLine,
+    _Out_ UCHAR* OutInterruptPin,
+    _Out_ UCHAR* OutClassCode,
+    _Out_ UCHAR* OutSubClassCode,
+    _Out_ PDEVICE_OBJECT* OutParentPdo,
+    _Out_ ROUTING_TOKEN* OutRoutingToken,
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PciGetInterruptRoutingInfoEx(
     _In_ PDEVICE_OBJECT Pdo,
     _Out_ ULONG* OutBus,
@@ -65,8 +82,23 @@ PciGetInterruptRoutingInfoEx(
     _Out_ ROUTING_TOKEN* OutRoutingToken,
     _Out_ UCHAR* OutFlags)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    DPRINT("PciGetInterruptRoutingInfoEx: %p\n", Pdo);
+
+    Status = PciGetInterruptRoutingInfo(Pdo,
+                                        OutBus,
+                                        OutPciSlot,
+                                        OutInterruptLine,
+                                        OutInterruptPin,
+                                        OutClassCode,
+                                        OutSubClassCode,
+                                        OutParentPdo,
+                                        OutRoutingToken);
+    *OutFlags = 0;
+
+    DPRINT("PciGetInterruptRoutingInfoEx: ret %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
