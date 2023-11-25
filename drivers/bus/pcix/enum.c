@@ -262,30 +262,30 @@ PcipUpdateHardware(IN PVOID Context,
 
 VOID
 NTAPI
-PciUpdateHardware(IN PPCI_PDO_EXTENSION PdoExtension,
-                  IN PPCI_COMMON_HEADER PciData)
+PciUpdateHardware(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER PciData)
 {
     PCI_IPI_CONTEXT Context;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciUpdateHardware: %p, %X\n", PdoExtension, PciData);
 
     /* Check for critical devices and PCI Debugging devices */
-    if ((PdoExtension->HackFlags & PCI_HACK_CRITICAL_DEVICE) ||
-        (PdoExtension->OnDebugPath))
-    {
-        /* Build the context and send an IPI */
-        Context.RunCount = 1;
-        Context.Barrier = 1;
-        Context.Context = PciData;
-        Context.Function = PcipUpdateHardware;
-        Context.DeviceExtension = PdoExtension;
-        KeIpiGenericCall(PciExecuteCriticalSystemRoutine, (ULONG_PTR)&Context);
-    }
-    else
+    if (!(PdoExtension->HackFlags & PCI_HACK_CRITICAL_DEVICE) && !PdoExtension->OnDebugPath)
     {
         /* Just to the update inline */
         PcipUpdateHardware(PdoExtension, PciData);
+        return;
     }
+
+    /* Build the context and send an IPI */
+    Context.RunCount = 1;
+    Context.Barrier = 1;
+    Context.Context = PciData;
+    Context.Function = PcipUpdateHardware;
+    Context.DeviceExtension = PdoExtension;
+
+    KeIpiGenericCall(PciExecuteCriticalSystemRoutine, (ULONG_PTR)&Context);
 }
 
 PIO_RESOURCE_REQUIREMENTS_LIST
