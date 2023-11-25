@@ -1375,32 +1375,33 @@ PciCreateIoDescriptorFromBarLimit(
 
 VOID
 NTAPI
-PciDecodeEnable(IN PPCI_PDO_EXTENSION PdoExtension,
-                IN BOOLEAN Enable,
-                OUT PUSHORT Command)
+PciDecodeEnable(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ BOOLEAN IsEnable,
+    _Out_ PUSHORT OutCommand)
 {
     USHORT CommandValue;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciDecodeEnable: %p, %X\n", PdoExtension, IsEnable);
 
     /*
      * If decodes are being disabled, make sure it's allowed, and in both cases,
      * make sure that a hackflag isn't preventing touching the decodes at all.
      */
-    if (((Enable) || (PciCanDisableDecodes(PdoExtension, 0, 0, 0))) &&
+    if ((IsEnable || PciCanDisableDecodes(PdoExtension, 0, 0, 0)) &&
         !(PdoExtension->HackFlags & PCI_HACK_PRESERVE_COMMAND))
     {
         /* Did the caller already have a command word? */
-        if (Command)
+        if (OutCommand)
         {
             /* Use the caller's */
-            CommandValue = *Command;
+            CommandValue = *OutCommand;
         }
         else
         {
             /* Otherwise, read the current command */
             PciReadDeviceConfig(PdoExtension,
-                                &Command,
+                                &OutCommand,
                                 FIELD_OFFSET(PCI_COMMON_HEADER, Command),
                                 sizeof(USHORT));
         }
@@ -1411,10 +1412,8 @@ PciDecodeEnable(IN PPCI_PDO_EXTENSION PdoExtension,
                           PCI_ENABLE_BUS_MASTER);
 
         /* If requested, enable the decodes that were enabled at init time */
-        if (Enable) CommandValue |= PdoExtension->CommandEnables &
-                                    (PCI_ENABLE_IO_SPACE |
-                                     PCI_ENABLE_MEMORY_SPACE |
-                                     PCI_ENABLE_BUS_MASTER);
+        if (IsEnable)
+            CommandValue |= (PdoExtension->CommandEnables & (PCI_ENABLE_IO_SPACE | PCI_ENABLE_MEMORY_SPACE | PCI_ENABLE_BUS_MASTER));
 
         /* Update the command word */
         PciWriteDeviceConfig(PdoExtension,
