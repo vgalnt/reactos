@@ -233,13 +233,14 @@ PciComputeNewCurrentSettings(
 
 VOID
 NTAPI
-PcipUpdateHardware(IN PVOID Context,
-                   IN PVOID Context2)
+PcipUpdateHardware(
+    _In_ PVOID Context,
+    _In_ PVOID Context2)
 {
     PPCI_PDO_EXTENSION PdoExtension = Context;
     PPCI_COMMON_HEADER PciData = Context2;
 
-    DPRINT("PCIX: .. \n");
+    DPRINT("PciUpdateHardware: %p, %p\n", Context, Context2);
 
     /* Check if we're allowed to disable decodes */
     PciData->Command = PdoExtension->CommandEnables;
