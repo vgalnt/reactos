@@ -290,13 +290,66 @@ Device_ResetDevice(IN PPCI_PDO_EXTENSION PdoExtension,
 
 VOID
 NTAPI
-Device_ChangeResourceSettings(IN PPCI_PDO_EXTENSION PdoExtension,
-                              IN PPCI_COMMON_HEADER PciData)
+Device_ChangeResourceSettings(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER PciData)
 {
-    UNREFERENCED_PARAMETER(PdoExtension);
-    UNREFERENCED_PARAMETER(PciData);
-    /* Not yet implemented */
-    UNIMPLEMENTED_DBGBREAK();
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    ULONG* OutBaseAddr;
+    ULONG LowPart;
+    ULONG ix;
+    ULONG Type;
+
+    DPRINT("Device_ChangeResourceSettings: %p, %p\n", PdoExtension, PdoExtension->Resources);
+
+    if (!PdoExtension->Resources)
+        return;
+
+    CmDescriptor = PdoExtension->Resources->Current;
+    OutBaseAddr = PciData->u.type0.BaseAddresses;
+
+    for (ix = 0;
+         ix <= PCI_TYPE0_ADDRESSES;
+         ix++, CmDescriptor++, OutBaseAddr++)
+    {
+        if (CmDescriptor->Type == CmResourceTypeNull)
+            continue;
+
+        LowPart = CmDescriptor->u.Generic.Start.LowPart;
+
+        if (ix == PCI_TYPE0_ADDRESSES)
+        {
+            ASSERT(CmDescriptor->Type == CmResourceTypeMemory);
+
+            PciData->u.type0.ROMBaseAddress &= ~0x7FF;
+            PciData->u.type0.ROMBaseAddress |= (LowPart & PCI_ADDRESS_ROM_ADDRESS_MASK);
+        }
+        else if (*OutBaseAddr & PCI_ADDRESS_IO_SPACE)
+        {
+            ASSERT(CmDescriptor->Type == CmResourceTypePort);
+            *OutBaseAddr = LowPart;
+        }
+        else
+        {
+            ASSERT(CmDescriptor->Type == CmResourceTypeMemory);
+
+            Type = *OutBaseAddr;
+            *OutBaseAddr = LowPart;
+
+            if ((Type & PCI_ADDRESS_MEMORY_TYPE_MASK) == PCI_TYPE_64BIT)
+            {
+                OutBaseAddr++;
+                *OutBaseAddr = CmDescriptor->u.Generic.Start.HighPart;
+
+                CmDescriptor++;
+                ix++;
+            }
+            else if ((Type & PCI_ADDRESS_MEMORY_TYPE_MASK) == PCI_TYPE_20BIT)
+            {
+                ASSERT((LowPart & 0xFFF00000) == 0);
+            }
+        }
+    }
 }
 
 /* EOF */
