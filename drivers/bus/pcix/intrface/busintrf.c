@@ -95,8 +95,16 @@ PciPnpReadConfig(
     _In_ ULONG Offset,
     _In_ ULONG Length)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PPCI_PDO_EXTENSION PdoExtension = Context;
+    ULONG RetLength;
+
+    DPRINT("PciPnpReadConfig: %p\n", PdoExtension);
+
+    ASSERT(PdoExtension->ExtensionType == PciPdoExtensionType);
+
+    PciReadDeviceSpace(PdoExtension, DataType, Buffer, Offset, Length, &RetLength);
+
+    return RetLength;
 }
 
 ULONG
