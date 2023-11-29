@@ -549,7 +549,7 @@ PciIrpInvalidDeviceRequest(
     _In_ PPCI_FDO_EXTENSION DeviceExtension
 );
 
-// Power Routines
+// Power FDO Routines
 
 NTSTATUS
 NTAPI
@@ -581,6 +581,32 @@ PciSetPowerManagedDevicePowerState(
     _In_ PPCI_PDO_EXTENSION DeviceExtension,
     _In_ DEVICE_POWER_STATE DeviceState,
     _In_ BOOLEAN IrpSet
+);
+
+// Power PDO Routines
+
+NTSTATUS
+NTAPI
+PciPdoWaitWake(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStackLocation,
+    _In_ PPCI_PDO_EXTENSION DeviceExtension
+);
+
+NTSTATUS
+NTAPI
+PciPdoSetPowerState(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStackLocation,
+    _In_ PPCI_PDO_EXTENSION DeviceExtension
+);
+
+NTSTATUS
+NTAPI
+PciPdoIrpQueryPower(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStackLocation,
+    _In_ PPCI_PDO_EXTENSION DeviceExtension
 );
 
 // Bus FDO Routines

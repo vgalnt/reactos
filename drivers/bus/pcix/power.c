@@ -38,7 +38,49 @@ ULONG PciPowerDelayTable[PowerDeviceD3 * PowerDeviceD3] =
     0       // D3 -> D3
 };
 
-/* FUNCTIONS ******************************************************************/
+/* PDO FUNCTIONS **************************************************************/
+
+NTSTATUS
+NTAPI
+PciPdoWaitWake(IN PIRP Irp,
+               IN PIO_STACK_LOCATION IoStackLocation,
+               IN PPCI_PDO_EXTENSION DeviceExtension)
+{
+    UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(IoStackLocation);
+    UNREFERENCED_PARAMETER(DeviceExtension);
+
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_SUPPORTED;
+}
+
+NTSTATUS
+NTAPI
+PciPdoSetPowerState(IN PIRP Irp,
+                    IN PIO_STACK_LOCATION IoStackLocation,
+                    IN PPCI_PDO_EXTENSION DeviceExtension)
+{
+    UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(IoStackLocation);
+    UNREFERENCED_PARAMETER(DeviceExtension);
+
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_SUPPORTED;
+}
+
+NTSTATUS
+NTAPI
+PciPdoIrpQueryPower(IN PIRP Irp,
+                    IN PIO_STACK_LOCATION IoStackLocation,
+                    IN PPCI_PDO_EXTENSION DeviceExtension)
+{
+    UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(IoStackLocation);
+    UNREFERENCED_PARAMETER(DeviceExtension);
+
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_SUPPORTED;
+}
 
 NTSTATUS
 NTAPI

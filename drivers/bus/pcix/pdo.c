@@ -76,48 +76,6 @@ PCI_MJ_DISPATCH_TABLE PciPdoDispatchTable =
 
 NTSTATUS
 NTAPI
-PciPdoWaitWake(IN PIRP Irp,
-               IN PIO_STACK_LOCATION IoStackLocation,
-               IN PPCI_PDO_EXTENSION DeviceExtension)
-{
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
-
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_SUPPORTED;
-}
-
-NTSTATUS
-NTAPI
-PciPdoSetPowerState(IN PIRP Irp,
-                    IN PIO_STACK_LOCATION IoStackLocation,
-                    IN PPCI_PDO_EXTENSION DeviceExtension)
-{
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
-
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_SUPPORTED;
-}
-
-NTSTATUS
-NTAPI
-PciPdoIrpQueryPower(IN PIRP Irp,
-                    IN PIO_STACK_LOCATION IoStackLocation,
-                    IN PPCI_PDO_EXTENSION DeviceExtension)
-{
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
-
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_SUPPORTED;
-}
-
-NTSTATUS
-NTAPI
 PciPdoIrpStartDevice(
     _In_ PIRP Irp,
     _In_ PIO_STACK_LOCATION IoStack,
