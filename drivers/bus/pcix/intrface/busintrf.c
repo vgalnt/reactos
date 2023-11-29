@@ -94,8 +94,28 @@ PciExternalReadDeviceConfig(
     _In_ ULONG Offset,
     _In_ ULONG Length)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCI_COMMON_CONFIG Config;
+
+    DPRINT("PciExternalReadDeviceConfig: %p\n", PdoExtension);
+
+    if ((Offset + Length) > 0x100)
+    {
+        DPRINT1("PciReadDeviceSpace: %X, %X\n", Offset, Length);
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    PciReadDeviceConfig(PdoExtension, Add2Ptr(&Config, Offset), Offset, Length);
+
+    if (PdoExtension->InterruptPin &&
+        Offset <= FIELD_OFFSET(PCI_COMMON_CONFIG,u.type0.InterruptLine) &&
+        (Offset + Length) > FIELD_OFFSET(PCI_COMMON_CONFIG,u.type0.InterruptLine))
+    {
+        Config.u.type0.InterruptLine = PdoExtension->AdjustedInterruptLine;
+    }
+
+    RtlCopyMemory(Buffer, Add2Ptr(&Config, Offset), Length);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
