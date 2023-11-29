@@ -187,6 +187,20 @@ PciPnpReadConfig(
     return RetLength;
 }
 
+NTSTATUS
+NTAPI
+PciWriteDeviceSpace(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ ULONG DataType,
+    _In_ PVOID Buffer,
+    _In_ ULONG Offset,
+    _In_ ULONG Length,
+    _Out_ ULONG* OutLenght)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 ULONG
 NTAPI
 PciPnpWriteConfig(
@@ -196,8 +210,16 @@ PciPnpWriteConfig(
     _In_ ULONG Offset,
     _In_ ULONG Length)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PPCI_PDO_EXTENSION PdoExtension = Context;
+    ULONG RetLength;
+
+    DPRINT("PciPnpWriteConfig: %p\n", PdoExtension);
+
+    ASSERT((PdoExtension)->ExtensionType == PciPdoExtensionType);
+
+    PciWriteDeviceSpace(PdoExtension, DataType, Buffer, Offset, Length, &RetLength);
+
+    return RetLength;
 }
 
 NTSTATUS
