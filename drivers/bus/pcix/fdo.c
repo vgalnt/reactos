@@ -207,16 +207,20 @@ PciFdoIrpQueryStopDevice(
 
 NTSTATUS
 NTAPI
-PciFdoIrpCancelStopDevice(IN PIRP Irp,
-                          IN PIO_STACK_LOCATION IoStackLocation,
-                          IN PPCI_FDO_EXTENSION DeviceExtension)
+PciFdoIrpCancelStopDevice(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    PAGED_CODE();
+    DPRINT("PciFdoIrpCancelStopDevice: %p\n", FdoExtension);
 
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_SUPPORTED;
+    UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(IoStack);
+
+    PciCancelStateTransition((PVOID)FdoExtension, PciStopped);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
