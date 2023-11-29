@@ -438,11 +438,89 @@ Finish:
 
 BOOLEAN
 NTAPI
+ario_IsAliasedRangeAvailable(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
 ario_FindSuitableRange(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PPCI_PDO_EXTENSION ParentPdoExtension;
+    PPCI_PDO_EXTENSION PdoExtension;
+
+    PAGED_CODE();
+    DPRINT("ario_FindSuitableRange: %p\n", Arbiter);
+
+    ArbState->Flags &= ~8;
+
+    if (ArbState->WorkSpace & 8)
+    {
+        ASSERT(ArbState->Entry->PhysicalDeviceObject->DriverObject == PciDriverObject);
+
+        PdoExtension = ArbState->Entry->PhysicalDeviceObject->DeviceExtension;
+
+        if (PdoExtension->ParentFdoExtension != PdoExtension->ParentFdoExtension->BusRootFdoExtension)
+        {
+            ParentPdoExtension = PdoExtension->ParentFdoExtension->PhysicalDeviceObject->DeviceExtension;
+            ASSERT(ParentPdoExtension);
+        }
+        else
+        {
+            ParentPdoExtension = NULL;
+        }
+
+        if (!ParentPdoExtension ||
+           (ParentPdoExtension->HeaderType == PCI_BRIDGE_TYPE && !ParentPdoExtension->MovedDevice))
+        {
+            if (ArbState->CurrentAlternative->Flags & 2)
+                ArbState->Flags |= 8;
+        }
+
+        if ((ArbState->WorkSpace & 4) && ArbState->CurrentMaximum <= 0xFFFF)
+        {
+            DPRINT1("ario_FindSuitableRange: FIXME\n");
+            ASSERT(FALSE);
+        }
+    }
+
+    if (ArbState->Entry->RequestSource == ArbiterRequestLegacyReported ||
+        ArbState->Entry->RequestSource == ArbiterRequestLegacyAssigned ||
+        ArbState->Entry->Flags & 1)
+    {
+        ArbState->RangeAvailableAttributes |= 1;
+    }
+
+    if (ArbState->CurrentAlternative->Descriptor->Flags & CM_RESOURCE_PORT_POSITIVE_DECODE)
+        ArbState->RangeAvailableAttributes |= 0x10;
+
+    while (ArbState->CurrentMaximum >= ArbState->CurrentMinimum)
+    {
+        if (!ArbFindSuitableRange(Arbiter, ArbState))
+            break;
+
+        if (!ArbState->CurrentAlternative->Length)
+        {
+            ArbState->Entry->Result = 2;
+            return TRUE;
+        }
+
+        if (ario_IsAliasedRangeAvailable(Arbiter, ArbState))
+            return TRUE;
+
+        if (ArbState->Start < (ArbState->Start - 1))
+            break;
+
+        ArbState->CurrentMaximum = (ArbState->Start - 1);
+        continue;
+    }
+
     return FALSE;
 }
 
