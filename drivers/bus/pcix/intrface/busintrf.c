@@ -59,7 +59,12 @@ NTAPI
 busintrf_Dereference(
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PPCI_PDO_EXTENSION PdoExtension = Context;
+
+    DPRINT("busintrf_Dereference: %p\n", Context);
+
+    ASSERT((PdoExtension)->ExtensionType == PciPdoExtensionType);
+    InterlockedDecrement(&PdoExtension->BusInterfaceReferenceCount);
 }
 
 BOOLEAN
