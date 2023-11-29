@@ -109,8 +109,21 @@ armemio_PackResource(
     _In_ ULONGLONG Start,
     _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+    DPRINT("armemio_PackResource: %p, %I64X\n", IoDescriptor, Start);
+
+    ASSERT(CmDescriptor);
+    ASSERT(IoDescriptor);
+    ASSERT((IoDescriptor->Type == CmResourceTypePort) || (IoDescriptor->Type == CmResourceTypeMemory));
+
+    CmDescriptor->Type = IoDescriptor->Type;
+    CmDescriptor->Flags = IoDescriptor->Flags;
+    CmDescriptor->ShareDisposition = IoDescriptor->ShareDisposition;
+
+    CmDescriptor->u.Generic.Start.QuadPart = Start;
+    CmDescriptor->u.Generic.Length = IoDescriptor->u.Generic.Length;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
