@@ -268,16 +268,46 @@ PciPdoIrpStopDevice(IN PIRP Irp,
 
 NTSTATUS
 NTAPI
-PciPdoIrpQueryStopDevice(IN PIRP Irp,
-                         IN PIO_STACK_LOCATION IoStackLocation,
-                         IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoIrpQueryStopDevice(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    PAGED_CODE();
+    DPRINT("PciPdoIrpQueryStopDevice: %p\n", PdoExtension);
 
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_SUPPORTED;
+    UNREFERENCED_PARAMETER(Irp);
+    UNREFERENCED_PARAMETER(IoStack);
+
+    if (PdoExtension->PowerState.Hibernate ||
+        PdoExtension->PowerState.Paging ||
+        PdoExtension->PowerState.CrashDump ||
+        PdoExtension->OnDebugPath)
+    {
+        DPRINT1("PciPdoIrpQueryStopDevice: STATUS_DEVICE_BUSY\n");
+        return STATUS_DEVICE_BUSY;
+    }
+
+    if (PdoExtension->BaseClass == 6 &&
+        (PdoExtension->SubClass == 4 || PdoExtension->SubClass == 7))
+    {
+        DPRINT1("PciPdoIrpQueryStopDevice: STATUS_INVALID_DEVICE_REQUEST\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    if (PdoExtension->LegacyDriver)
+    {
+        DPRINT1("PciPdoIrpQueryStopDevice: STATUS_INVALID_DEVICE_REQUEST\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    if (!PciCanDisableDecodes(PdoExtension, NULL, 0, FALSE))
+    {
+        DPRINT1("PciPdoIrpQueryStopDevice: STATUS_INVALID_DEVICE_REQUEST\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    return PciBeginStateTransition((PVOID)PdoExtension, PciStopped);
 }
 
 NTSTATUS
