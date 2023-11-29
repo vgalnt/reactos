@@ -41,6 +41,17 @@ PCI_INTERFACE ArbiterInterfaceIo =
     ario_Initializer
 };
 
+ARBITER_ORDERING PciBridgeOrderings[2] =
+{
+    {0x0000000000010000, 0xFFFFFFFFFFFFFFFF},
+    {0x0000000000000000, 0x000000000000FFFF}
+};
+
+ARBITER_ORDERING_LIST PciBridgeOrderingList =
+{
+    0x0002, 0x0002, PciBridgeOrderings
+};
+
 /* FUNCTIONS ******************************************************************/
 
 NTSTATUS
@@ -388,8 +399,30 @@ ario_GetNextAllocationRange(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    ARBITER_ORDERING_LIST orderingList;
+    BOOLEAN Result;
+
+    DPRINT("ario_GetNextAllocationRange: %p\n", Arbiter);
+
+    RtlZeroMemory(&orderingList, sizeof(orderingList));
+
+    if ((ArbState->WorkSpace & 0xC) == 0xC)
+    {
+        orderingList = Arbiter->OrderingList;
+        Arbiter->OrderingList = PciBridgeOrderingList;
+    }
+
+    Result = ArbGetNextAllocationRange(Arbiter, ArbState);
+
+    if ((ArbState->WorkSpace & 0xC) != 0xC)
+        return Result;
+
+    if (Result && ArbState->CurrentAlternative->Priority > 0x7FFFFFFD)
+        Result = FALSE;
+
+    Arbiter->OrderingList = orderingList;
+
+    return Result;
 }
 
 BOOLEAN
