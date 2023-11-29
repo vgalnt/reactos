@@ -86,6 +86,52 @@ PciPnpGetDmaAdapter(
     return NULL;
 }
 
+NTSTATUS
+NTAPI
+PciExternalReadDeviceConfig(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PVOID Buffer,
+    _In_ ULONG Offset,
+    _In_ ULONG Length)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciReadDeviceSpace(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ ULONG DataType,
+    _In_ PVOID Buffer,
+    _In_ ULONG Offset,
+    _In_ ULONG Length,
+    _Out_ ULONG* OutLenght)
+{
+    NTSTATUS Status;
+
+    DPRINT("PciReadDeviceSpace: %p\n", PdoExtension);
+
+    *OutLenght = 0;
+
+    if (DataType)
+    {
+        DPRINT1("PciReadDeviceSpace: FIXME (%X)\n", DataType);
+        ASSERT(FALSE);
+    }
+
+    Status = PciExternalReadDeviceConfig(PdoExtension, Buffer, Offset, Length);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciReadDeviceSpace: %p\n", Status);
+        return Status;
+    }
+
+    *OutLenght = Length;
+
+    return Status;
+}
+
 ULONG
 NTAPI
 PciPnpReadConfig(
