@@ -147,8 +147,15 @@ PciComputeNewCurrentSettings(
                     {
                         /* Not used in the driver yet */
                         case 1:
-                            UNIMPLEMENTED_DBGBREAK();
-                            break;
+                            /* Should be a base resource */
+                            ASSERT(BaseResource != NULL);
+
+                            RtlCopyMemory(&ResourceArray[Partial->u.DevicePrivate.Data[1]],
+                                          BaseResource,
+                                          sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR));
+
+                            BaseResource = NULL;
+                            continue;
 
                         /* Not used in the driver yet */
                         case 2:
