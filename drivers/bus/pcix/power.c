@@ -54,18 +54,128 @@ PciPdoWaitWake(IN PIRP Irp,
     return STATUS_NOT_SUPPORTED;
 }
 
+BOOLEAN
+NTAPI
+PciIsSameDevice(
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS NTAPI KdPowerTransition(IN DEVICE_POWER_STATE NewState);
+
 NTSTATUS
 NTAPI
-PciPdoSetPowerState(IN PIRP Irp,
-                    IN PIO_STACK_LOCATION IoStackLocation,
-                    IN PPCI_PDO_EXTENSION DeviceExtension)
+PciPdoSetPowerState(
+    _In_ PIRP Irp,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
-    UNREFERENCED_PARAMETER(Irp);
-    UNREFERENCED_PARAMETER(IoStackLocation);
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    DEVICE_POWER_STATE DeviceState;
+    NTSTATUS Status;
 
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_SUPPORTED;
+    DPRINT("PciPdoSetPowerState: %p\n", PdoExtension);
+
+    ASSERT((PdoExtension)->ExtensionType == PciPdoExtensionType);
+    UNREFERENCED_PARAMETER(Irp);
+
+    if (IoStack->Parameters.Power.Type == SystemPowerState)
+        return STATUS_SUCCESS;
+
+    if (IoStack->Parameters.Power.Type != DevicePowerState)
+    {
+        DPRINT1("PciPdoSetPowerState: STATUS_NOT_SUPPORTED\n");
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    DeviceState = IoStack->Parameters.Power.State.DeviceState;
+
+    if (DeviceState == PowerDeviceD0 && PdoExtension->PowerState.CurrentDeviceState == PowerDeviceD0)
+        return STATUS_SUCCESS;
+
+    if (DeviceState < PowerDeviceD0 || DeviceState > PowerDeviceD3)
+    {
+        DPRINT1("PciPdoSetPowerState: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (DeviceState > PowerDeviceD0)
+    {
+        if (!PciIsSameDevice(PdoExtension))
+        {
+            DPRINT1("PciPdoSetPowerState: STATUS_NO_SUCH_DEVICE\n");
+            return STATUS_NO_SUCH_DEVICE;
+        }
+    }
+    else
+    {
+        if (PdoExtension->OnDebugPath)
+        {
+            DPRINT1("PciPdoSetPowerState: FIXME\n");
+            ASSERT(FALSE);
+            KdPowerTransition(DeviceState);
+        }
+
+        if (PdoExtension->PowerState.CurrentDeviceState == PowerDeviceD0)
+            PciReadDeviceConfig(PdoExtension, &PdoExtension->CommandEnables, 4, 2);
+
+        PdoExtension->PowerState.CurrentDeviceState = DeviceState;
+
+        if (PdoExtension->DisablePowerDown)
+        {
+            DPRINT1("PciPdoSetPowerState: power down of PDOx %X, disabled, ignored.\n", PdoExtension);
+            return STATUS_SUCCESS;
+        }
+
+        if (IoStack->Parameters.Power.ShutdownType == PowerActionHibernate &&
+            (PdoExtension->PowerState.Hibernate || PdoExtension->PowerState.CrashDump))
+        {
+            return STATUS_SUCCESS;
+        }
+
+        if (IoStack->Parameters.Power.State.DeviceState == PowerDeviceD3)
+        {
+            if (IoStack->Parameters.Power.ShutdownType == PowerActionShutdownReset ||
+                IoStack->Parameters.Power.ShutdownType == PowerActionShutdownOff ||
+                IoStack->Parameters.Power.ShutdownType == PowerActionShutdown)
+            {
+                if (PciIsOnVGAPath(PdoExtension))
+                    return STATUS_SUCCESS;
+            }
+        }
+
+        if (PdoExtension->OnDebugPath)
+            return STATUS_SUCCESS;
+    }
+
+    Status = PciSetPowerManagedDevicePowerState(PdoExtension, DeviceState, TRUE);
+
+    if (DeviceState != PowerDeviceD0)
+    {
+        PoSetPowerState(PdoExtension->PhysicalDeviceObject, DevicePowerState, IoStack->Parameters.Power.State);
+        PciDecodeEnable(PdoExtension, FALSE, NULL);
+        return STATUS_SUCCESS;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciPdoSetPowerState: Status %X\n", Status);
+        return Status;
+    }
+
+    PdoExtension->PowerState.CurrentDeviceState = DeviceState;
+
+    PoSetPowerState(PdoExtension->PhysicalDeviceObject, DevicePowerState, IoStack->Parameters.Power.State);
+
+    if (PdoExtension->OnDebugPath)
+    {
+        DPRINT1("PciPdoSetPowerState: FIXME\n");
+        ASSERT(FALSE);
+        KdPowerTransition(PowerDeviceD0);
+    }
+
+    return Status;
 }
 
 NTSTATUS

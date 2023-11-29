@@ -932,6 +932,11 @@ PciPdoIrpQueryLegacyBusInformation(
     _In_ PPCI_PDO_EXTENSION DeviceExtension
 );
 
+BOOLEAN
+NTAPI
+PciIsOnVGAPath(
+    _In_ PPCI_PDO_EXTENSION PdoExtension
+);
 
 // HAL Callback/Hook Routines
 
