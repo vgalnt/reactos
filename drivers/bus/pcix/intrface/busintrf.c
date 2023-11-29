@@ -82,8 +82,17 @@ PciPnpGetDmaAdapter(
     _In_ PDEVICE_DESCRIPTION DeviceDescriptor,
     _Out_ ULONG* OutNumberOfMapRegisters)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PPCI_PDO_EXTENSION PdoExtension = Context;
+
+    PAGED_CODE();
+    DPRINT("PciPnpGetDmaAdapter: %p\n", Context);
+
+    ASSERT((PdoExtension)->ExtensionType == PciPdoExtensionType);
+
+    if (DeviceDescriptor->InterfaceType == PCIBus)
+        DeviceDescriptor->BusNumber = PdoExtension->ParentFdoExtension->BaseBus;
+
+    return IoGetDmaAdapter(PdoExtension->ParentFdoExtension->PhysicalDeviceObject, DeviceDescriptor, OutNumberOfMapRegisters);
 }
 
 NTSTATUS
