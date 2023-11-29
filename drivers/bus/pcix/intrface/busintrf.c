@@ -41,25 +41,102 @@ busintrf_Initializer(
     return STATUS_UNSUCCESSFUL;
 }
 
+VOID
+NTAPI
+busintrf_Reference(
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+busintrf_Dereference(
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+BOOLEAN
+NTAPI
+PciPnpTranslateBusAddress(
+    _Inout_opt_ PVOID Context,
+    _In_ PHYSICAL_ADDRESS BusAddress,
+    _In_ ULONG Length,
+    _Out_ ULONG* OutAddressSpace,
+    _Out_ PHYSICAL_ADDRESS* OutTranslatedAddress)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+PDMA_ADAPTER
+NTAPI
+PciPnpGetDmaAdapter(
+    _Inout_opt_ PVOID Context,
+    _In_ PDEVICE_DESCRIPTION DeviceDescriptor,
+    _Out_ ULONG* OutNumberOfMapRegisters)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+ULONG
+NTAPI
+PciPnpReadConfig(
+    _Inout_opt_ PVOID Context,
+    _In_ ULONG DataType,
+    _Inout_ PVOID Buffer,
+    _In_ ULONG Offset,
+    _In_ ULONG Length)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+ULONG
+NTAPI
+PciPnpWriteConfig(
+    _Inout_opt_ PVOID Context,
+    _In_ ULONG DataType,
+    _Inout_ PVOID Buffer,
+    _In_ ULONG Offset,
+    _In_ ULONG Length)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
 NTSTATUS
 NTAPI
-busintrf_Constructor(IN PVOID DeviceExtension,
-                     IN PVOID Instance,
-                     IN PVOID InterfaceData,
-                     IN USHORT Version,
-                     IN USHORT Size,
-                     IN PINTERFACE Interface)
+busintrf_Constructor(
+    _In_ PVOID DeviceExtension,
+    _In_ PVOID Instance,
+    _In_ PVOID InterfaceData,
+    _In_ USHORT Version,
+    _In_ USHORT Size,
+    _In_ PINTERFACE Interface)
 {
-    UNREFERENCED_PARAMETER(DeviceExtension);
+    PBUS_INTERFACE_STANDARD BusInterface = (PVOID)Interface;
+
+    DPRINT("busintrf_Constructor: %p, %p\n", DeviceExtension, Interface);
+
     UNREFERENCED_PARAMETER(Instance);
     UNREFERENCED_PARAMETER(InterfaceData);
     UNREFERENCED_PARAMETER(Version);
     UNREFERENCED_PARAMETER(Size);
-    UNREFERENCED_PARAMETER(Interface);
 
-    /* Not yet implemented */
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    BusInterface->Size = sizeof(*BusInterface);
+    BusInterface->Version = 1;
+    BusInterface->Context = DeviceExtension;
+    BusInterface->InterfaceReference = busintrf_Reference;
+    BusInterface->InterfaceDereference = busintrf_Dereference;
+    BusInterface->TranslateBusAddress = PciPnpTranslateBusAddress;
+    BusInterface->GetDmaAdapter = PciPnpGetDmaAdapter;
+    BusInterface->SetBusData = PciPnpWriteConfig;
+    BusInterface->GetBusData = PciPnpReadConfig;
+
+    return STATUS_SUCCESS;
 }
 
 /* EOF */
