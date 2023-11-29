@@ -475,8 +475,30 @@ ario_IsAliasedRangeAvailable(
     _In_ PARBITER_INSTANCE Arbiter,
     _In_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    ULONGLONG Start;
+    BOOLEAN Result;
+
+    DPRINT("ario_IsAliasedRangeAvailable: %p\n", Arbiter);
+    PAGED_CODE();
+
+    if (ArbState->WorkSpace & 2)
+        return TRUE;
+
+    Start = ArbState->Start;
+
+    while (TRUE)
+    {
+        Result = ario_GetNextAlias(ArbState->CurrentAlternative->Descriptor->Flags, Start, &Start);
+        if (!Result)
+            break;
+
+        DPRINT1("ario_IsAliasedRangeAvailable: FIXME\n");
+        ASSERT(FALSE);
+
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 BOOLEAN
