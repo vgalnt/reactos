@@ -46,7 +46,12 @@ NTAPI
 busintrf_Reference(
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PPCI_PDO_EXTENSION PdoExtension = Context;
+
+    DPRINT("busintrf_Reference: %p\n", Context);
+
+    ASSERT((PdoExtension)->ExtensionType == PciPdoExtensionType);
+    InterlockedIncrement(&PdoExtension->BusInterfaceReferenceCount);
 }
 
 VOID
