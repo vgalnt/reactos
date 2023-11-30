@@ -316,6 +316,7 @@ PciGetAcpiTable(
 
         /* Done with this table, keep going */
         MmUnmapIoSpace(Header, sizeof(DESCRIPTION_HEADER));
+        Header = NULL;
     }
 
     if (Header)
