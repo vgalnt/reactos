@@ -1028,8 +1028,10 @@ armem_FindSuitableRange(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    if (ArbState->Entry->Flags & 1)
+        ArbState->RangeAvailableAttributes |= 1;
+
+    return ArbFindSuitableRange(Arbiter, ArbState);
 }
 
 NTSTATUS
