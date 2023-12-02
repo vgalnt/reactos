@@ -192,6 +192,8 @@ PciPdoIrpQueryPower(IN PIRP Irp,
     return STATUS_NOT_SUPPORTED;
 }
 
+/* FDO FUNCTIONS **************************************************************/
+
 NTSTATUS
 NTAPI
 PciStallForPowerChange(IN PPCI_PDO_EXTENSION PdoExtension,

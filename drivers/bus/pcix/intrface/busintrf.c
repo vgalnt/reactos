@@ -195,8 +195,127 @@ PciExternalWriteDeviceConfig(
     _In_ ULONG Offset,
     _In_ ULONG Length)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCI_VERIFIER_DATA VerifierData;
+    PCI_COMMON_CONFIG Config;
+    ULONG StartBaseAddresses;
+    ULONG EndBaseAddresses;
+    ULONG StartROMBaseAddress;
+    ULONG EndROMBaseAddress;
+    ULONG EndOffset;
+    BOOLEAN IsVerifier = FALSE;
+
+    DPRINT("PciExternalWriteDeviceConfig: %p (%X), %p, %X, %X\n", PdoExtension, PdoExtension->HeaderType, Buffer, Offset, Length);
+
+    if ((Offset + Length) > 0x100)
+    {
+        DPRINT1("PciExternalWriteDeviceConfig: %X, %X\n", Offset, Length);
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    if (PdoExtension->HeaderType == 0)
+    {
+        EndOffset = (Offset + Length);
+        DPRINT("PciExternalWriteDeviceConfig: EndOffset %X\n", EndOffset);
+
+        if (EndOffset > sizeof(PCI_COMMON_CONFIG))
+        {
+            DPRINT1("PciExternalWriteDeviceConfig: STATUS_INVALID_DEVICE_REQUEST\n");
+            return STATUS_INVALID_DEVICE_REQUEST;
+        }
+
+        if (PdoExtension->HeaderType == 0)
+        {
+            StartBaseAddresses = FIELD_OFFSET(PCI_COMMON_CONFIG, u.type0.BaseAddresses);
+            EndBaseAddresses = (StartBaseAddresses + RTL_FIELD_SIZE(PCI_COMMON_CONFIG, u.type0.BaseAddresses) - 1);
+
+            DPRINT("PciExternalWriteDeviceConfig: StartBaseAddresses %X, EndBaseAddresses %X\n", StartBaseAddresses, EndBaseAddresses);
+
+            StartROMBaseAddress = FIELD_OFFSET(PCI_COMMON_CONFIG, u.type0.ROMBaseAddress);
+            EndROMBaseAddress = (StartROMBaseAddress + RTL_FIELD_SIZE(PCI_COMMON_CONFIG, u.type0.ROMBaseAddress) - 1);
+
+            DPRINT("PciExternalWriteDeviceConfig: StartROMBaseAddress %X, EndROMBaseAddress %X\n", StartROMBaseAddress, EndROMBaseAddress);
+
+            if ((Offset >= StartBaseAddresses || (EndOffset - 1) >= StartBaseAddresses) &&
+                (Offset <= StartBaseAddresses || Offset <= EndBaseAddresses))
+            {
+                DPRINT("PciExternalWriteDeviceConfig: IsVerifier = TRUE\n");
+                IsVerifier = TRUE;
+            }
+            else if (Offset < StartROMBaseAddress && (EndOffset - 1) < StartROMBaseAddress)
+            {
+                goto Finish;
+            }
+            else if (Offset <= StartROMBaseAddress)
+            {
+                DPRINT("PciExternalWriteDeviceConfig: IsVerifier = TRUE\n");
+                IsVerifier = TRUE;
+            }
+            else if (Offset <= EndROMBaseAddress)
+            {
+                DPRINT("PciExternalWriteDeviceConfig: IsVerifier = TRUE\n");
+                IsVerifier = TRUE;
+            }
+            else
+            {
+                DPRINT("PciExternalWriteDeviceConfig: IsVerifier = FALSE\n");
+                IsVerifier = FALSE;
+            }
+        }
+    }
+    else if (PdoExtension->HeaderType == 1)
+    {
+        DPRINT1("PciExternalWriteDeviceConfig: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (PdoExtension->HeaderType == 2)
+    {
+        DPRINT1("PciExternalWriteDeviceConfig: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        DPRINT1("PciExternalWriteDeviceConfig: %p, %X\n", PdoExtension, PdoExtension->HeaderType);
+        DPRINT1("PciExternalWriteDeviceConfig: FIXME\n");
+        ASSERT(FALSE);
+        goto Finish;
+    }
+
+    if (IsVerifier)
+    {
+        VerifierData = PciVerifierRetrieveFailureData(3);
+        ASSERT(VerifierData);
+        DPRINT("PciExternalWriteDeviceConfig: VerifierData %X\n", VerifierData);
+
+        VfFailDeviceNode(PdoExtension->PhysicalDeviceObject,
+                         0xF6,
+                         3,
+                         VerifierData->FailureClass,
+                         &VerifierData->AssertionControl,
+                         VerifierData->DebuggerMessageText,
+                         "%DevObj%Ulong%Ulong",
+                         PdoExtension->PhysicalDeviceObject,
+                         Offset,
+                         Length);
+    }
+
+Finish:
+
+    RtlCopyMemory(&Config, Buffer, Length);
+
+    DPRINT("PciExternalWriteDeviceConfig: %X, %X\n", PdoExtension->InterruptPin, PdoExtension->RawInterruptLine);
+
+    if (PdoExtension->InterruptPin &&
+        Offset <= FIELD_OFFSET(PCI_COMMON_CONFIG,u.type0.InterruptLine) &&
+        (Offset + Length) > FIELD_OFFSET(PCI_COMMON_CONFIG,u.type0.InterruptLine))
+    {
+        DPRINT("PciExternalWriteDeviceConfig: %X, %X\n", Config, ((PUCHAR)&Config.u.type0.InterruptLine - Offset));
+        *((PUCHAR)&Config.u.type0.InterruptLine - Offset) = PdoExtension->RawInterruptLine;
+    }
+
+    PciWriteDeviceConfig(PdoExtension, &Config, Offset, Length);
+
+    DPRINT("PciExternalWriteDeviceConfig: ret STATUS_SUCCESS\n");
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
