@@ -276,7 +276,54 @@ PciUpdateInterruptLine(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ UCHAR LineRegister)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PPCI_PDO_EXTENSION PdoExtension = NULL;
+    PPCI_LEGACY_DEVICE LegacyDevice;
+    PCI_COMMON_HEADER PciData;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PciUpdateInterruptLine: %p, %X\n", Pdo, LineRegister);
+
+    for (LegacyDevice = PciLegacyDeviceHead;
+         LegacyDevice;
+         LegacyDevice = LegacyDevice->Next)
+    {
+        if (LegacyDevice->DeviceObject == Pdo)
+        {
+            PdoExtension = LegacyDevice->PdoExtension;
+            break;
+        }
+    }
+
+    if (!PdoExtension)
+        PdoExtension = Pdo->DeviceExtension;
+
+    ASSERT(PdoExtension->ExtensionType == PciPdoExtensionType);
+
+    PdoExtension->AdjustedInterruptLine = LineRegister;
+    PdoExtension->RawInterruptLine = LineRegister;
+
+    PciWriteDeviceConfig(PdoExtension, &LineRegister, FIELD_OFFSET(PCI_COMMON_CONFIG, u.type0.InterruptLine), 1);
+
+    Status = PciGetBiosConfig(PdoExtension, &PciData);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciUpdateInterruptLine: Status %X\n", Status);
+        ASSERT(NT_SUCCESS(Status));
+        return;
+    }
+
+    if (PciData.u.type0.InterruptLine == LineRegister)
+        return;
+
+    PciData.u.type0.InterruptLine = LineRegister;
+
+    Status = PciSaveBiosConfig(PdoExtension, &PciData);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciUpdateInterruptLine: Status %X\n", Status);
+        ASSERT(NT_SUCCESS(Status));
+    }
 }
 
 NTSTATUS
