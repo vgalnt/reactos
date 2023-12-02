@@ -93,7 +93,7 @@ PciGetInterruptRoutingInfo(
     _Out_ PDEVICE_OBJECT* OutParentPdo,
     _Out_ ROUTING_TOKEN* OutRoutingToken)
 {
-    PPCI_SECONDARY_EXTENSION Extension;
+    PPCI_ROUTING_EXTENSION RoutingExtension;
     PPCI_PDO_EXTENSION PdoExtension;
     NTSTATUS Status;
 
@@ -144,12 +144,11 @@ PciGetInterruptRoutingInfo(
     *OutSubClassCode = PdoExtension->SubClass;
     *OutParentPdo = PdoExtension->ParentFdoExtension->PhysicalDeviceObject;
 
-    Extension = PciFindNextSecondaryExtension(PdoExtension->SecondaryExtension.Next, PciInterface_IntRouteHandler);
+    RoutingExtension = (PVOID)PciFindNextSecondaryExtension(PdoExtension->SecondaryExtension.Next, PciInterface_IntRouteHandler);
 
-    if (Extension)
+    if (RoutingExtension)
     {
-        DPRINT1("PciGetInterruptRoutingInfo: %p\n", Pdo);
-        ASSERT(FALSE);
+        *OutRoutingToken = RoutingExtension->RoutingToken;
     }
     else
     {
