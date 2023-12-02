@@ -1005,8 +1005,21 @@ armem_GetNextAllocationRange(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PPCI_ARB_MEM_EXTENTION ArbExtension = Arbiter->Extension;
+
+    DPRINT("armem_GetNextAllocationRange: %p\n", Arbiter);
+
+    if (!ArbGetNextAllocationRange(Arbiter, ArbState))
+        return FALSE;
+
+    if (ArbExtension->IsPrefetchable &&
+        ArbState->Entry->RequestSource != ArbiterRequestLegacyReported &&
+        ArbState->CurrentAlternative->Priority > 0x7FFFFFFD)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 BOOLEAN
