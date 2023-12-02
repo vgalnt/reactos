@@ -61,11 +61,12 @@ PciComputeNewCurrentSettings(
     PCM_PARTIAL_RESOURCE_DESCRIPTOR InterruptResource = NULL;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR BaseResource;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR Partial = NULL;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR NextPartial;
     CM_PARTIAL_RESOURCE_DESCRIPTOR ResourceArray[7];
     PCM_FULL_RESOURCE_DESCRIPTOR FullList;
     PPCI_FUNCTION_RESOURCES PciResources;
     ULONG ix, jx;
-    BOOLEAN DrainPartial;
+    ULONG DrainPartial;
     BOOLEAN RangeChange = FALSE;
 
     PAGED_CODE();
@@ -96,10 +97,14 @@ PciComputeNewCurrentSettings(
         BaseResource = NULL;
 
         /* Loop the partial descriptors */
-        Partial = FullList->PartialResourceList.PartialDescriptors;
+        NextPartial = FullList->PartialResourceList.PartialDescriptors;
 
         for (jx = 0; jx < FullList->PartialResourceList.Count; jx++)
         {
+            /* Move to the next descriptor */
+            Partial = NextPartial;
+            NextPartial = CmiGetNextPartialDescriptor(Partial);
+
             /* Check if we were supposed to drain a partial due to device data */
             if (DrainPartial)
             {
@@ -173,8 +178,6 @@ PciComputeNewCurrentSettings(
                     break;
             }
 
-            /* Move to the next descriptor */
-            Partial = CmiGetNextPartialDescriptor(Partial);
         }
 
         /* We should be starting a new list now */
