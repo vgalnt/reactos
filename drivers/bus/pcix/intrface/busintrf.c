@@ -189,6 +189,18 @@ PciPnpReadConfig(
 
 NTSTATUS
 NTAPI
+PciExternalWriteDeviceConfig(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PVOID Buffer,
+    _In_ ULONG Offset,
+    _In_ ULONG Length)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PciWriteDeviceSpace(
     _In_ PPCI_PDO_EXTENSION PdoExtension,
     _In_ ULONG DataType,
@@ -197,8 +209,48 @@ PciWriteDeviceSpace(
     _In_ ULONG Length,
     _Out_ ULONG* OutLenght)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCI_VERIFIER_DATA VerifierData;
+    NTSTATUS Status;
+
+    DPRINT("PciWriteDeviceSpace: %p\n", PdoExtension);
+
+    *OutLenght = 0;
+
+    if (DataType)
+    {
+        if (DataType == 'RicP')
+        {
+            DPRINT1("PciWriteDeviceSpace: (%p) WRITE_CONFIG IRP for ROM, failing.\n", PdoExtension);
+            Status = STATUS_INVALID_DEVICE_REQUEST;
+            goto Exit;
+        }
+
+        VerifierData = PciVerifierRetrieveFailureData(4);
+        ASSERT(VerifierData);
+
+        VfFailDeviceNode(PdoExtension->PhysicalDeviceObject,
+                         0xF6,
+                         4,
+                         VerifierData->FailureClass,
+                         &VerifierData->AssertionControl,
+                         VerifierData->DebuggerMessageText,
+                         "%DevObj%Ulong",
+                         PdoExtension->PhysicalDeviceObject,
+                         DataType);
+    }
+
+    Status = PciExternalWriteDeviceConfig(PdoExtension, Buffer, Offset, Length);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciWriteDeviceSpace: %X\n", Status);
+        return Status;
+    }
+
+Exit:
+
+    *OutLenght = Length;
+
+    return Status;
 }
 
 ULONG
