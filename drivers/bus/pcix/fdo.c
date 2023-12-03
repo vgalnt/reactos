@@ -10,7 +10,7 @@
 
 #include <pci.h>
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -554,9 +554,8 @@ PciFindDescriptorInCmResourceList(
         {
             if (CmDescriptor->Type == DescriptorType)
             {
-                DPRINT1("[%p:%X:%X] BUS: Start %X Len %X Reserv %X\n",
-                        CmDescriptor, CmDescriptor->ShareDisposition, CmDescriptor->Flags,
-                        CmDescriptor->u.BusNumber.Start, CmDescriptor->u.BusNumber.Length, CmDescriptor->u.BusNumber.Reserved);
+                DPRINT("[%p:%X:%X] BUS: Start %X Len %X Reserv %X\n", CmDescriptor, CmDescriptor->ShareDisposition, CmDescriptor->Flags,
+                       CmDescriptor->u.BusNumber.Start, CmDescriptor->u.BusNumber.Length, CmDescriptor->u.BusNumber.Reserved);
 
                 return CmDescriptor;
             }

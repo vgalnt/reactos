@@ -10,7 +10,7 @@
 
 #include <pci.h>
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -101,7 +101,7 @@ PciBeginStateTransition(
     PCI_STATE CurrentState;
     NTSTATUS Status;
 
-    DPRINT1("PciBeginStateTransition: Request to begin transition of Extension %p to '%s' ->",
+    DPRINT("PciBeginStateTransition: Request to begin transition of Extension %p to '%s' ->",
             FdoExtension, PciTransitionText[NewState]);
 
     /* Assert the device isn't already in a pending transition */
@@ -137,7 +137,7 @@ PciBeginStateTransition(
     if (NT_SUCCESS(Status))
         FdoExtension->TentativeNextState = NewState;
 
-    DbgPrint("%x\n", Status);
+    DPRINT("%x\n", Status);
     return Status;
 }
 
@@ -147,9 +147,7 @@ PciCancelStateTransition(IN PPCI_FDO_EXTENSION DeviceExtension,
                          IN PCI_STATE StateNotEntered)
 {
     NTSTATUS Status;
-    DPRINT1("PCI Request to cancel transition of Extension %p to %s ->",
-            DeviceExtension,
-            PciTransitionText[StateNotEntered]);
+    DPRINT("PCI Request to cancel transition of Extension %p to %s ->", DeviceExtension, PciTransitionText[StateNotEntered]);
 
     /* The next state can't be the state the device is already in */
     if (DeviceExtension->TentativeNextState == DeviceExtension->DeviceState)
@@ -160,7 +158,7 @@ PciCancelStateTransition(IN PPCI_FDO_EXTENSION DeviceExtension,
 
         /* Return failure */
         Status = STATUS_INVALID_DEVICE_STATE;
-        DbgPrint("%x\n", Status);
+        DPRINT("%x\n", Status);
     }
     else
     {
@@ -170,7 +168,7 @@ PciCancelStateTransition(IN PPCI_FDO_EXTENSION DeviceExtension,
 
         /* Return success */
         Status = STATUS_SUCCESS;
-        DbgPrint("%x\n", Status);
+        DPRINT("%x\n", Status);
     }
 
     /* Return the cancel state */

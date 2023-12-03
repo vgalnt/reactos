@@ -10,7 +10,7 @@
 
 #include <pci.h>
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -132,7 +132,7 @@ PciGetInterruptRoutingInfo(
 
     if (PdoExtension->ExtensionType != PciPdoExtensionType)
     {
-        DPRINT1("PciGetInterruptRoutingInfo: STATUS_NOT_FOUND\n");
+        DPRINT("PciGetInterruptRoutingInfo: STATUS_NOT_FOUND\n");
         return STATUS_NOT_FOUND;
     }
 

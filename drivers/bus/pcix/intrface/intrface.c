@@ -10,7 +10,7 @@
 
 #include <pci.h>
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -77,7 +77,7 @@ PciQueryInterface(IN PPCI_FDO_EXTENSION DeviceExtension,
             if (!(PciInterface->Flags & PCI_INTERFACE_FDO))
             {
                 /* This interface is not for FDOs, skip it */
-                DPRINT1("PciQueryInterface: guid '%wZ' only for FDOs\n", &GuidString);
+                DPRINT("PciQueryInterface: guid '%wZ' only for FDOs\n", &GuidString);
                 RtlFreeUnicodeString(&GuidString);
                 continue;
             }
@@ -87,7 +87,7 @@ PciQueryInterface(IN PPCI_FDO_EXTENSION DeviceExtension,
                 !PCI_IS_ROOT_FDO(DeviceExtension))
             {
                 /* This FDO isn't the root, skip the interface */
-                DPRINT1("PciQueryInterface: guid '%wZ' only for ROOT\n", &GuidString);
+                DPRINT("PciQueryInterface: guid '%wZ' only for ROOT\n", &GuidString);
                 RtlFreeUnicodeString(&GuidString);
                 continue;
             }
@@ -98,14 +98,14 @@ PciQueryInterface(IN PPCI_FDO_EXTENSION DeviceExtension,
             if (!(PciInterface->Flags & PCI_INTERFACE_PDO))
             {
                 /* It isn't, skip it */
-                DPRINT1("PciQueryInterface: guid '%wZ' only for PDOs\n", &GuidString);
+                DPRINT("PciQueryInterface: guid '%wZ' only for PDOs\n", &GuidString);
                 RtlFreeUnicodeString(&GuidString);
                 continue;
             }
         }
 
         /* Print the GUID for debugging, and then free the string */
-        DPRINT1("PciQueryInterface: looking at guid '%wZ'\n", &GuidString);
+        DPRINT("PciQueryInterface: looking at guid '%wZ'\n", &GuidString);
         RtlFreeUnicodeString(&GuidString);
 
         /* Check if the GUID, version, and size all match */
@@ -119,19 +119,19 @@ PciQueryInterface(IN PPCI_FDO_EXTENSION DeviceExtension,
             if (!NT_SUCCESS(Status))
             {
                 /* This interface was not initialized correctly, skip it */
-                DPRINT1("PciQueryInterface: Constructor %p = %X\n", PciInterface->Constructor, Status);
+                DPRINT("PciQueryInterface: Constructor %p = %X\n", PciInterface->Constructor, Status);
                 continue;
             }
 
             /* Reference the interface and return success, all is good */
             Interface->InterfaceReference(Interface->Context);
-            DPRINT1("PciQueryInterface: returning SUCCESS\n");
+            DPRINT("PciQueryInterface: returning SUCCESS\n");
             return Status;
         }
     }
 
     /* An interface of this type, and for this device, could not be found */
-    DPRINT1("PciQueryInterface: FAILED TO FIND INTERFACE\n");
+    DPRINT("PciQueryInterface: FAILED TO FIND INTERFACE\n");
     return STATUS_NOT_SUPPORTED;
 }
 

@@ -11,7 +11,7 @@
 #include <pci.h>
 #include <stdio.h>
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* FUNCTIONS ******************************************************************/
@@ -345,7 +345,7 @@ PciQueryId(
     }
 
     /* Build the UNICODE_STRING structure for it */
-    DPRINT1("PciQueryId: QueryType %X\n", QueryType);
+    DPRINT("PciQueryId: QueryType %X\n", QueryType);
 
     DestinationString.Buffer = StringBuffer;
     DestinationString.MaximumLength = IdBuffer.TotalLength;
@@ -356,7 +356,7 @@ PciQueryId(
         /* Select the ANSI_STRING for the ID */
         NextString = &IdBuffer.Strings[ix];
 
-        DPRINT1("'%s'\n", NextString->Buffer);
+        DPRINT("'%s'\n", NextString->Buffer);
 
         /* Convert it to a UNICODE_STRING */
         Status = RtlAnsiStringToUnicodeString(&DestinationString, NextString, FALSE);

@@ -10,7 +10,7 @@
 
 #include <pci.h>
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* FUNCTIONS ******************************************************************/
@@ -165,7 +165,7 @@ PciDispatchIrp(
 
         default:
 
-            DPRINT1("PciDispatchIrp: Other IRPs, MajorFunction %X\n", IoStackLocation->MajorFunction);
+            DPRINT("PciDispatchIrp: Other IRPs, MajorFunction %X\n", IoStackLocation->MajorFunction);
             DispatchFunction = IrpDispatchTable->OtherIrpDispatchFunction;
             DispatchStyle = IrpDispatchTable->OtherIrpDispatchStyle;
             MaxMinor = 0xFFFF;
@@ -267,7 +267,7 @@ PciIrpNotSupported(IN PIRP Irp,
     UNREFERENCED_PARAMETER(DeviceExtension);
 
     /* Not supported */
-    DPRINT1("WARNING: PCI received unsupported IRP!\n");
+    DPRINT("WARNING: PCI received unsupported IRP!\n");
     //DbgBreakPoint();
     return STATUS_NOT_SUPPORTED;
 }

@@ -10,7 +10,7 @@
 
 #include <pci.h>
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -216,17 +216,17 @@ PciComputeNewCurrentSettings(
             if (CurrentDescriptor->Type != CmResourceTypeNull)
             {
                 /* Print it */
-                DbgPrint("      Old range-\n");
+                DPRINT("      Old range-\n");
                 PciDebugPrintPartialResource(CurrentDescriptor);
             }
             else
             {
                 /* There was no range */
-                DbgPrint("      Previously unset range\n");
+                DPRINT("      Previously unset range\n");
             }
 
             /* Print new one */
-            DbgPrint("      changed to\n");
+            DPRINT("      changed to\n");
             PciDebugPrintPartialResource(Partial);
 
             /* Update to new range */
@@ -1062,7 +1062,7 @@ PciQueryRequirements(
     if (!PdoExtension->Resources && !PdoExtension->InterruptPin)
     {
         /* There aren't any resources, so simply return NULL */
-        DPRINT1("PciQueryRequirements: returning NULL requirements list\n");
+        DPRINT("PciQueryRequirements: returning NULL requirements list\n");
 
         *OutIoResources = NULL;
 
@@ -1649,7 +1649,7 @@ PciSkipThisFunction(
     while (FALSE);
 
     /* Hit one of the known bugs/hackflags, or this is a new kind of PCI unit */
-    DPRINT1("PciSkipThisFunction: Device skipped (not enumerated).\n");
+    DPRINT("PciSkipThisFunction: Device skipped (not enumerated).\n");
 
     return TRUE;
 }
@@ -2290,7 +2290,7 @@ PciScanBus(
                 if (!(HackFlags & PCI_HACK_DONT_DISABLE_DECODES))
                 {
                     /* Because this device is critical, don't disable them */
-                    DPRINT1("PciScanBus: Not allowing PM Because device is critical\n");
+                    DPRINT("PciScanBus: Not allowing PM Because device is critical\n");
                     HackFlags |= PCI_HACK_CRITICAL_DEVICE;
                 }
             }
@@ -2413,7 +2413,7 @@ PciScanBus(
             /* Check if no saved data was present or if it was a mismatch */
             if (!NT_SUCCESS(Status))
             {
-                DPRINT1("PciScanBus: Status %X\n", Status);
+                DPRINT("PciScanBus: Status %X\n", Status);
 
                 /* Save the new data */
                 Status = PciSaveBiosConfig(NewExtension, PciData);
@@ -2590,7 +2590,7 @@ PciScanBus(
                         (TempOffset && PciData->LatencyTimer == 0x40))
                     {
                         /* Keep track of the fact that it needs configuration */
-                        DPRINT1("PciScanBus: PDOx %p found unconfigured\n", NewExtension);
+                        DPRINT("PciScanBus: PDOx %p found unconfigured\n", NewExtension);
                         NewExtension->NeedsHotPlugConfiguration = TRUE;
                     }
                 }
@@ -2703,7 +2703,7 @@ PciQueryDeviceRelations(
     }
 
     /* Print out that we're ready to dump relations */
-    DPRINT1("PciQueryDeviceRelations: QueryDeviceRelations/BusRelations FDOx %p (bus %X)\n",
+    DPRINT("PciQueryDeviceRelations: QueryDeviceRelations/BusRelations FDOx %p (bus %X)\n",
             FdoExtension, FdoExtension->BaseBus);
 
     /* Loop the current PDO children and the device relation object array */
@@ -2714,8 +2714,8 @@ PciQueryDeviceRelations(
          PdoExtension = PdoExtension->Next)
     {
         /* Dump this relation */
-        DPRINT1("  QDR PDO %p (x %p) '%s'\n", PdoExtension->PhysicalDeviceObject, PdoExtension,
-                (PdoExtension->NotPresent ? "<Omitted, device flaged not present>" : ""));
+        DPRINT("  QDR PDO %p (x %p) '%s'\n", PdoExtension->PhysicalDeviceObject, PdoExtension,
+               (PdoExtension->NotPresent ? "<Omitted, device flaged not present>" : ""));
 
         /* Is this PDO present? */
         if (!PdoExtension->NotPresent)
@@ -2729,7 +2729,7 @@ PciQueryDeviceRelations(
     }
 
     /* Terminate dumping the relations */
-    DPRINT1("  QDR Total PDO count = %X (%X already in list)\n", (NewRelations->Count + PdoCount), NewRelations->Count);
+    DPRINT("  QDR Total PDO count = %X (%X already in list)\n", (NewRelations->Count + PdoCount), NewRelations->Count);
 
     /* Return the final count and the new buffer */
     NewRelations->Count += PdoCount;

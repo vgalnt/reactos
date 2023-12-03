@@ -10,7 +10,7 @@
 
 #include <pci.h>
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 /* GLOBALS ********************************************************************/
@@ -314,7 +314,7 @@ PciPdoIrpQueryInterface(
     FdoExtension = PdoExtension->BridgeFdoExtension;
     if (!FdoExtension)
     {
-        DPRINT1("PciPdoIrpQueryInterface: Status %X\n", Status);
+        DPRINT("PciPdoIrpQueryInterface: Status %X\n", Status);
         return Status;
     }
 
@@ -555,7 +555,7 @@ PciPdoIrpQueryLegacyBusInformation(
 
     if (PciClassifyDeviceType(PdoExtension) != PciTypeCardbusBridge)
     {
-        DPRINT1("PciPdoIrpQueryLegacyBusInformation: STATUS_NOT_SUPPORTED\n");
+        DPRINT("PciPdoIrpQueryLegacyBusInformation: STATUS_NOT_SUPPORTED\n");
         return STATUS_NOT_SUPPORTED;
     }
 
@@ -613,8 +613,8 @@ PciPdoCreate(
     /* Get the extension for it */
     PdoExtension = DeviceObject->DeviceExtension;
 
-    DPRINT1("PciPdoCreate: New PDO (b %X, d %X, f %X) %p (%p)\n", FdoExtension->BaseBus,
-            Slot.u.bits.DeviceNumber, Slot.u.bits.FunctionNumber, DeviceObject, DeviceObject->DeviceExtension);
+    DPRINT("PciPdoCreate: New PDO (b %X, d %X, f %X) %p (%p)\n", FdoExtension->BaseBus,
+           Slot.u.bits.DeviceNumber, Slot.u.bits.FunctionNumber, DeviceObject, DeviceObject->DeviceExtension);
 
     /* Configure the extension */
     PdoExtension->ExtensionType = PciPdoExtensionType;
