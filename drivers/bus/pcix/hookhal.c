@@ -22,20 +22,116 @@ pHalAssignSlotResources PcipSavedAssignSlotResources;
 
 BOOLEAN
 NTAPI
-PciTranslateBusAddress(IN INTERFACE_TYPE InterfaceType,
-                       IN ULONG BusNumber,
-                       IN PHYSICAL_ADDRESS BusAddress,
-                       OUT PULONG AddressSpace,
-                       OUT PPHYSICAL_ADDRESS TranslatedAddress)
+PciTranslateBusAddress(
+    _In_ INTERFACE_TYPE InterfaceType,
+    _In_ ULONG BusNumber,
+    _In_ PHYSICAL_ADDRESS BusAddress,
+    _Out_ ULONG* OutAddressSpace,
+    _Out_ PHYSICAL_ADDRESS* OutTranslatedAddress)
 {
-    UNREFERENCED_PARAMETER(InterfaceType);
-    UNREFERENCED_PARAMETER(BusNumber);
-    UNREFERENCED_PARAMETER(AddressSpace);
+    PPCI_FDO_EXTENSION FdoExtension = NULL;
+    PPCI_PDO_EXTENSION PdoExtension = NULL;
+    PPCI_ARBITER_INSTANCE PciArbiter;
+    RTL_RANGE_LIST_ITERATOR Iterator;
+    PARBITER_INSTANCE Arbiter;
+    PSINGLE_LIST_ENTRY Entry;
+    PRTL_RANGE Range;
+    PCI_SIGNATURE Signature;
+    BOOLEAN Result = TRUE;
 
-    /* FIXME: Broken translation */
-    UNIMPLEMENTED_DBGBREAK();
-    TranslatedAddress->QuadPart = BusAddress.QuadPart;
-    return TRUE;
+    DPRINT("PcipDevicePresentOnBus: %X, %X, %I64X\n", InterfaceType, BusNumber, BusAddress.QuadPart);
+
+    if (KeGetCurrentIrql() >= DISPATCH_LEVEL)
+        goto Finish;
+
+    KeEnterCriticalRegion();
+    KeWaitForSingleObject(&PciGlobalLock, Executive, KernelMode, FALSE, NULL);
+
+    for (Entry = PciFdoExtensionListHead.Next; Entry; Entry = Entry->Next)
+    {
+        FdoExtension = CONTAINING_RECORD(Entry, PCI_FDO_EXTENSION, List);
+        if (FdoExtension->BaseBus == BusNumber)
+            break;
+    }
+
+    if (!Entry)
+    {
+        DPRINT1("PciTranslateBusAddress: Could not find PCI bus FDO. Bus Number %X\n", BusNumber);
+        KeSetEvent(&PciGlobalLock, IO_NO_INCREMENT, FALSE);
+        KeLeaveCriticalRegion();
+        return FALSE;
+    }
+
+    for (;
+         FdoExtension != FdoExtension->BusRootFdoExtension;
+         FdoExtension = PdoExtension->ParentFdoExtension)
+    {
+        PdoExtension = FdoExtension->PhysicalDeviceObject->DeviceExtension;
+        if (!PdoExtension->Dependent.type1.SubtractiveDecode)
+            break;
+    }
+
+    KeSetEvent(&PciGlobalLock, IO_NO_INCREMENT, FALSE);
+    KeLeaveCriticalRegion();
+
+    if (*OutAddressSpace == 0 || *OutAddressSpace == 2 || *OutAddressSpace == 4 || *OutAddressSpace == 6)
+    {
+        Signature = 'icP3';
+    }
+    else if (*OutAddressSpace == 1 || *OutAddressSpace == 3)
+    {
+        Signature = 'icP2';
+    }
+    else
+    {
+        DPRINT1("PciTranslateBusAddress: Unknown *OutAddressSpace %X\n", *OutAddressSpace);
+        ASSERT(FALSE);
+        return FALSE;
+    }
+
+    PciArbiter = (PVOID)PciFindNextSecondaryExtension(FdoExtension->SecondaryExtension.Next, Signature);
+    if (!PciArbiter)
+    {
+        DPRINT1("PciTranslateBusAddress: PciArbiter not found!\n");
+        ASSERT(FALSE);
+        return FALSE;
+    }
+
+    Arbiter = &PciArbiter->CommonInstance;
+
+    KeWaitForSingleObject(Arbiter->MutexEvent, Executive, KernelMode, FALSE, NULL);
+
+    RtlGetFirstRange(Arbiter->Allocation, &Iterator, &Range);
+
+    while (Range && BusAddress.QuadPart >= Range->Start)
+    {
+        if ((Range->Start >= BusAddress.QuadPart || Range->End >= BusAddress.QuadPart) && !Range->Owner)
+        {
+            Result = FALSE;
+            break;
+        }
+
+        RtlGetNextRange(&Iterator, &Range, 1);
+    }
+
+    KeSetEvent(Arbiter->MutexEvent, IO_NO_INCREMENT, FALSE);
+
+Finish:
+
+    if (Result)
+    {
+        Result = PcipSavedTranslateBusAddress(InterfaceType, BusNumber, BusAddress, OutAddressSpace, OutTranslatedAddress);
+        if (Result)
+            return Result;
+    }
+
+    if (BusAddress.HighPart)
+        return Result;
+
+    DPRINT1("PciTranslateBusAddress: FIXME\n");
+    ASSERT(FALSE);
+
+    return Result;
 }
 
 PPCI_PDO_EXTENSION
