@@ -41,27 +41,68 @@ devpresent_Initializer(
     return STATUS_UNSUCCESSFUL;
 }
 
-NTSTATUS
+VOID
 NTAPI
-devpresent_Constructor(IN PVOID DeviceExtension,
-                       IN PVOID Instance,
-                       IN PVOID InterfaceData,
-                       IN USHORT Version,
-                       IN USHORT Size,
-                       IN PINTERFACE Interface)
+PciRefDereferenceNoop(
+    _In_ PVOID Context)
 {
     PAGED_CODE();
-
-    UNREFERENCED_PARAMETER(DeviceExtension);
-    UNREFERENCED_PARAMETER(Instance);
-    UNREFERENCED_PARAMETER(InterfaceData);
-    UNREFERENCED_PARAMETER(Version);
-    UNREFERENCED_PARAMETER(Size);
-    UNREFERENCED_PARAMETER(Interface);
-
-    /* Not yet implemented */
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
 }
 
+BOOLEAN
+NTAPI
+devpresent_IsDevicePresent(
+   _In_ USHORT VendorID,
+   _In_ USHORT DeviceID,
+   _In_ UCHAR RevisionID,
+   _In_ USHORT SubVendorID,
+   _In_ USHORT SubSystemID,
+   _In_ ULONG Flags)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+devpresent_IsDevicePresentEx(
+   _In_ PVOID Context,
+   _In_ PPCI_DEVICE_PRESENCE_PARAMETERS Parameters)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
+devpresent_Constructor(
+    _In_ PVOID DeviceExtension,
+    _In_ PVOID Instance,
+    _In_ PVOID InterfaceData,
+    _In_ USHORT Version,
+    _In_ USHORT Size,
+    _In_ PINTERFACE Interface)
+{
+    PPCI_DEVICE_PRESENT_INTERFACE DevPresentInterface = (PVOID)Interface;
+
+    PAGED_CODE();
+    DPRINT("devpresent_Constructor: %p, %p\n", DeviceExtension, Interface);
+
+    DevPresentInterface->Version = 1;
+    DevPresentInterface->Context = DeviceExtension;
+    DevPresentInterface->InterfaceReference = PciRefDereferenceNoop;
+    DevPresentInterface->InterfaceDereference = PciRefDereferenceNoop;
+    DevPresentInterface->IsDevicePresent = devpresent_IsDevicePresent;
+
+    if (Size < sizeof(PCI_DEVICE_PRESENT_INTERFACE))
+    {
+        DevPresentInterface->Size = 0x14;
+        return STATUS_SUCCESS;
+    }
+
+    DevPresentInterface->IsDevicePresentEx = devpresent_IsDevicePresentEx;
+    DevPresentInterface->Size = sizeof(PCI_DEVICE_PRESENT_INTERFACE);
+
+    return STATUS_SUCCESS;
+}
 /* EOF */
