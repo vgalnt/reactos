@@ -4,6 +4,7 @@
  * FILE:            drivers/bus/pci/utils.c
  * PURPOSE:         Utility/Helper Support Code
  * PROGRAMMERS:     ReactOS Portable Systems Group
+ *                  Copyright 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
 /* INCLUDES *******************************************************************/

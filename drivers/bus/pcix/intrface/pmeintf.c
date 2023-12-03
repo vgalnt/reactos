@@ -4,6 +4,7 @@
  * FILE:            drivers/bus/pci/intrface/pmeintf.c
  * PURPOSE:         Power Management Event# Signal Interface
  * PROGRAMMERS:     ReactOS Portable Systems Group
+ *                  Copyright 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
 /* INCLUDES *******************************************************************/

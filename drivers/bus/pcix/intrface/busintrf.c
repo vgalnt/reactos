@@ -4,6 +4,7 @@
  * FILE:            drivers/bus/pci/intrface/busintrf.c
  * PURPOSE:         Bus Interface
  * PROGRAMMERS:     ReactOS Portable Systems Group
+ *                  Copyright 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
 /* INCLUDES *******************************************************************/

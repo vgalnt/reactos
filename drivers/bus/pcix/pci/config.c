@@ -4,6 +4,7 @@
  * FILE:            drivers/bus/pci/pci/config.c
  * PURPOSE:         PCI Configuration Space Routines
  * PROGRAMMERS:     ReactOS Portable Systems Group
+ *                  Copyright 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
 /* INCLUDES *******************************************************************/

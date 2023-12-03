@@ -4,6 +4,7 @@
  * FILE:            drivers/bus/pci/pci/state.c
  * PURPOSE:         Bus/Device State Support
  * PROGRAMMERS:     ReactOS Portable Systems Group
+ *                  Copyright 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
 /* INCLUDES *******************************************************************/

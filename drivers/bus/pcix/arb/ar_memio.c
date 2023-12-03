@@ -4,6 +4,7 @@
  * FILE:            drivers/bus/pci/arb/ar_memiono.c
  * PURPOSE:         Memory and I/O Port Resource Arbitration
  * PROGRAMMERS:     ReactOS Portable Systems Group
+ *                  Copyright 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
 /* INCLUDES *******************************************************************/

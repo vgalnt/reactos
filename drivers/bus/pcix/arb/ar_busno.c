@@ -4,6 +4,7 @@
  * FILE:            drivers/bus/pci/arb/ar_busno.c
  * PURPOSE:         Bus Number Arbitration
  * PROGRAMMERS:     ReactOS Portable Systems Group
+ *                  Copyright 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
 /* INCLUDES *******************************************************************/

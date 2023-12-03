@@ -4,6 +4,7 @@
  * FILE:            drivers/bus/pci/pci/id.c
  * PURPOSE:         PCI Device Identification
  * PROGRAMMERS:     ReactOS Portable Systems Group
+ *                  Copyright 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
 /* INCLUDES *******************************************************************/

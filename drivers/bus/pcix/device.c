@@ -4,6 +4,7 @@
  * FILE:            drivers/bus/pci/device.c
  * PURPOSE:         Device Management
  * PROGRAMMERS:     ReactOS Portable Systems Group
+ *                  Copyright 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
 /* INCLUDES *******************************************************************/
