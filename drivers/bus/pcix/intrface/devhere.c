@@ -70,8 +70,72 @@ PcipDevicePresentOnBus(
     _In_ PPCI_PDO_EXTENSION PdoExtension,
     _In_ PPCI_DEVICE_PRESENCE_PARAMETERS Parameters)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PPCI_PDO_EXTENSION ChildPdoExtension;
+    BOOLEAN IsDevicePresent = FALSE;
+
+    DPRINT("PcipDevicePresentOnBus: %p, %p\n", FdoExtension, PdoExtension);
+
+    KeEnterCriticalRegion();
+    KeWaitForSingleObject(&FdoExtension->ChildListLock, Executive, KernelMode, FALSE, NULL);
+
+    for (ChildPdoExtension = FdoExtension->ChildPdoList;
+         ChildPdoExtension;
+         ChildPdoExtension = ChildPdoExtension->Next)
+    {
+        if (PdoExtension &&
+            (Parameters->Flags & 0x40) &&
+            PdoExtension->Slot.u.bits.DeviceNumber != ChildPdoExtension->Slot.u.bits.DeviceNumber)
+        {
+            continue;
+        }
+
+        if (Parameters->Flags & 0x04)
+        {
+            if (ChildPdoExtension->VendorId != Parameters->VendorID)
+                continue;
+
+            if (ChildPdoExtension->DeviceId != Parameters->DeviceID)
+                continue;
+
+            if ((Parameters->Flags & 0x01))
+            {
+                if (ChildPdoExtension->SubsystemVendorId != Parameters->SubVendorID)
+                    continue;
+
+                if (ChildPdoExtension->SubsystemId != Parameters->SubSystemID)
+                    continue;
+            }
+
+            if ((Parameters->Flags & 0x02) &&
+                ChildPdoExtension->RevisionId != Parameters->RevisionID)
+            {
+                continue;
+            }
+        }
+
+        if (!(Parameters->Flags & 0x08))
+        {
+            IsDevicePresent = TRUE;
+            break;
+        }
+
+        if (ChildPdoExtension->BaseClass != Parameters->BaseClass)
+            continue;
+
+        if (ChildPdoExtension->SubClass != Parameters->SubClass)
+            continue;
+
+        if ((Parameters->Flags & 0x10) && ChildPdoExtension->ProgIf != Parameters->ProgIf)
+            continue;
+
+        IsDevicePresent = TRUE;
+        break;
+    }
+
+    KeSetEvent(&FdoExtension->ChildListLock, IO_NO_INCREMENT, FALSE);
+    KeLeaveCriticalRegion();
+
+    return IsDevicePresent;
 }
 
 BOOLEAN
