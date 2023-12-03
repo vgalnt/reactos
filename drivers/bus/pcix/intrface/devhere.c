@@ -65,12 +65,82 @@ devpresent_IsDevicePresent(
 
 BOOLEAN
 NTAPI
+PcipDevicePresentOnBus(
+    _In_ PPCI_FDO_EXTENSION FdoExtension,
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_DEVICE_PRESENCE_PARAMETERS Parameters)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
 devpresent_IsDevicePresentEx(
    _In_ PVOID Context,
    _In_ PPCI_DEVICE_PRESENCE_PARAMETERS Parameters)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PPCI_PDO_EXTENSION PdoExtension = Context;
+    PSINGLE_LIST_ENTRY Entry;
+    BOOLEAN IsDevicePresent = FALSE;
+
+    PAGED_CODE();
+    DPRINT("devpresent_IsDevicePresentEx: %p, %p\n", Context, Parameters);
+
+    if (!Parameters)
+    {
+        ASSERT(ARGUMENT_PRESENT(Parameters));
+        return FALSE;
+    }
+
+    if (Parameters->Size < sizeof(PCI_DEVICE_PRESENCE_PARAMETERS))
+    {
+        ASSERT(Parameters->Size >= sizeof(PCI_DEVICE_PRESENCE_PARAMETERS));
+        return FALSE;
+    }
+
+    if (!(Parameters->Flags & 0xC))
+    {
+        ASSERT(Parameters->Flags & (PCI_USE_VENDEV_IDS | PCI_USE_CLASS_SUBCLASS));
+        return FALSE;
+    }
+
+    if (Parameters->Flags & 3 && !(Parameters->Flags & 4))
+    {
+        ASSERT(Parameters->Flags & PCI_USE_VENDEV_IDS);
+        return FALSE;
+    }
+
+    if (Parameters->Flags & 0x10 && !(Parameters->Flags & 8))
+    {
+        ASSERT(Parameters->Flags & PCI_USE_CLASS_SUBCLASS);
+        return FALSE;
+    }
+
+    KeEnterCriticalRegion();
+    KeWaitForSingleObject(&PciGlobalLock, Executive, KernelMode, FALSE, NULL);
+
+    if (Parameters->Flags & 0x60)
+    {
+        if (PdoExtension)
+            IsDevicePresent = PcipDevicePresentOnBus(PdoExtension->ParentFdoExtension, PdoExtension, Parameters);
+        else
+            ASSERT(PdoExtension != NULL);
+    }
+    else
+    {
+        for (Entry = PciFdoExtensionListHead.Next; Entry; Entry = Entry->Next)
+        {
+            IsDevicePresent = PcipDevicePresentOnBus(CONTAINING_RECORD(Entry, PCI_FDO_EXTENSION, List), NULL, Parameters);
+            if (IsDevicePresent)
+                break;
+        }
+    }
+
+    KeSetEvent(&PciGlobalLock, IO_NO_INCREMENT, FALSE);
+    KeLeaveCriticalRegion();
+
+    return IsDevicePresent;
 }
 
 NTSTATUS
