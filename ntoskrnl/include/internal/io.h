@@ -684,9 +684,13 @@ IopInitPlugPlayEvents(VOID);
 
 NTSTATUS
 IopQueueTargetDeviceEvent(
-    const GUID *Guid,
-    PUNICODE_STRING DeviceIds
-);
+    _In_ const GUID *Guid,
+    _In_ PUNICODE_STRING DeviceIds);
+
+NTSTATUS
+IopQueueDeviceInstallEvent(
+    _In_ const GUID *Guid,
+    _In_ PUNICODE_STRING DeviceId);
 
 NTSTATUS
 NTAPI
