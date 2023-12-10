@@ -121,8 +121,15 @@ PipPassIrp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_FDO_EXTENSION FdoExtension;
+
+    DPRINT("PipPassIrp: %p, %p\n", DeviceObject, Irp);
+
+    IoSkipCurrentIrpStackLocation(Irp);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+
+    return IoCallDriver(FdoExtension->AttachedToDevice, Irp);
 }
 
 NTSTATUS
