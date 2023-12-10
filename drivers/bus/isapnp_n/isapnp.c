@@ -134,12 +134,40 @@ PipPassIrp(
 
 NTSTATUS
 NTAPI
+PiPnPFdoCompletion(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    PKEVENT Event = Context;
+    KeSetEvent(Event, EVENT_INCREMENT, FALSE);
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
+NTSTATUS
+NTAPI
 PiDeferProcessingFdo(
     _In_ PISAPNP_FDO_EXTENSION FdoExtension,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    KEVENT Event;
+    NTSTATUS Status;
+
+    DPRINT("PiDeferProcessingFdo: %p, %p\n", FdoExtension, Irp);
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    IoSetCompletionRoutine(Irp, PiPnPFdoCompletion, &Event, TRUE, TRUE, TRUE);
+
+    Status = IoCallDriver(FdoExtension->AttachedToDevice, Irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = Irp->IoStatus.Status;
+    }
+
+    return Status;
 }
 
 NTSTATUS
