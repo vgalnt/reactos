@@ -14,12 +14,15 @@
 
 /* GLOBALS *******************************************************************/
 
+PISAPNP_BUS_EXTENSION PipBusExtension;
 PDRIVER_OBJECT PipDriverObject;
 UNICODE_STRING PipRegistryPath;
-
+KEVENT IsaBusNumberLock;
 ULONG BusNumberBuffer[0x40];
+ULONG ActiveIsaCount;
 RTL_BITMAP BusNumBMHeader;
 PRTL_BITMAP BusNumBM;
+BOOLEAN PipFirstInit;
 
 /* FUNCTIONS ******************************************************************/
 
@@ -61,14 +64,126 @@ PiUnload(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+BOOLEAN
+NTAPI
+PiNeedDeferISABridge(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PDEVICE_OBJECT AttachToPdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+PipResetGlobals(VOID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 PiAddDevice(
     _In_ PDRIVER_OBJECT DriverObject,
-    _In_ PDEVICE_OBJECT TargetDevice)
+    _In_ PDEVICE_OBJECT AttachToPdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_FDO_EXTENSION FdoExtension;
+    PISAPNP_BUS_EXTENSION BusExtension;
+    PISAPNP_BUS_EXTENSION BusEntry;
+    PDEVICE_OBJECT Fdo;
+    ULONG BusNumber;
+    NTSTATUS Status;
+ 
+    PAGED_CODE();
+    DPRINT("PiAddDevice: %p, %p\n", DriverObject, AttachToPdo);
+
+    KeWaitForSingleObject(&IsaBusNumberLock, Executive, KernelMode, FALSE, NULL);
+
+    ActiveIsaCount++;
+
+    Status = IoCreateDevice(DriverObject,
+                            sizeof(*FdoExtension),
+                            NULL,
+                            FILE_DEVICE_BUS_EXTENDER,
+                            FILE_DEVICE_SECURE_OPEN,
+                            FALSE,
+                            &Fdo);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiAddDevice: Status %X\n", Status);
+        goto Exit;
+    }
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    FdoExtension->Flags = 0x80000000; // FDO bit
+    FdoExtension->Fdo = Fdo;
+    FdoExtension->AttachedToDevice = IoAttachDeviceToDeviceStack(Fdo, AttachToPdo);
+    FdoExtension->AttachToPdo = AttachToPdo;
+
+    if (PiNeedDeferISABridge(DriverObject, AttachToPdo))
+    {
+        BusNumber = RtlFindClearBitsAndSet(BusNumBM, 1, 1);
+        ASSERT(BusNumber != 0);
+    }
+    else
+    {
+        BusNumber = RtlFindClearBitsAndSet(BusNumBM, 1, 0);
+    }
+
+    ASSERT(BusNumber != 0xFFFFFFFF);
+
+    FdoExtension->Rdp = NULL;
+
+    if (ActiveIsaCount != 1)
+    {
+        ASSERT(PipDriverObject);
+        ASSERT(PipBusExtension);
+
+        for (BusExtension = PipBusExtension; BusExtension->Next; BusExtension = BusExtension->Next)
+            ;
+
+        BusExtension->Next = BusEntry = ExAllocatePoolWithTag(NonPagedPool, sizeof(*BusEntry), 'pasI');
+        if (BusEntry)
+        {
+            BusEntry->BusExtension = FdoExtension;
+            BusEntry->Next = NULL;
+
+            goto Finish;
+        }
+
+        DPRINT1("PiAddDevice: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    if (PipFirstInit)
+        PipResetGlobals();
+
+    PipDriverObject = DriverObject;
+
+    ASSERT(PipBusExtension == NULL);
+
+    PipBusExtension = BusEntry = ExAllocatePoolWithTag(NonPagedPool, sizeof(*BusEntry), 'pasI');
+    if (!BusEntry)
+    {
+        DPRINT1("PiAddDevice: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    BusEntry->BusExtension = FdoExtension;
+    PipBusExtension->Next = NULL;
+
+    PipFirstInit = TRUE;
+
+Finish:
+
+    FdoExtension->BusNumber = BusNumber;
+    Fdo->Flags &= ~DO_DEVICE_INITIALIZING;
+
+Exit:
+
+    KeSetEvent(&IsaBusNumberLock, IO_NO_INCREMENT, FALSE);
+    return Status;
 }
 
 NTSTATUS
@@ -101,7 +216,7 @@ DriverEntry(
     RtlCopyMemory(PipRegistryPath.Buffer, RegistryPath->Buffer, RegistryPath->MaximumLength);
 
     //KeInitializeEvent(&PipDeviceTreeLock, SynchronizationEvent, TRUE);
-    //KeInitializeEvent(&IsaBusNumberLock, SynchronizationEvent, TRUE);
+    KeInitializeEvent(&IsaBusNumberLock, SynchronizationEvent, TRUE);
 
     BusNumBM = &BusNumBMHeader;
 
@@ -112,4 +227,5 @@ DriverEntry(
 
     return STATUS_SUCCESS;
 }
+
 /* EOF */

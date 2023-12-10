@@ -5,6 +5,8 @@
  * COPYRIGHT:   Copyright 2019, 2023 Vadim Galyant <vgal@rambler.ru>
  */
 
+/* Based on "Plug and Play ISA Specification. Version 1.0a May 5, 1994" */
+
 #ifndef _ISAPNP_H_
 #define _ISAPNP_H_
 
@@ -14,6 +16,22 @@
 
 /* STRUCTURES ***************************************************************/
 
+typedef struct _ISAPNP_FDO_EXTENSION
+{
+    ULONG Flags;
+    PVOID Rdp;
+    PDEVICE_OBJECT AttachToPdo;
+    PDEVICE_OBJECT Fdo;
+    PDEVICE_OBJECT AttachedToDevice;
+    ULONG BusNumber;
+
+} ISAPNP_FDO_EXTENSION, *PISAPNP_FDO_EXTENSION;
+
+typedef struct _ISAPNP_BUS_EXTENSION
+{
+    struct _ISAPNP_BUS_EXTENSION* Next;
+    PISAPNP_FDO_EXTENSION BusExtension;
+} ISAPNP_BUS_EXTENSION, *PISAPNP_BUS_EXTENSION;
 
 /* FUNCTIONS ****************************************************************/
 
