@@ -433,8 +433,21 @@ PipOpenRegistryKey(
     _In_ ACCESS_MASK DesiredAccess,
     _In_ BOOLEAN IsCreateKey)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    ULONG Disposition;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PipOpenRegistryKey: %p, '%wZ'\n", RootDirectory, ObjectName);
+
+    InitializeObjectAttributes(&ObjectAttributes, ObjectName, OBJ_CASE_INSENSITIVE, RootDirectory, NULL);
+
+    if (IsCreateKey)
+        Status = ZwCreateKey(OutHandle, DesiredAccess, &ObjectAttributes, 0, NULL, REG_OPTION_VOLATILE, &Disposition);
+    else
+        Status = ZwOpenKey(OutHandle, DesiredAccess, &ObjectAttributes);
+
+    return Status;
 }
 
 BOOLEAN
