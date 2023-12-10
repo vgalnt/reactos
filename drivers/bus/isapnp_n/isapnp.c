@@ -23,6 +23,7 @@ ULONG ActiveIsaCount;
 RTL_BITMAP BusNumBMHeader;
 PRTL_BITMAP BusNumBM;
 BOOLEAN PipFirstInit;
+BOOLEAN PipIsolationDisabled;
 
 PDRIVER_DISPATCH PiPnpDispatchTableFdo[] =
 {
@@ -425,6 +426,73 @@ PiDispatchPnpPdo(
 
 NTSTATUS
 NTAPI
+PipOpenRegistryKey(
+    _Out_ HANDLE* OutHandle,
+    _In_ HANDLE RootDirectory,
+    _In_ PUNICODE_STRING ObjectName,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ BOOLEAN IsCreateKey)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+PipIsIsolationDisabled(VOID)
+{
+    PKEY_VALUE_FULL_INFORMATION KeyInfo;
+    UNICODE_STRING ObjectName;
+    HANDLE KeyHandle;
+    HANDLE Handle;
+    BOOLEAN Result;
+    NTSTATUS Status;
+
+    DPRINT("PipIsIsolationDisabled()\n");
+
+    Status = PipOpenRegistryKey(&Handle, NULL, &PipRegistryPath, KEY_READ, FALSE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PipIsIsolationDisabled: Status %X\n", Status);
+        return FALSE;
+    }
+
+    RtlInitUnicodeString(&ObjectName, L"Parameters");
+
+    Status = PipOpenRegistryKey(&KeyHandle, Handle, &ObjectName, KEY_READ, FALSE);
+    ZwClose(Handle);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PipIsIsolationDisabled: Status %X\n", Status);
+        return FALSE;
+    }
+
+    Status = PipGetRegistryValue(KeyHandle, L"IsolationDisabled", &KeyInfo);
+    ZwClose(KeyHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PipIsIsolationDisabled: Status %X\n", Status);
+        return FALSE;
+    }
+
+    if (KeyInfo->Type == REG_DWORD &&
+        KeyInfo->DataLength >= sizeof(ULONG) &&
+        *(ULONG *)Add2Ptr(KeyInfo, KeyInfo->DataOffset))
+    {
+        Result = TRUE;
+    }
+    else
+    {
+        Result = FALSE;
+    }
+
+    ExFreePool(KeyInfo);
+
+    return Result;
+}
+
+NTSTATUS
+NTAPI
 PiDispatchPnp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
@@ -683,7 +751,7 @@ DriverEntry(
     RtlInitializeBitMap(&BusNumBMHeader, BusNumberBuffer, 0x40);
     RtlClearAllBits(BusNumBM);
 
-    //PipIsolationDisabled = PipIsIsolationDisabled();
+    PipIsolationDisabled = PipIsIsolationDisabled();
 
     return STATUS_SUCCESS;
 }
