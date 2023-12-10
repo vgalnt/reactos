@@ -256,8 +256,31 @@ FindInterruptTranslator(
     _In_ PISAPNP_FDO_EXTENSION FdoExtension,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    CM_RESOURCE_TYPE ResourceType;
+    PIO_STACK_LOCATION IoStack;
+    ULONG BusType;
+    ULONG BusNumber;
+    ULONG DummyLength;
+    ULONG DummyBridgeBusNumber;
+
+    DPRINT("FindInterruptTranslator: %p, %p\n", FdoExtension, Irp);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    ResourceType = PtrToUlong(IoStack->Parameters.QueryInterface.InterfaceSpecificData);
+
+    if (ResourceType != CmResourceTypeInterrupt)
+        return STATUS_NOT_SUPPORTED;
+
+    IoGetDeviceProperty(FdoExtension->AttachToPdo, DevicePropertyLegacyBusType, sizeof(BusType), &BusType, &DummyLength);
+    IoGetDeviceProperty(FdoExtension->AttachToPdo, DevicePropertyBusNumber, sizeof(BusNumber), &BusNumber, &DummyLength);
+
+    return HalGetInterruptTranslator(BusType,
+                                     BusNumber,
+                                     Isa,
+                                     IoStack->Parameters.QueryInterface.Size,
+                                     IoStack->Parameters.QueryInterface.Version,
+                                     (PTRANSLATOR_INTERFACE)IoStack->Parameters.QueryInterface.Interface,
+                                     &DummyBridgeBusNumber);
 }
 
 NTSTATUS
