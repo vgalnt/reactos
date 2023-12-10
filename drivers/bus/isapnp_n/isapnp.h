@@ -35,5 +35,9 @@ typedef struct _ISAPNP_BUS_EXTENSION
 
 /* FUNCTIONS ****************************************************************/
 
+#ifndef Add2Ptr
+  #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
+#endif
+
 
 #endif /* _ISAPNP_H_ */

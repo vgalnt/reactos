@@ -28,6 +28,17 @@ BOOLEAN PipFirstInit;
 
 NTSTATUS
 NTAPI
+PipGetRegistryValue(
+    _In_ HANDLE KeyHandle,
+    _In_ PWSTR NameString,
+    _Out_ PKEY_VALUE_FULL_INFORMATION* OutValueInfo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PiDispatchPnp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
@@ -70,8 +81,41 @@ PiNeedDeferISABridge(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PDEVICE_OBJECT AttachToPdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    HANDLE Handle;
+    NTSTATUS Status;
+    BOOLEAN Result;
+
+    DPRINT("PiNeedDeferISABridge: %p, %p\n", DriverObject, AttachToPdo);
+
+    Status = IoOpenDeviceRegistryKey(AttachToPdo, 1, KEY_READ, &Handle);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiNeedDeferISABridge: Status %p\n", Status);
+        return FALSE;
+    }
+
+    Status = PipGetRegistryValue(Handle, L"DeferBridge", &ValueInfo);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiNeedDeferISABridge: Status %p\n", Status);
+    }
+
+    if (NT_SUCCESS(Status) &&
+        ValueInfo->Type == REG_DWORD &&
+        ValueInfo->DataLength >= sizeof(ULONG) &&
+        *(ULONG *)Add2Ptr(ValueInfo, ValueInfo->DataOffset))
+    {
+        Result = TRUE;
+    }
+    else
+    {
+        Result = FALSE;
+    }
+
+    ZwClose(Handle);
+
+    return Result;
 }
 
 VOID
