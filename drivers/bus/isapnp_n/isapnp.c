@@ -33,8 +33,45 @@ PipGetRegistryValue(
     _In_ PWSTR NameString,
     _Out_ PKEY_VALUE_FULL_INFORMATION* OutValueInfo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PKEY_VALUE_FULL_INFORMATION ValueInfo;
+    UNICODE_STRING ValueName;
+    ULONG ResultLength;
+    NTSTATUS Status;
+  
+    PAGED_CODE();
+    DPRINT("PipGetRegistryValue: %p, '%S'\n", KeyHandle, NameString);
+
+    *OutValueInfo = NULL;
+
+    RtlInitUnicodeString(&ValueName, NameString);
+
+    Status = ZwQueryValueKey(KeyHandle, &ValueName, KeyValueFullInformation, NULL, 0, &ResultLength);
+
+    if (Status != STATUS_BUFFER_OVERFLOW &&
+        Status != STATUS_BUFFER_TOO_SMALL)
+    {
+        DPRINT1("PipGetRegistryValue: Status %X\n", Status);
+        return Status;
+    }
+
+    ValueInfo = ExAllocatePoolWithTag(NonPagedPool, ResultLength, 'pasI');
+    if (!ValueInfo)
+    {
+        DPRINT1("PipGetRegistryValue: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Status = ZwQueryValueKey(KeyHandle, &ValueName, KeyValueFullInformation, ValueInfo, ResultLength, &ResultLength);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PipGetRegistryValue: Status %X\n", Status);
+        ExFreePoolWithTag(ValueInfo, 'pasI');
+        return Status;
+    }
+
+    *OutValueInfo = ValueInfo;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
