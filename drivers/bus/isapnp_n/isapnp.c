@@ -26,6 +26,16 @@ BOOLEAN PipFirstInit;
 
 /* FUNCTIONS ******************************************************************/
 
+VOID
+NTAPI
+PipCompleteRequest(
+    _In_ PIRP Irp,
+    _In_ NTSTATUS Status,
+    _In_ ULONG_PTR Information)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 PipGetRegistryValue(
@@ -74,14 +84,70 @@ PipGetRegistryValue(
     return STATUS_SUCCESS;
 }
 
+/* FDO PNP FUNCTIONS ********************************************************/
+
+NTSTATUS
+NTAPI
+PiDispatchPnpFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+/* PDO PNP FUNCTIONS ********************************************************/
+
+NTSTATUS
+NTAPI
+PiDispatchPnpPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+/* FUNCTIONS ******************************************************************/
+
 NTSTATUS
 NTAPI
 PiDispatchPnp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_FDO_EXTENSION DeviceExtension;
+    UCHAR MinorFunction;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PiDispatchPnp: %p, %p\n", DeviceObject, Irp);
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    if (DeviceExtension->Flags & 0x80000000)
+    {
+        /* FDO */
+
+        if (DeviceExtension->AttachedToDevice)
+            return PiDispatchPnpFdo(DeviceObject, Irp);
+
+        PipCompleteRequest(Irp, STATUS_NO_SUCH_DEVICE, 0);
+
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    /* PDO */
+
+    MinorFunction = IoGetCurrentIrpStackLocation(Irp)->MinorFunction;
+
+    if (DeviceExtension->Flags & 1)
+    {
+        Status = (MinorFunction == IRP_MN_REMOVE_DEVICE ? STATUS_SUCCESS : STATUS_NO_SUCH_DEVICE);
+        PipCompleteRequest(Irp, Status, 0);
+        return Status;
+    }
+
+    return PiDispatchPnpPdo(DeviceObject, Irp);
 }
 
 NTSTATUS
