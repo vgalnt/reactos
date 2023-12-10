@@ -252,12 +252,41 @@ PiQueryDeviceRelationsFdo(
 
 NTSTATUS
 NTAPI
-PiQueryInterfaceFdo(
-    _In_ PDEVICE_OBJECT DeviceObject,
+PiQueryInterface(
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryInterfaceFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    NTSTATUS Status;
+
+    DPRINT("PiQueryInterfaceFdo: %p, %p\n", DeviceObject, Irp);
+
+    Status = PiQueryInterface(DeviceObject->DeviceExtension, Irp);
+    if (NT_SUCCESS(Status))
+    {
+        Irp->IoStatus.Information = 0;
+        Irp->IoStatus.Status = Status;
+
+        return PipPassIrp(DeviceObject, Irp);
+    }
+
+    DPRINT1("PiQueryInterfaceFdo: Status %p\n", Status);
+
+    if (Status == STATUS_NOT_SUPPORTED)
+        return PipPassIrp(DeviceObject, Irp);
+
+    PipCompleteRequest(Irp, Status, 0);
+
+    return Status;
 }
 
 NTSTATUS
