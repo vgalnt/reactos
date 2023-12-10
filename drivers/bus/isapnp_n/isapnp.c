@@ -336,8 +336,10 @@ PiQueryPnpDeviceState(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    Irp->IoStatus.Information |= 0x20;
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+
+    return PipPassIrp(DeviceObject, Irp);
 }
 
 NTSTATUS
