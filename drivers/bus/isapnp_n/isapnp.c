@@ -17,6 +17,7 @@
 PISAPNP_BUS_EXTENSION PipBusExtension;
 PDRIVER_OBJECT PipDriverObject;
 UNICODE_STRING PipRegistryPath;
+KEVENT PipDeviceTreeLock;
 KEVENT IsaBusNumberLock;
 ULONG BusNumberBuffer[0x40];
 ULONG ActiveIsaCount;
@@ -55,6 +56,13 @@ PDRIVER_DISPATCH PiPnpDispatchTableFdo[] =
 };
 
 /* FUNCTIONS ******************************************************************/
+
+VOID
+NTAPI
+PipLockDeviceDatabase(VOID)
+{
+    KeWaitForSingleObject(&PipDeviceTreeLock, Executive, KernelMode, FALSE, NULL);
+}
 
 VOID
 NTAPI
@@ -756,7 +764,7 @@ DriverEntry(
     }
     RtlCopyMemory(PipRegistryPath.Buffer, RegistryPath->Buffer, RegistryPath->MaximumLength);
 
-    //KeInitializeEvent(&PipDeviceTreeLock, SynchronizationEvent, TRUE);
+    KeInitializeEvent(&PipDeviceTreeLock, SynchronizationEvent, TRUE);
     KeInitializeEvent(&IsaBusNumberLock, SynchronizationEvent, TRUE);
 
     BusNumBM = &BusNumBMHeader;
