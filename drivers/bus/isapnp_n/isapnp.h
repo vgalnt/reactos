@@ -12,7 +12,7 @@
 
 /* INCLUDES *******************************************************************/
 
-#include <wdm.h>
+#include <ntifs.h>
 
 /* STRUCTURES ***************************************************************/
 
@@ -39,5 +39,16 @@ typedef struct _ISAPNP_BUS_EXTENSION
   #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
 #endif
 
+NTSTATUS NTAPI PiStartFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryRemoveStopFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiRemoveFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiCancelRemoveStopFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiStopFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryDeviceRelationsFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryInterfaceFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryPnpDeviceState(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiSurpriseRemoveFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryLegacyBusInformationFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PipPassIrp(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 
 #endif /* _ISAPNP_H_ */

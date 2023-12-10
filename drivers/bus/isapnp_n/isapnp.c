@@ -24,6 +24,35 @@ RTL_BITMAP BusNumBMHeader;
 PRTL_BITMAP BusNumBM;
 BOOLEAN PipFirstInit;
 
+PDRIVER_DISPATCH PiPnpDispatchTableFdo[] =
+{
+    PiStartFdo,
+    PiQueryRemoveStopFdo,
+    PiRemoveFdo,
+    PiCancelRemoveStopFdo,
+    PiStopFdo,
+    PiQueryRemoveStopFdo,
+    PiCancelRemoveStopFdo,
+    PiQueryDeviceRelationsFdo,
+    PiQueryInterfaceFdo,
+    PipPassIrp,
+    PipPassIrp,
+    PipPassIrp,
+    PipPassIrp,
+    PipPassIrp,
+    PipPassIrp,
+    PipPassIrp,
+    PipPassIrp,
+    PipPassIrp,
+    PipPassIrp,
+    PipPassIrp,
+    PiQueryPnpDeviceState,
+    PipPassIrp,
+    PipPassIrp,
+    PiSurpriseRemoveFdo,
+    PiQueryLegacyBusInformationFdo
+};
+
 /* FUNCTIONS ******************************************************************/
 
 VOID
@@ -88,12 +117,135 @@ PipGetRegistryValue(
 
 NTSTATUS
 NTAPI
-PiDispatchPnpFdo(
+PipPassIrp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiStartFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryRemoveStopFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiRemoveFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiCancelRemoveStopFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiStopFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryDeviceRelationsFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryInterfaceFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryPnpDeviceState(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiSurpriseRemoveFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryLegacyBusInformationFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiDispatchPnpFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UCHAR MinorFunction;
+    NTSTATUS Status;
+  
+    PAGED_CODE();
+
+    MinorFunction = IoGetCurrentIrpStackLocation(Irp)->MinorFunction;
+
+    DPRINT("PiDispatchPnpFdo: %p, %p, %X\n", DeviceObject, Irp, MinorFunction);
+
+    if (MinorFunction <= IRP_MN_QUERY_LEGACY_BUS_INFORMATION)
+        Status = PiPnpDispatchTableFdo[MinorFunction](DeviceObject, Irp);
+    else
+        Status = PipPassIrp(DeviceObject, Irp);
+
+    return Status;
 }
 
 /* PDO PNP FUNCTIONS ********************************************************/
