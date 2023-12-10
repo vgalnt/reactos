@@ -252,12 +252,30 @@ PiQueryDeviceRelationsFdo(
 
 NTSTATUS
 NTAPI
-PiQueryInterface(
+FindInterruptTranslator(
     _In_ PISAPNP_FDO_EXTENSION FdoExtension,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryInterface(
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension,
+    _In_ PIRP Irp)
+{
+    PAGED_CODE();
+    DPRINT("PiQueryInterface: %p, %p\n", FdoExtension, Irp);
+
+    if (IsEqualGUIDAligned(IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryInterface.InterfaceType,
+                           &GUID_TRANSLATOR_INTERFACE_STANDARD))
+    {
+        return FindInterruptTranslator(FdoExtension, Irp);
+    }
+
+    return STATUS_NOT_SUPPORTED;
 }
 
 NTSTATUS
