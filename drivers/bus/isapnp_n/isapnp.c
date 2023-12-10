@@ -66,6 +66,13 @@ PipLockDeviceDatabase(VOID)
 
 VOID
 NTAPI
+PipUnlockDeviceDatabase(VOID)
+{
+    KeSetEvent(&PipDeviceTreeLock, IO_NO_INCREMENT, FALSE);
+}
+
+VOID
+NTAPI
 PipCompleteRequest(
     _In_ PIRP Irp,
     _In_ NTSTATUS Status,
