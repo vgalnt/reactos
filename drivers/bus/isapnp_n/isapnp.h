@@ -26,7 +26,8 @@ typedef struct _ISAPNP_FDO_EXTENSION
     PDEVICE_OBJECT Fdo;
     PDEVICE_OBJECT AttachedToDevice;
     ULONG BusNumber;
-
+    SYSTEM_POWER_STATE SystemPowerState;
+    DEVICE_POWER_STATE DevicePowerState;
 } ISAPNP_FDO_EXTENSION, *PISAPNP_FDO_EXTENSION;
 
 typedef struct _ISAPNP_BUS_EXTENSION

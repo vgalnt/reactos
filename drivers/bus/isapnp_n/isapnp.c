@@ -134,12 +134,42 @@ PipPassIrp(
 
 NTSTATUS
 NTAPI
-PiStartFdo(
-    _In_ PDEVICE_OBJECT DeviceObject,
+PiDeferProcessingFdo(
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiStartFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    PISAPNP_FDO_EXTENSION FdoExtension;
+    NTSTATUS Status;
+
+    DPRINT("PiStartFdo: %p, %p\n", DeviceObject, Irp);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+
+    Status = PiDeferProcessingFdo(FdoExtension, Irp);
+    if (NT_SUCCESS(Status))
+    {
+        FdoExtension->SystemPowerState = PowerSystemWorking;
+        FdoExtension->DevicePowerState = PowerDeviceD0;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiStartFdo: Status %p\n", Status);
+    }
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    return Status;
 }
 
 NTSTATUS
