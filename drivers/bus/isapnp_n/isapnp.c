@@ -221,8 +221,32 @@ PiQueryLegacyBusInformationFdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_FDO_EXTENSION FdoExtension;
+    PLEGACY_BUS_INFORMATION BusInfo;
+    NTSTATUS Status;
+
+    DPRINT("PiQueryLegacyBusInformationFdo: %p, %p\n", DeviceObject, Irp);
+
+    BusInfo = ExAllocatePoolWithTag(PagedPool, sizeof(*BusInfo), 'pasI');
+    if (!BusInfo)
+    {
+        DPRINT1("PiQueryLegacyBusInformationFdo: STATUS_INSUFFICIENT_RESOURCES\n");
+        PipCompleteRequest(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    FdoExtension = DeviceObject->DeviceExtension;
+
+    BusInfo->BusTypeGuid = GUID_BUS_TYPE_ISAPNP;
+    BusInfo->LegacyBusType = Isa;
+    BusInfo->BusNumber = FdoExtension->BusNumber;
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = (ULONG_PTR)BusInfo;
+
+    Status = PipPassIrp(DeviceObject, Irp);
+
+    return Status;
 }
 
 NTSTATUS
