@@ -22,6 +22,7 @@ typedef struct _ISAPNP_FDO_EXTENSION
 {
     ULONG Flags;
     PVOID Rdp;
+    SINGLE_LIST_ENTRY DeviceList;
     PDEVICE_OBJECT AttachToPdo;
     PDEVICE_OBJECT Fdo;
     PDEVICE_OBJECT AttachedToDevice;
