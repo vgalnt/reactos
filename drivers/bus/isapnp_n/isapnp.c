@@ -267,8 +267,49 @@ NTAPI
 PipCreateReadDataPortBootResources(
     _In_ PISAPNP_DEVICE_INFO DeviceInfo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_RESOURCE_LIST CmResources;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    ULONG Size;
+    ULONG ix;
+
+    DPRINT("PipCreateReadDataPortBootResources: %p\n", DeviceInfo);
+
+    Size = (sizeof(CM_RESOURCE_LIST) + sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR));
+
+    CmResources = ExAllocatePoolWithTag(PagedPool, Size, 'pasI');
+    if (!CmResources)
+    {
+         DPRINT1("PipCreateReadDataPortBootResources: STATUS_INSUFFICIENT_RESOURCES\n");
+         return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(CmResources, Size);
+
+    CmResources->Count = 1;
+
+    CmResources->List[0].PartialResourceList.Version = 0;
+    CmResources->List[0].PartialResourceList.Revision = 0x3000;
+    CmResources->List[0].PartialResourceList.Count = 2;
+
+    CmDescriptor = CmResources->List[0].PartialResourceList.PartialDescriptors;
+
+    for (ix = 0; ix < 2; ix++, CmDescriptor++)
+    {
+        CmDescriptor->Type = CmResourceTypePort;
+        CmDescriptor->ShareDisposition = CmResourceShareDeviceExclusive;
+        CmDescriptor->Flags = CM_RESOURCE_PORT_16_BIT_DECODE;
+
+        if (ix)
+            CmDescriptor->u.Port.Start.LowPart = ADDRESS_PORT;
+        else
+            CmDescriptor->u.Port.Start.LowPart = COMMAND_PORT;
+
+        CmDescriptor->u.Port.Length = 1;
+    }
+
+    DeviceInfo->BootResources = CmResources;
+    DeviceInfo->BootResourcesSize = Size;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
