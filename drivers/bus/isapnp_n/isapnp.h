@@ -36,6 +36,17 @@ typedef struct _ISAPNP_BUS_EXTENSION
     PISAPNP_FDO_EXTENSION BusExtension;
 } ISAPNP_BUS_EXTENSION, *PISAPNP_BUS_EXTENSION;
 
+typedef struct _ISAPNP_DEVICE_INFO
+{
+    ULONG Flags;
+    PDEVICE_OBJECT ReadDataPortDO;
+    PISAPNP_FDO_EXTENSION FdoExtension;
+    SINGLE_LIST_ENTRY Link;
+    PCM_RESOURCE_LIST BootResources;
+    ULONG BootResourcesSize;
+
+} ISAPNP_DEVICE_INFO, *PISAPNP_DEVICE_INFO;
+
 /* FUNCTIONS ****************************************************************/
 
 #ifndef Add2Ptr

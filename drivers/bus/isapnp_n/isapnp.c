@@ -15,6 +15,7 @@
 /* GLOBALS *******************************************************************/
 
 PISAPNP_BUS_EXTENSION PipBusExtension;
+PISAPNP_DEVICE_INFO PipRDPNode;
 PDRIVER_OBJECT PipDriverObject;
 UNICODE_STRING PipRegistryPath;
 KEVENT PipDeviceTreeLock;
@@ -25,6 +26,8 @@ RTL_BITMAP BusNumBMHeader;
 PRTL_BITMAP BusNumBM;
 BOOLEAN PipFirstInit;
 BOOLEAN PipIsolationDisabled;
+
+PUCHAR PipReadDataPort;
 
 PDRIVER_DISPATCH PiPnpDispatchTableFdo[] =
 {
@@ -258,12 +261,154 @@ PiStopFdo(
 
 NTSTATUS
 NTAPI
+PipCreateReadDataPort(
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PipQueryDeviceRelations(
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension,
+    _Out_ PDEVICE_RELATIONS* OutDeviceRelations,
+    _In_ BOOLEAN IsSkipNode)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PiQueryDeviceRelationsFdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_FDO_EXTENSION FdoExtension;
+    PDEVICE_RELATIONS DeviceRelations;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    PSINGLE_LIST_ENTRY Entry;
+    DEVICE_RELATION_TYPE Type;
+    BOOLEAN IsRdpPresent = FALSE;
+    BOOLEAN IsRescan;
+    NTSTATUS Status;
+
+    DPRINT("PiQueryDeviceRelationsFdo: %p, %p\n", DeviceObject, Irp);
+
+    Type = IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryDeviceRelations.Type;
+    if (Type != BusRelations)
+    {
+        DPRINT1("PiQueryDeviceRelationsFdo: FIXME\n");
+        ASSERT(FALSE);
+        return PipPassIrp(DeviceObject, Irp);
+    }
+
+    /* BusRelations */
+
+    if (PipIsolationDisabled)
+    {
+        DPRINT1("PiQueryDeviceRelationsFdo: FIXME\n");
+        ASSERT(FALSE);
+        return PipPassIrp(DeviceObject, Irp);
+    }
+
+    FdoExtension = DeviceObject->DeviceExtension;
+    if (FdoExtension->BusNumber)
+        return PipPassIrp(DeviceObject, Irp);
+
+    if (PipRDPNode && (PipRDPNode->Flags & (0x0080 | 0x0010)))
+        IsRdpPresent = TRUE;
+
+    if (!PipReadDataPort && !IsRdpPresent && !PipRDPNode)
+    {
+        Status = PipCreateReadDataPort(FdoExtension);
+        if (!NT_SUCCESS(Status))
+        {
+            PipCompleteRequest(Irp, Status, 0);
+            return Status;
+        }
+
+        IsRdpPresent = TRUE;
+    }
+
+    if ((PipRDPNode && (PipRDPNode->Flags & 0x0002)) ||
+        (PipRDPNode && IsRdpPresent && !(PipRDPNode->Flags & 0x0010)))
+    {
+        DeviceRelations = ExAllocatePoolWithTag(PagedPool, sizeof(DEVICE_RELATIONS), 'pasI');
+        if (!DeviceRelations)
+        {
+            PipCompleteRequest(Irp, STATUS_INSUFFICIENT_RESOURCES, 0);
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        PipLockDeviceDatabase();
+
+        for (Entry = FdoExtension->DeviceList.Next; Entry; Entry = Entry->Next)
+        {
+            DeviceInfo = CONTAINING_RECORD(Entry, ISAPNP_DEVICE_INFO, Link);
+
+            if (!(DeviceInfo->Flags & 0x40000000))
+                DeviceInfo->Flags &= ~0x00000008;
+        }
+
+        PipUnlockDeviceDatabase();
+
+        DeviceRelations->Count = 1;
+
+        DPRINT("PiQueryDeviceRelationsFdo handing back the FDO\n");
+
+        ObReferenceObject(PipRDPNode->ReadDataPortDO);
+        DeviceRelations->Objects[0] = PipRDPNode->ReadDataPortDO;
+
+        Irp->IoStatus.Information = (ULONG_PTR)DeviceRelations;
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+
+        return PipPassIrp(DeviceObject, Irp);
+    }
+
+    PipLockDeviceDatabase();
+
+    if ((PipRDPNode->Flags & (0x0020 | 0x0010)) == 0x0010)
+    {
+        DPRINT1("PiQueryDeviceRelationsFdo: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        IsRescan = FALSE;
+    }
+
+    if (PipRDPNode->Flags & 0x1000)
+    {
+        DPRINT("PiQueryDeviceRelationsFdo: Force rescan\n");
+        PipRDPNode->Flags &= ~0x1000;
+        IsRescan = TRUE;
+    }
+
+    if (IsRescan)
+    {
+        DPRINT1("PiQueryDeviceRelationsFdo: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        DPRINT("PiQueryDeviceRelationsFdo: Using cached data\n");
+    }
+
+    Status = PipQueryDeviceRelations(FdoExtension, (PDEVICE_RELATIONS *)&Irp->IoStatus.Information, 0);
+
+    PipUnlockDeviceDatabase();
+
+    Irp->IoStatus.Status = Status;
+
+    if (NT_SUCCESS(Status))
+        return PipPassIrp(DeviceObject, Irp);
+
+    DPRINT1("PiQueryDeviceRelationsFdo: Status %X\n", Status);
+
+    PipCompleteRequest(Irp, Status, 0);
+    return Status;
 }
 
 NTSTATUS
