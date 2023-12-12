@@ -27,6 +27,8 @@ PRTL_BITMAP BusNumBM;
 BOOLEAN PipFirstInit;
 BOOLEAN PipIsolationDisabled;
 
+ULONG PipState = 1;
+
 PUCHAR PipReadDataPort;
 
 ULONG ADDRESS_PORT = 0x0279;
@@ -863,12 +865,262 @@ PiFilterResourceRequirementsPdo(
 
 NTSTATUS
 NTAPI
+PipQueryDeviceId(
+    _In_ PISAPNP_DEVICE_INFO DeviceInfo,
+    _Out_ PWSTR* OutId,
+    _Out_ ULONG* OutIdSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PipGetCompatibleDeviceId(
+    _In_ PUCHAR DeviceData,
+    _In_ LONG Idx,
+    _Out_ PWSTR* OutId,
+    _Out_ ULONG* OutIdSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PipQueryDeviceUniqueId(
+    _In_ PISAPNP_DEVICE_INFO DeviceInfo,
+    _Out_ PWSTR* OutId,
+    _Out_ ULONG* OutIdSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PiQueryIdPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    PIO_STACK_LOCATION IoStack;
+    PWSTR CompatibleDeviceId;
+    PWSTR DeviceId = NULL;
+    PWSTR IdString = NULL;
+    PWSTR IdStringEnd;
+    PWSTR CurrentId;
+    size_t DeviceIdSize;
+    size_t CompatibleIdSize;
+    size_t Remaining;
+    ULONG MaxCompatibleIdSize;
+    ULONG DeviceIdLength;
+    ULONG DummyLength;
+    ULONG IdType;
+    ULONG IdSize;
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT("PiQueryIdPdo: %p, %p\n", DeviceObject, Irp);
+
+    IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, FALSE);
+    if (!DeviceInfo)
+    {
+        DPRINT1("PiQueryIdPdo: STATUS_NO_SUCH_DEVICE\n");
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    IdType = IoStack->Parameters.QueryId.IdType;
+
+    if (IdType == BusQueryDeviceID)
+    {
+        DPRINT("PiQueryIdPdo: BusQueryDeviceID\n");
+        Status = PipQueryDeviceId(DeviceInfo, &DeviceId, &DummyLength);
+        Irp->IoStatus.Information = (ULONG_PTR)DeviceId;
+        goto Exit;
+    }
+
+    if (IdType == BusQueryHardwareIDs)
+    {
+        DPRINT("PiQueryIdPdo: BusQueryHardwareIDs\n");
+
+        if (DeviceInfo->Flags & 0x40000000)
+        {
+            Status = PipGetCompatibleDeviceId(DeviceInfo->DeviceData, -1, &CompatibleDeviceId, &MaxCompatibleIdSize);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PiQueryIdPdo: Status %X\n", Status);
+                goto Exit;
+            }
+        }
+        else
+        {
+            Status = PipGetCompatibleDeviceId(DeviceInfo->DeviceData, 0, &CompatibleDeviceId, &MaxCompatibleIdSize);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PiQueryIdPdo: Status %X\n", Status);
+                goto Exit;
+            }
+        }
+
+        if (CompatibleDeviceId)
+        {
+            Status = PipQueryDeviceId(DeviceInfo, &DeviceId, &DeviceIdLength);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PiQueryIdPdo: Status %X\n", Status);
+                goto Exit;
+            }
+
+            Status = StringCbLengthW(CompatibleDeviceId, MaxCompatibleIdSize, &CompatibleIdSize);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PiQueryIdPdo: Status %X\n", Status);
+                Status = STATUS_INVALID_PARAMETER;
+                goto Exit;
+            }
+
+            Status = StringCbLengthW(DeviceId, DeviceIdLength, &DeviceIdSize);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PiQueryIdPdo: Status %X\n", Status);
+                Status = STATUS_INVALID_PARAMETER;
+                goto Exit;
+            }
+
+            IdSize = (CompatibleIdSize + DeviceIdSize + 6);
+
+            IdString = ExAllocatePoolWithTag(PagedPool, IdSize, 'pasI');
+            if (!IdString)
+            {
+                Irp->IoStatus.Information = (ULONG_PTR)CompatibleDeviceId;
+
+                if (DeviceId)
+                    ExFreePool(DeviceId);
+
+                goto Exit;
+            }
+
+            Status = StringCbCopyExW(IdString, IdSize, DeviceId, &IdStringEnd, &Remaining, 0);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PiQueryIdPdo: Status %X\n", Status);
+                ASSERT(FALSE);
+                Status = STATUS_INVALID_PARAMETER;
+                goto Exit;
+            }
+
+            Status = StringCbCopyExW((IdStringEnd + 1), IdSize, CompatibleDeviceId, &IdStringEnd, &Remaining, 0);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PiQueryIdPdo: Status %X\n", Status);
+                ASSERT(FALSE);
+                Status = STATUS_INVALID_PARAMETER;
+                goto Exit;
+            }
+
+            IdStringEnd[1] = 0;
+
+            ExFreePool(CompatibleDeviceId);
+
+            Irp->IoStatus.Information = (ULONG_PTR)IdString;
+
+            if (DeviceId)
+                ExFreePool(DeviceId);
+        }
+
+        goto Exit;
+    }
+
+    if (IdType == BusQueryCompatibleIDs)
+    {
+        DPRINT("PiQueryIdPdo: BusQueryCompatibleIDs\n");
+
+        IdSize = 0x400;
+
+        IdString = ExAllocatePoolWithTag(PagedPool, IdSize, 'pasI');
+        if (!IdString)
+        {
+            DPRINT1("PiQueryIdPdo: allocate failed (BusQueryCompatibleIDs)\n");
+            Status = STATUS_SUCCESS;
+            Irp->IoStatus.Information = 0;
+            goto Exit;
+        }
+
+        CurrentId = IdString;
+
+        for (ix = 1; ; ix++)
+        {
+            ASSERT(ix < 0x100);
+
+            if (DeviceInfo->Flags & 0x40000000)
+                ix = -1;
+
+            Status = PipGetCompatibleDeviceId(DeviceInfo->DeviceData, ix, &CompatibleDeviceId, &MaxCompatibleIdSize);
+            if (!NT_SUCCESS(Status) || !CompatibleDeviceId)
+                break;
+
+            Status = StringCbLengthW(CompatibleDeviceId, MaxCompatibleIdSize, &CompatibleIdSize);
+            if (!NT_SUCCESS(Status))
+            {
+                ASSERT(FALSE);
+                break;
+            }
+
+            if ((CompatibleIdSize + 4) > IdSize)
+            {
+                ExFreePoolWithTag(CompatibleDeviceId, 'pasI');
+                break;
+            }
+
+            Status = StringCbCopyExW(CurrentId, IdSize, CompatibleDeviceId, &IdStringEnd, &Remaining, 0);
+            if (!NT_SUCCESS(Status))
+            {
+                ASSERT(FALSE);
+                break;
+            }
+
+            CurrentId = (IdStringEnd + 1);
+            IdSize = (Remaining - 2);
+
+            ExFreePoolWithTag(CompatibleDeviceId, 'pasI');
+
+            if (ix == -1)
+                break;
+        }
+
+        if (IdSize == 0x400)
+        {
+            ExFreePoolWithTag(IdString, 'pasI');
+            IdString = NULL;
+        }
+        else
+        {
+            *CurrentId = 0;
+        }
+
+        Status = STATUS_SUCCESS;
+        Irp->IoStatus.Information = (ULONG_PTR)IdString;
+        goto Exit;
+    }
+
+    if (IdType == BusQueryInstanceID)
+    {
+        Status = PipQueryDeviceUniqueId(DeviceInfo, &IdString, &DummyLength);
+        Irp->IoStatus.Information = (ULONG_PTR)IdString;
+        goto Exit;
+    }
+
+    DPRINT1("PiQueryIdPdo: IdType %X\n", IdType);
+    Status = STATUS_NOT_SUPPORTED;
+
+Exit:
+
+    PipDereferenceDeviceInformation(DeviceInfo, FALSE);
+
+    return Status;
 }
 
 NTSTATUS

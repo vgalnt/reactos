@@ -15,6 +15,7 @@
 #include <ntifs.h>
 #include <initguid.h>
 #include <wdmguid.h>
+#include <strsafe.h>
 
 /* STRUCTURES ***************************************************************/
 
@@ -43,6 +44,7 @@ typedef struct _ISAPNP_DEVICE_INFO
     PDEVICE_OBJECT ReadDataPortDO;
     PISAPNP_FDO_EXTENSION FdoExtension;
     SINGLE_LIST_ENTRY Link;
+    PVOID DeviceData;
     PCM_RESOURCE_LIST BootResources;
     ULONG BootResourcesSize;
 
