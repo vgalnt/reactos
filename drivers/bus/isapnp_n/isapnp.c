@@ -882,8 +882,31 @@ PipGetCompatibleDeviceId(
     _Out_ PWSTR* OutId,
     _Out_ ULONG* OutIdSize)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PWSTR Id;
+
+    DPRINT("PipGetCompatibleDeviceId: %p, %X\n", DeviceData, Idx);
+
+    if (Idx == 0xFFFFFFFF)
+    {
+        *OutId = Id = ExAllocatePoolWithTag(PagedPool, 4, 'pasI');
+        if (!Id)
+        {
+            DPRINT1("PipGetCompatibleDeviceId: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        *OutIdSize = 4;
+
+        Id[0] = 0;
+        Id[1] = 0;
+
+        return STATUS_SUCCESS;
+    }
+
+    DPRINT1("PipGetCompatibleDeviceId: FIXME\n");
+    ASSERT(FALSE);
+
+    return STATUS_INVALID_PARAMETER;
 }
 
 NTSTATUS
