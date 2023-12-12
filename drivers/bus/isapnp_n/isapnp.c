@@ -870,8 +870,33 @@ PipQueryDeviceId(
     _Out_ PWSTR* OutId,
     _Out_ ULONG* OutIdSize)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ULONG IdSize;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("PipQueryDeviceId: %p\n", DeviceInfo);
+
+    if (DeviceInfo->Flags & 0x40000000)
+    {
+        IdSize = 0x2C; // FIXME
+
+        *OutId = ExAllocatePoolWithTag(PagedPool, IdSize, 'pasI');
+        if (!(*OutId))
+        {
+            DPRINT1("PipQueryDeviceId: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        *OutIdSize = IdSize;
+
+        StringCbPrintfW(*OutId, IdSize, L"ISAPNP\\%s", L"ReadDataPort");
+
+        return STATUS_SUCCESS;
+    }
+
+    DPRINT1("PipQueryDeviceId: FIXME\n");
+    ASSERT(FALSE);
+
+    return Status;
 }
 
 NTSTATUS
