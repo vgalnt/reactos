@@ -66,4 +66,22 @@ NTSTATUS NTAPI PiSurpriseRemoveFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS NTAPI PiQueryLegacyBusInformationFdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS NTAPI PipPassIrp(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 
+NTSTATUS NTAPI PiStartPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryRemoveStopPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiRemovePdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiCancelRemoveStopPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiStopPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryDeviceRelationsPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryCapabilitiesPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryResourcesPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryResourceRequirementsPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryDeviceTextPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiFilterResourceRequirementsPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryIdPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryDeviceState(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiQueryBusInformationPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiDeviceUsageNotificationPdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiSurpriseRemovePdo(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+NTSTATUS NTAPI PiIrpNotSupported(PDEVICE_OBJECT DeviceObject, PIRP Irp);
+
 #endif /* _ISAPNP_H_ */

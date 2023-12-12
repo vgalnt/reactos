@@ -61,6 +61,35 @@ PDRIVER_DISPATCH PiPnpDispatchTableFdo[] =
     PiQueryLegacyBusInformationFdo
 };
 
+PDRIVER_DISPATCH PiPnpDispatchTablePdo[] =
+{
+    PiStartPdo,
+    PiQueryRemoveStopPdo,
+    PiRemovePdo,
+    PiCancelRemoveStopPdo,
+    PiStopPdo,
+    PiQueryRemoveStopPdo,
+    PiCancelRemoveStopPdo,
+    PiQueryDeviceRelationsPdo,
+    PiIrpNotSupported,
+    PiQueryCapabilitiesPdo,
+    PiQueryResourcesPdo,
+    PiQueryResourceRequirementsPdo,
+    PiQueryDeviceTextPdo,
+    PiFilterResourceRequirementsPdo,
+    PiIrpNotSupported,
+    PiIrpNotSupported,
+    PiIrpNotSupported,
+    PiIrpNotSupported,
+    PiIrpNotSupported,
+    PiQueryIdPdo,
+    PiQueryDeviceState,
+    PiQueryBusInformationPdo,
+    PiDeviceUsageNotificationPdo,
+    PiSurpriseRemovePdo,
+    PiIrpNotSupported
+};
+
 /* FUNCTIONS ******************************************************************/
 
 VOID
@@ -684,12 +713,210 @@ PiDispatchPnpFdo(
 
 NTSTATUS
 NTAPI
-PiDispatchPnpPdo(
+PiStartPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryRemoveStopPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiRemovePdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiCancelRemoveStopPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiStopPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryDeviceRelationsPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryCapabilitiesPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryResourcesPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryResourceRequirementsPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryDeviceTextPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiFilterResourceRequirementsPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryIdPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryDeviceState(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiQueryBusInformationPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiDeviceUsageNotificationPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiSurpriseRemovePdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiIrpNotSupported(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PiDispatchPnpPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UCHAR MinorFunction;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    MinorFunction = IoGetCurrentIrpStackLocation(Irp)->MinorFunction;
+
+    DPRINT("PiDispatchPnpPdo: %p, %p, %X\n", DeviceObject, Irp, MinorFunction);
+
+    if (MinorFunction > IRP_MN_QUERY_LEGACY_BUS_INFORMATION)
+    {
+        DPRINT1("PiDispatchPnpPdo: (%p, %p) unknown minor %X\n", DeviceObject, Irp, MinorFunction);
+        Status = Irp->IoStatus.Status;
+        goto Finish;
+    }
+
+    Status = PiPnpDispatchTablePdo[MinorFunction](DeviceObject, Irp);
+
+    if (Status == STATUS_NOT_SUPPORTED)
+        Status = Irp->IoStatus.Status;
+    else
+        Irp->IoStatus.Status = Status;
+
+Finish:
+
+    ASSERT(Status == Irp->IoStatus.Status);
+
+    PipCompleteRequest(Irp, Status, Irp->IoStatus.Information);
+
+    return Status;
 }
 
 /* FUNCTIONS ******************************************************************/
