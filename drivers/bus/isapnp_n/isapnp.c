@@ -115,7 +115,10 @@ PipCompleteRequest(
     _In_ NTSTATUS Status,
     _In_ ULONG_PTR Information)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    Irp->IoStatus.Status = Status;
+    Irp->IoStatus.Information = Information;
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
 }
 
 NTSTATUS
