@@ -738,6 +738,19 @@ PipReferenceDeviceInformation(
     return DeviceInfo;
 }
 
+VOID
+NTAPI
+PipDereferenceDeviceInformation(
+    _In_ PISAPNP_DEVICE_INFO DeviceInfo,
+    _In_ BOOLEAN IsWait)
+{
+    if (DeviceInfo && !(DeviceInfo->Flags & 0x40000000) && IsWait && PipState != 1)
+    {
+        DPRINT1("PipDereferenceDeviceInformation: FIXME\n");
+        ASSERT(FALSE);
+    }
+}
+
 NTSTATUS
 NTAPI
 PiStartPdo(
