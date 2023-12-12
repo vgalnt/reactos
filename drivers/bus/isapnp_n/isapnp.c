@@ -711,6 +711,33 @@ PiDispatchPnpFdo(
 
 /* PDO PNP FUNCTIONS ********************************************************/
 
+PISAPNP_DEVICE_INFO
+NTAPI
+PipReferenceDeviceInformation(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ BOOLEAN IsWakeAndSelectDevice)
+{
+    PISAPNP_DEVICE_INFO DeviceInfo;
+
+    DeviceInfo = DeviceObject->DeviceExtension;
+
+    if ((!DeviceInfo || (DeviceInfo->Flags & 0x00000001)) ||
+        ((DeviceInfo->Flags & 0x00000004) && IsWakeAndSelectDevice))
+    {
+        DeviceInfo = NULL;
+    }
+    else if (!(DeviceInfo->Flags & 0x40000000))
+    {
+        if (IsWakeAndSelectDevice)
+        {
+            DPRINT1("PipReferenceDeviceInformation: FIXME\n");
+            ASSERT(FALSE);
+        }
+    }
+
+    return DeviceInfo;
+}
+
 NTSTATUS
 NTAPI
 PiStartPdo(
