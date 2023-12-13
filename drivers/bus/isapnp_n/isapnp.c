@@ -1029,8 +1029,34 @@ PipQueryDeviceUniqueId(
     _Out_ PWSTR* OutId,
     _Out_ ULONG* OutIdSize)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PWCHAR Id;
+    ULONG IdSize;
+
+    DPRINT("PipQueryDeviceUniqueId: %p\n", DeviceInfo);
+
+    IdSize = 0x12;
+
+    *OutId = Id = ExAllocatePoolWithTag(PagedPool, IdSize, 'pasI');
+    if (!Id)
+    {
+        DPRINT1("PipQueryDeviceUniqueId: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    if (DeviceInfo->Flags & 0x40000000)
+    {
+        StringCbPrintfW(Id, IdSize, L"0");
+        goto Finish;
+    }
+
+    DPRINT1("PipQueryDeviceUniqueId: FIXME\n");
+    ASSERT(FALSE);
+
+Finish:
+
+    *OutIdSize = IdSize;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
