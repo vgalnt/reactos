@@ -871,12 +871,65 @@ PiQueryResourceRequirementsPdo(
 
 NTSTATUS
 NTAPI
+PipGetFunctionIdentifier(
+    _In_ PVOID DeviceData,
+    _Out_ PWSTR* OutDeviceText,
+    _Out_ ULONG* OutDeviceTextSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PiQueryDeviceTextPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    PWSTR DeviceText;
+    ULONG DeviceTextSize;
+    NTSTATUS Status;
+
+    DPRINT("PiQueryDeviceTextPdo: %p, %p\n", DeviceObject, Irp);
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, FALSE);
+    if (!DeviceInfo)
+    {
+        DPRINT1("PiQueryDeviceTextPdo: STATUS_NO_SUCH_DEVICE\n");
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    if (IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryDeviceText.DeviceTextType != DeviceTextDescription)
+    {
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    Status = STATUS_SUCCESS;
+
+    PipGetFunctionIdentifier(DeviceInfo->DeviceData, &DeviceText, &DeviceTextSize);
+    if (DeviceText)
+    {
+        Irp->IoStatus.Information = (ULONG_PTR)DeviceText;
+        goto Exit;
+    }
+
+    if (!DeviceInfo->CardInfo)
+    {
+        Irp->IoStatus.Information = 0;
+        goto Exit;
+    }
+
+    DPRINT1("PiQueryDeviceTextPdo: FIXME \n");
+    ASSERT(FALSE);
+
+    Irp->IoStatus.Information = (ULONG_PTR)DeviceText;
+
+Exit:
+
+    PipDereferenceDeviceInformation(DeviceInfo, FALSE);
+    return Status;
 }
 
 NTSTATUS

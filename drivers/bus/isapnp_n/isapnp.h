@@ -19,6 +19,12 @@
 
 /* STRUCTURES ***************************************************************/
 
+typedef struct _ISAPNP_CARD_INFO
+{
+    struct _ISAPNP_CARD_INFO* NextCardInfo;
+
+} ISAPNP_CARD_INFO, *PISAPNP_CARD_INFO;
+
 typedef struct _ISAPNP_FDO_EXTENSION
 {
     ULONG Flags;
@@ -44,6 +50,7 @@ typedef struct _ISAPNP_DEVICE_INFO
     PDEVICE_OBJECT ReadDataPortDO;
     PISAPNP_FDO_EXTENSION FdoExtension;
     SINGLE_LIST_ENTRY Link;
+    PISAPNP_CARD_INFO CardInfo;
     PVOID DeviceData;
     PCM_RESOURCE_LIST BootResources;
     ULONG BootResourcesSize;
