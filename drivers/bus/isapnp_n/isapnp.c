@@ -861,12 +861,54 @@ PiQueryResourcesPdo(
 
 NTSTATUS
 NTAPI
+PipBuildRDPResources(
+    _Out_ PIO_RESOURCE_REQUIREMENTS_LIST* OutIoResources,
+    _In_ ULONG Flags)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PiQueryResourceRequirementsPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources = NULL;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    NTSTATUS Status;
+
+    DPRINT("PiQueryResourceRequirementsPdo: %p, %p\n", DeviceObject, Irp);
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, FALSE);
+    if (!DeviceInfo)
+    {
+        DPRINT1("PiQueryResourceRequirementsPdo: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    Status = STATUS_SUCCESS;
+
+    if (DeviceInfo->Flags & 0x40000000)
+    {
+        Status = PipBuildRDPResources(&IoResources, DeviceInfo->Flags);
+        goto Finish;
+    }
+
+    DPRINT1("PiQueryResourceRequirementsPdo: FIXME\n");
+    ASSERT(FALSE);
+
+Finish:
+
+    Irp->IoStatus.Information = (ULONG_PTR)IoResources;
+    PipDereferenceDeviceInformation(DeviceInfo, FALSE);
+
+Exit:
+
+    DPRINT("PiQueryResourceRequirementsPdo: ret Status %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
