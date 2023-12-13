@@ -876,7 +876,16 @@ PipGetFunctionIdentifier(
     _Out_ PWSTR* OutDeviceText,
     _Out_ ULONG* OutDeviceTextSize)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("PipGetFunctionIdentifier: %p\n", DeviceData);
+
+    *OutDeviceText = NULL;
+    *OutDeviceTextSize = 0;
+
+    if (!DeviceData)
+        return STATUS_SUCCESS;
+
+    DPRINT1("PipGetFunctionIdentifier: FIXME \n");
+    ASSERT(FALSE);
     return STATUS_NOT_IMPLEMENTED;
 }
 
