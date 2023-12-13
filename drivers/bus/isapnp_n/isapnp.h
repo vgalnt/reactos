@@ -57,6 +57,15 @@ typedef struct _ISAPNP_DEVICE_INFO
 
 } ISAPNP_DEVICE_INFO, *PISAPNP_DEVICE_INFO;
 
+typedef struct _ISAPNP_RDP_RANGE
+{
+    ULONG MinimumAddress;
+    ULONG MaximumAddress;
+    ULONG Length;
+    UCHAR NumberOfCards;
+    UCHAR Pad0[3];
+} ISAPNP_RDP_RANGE, *PISAPNP_RDP_RANGE;
+
 /* FUNCTIONS ****************************************************************/
 
 #ifndef Add2Ptr

@@ -92,6 +92,16 @@ PDRIVER_DISPATCH PiPnpDispatchTablePdo[] =
     PiIrpNotSupported
 };
 
+ISAPNP_RDP_RANGE PipReadDataPortRanges[6] =
+{
+    {0x0274, 0x0277, 4, 0x00},
+    {0x03E4, 0x03E7, 4, 0x00},
+    {0x0204, 0x0207, 4, 0x00},
+    {0x02E4, 0x02E7, 4, 0x00},
+    {0x0354, 0x0357, 4, 0x00},
+    {0x02F4, 0x02F7, 4, 0x00}
+};
+
 /* FUNCTIONS ******************************************************************/
 
 VOID
@@ -865,8 +875,161 @@ PipBuildRDPResources(
     _Out_ PIO_RESOURCE_REQUIREMENTS_LIST* OutIoResources,
     _In_ ULONG Flags)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    PISAPNP_RDP_RANGE RdpRange;
+    ULONG CountRequirements;
+    ULONG Size;
+    ULONG Idx;
+    ULONG ix;
+    ULONG jx;
+    ULONG kx = 0;
+    UCHAR MaximumCards = 0;
+    UCHAR Count;
+
+    DPRINT("PipBuildRDPResources: Flags %X\n", Flags);
+
+    ASSERT(Flags & 0x40000000); // DF_READ_DATA_PORT
+
+    if (Flags & 0x800)
+    {
+        CountRequirements = 0;
+
+        for (ix = 0; ix < 6; ix++)
+        {
+            Count = PipReadDataPortRanges[ix].NumberOfCards;
+
+            if (MaximumCards < Count)
+            {
+                MaximumCards = Count;
+                CountRequirements = 1;
+            }
+            else if (MaximumCards == Count)
+            {
+                CountRequirements++;
+            }
+        }
+    }
+    else
+    {
+        CountRequirements = 0xC;
+    }
+
+    Size = (sizeof(IO_RESOURCE_LIST) + (3 * sizeof(IO_RESOURCE_REQUIREMENTS_LIST)) +
+            (CountRequirements * sizeof(IO_RESOURCE_REQUIREMENTS_LIST)));
+
+    *OutIoResources = IoResources = ExAllocatePoolWithTag(PagedPool, Size, 'pasI');
+    if (!IoResources)
+    {
+        DPRINT1("PipBuildRDPResources: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(*OutIoResources, Size);
+
+    IoResources->BusNumber = 0;
+    IoResources->AlternativeLists = 1;
+
+    IoResources->List[0].Count = (CountRequirements + 4);
+    IoResources->List[0].Version = 1;
+    IoResources->List[0].Revision = 1;
+
+    IoResources->List[0].Descriptors[kx].Type = CM_RESOURCE_PORT_IO;
+    IoResources->List[0].Descriptors[kx].ShareDisposition = 1;
+    IoResources->List[0].Descriptors[kx].Flags = 0x10;
+    IoResources->List[0].Descriptors[kx].u.Port.MinimumAddress.LowPart = COMMAND_PORT;
+    IoResources->List[0].Descriptors[kx].u.Port.MaximumAddress.LowPart = COMMAND_PORT;
+    IoResources->List[0].Descriptors[kx].u.Port.Length = 1;
+    IoResources->List[0].Descriptors[kx].u.Port.Alignment = 1;
+
+    kx++;
+
+    IoResources->List[0].Descriptors[kx].Option = 8;
+    IoResources->List[0].Descriptors[kx].Type = CM_RESOURCE_PORT_IO;
+    IoResources->List[0].Descriptors[kx].ShareDisposition = 1;
+    IoResources->List[0].Descriptors[kx].Flags = 0x10;
+    IoResources->List[0].Descriptors[kx].u.Port.MinimumAddress.QuadPart = 0;
+    IoResources->List[0].Descriptors[kx].u.Port.MaximumAddress.QuadPart = 0;
+    IoResources->List[0].Descriptors[kx].u.Port.Length = 0;
+    IoResources->List[0].Descriptors[kx].u.Port.Alignment  = 1;
+
+    kx++;
+
+    IoResources->List[0].Descriptors[kx].Type = CM_RESOURCE_PORT_IO;
+    IoResources->List[0].Descriptors[kx].ShareDisposition = 1;
+    IoResources->List[0].Descriptors[kx].Flags = 0x10;
+    IoResources->List[0].Descriptors[kx].u.Port.MinimumAddress.LowPart = ADDRESS_PORT;
+    IoResources->List[0].Descriptors[kx].u.Port.MaximumAddress.LowPart = ADDRESS_PORT;
+    IoResources->List[0].Descriptors[kx].u.Port.Length = 1;
+    IoResources->List[0].Descriptors[kx].u.Port.Alignment = 1;
+
+    kx++;
+
+    IoResources->List[0].Descriptors[kx].Option = 8;
+    IoResources->List[0].Descriptors[kx].Type = CM_RESOURCE_PORT_IO;
+    IoResources->List[0].Descriptors[kx].ShareDisposition = 1;
+    IoResources->List[0].Descriptors[kx].Flags = 0x10;
+    IoResources->List[0].Descriptors[kx].u.Port.MinimumAddress.QuadPart = 0;
+    IoResources->List[0].Descriptors[kx].u.Port.MaximumAddress.QuadPart = 0;
+    IoResources->List[0].Descriptors[kx].u.Port.Length = 0;
+    IoResources->List[0].Descriptors[kx].u.Port.Alignment  = 1;
+
+    kx++;
+
+    RdpRange = PipReadDataPortRanges;
+
+    if (Flags & 0x800)
+    {
+        for (ix = 0, jx = 0; ix < 6; ix++)
+        {
+            if (RdpRange->NumberOfCards != MaximumCards)
+                continue;
+
+            Idx = (kx + jx);
+
+            IoResources->List[0].Descriptors[Idx].Option = 8;
+            IoResources->List[0].Descriptors[Idx].Type = CM_RESOURCE_PORT_IO;
+            IoResources->List[0].Descriptors[Idx].ShareDisposition = 1;
+            IoResources->List[0].Descriptors[Idx].Flags = 0x10;
+            IoResources->List[0].Descriptors[Idx].u.Port.MinimumAddress.LowPart = RdpRange->MinimumAddress;
+            IoResources->List[0].Descriptors[Idx].u.Port.MaximumAddress.LowPart = RdpRange->MaximumAddress;
+            IoResources->List[0].Descriptors[Idx].u.Port.Length = (RdpRange->MaximumAddress - RdpRange->MinimumAddress + 1);
+            IoResources->List[0].Descriptors[Idx].u.Port.Alignment = 1;
+
+            RdpRange++;
+            jx++;
+        }
+
+        IoResources->List[0].Descriptors[4].Option = 0;
+    }
+    else
+    {
+        for (ix = 0; ix < (CountRequirements / 2); ix++)
+        {
+            Idx = (kx + ix * 2);
+
+            IoResources->List[0].Descriptors[Idx].Type = CM_RESOURCE_PORT_IO;
+            IoResources->List[0].Descriptors[Idx].ShareDisposition = 1;
+            IoResources->List[0].Descriptors[Idx].Flags = 0x10;
+            IoResources->List[0].Descriptors[Idx].u.Port.MinimumAddress.LowPart = RdpRange->MinimumAddress;
+            IoResources->List[0].Descriptors[Idx].u.Port.MaximumAddress.LowPart = RdpRange->MaximumAddress;
+            IoResources->List[0].Descriptors[Idx].u.Port.Length = (RdpRange->MaximumAddress - RdpRange->MinimumAddress + 1);
+            IoResources->List[0].Descriptors[Idx].u.Port.Alignment = 1;
+
+            IoResources->List[0].Descriptors[Idx + 1].Option = 8;
+            IoResources->List[0].Descriptors[Idx + 1].Type = CM_RESOURCE_PORT_IO;
+            IoResources->List[0].Descriptors[Idx + 1].ShareDisposition = 1;
+            IoResources->List[0].Descriptors[Idx + 1].Flags = 0x10;
+            IoResources->List[0].Descriptors[Idx + 1].u.Port.MinimumAddress.QuadPart = 0;
+            IoResources->List[0].Descriptors[Idx + 1].u.Port.MaximumAddress.QuadPart = 0;
+            IoResources->List[0].Descriptors[Idx + 1].u.Port.Length = 0;
+            IoResources->List[0].Descriptors[Idx + 1].u.Port.Alignment = 1;
+
+            RdpRange++;
+        }
+    }
+
+    IoResources->ListSize = Size;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
