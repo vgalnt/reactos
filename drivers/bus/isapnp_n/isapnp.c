@@ -822,8 +822,31 @@ PiQueryCapabilitiesPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_CAPABILITIES Capabilities;
+
+    DPRINT("PiQueryCapabilitiesPdo: %p, %p\n", DeviceObject, Irp);
+
+    Capabilities = IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceCapabilities.Capabilities;
+
+    Capabilities->SystemWake = 0;
+    Capabilities->DeviceWake = 0;
+    Capabilities->LockSupported = 0;
+    Capabilities->EjectSupported = 0;
+    Capabilities->Removable = 0;
+    Capabilities->DockDevice = 0;
+    Capabilities->UniqueID = 1;
+
+    RtlFillMemory(Capabilities->DeviceState, 7, PowerDeviceD3);
+
+    Capabilities->DeviceState[PowerSystemWorking] = PowerDeviceD0;
+
+    if (PipRDPNode && PipRDPNode->ReadDataPortDO == DeviceObject)
+    {
+        Capabilities->SilentInstall = 1;
+        Capabilities->RawDeviceOK = 1;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
