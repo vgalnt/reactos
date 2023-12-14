@@ -1506,8 +1506,32 @@ PiQueryBusInformationPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_FDO_EXTENSION FdoExtension;
+    PPNP_BUS_INFORMATION BusInfo;
+    NTSTATUS Status;
+
+    DPRINT("PiQueryBusInformationPdo: %p, %p\n", DeviceObject, Irp);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+
+    BusInfo = ExAllocatePoolWithTag(PagedPool, sizeof(*BusInfo), 'pasI');
+    if (!BusInfo)
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        BusInfo = NULL;
+        goto Finish;
+    }
+
+    BusInfo->BusTypeGuid = GUID_BUS_TYPE_ISAPNP;
+    BusInfo->LegacyBusType = 1;
+    BusInfo->BusNumber = FdoExtension->BusNumber;
+
+    Status = STATUS_SUCCESS;
+
+Finish:
+
+    Irp->IoStatus.Information = (ULONG_PTR)BusInfo;
+    return Status;
 }
 
 NTSTATUS
