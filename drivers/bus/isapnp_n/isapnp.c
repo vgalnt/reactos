@@ -1205,8 +1205,53 @@ PiFilterResourceRequirementsPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    NTSTATUS Status;
+
+    DPRINT("PiFilterResourceRequirementsPdo: %p, %p\n", DeviceObject, Irp);
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, FALSE);
+    if (!DeviceInfo)
+        return STATUS_NO_SUCH_DEVICE;
+
+    if (!(DeviceInfo->Flags & 0x40000000))
+    {
+        IoResources = (PVOID)Irp->IoStatus.Information;
+
+        if (!IoResources || IoResources->AlternativeLists != 1)
+        {
+            DPRINT1("PiFilterResourceRequirementsPdo: STATUS_NOT_SUPPORTED\n");
+            Status = STATUS_NOT_SUPPORTED;
+            goto Exit;
+        }
+
+        DPRINT1("PiFilterResourceRequirementsPdo: FIXME\n");
+        ASSERT(FALSE);
+
+        Irp->IoStatus.Information = (ULONG_PTR)IoResources;
+
+        goto Exit;
+    }
+
+    DPRINT("PiFilterResourceRequirementsPdo: Filtering resource requirements for RDP\n");
+
+    Status = PipBuildRDPResources(&IoResources, DeviceInfo->Flags);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiFilterResourceRequirementsPdo: Status %X\n", Status);
+        goto Exit;
+    }
+
+    if (Irp->IoStatus.Information)
+        ExFreePool((PVOID)Irp->IoStatus.Information);
+
+    Irp->IoStatus.Information = (ULONG_PTR)IoResources;
+
+Exit:
+
+    PipDereferenceDeviceInformation(DeviceInfo, FALSE);
+    return Status;
 }
 
 NTSTATUS
