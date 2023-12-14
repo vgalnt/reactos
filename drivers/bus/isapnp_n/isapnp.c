@@ -866,8 +866,26 @@ PipQueryDeviceResources(
     _Out_ PCM_RESOURCE_LIST* OutCmResources,
     _Out_ ULONG* OutCmResourcesSize)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    DPRINT("PipQueryDeviceResources: %p\n", DeviceInfo);
+
+    *OutCmResources = NULL;
+    *OutCmResourcesSize = 0;
+
+    if (!DeviceInfo->BootResources)
+        return STATUS_SUCCESS;
+
+    *OutCmResources = ExAllocatePoolWithTag(PagedPool, DeviceInfo->BootResourcesSize, 'pasI');
+    if (!(*OutCmResources))
+    {
+        DPRINT1("PipQueryDeviceResources: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlCopyMemory(*OutCmResources, DeviceInfo->BootResources, DeviceInfo->BootResourcesSize);
+
+    *OutCmResourcesSize = DeviceInfo->BootResourcesSize;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
