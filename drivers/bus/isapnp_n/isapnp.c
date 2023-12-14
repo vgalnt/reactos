@@ -861,12 +861,47 @@ PiQueryCapabilitiesPdo(
 
 NTSTATUS
 NTAPI
+PipQueryDeviceResources(
+    _In_ PISAPNP_DEVICE_INFO DeviceInfo,
+    _Out_ PCM_RESOURCE_LIST* OutCmResources,
+    _Out_ ULONG* OutCmResourcesSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PiQueryResourcesPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_RESOURCE_LIST CmResources = NULL;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    ULONG DummySize;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("PiQueryResourcesPdo: %p, %p\n", DeviceObject, Irp);
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, FALSE);
+    if (!DeviceInfo)
+    {
+        DPRINT1("PiQueryResourcesPdo: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    if (DeviceInfo->Flags & 0x40000000 || (DeviceInfo->Flags & (0x00000008 | 0x00000002)) == 0x00000008)
+        Status = PipQueryDeviceResources(DeviceInfo, &CmResources, &DummySize);
+
+    PipDereferenceDeviceInformation(DeviceInfo, FALSE);
+
+    Irp->IoStatus.Information = (ULONG_PTR)CmResources;
+
+Exit:
+
+    DPRINT("PiQueryResourcesPdo: ret Status %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
