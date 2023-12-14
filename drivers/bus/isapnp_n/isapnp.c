@@ -1613,8 +1613,7 @@ PiIrpNotSupported(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    return STATUS_NOT_SUPPORTED;
 }
 
 NTSTATUS
