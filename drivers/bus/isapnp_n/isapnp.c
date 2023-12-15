@@ -757,15 +757,19 @@ PipReferenceDeviceInformation(
 
 VOID
 NTAPI
+PipWaitForKey(VOID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 PipDereferenceDeviceInformation(
     _In_ PISAPNP_DEVICE_INFO DeviceInfo,
     _In_ BOOLEAN IsWait)
 {
     if (DeviceInfo && !(DeviceInfo->Flags & 0x40000000) && IsWait && PipState != 1)
-    {
-        DPRINT1("PipDereferenceDeviceInformation: FIXME\n");
-        ASSERT(FALSE);
-    }
+        PipWaitForKey();
 }
 
 ULONG
@@ -830,14 +834,131 @@ PipDetermineResourceListSize(
 
 NTSTATUS
 NTAPI
+PipMapAddressAndCmdPort(
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PipMapReadDataPort(
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension,
+    _In_ PHYSICAL_ADDRESS MapAddress,
+    _In_ SIZE_T NumberOfBytes)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+PipLFSRInitiation(VOID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+PipIsolation(VOID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+PipSleep(VOID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+PipIsolateCards(
+    _Out_ UCHAR* OutNumberOfCards)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+PipCleanupAcquiredResources(
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
 PipStartAndSelectRdp(
     _In_ PISAPNP_DEVICE_INFO DeviceInfo,
     _In_ PISAPNP_FDO_EXTENSION FdoExtension,
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResources)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    LONG FinishIdx = -1;
+    ULONG RangeIdx;
+    ULONG ix;
+    UCHAR NumberOfCards;
+    NTSTATUS Status;
+
+    DPRINT("PipStartAndSelectRdp: %X\n", DeviceInfo);
+
+    Status = PipMapAddressAndCmdPort(FdoExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PipStartAndSelectRdp: failed to map the address and command ports\n");
+        return Status;
+    }
+
+    if (CmResources->List[0].PartialResourceList.Count <= 2)
+    {
+        PipCleanupAcquiredResources(FdoExtension);
+        return STATUS_CONFLICTING_ADDRESSES;
+    }
+
+    for (ix = 2, RangeIdx = 0; ix < CmResources->List[0].PartialResourceList.Count; ix++, RangeIdx++)
+    {
+        PipReadDataPortRanges[RangeIdx].NumberOfCards = 0;
+
+        if (!CmResources->List[0].PartialResourceList.PartialDescriptors[ix].u.Port.Length)
+            continue;
+
+        Status = PipMapReadDataPort(FdoExtension,
+                                    CmResources->List[0].PartialResourceList.PartialDescriptors[ix].u.Port.Start,
+                                    CmResources->List[0].PartialResourceList.PartialDescriptors[ix].u.Port.Length);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PipStartAndSelectRdp: failed to map RDP range\n");
+            continue;
+        }
+    
+        FinishIdx = ix;
+
+        PipIsolateCards(&NumberOfCards);
+
+        DPRINT("PipStartAndSelectRdp: Found %d cards at RDP %X\n", NumberOfCards, FdoExtension->Rdp);
+
+        PipReadDataPortRanges[RangeIdx].NumberOfCards = NumberOfCards;
+
+        PipWaitForKey();
+    }
+
+    if (FinishIdx == -1)
+    {
+        PipCleanupAcquiredResources(FdoExtension);
+        return STATUS_CONFLICTING_ADDRESSES;
+    }
+
+    ASSERT((DeviceInfo->Flags & 0x00000080) == 0); // DF_PROCESSING_RDP
+    DeviceInfo->Flags |= (0x00000800 | 0x00000080);
+
+    PipCleanupAcquiredResources(FdoExtension);
+
+    IoInvalidateDeviceState(DeviceObject);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
