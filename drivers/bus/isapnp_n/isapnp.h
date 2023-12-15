@@ -29,6 +29,7 @@ typedef struct _ISAPNP_FDO_EXTENSION
 {
     ULONG Flags;
     PVOID Rdp;
+    BOOLEAN IsRdpMapped;
     PUCHAR AddressPort;
     BOOLEAN IsAddressPortMapped;
     PUCHAR CommandPort;

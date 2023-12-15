@@ -930,8 +930,31 @@ PipMapReadDataPort(
     _In_ PHYSICAL_ADDRESS MapAddress,
     _In_ SIZE_T NumberOfBytes)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+    DPRINT("PipMapReadDataPort: %p, %I64X, %X\n", FdoExtension, MapAddress.QuadPart, NumberOfBytes);
+
+    if (FdoExtension->Rdp && FdoExtension->IsRdpMapped)
+    {
+        MmUnmapIoSpace((PipReadDataPort - 3), 4);
+
+        FdoExtension->Rdp = NULL;
+        PipReadDataPort = NULL;
+        FdoExtension->IsRdpMapped = FALSE;
+    }
+
+    PipReadDataPort = PipGetMappedAddress(Isa, 0, MapAddress, NumberOfBytes, 1, &FdoExtension->IsRdpMapped);
+    if (!PipReadDataPort)
+    {
+        DPRINT1("PipMapReadDataPort: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    PipReadDataPort += 3;
+    FdoExtension->Rdp = PipReadDataPort;
+
+    DPRINT("PipMapReadDataPort: ReadDataPort is at %p\n", PipReadDataPort);
+
+    return STATUS_SUCCESS;
 }
 
 VOID
