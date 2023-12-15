@@ -54,7 +54,8 @@ typedef struct _ISAPNP_DEVICE_INFO
     PVOID DeviceData;
     PCM_RESOURCE_LIST BootResources;
     ULONG BootResourcesSize;
-
+    PCM_RESOURCE_LIST AllocatedResources;
+    HANDLE Handle;
 } ISAPNP_DEVICE_INFO, *PISAPNP_DEVICE_INFO;
 
 typedef struct _ISAPNP_RDP_RANGE

@@ -25,6 +25,8 @@ ULONG ActiveIsaCount;
 RTL_BITMAP BusNumBMHeader;
 PRTL_BITMAP BusNumBM;
 BOOLEAN PipFirstInit;
+BOOLEAN PipFailStartPdo;
+BOOLEAN PipFailStartRdp;
 BOOLEAN PipIsolationDisabled;
 
 ULONG PipState = 1;
@@ -766,14 +768,103 @@ PipDereferenceDeviceInformation(
     }
 }
 
+ULONG
+NTAPI
+PipDetermineResourceListSize(
+    _In_ PCM_RESOURCE_LIST ResourceList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+NTSTATUS
+NTAPI
+PipStartReadDataPort(
+    _In_ PISAPNP_DEVICE_INFO DeviceInfo,
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PCM_RESOURCE_LIST CmResources)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 PiStartPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    PCM_RESOURCE_LIST CmResources;
+    PIO_STACK_LOCATION IoStack;
+    SIZE_T Size;
+    NTSTATUS Status;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    CmResources = IoStack->Parameters.StartDevice.AllocatedResources;
+    if (!CmResources)
+    {
+        DPRINT("PiStartPdo: irp with empty CmResourceList\n");
+    }
+
+    DPRINT("PiStartPdo: irp received PDO: %X\n", DeviceObject);
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, TRUE);
+    if (!DeviceInfo)
+    {
+        DPRINT("PiStartPdo: STATUS_NO_SUCH_DEVICE\n");
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    if (!(DeviceInfo->Flags & 0x40000000))
+    {
+        DPRINT1("PiStartPdo: FIXME\n");
+        ASSERT(FALSE);
+
+        goto Exit;
+    }
+
+    /* (DeviceInfo->Flags & 0x40000000) == 0x40000000 */
+
+    if (PipFailStartRdp)
+    {
+        PipDereferenceDeviceInformation(DeviceInfo, TRUE);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    Size = PipDetermineResourceListSize(CmResources);
+
+    if (!(DeviceInfo->Flags & 0x00000002) &&
+        (DeviceInfo->Flags & 0x00000100) &&
+        Size == PipDetermineResourceListSize(DeviceInfo->AllocatedResources) &&
+        Size == RtlCompareMemory(DeviceInfo->AllocatedResources, CmResources, Size))
+    {
+        DeviceInfo->Flags &= ~0x00000100;
+        Status = STATUS_SUCCESS;
+        IoInvalidateDeviceRelations(DeviceInfo->FdoExtension->AttachToPdo, BusRelations);
+    }
+    else
+    {
+        Status = PipStartReadDataPort(DeviceInfo, DeviceInfo->FdoExtension, DeviceObject, CmResources);
+        if (NT_SUCCESS(Status) || Status == STATUS_NO_SUCH_DEVICE)
+        {
+            Status = STATUS_SUCCESS;
+            IoInvalidateDeviceRelations(DeviceInfo->FdoExtension->AttachToPdo, BusRelations);
+        }
+
+        DeviceInfo->Flags &= ~(0x00000100 | 0x00000040 | 0x00000002);
+    }
+
+    DeviceInfo->Flags |= 0x00000010;
+
+    PipDereferenceDeviceInformation(DeviceInfo, TRUE);
+
+Exit:
+
+    DPRINT("PiStartPdo: ret %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
