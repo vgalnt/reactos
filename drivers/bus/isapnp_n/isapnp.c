@@ -844,8 +844,34 @@ PipGetMappedAddress(
     _In_ ULONG AddressSpace,
     _Out_ BOOLEAN* OutIsMapped)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PVOID MappedAddress;
+    PHYSICAL_ADDRESS TranslatedAddress;
+
+    PAGED_CODE();
+
+    DPRINT("PipGetMappedAddress: %X, %X, %I64X, %X, %X\n",
+           InterfaceType, BusNumber, MapAddress.QuadPart, NumberOfBytes, AddressSpace);
+
+    if (!HalTranslateBusAddress(InterfaceType, BusNumber, MapAddress, &AddressSpace, &TranslatedAddress))
+    {
+        DPRINT1("PipGetMappedAddress: fail translate %X, %X, %I64X, %X, %X\n",
+                InterfaceType, BusNumber, MapAddress.QuadPart, NumberOfBytes, AddressSpace);
+
+        *OutIsMapped = FALSE;
+        return NULL;
+    }
+
+    if (AddressSpace)
+    {
+        *OutIsMapped = FALSE;
+        return (PVOID)TranslatedAddress.LowPart;
+    }
+
+     MappedAddress = MmMapIoSpace(TranslatedAddress, NumberOfBytes, 0);
+
+     *OutIsMapped = (MappedAddress != NULL);
+
+    return MappedAddress;
 }
 
 NTSTATUS
