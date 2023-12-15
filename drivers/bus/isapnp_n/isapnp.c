@@ -773,8 +773,59 @@ NTAPI
 PipDetermineResourceListSize(
     _In_ PCM_RESOURCE_LIST ResourceList)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR PartialDescriptor;
+    PCM_FULL_RESOURCE_DESCRIPTOR FullDescriptor;
+    ULONG PartialSize;
+    ULONG FinalSize;
+    ULONG EntrySize;
+    ULONG ix;
+    ULONG jx;
+
+    /* If we don't have one, that's easy */
+    if (!ResourceList)
+        return 0;
+
+    /* Start with the minimum size possible */
+    FinalSize = FIELD_OFFSET(CM_RESOURCE_LIST, List);
+
+    /* Loop each full descriptor */
+    FullDescriptor = ResourceList->List;
+
+    for (ix = 0; ix < ResourceList->Count; ix++)
+    {
+        /* Start with the minimum size possible */
+        PartialSize = FIELD_OFFSET(CM_FULL_RESOURCE_DESCRIPTOR, PartialResourceList) +
+        FIELD_OFFSET(CM_PARTIAL_RESOURCE_LIST, PartialDescriptors);
+
+        /* Loop each partial descriptor */
+        PartialDescriptor = FullDescriptor->PartialResourceList.PartialDescriptors;
+
+        for (jx = 0; jx < FullDescriptor->PartialResourceList.Count; jx++)
+        {
+            /* Start with the minimum size possible */
+            EntrySize = sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR);
+
+            /* Check if there is extra data */
+            if (PartialDescriptor->Type == CmResourceTypeDeviceSpecific)
+                /* Add that data */
+                EntrySize += PartialDescriptor->u.DeviceSpecificData.DataSize;
+
+            /* The size of partial descriptors is bigger */
+            PartialSize += EntrySize;
+
+            /* Go to the next partial descriptor */
+            PartialDescriptor = Add2Ptr(PartialDescriptor, EntrySize);
+        }
+
+        /* The size of full descriptors is bigger */
+        FinalSize += PartialSize;
+
+        /* Go to the next full descriptor */
+        FullDescriptor = Add2Ptr(FullDescriptor, PartialSize);
+    }
+
+    /* Return the final size */
+    return FinalSize;
 }
 
 NTSTATUS
