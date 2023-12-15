@@ -830,12 +830,48 @@ PipDetermineResourceListSize(
 
 NTSTATUS
 NTAPI
+PipStartAndSelectRdp(
+    _In_ PISAPNP_DEVICE_INFO DeviceInfo,
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PCM_RESOURCE_LIST CmResources)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PipStartReadDataPort(
     _In_ PISAPNP_DEVICE_INFO DeviceInfo,
     _In_ PISAPNP_FDO_EXTENSION FdoExtension,
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResources)
 {
+    DPRINT("PipStartReadDataPort: %X\n", DeviceInfo);
+
+    if (!CmResources)
+    {
+        DPRINT1("PipStartReadDataPort: Start RDP with no resources?\n");
+        ASSERT(FALSE);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (CmResources->List[0].PartialResourceList.Count < 2)
+    {
+        DPRINT1("PipStartReadDataPort: Start RDP with insufficient resources?\n");
+        ASSERT(FALSE);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (CmResources->List[0].PartialResourceList.Count > 3)
+        return PipStartAndSelectRdp(DeviceInfo, FdoExtension, DeviceObject, CmResources);
+
+    /* CmResources->List[0].PartialResourceList.Count == 3 */
+
+    DPRINT1("PipStartReadDataPort: Starting RDP as port %X\n",
+           (CmResources->List[0].PartialResourceList.PartialDescriptors[2].u.Port.Start.LowPart + 3));
+
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
 }
