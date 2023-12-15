@@ -32,6 +32,8 @@ BOOLEAN PipIsolationDisabled;
 ULONG PipState = 1;
 
 PUCHAR PipReadDataPort;
+PUCHAR PipAddressPort;
+PUCHAR PipCommandPort;
 
 ULONG ADDRESS_PORT = 0x0279;
 ULONG COMMAND_PORT = 0x0A79;
@@ -832,13 +834,67 @@ PipDetermineResourceListSize(
     return FinalSize;
 }
 
+PVOID
+NTAPI
+PipGetMappedAddress(
+    _In_ INTERFACE_TYPE InterfaceType,
+    _In_ ULONG BusNumber,
+    _In_ PHYSICAL_ADDRESS MapAddress,
+    _In_ SIZE_T NumberOfBytes,
+    _In_ ULONG AddressSpace,
+    _Out_ BOOLEAN* OutIsMapped)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 NTSTATUS
 NTAPI
 PipMapAddressAndCmdPort(
     _In_ PISAPNP_FDO_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PHYSICAL_ADDRESS PhAddress;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("PipMapAddressAndCmdPort: %p\n", FdoExtension);
+
+    if (!PipAddressPort)
+    {
+        PhAddress.QuadPart = ADDRESS_PORT;
+        FdoExtension->AddressPort = PipAddressPort = PipGetMappedAddress(Isa,
+                                                                         0,
+                                                                         PhAddress,
+                                                                         1,
+                                                                         1,
+                                                                         &FdoExtension->IsAddressPortMapped);
+        if (!PipAddressPort)
+        {
+            DPRINT1("PipMapAddressAndCmdPort: FIXME\n");
+            ASSERT(FALSE);
+            //PipLogError(..);
+            Status = STATUS_UNSUCCESSFUL;
+        }
+    }
+
+    if (!PipCommandPort)
+    {
+        PhAddress.QuadPart = COMMAND_PORT;
+        FdoExtension->CommandPort = PipCommandPort = PipGetMappedAddress(Isa,
+                                                                         0,
+                                                                         PhAddress,
+                                                                         1,
+                                                                         1,
+                                                                         &FdoExtension->IsCommandPortMapped);
+        if (!PipCommandPort)
+        {
+            DPRINT1("PipMapAddressAndCmdPort: FIXME\n");
+            ASSERT(FALSE);
+            //PipLogError(..);
+            Status = STATUS_UNSUCCESSFUL;
+        }
+    }
+
+    return Status;
 }
 
 NTSTATUS

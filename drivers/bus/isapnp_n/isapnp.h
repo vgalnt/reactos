@@ -29,6 +29,10 @@ typedef struct _ISAPNP_FDO_EXTENSION
 {
     ULONG Flags;
     PVOID Rdp;
+    PUCHAR AddressPort;
+    BOOLEAN IsAddressPortMapped;
+    PUCHAR CommandPort;
+    BOOLEAN IsCommandPortMapped;
     SINGLE_LIST_ENTRY DeviceList;
     PDEVICE_OBJECT AttachToPdo;
     PDEVICE_OBJECT Fdo;
