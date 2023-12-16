@@ -30,6 +30,8 @@ BOOLEAN PipFailStartRdp;
 BOOLEAN PipIsolationDisabled;
 
 ULONG PipState = 1;
+UCHAR CurrentCsn = 0x00;
+UCHAR CurrentDev = 0xFF;
 
 PUCHAR PipReadDataPort;
 PUCHAR PipAddressPort;
@@ -998,7 +1000,19 @@ VOID
 NTAPI
 PipIsolation(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ASSERT((PipState == 4) || // PiSConfig
+           (PipState == 3) || // PiSIsolation
+           (PipState == 2));  // PiSSleep
+
+    WRITE_PORT_UCHAR(PipAddressPort, 3);
+    WRITE_PORT_UCHAR(PipCommandPort, 0);
+
+    CurrentCsn = 0x00;
+    CurrentDev = 0xFF;
+
+    DPRINT("PipIsolation: Isolate cards w/o CSN\n");
+
+    PipReportStateChange(3);
 }
 
 VOID
