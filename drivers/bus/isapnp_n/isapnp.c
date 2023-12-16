@@ -1019,7 +1019,18 @@ VOID
 NTAPI
 PipSleep(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ASSERT((PipState == 4) || // PiSConfig
+           (PipState == 3));  // PiSIsolation
+
+    WRITE_PORT_UCHAR(PipAddressPort, 3);
+    WRITE_PORT_UCHAR(PipCommandPort, 0);
+
+    CurrentCsn = 0x00;
+    CurrentDev = 0xFF;
+
+    DPRINT("PipSleep: Putting all cards to sleep (we think)\n");
+
+    PipReportStateChange(2);
 }
 
 /* Plug and Play ISA Specification. Version 1.0a May 5, 1994
