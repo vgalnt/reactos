@@ -772,7 +772,19 @@ VOID
 NTAPI
 PipWaitForKey(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("PipWaitForKey()\n");
+
+    ASSERT((PipState == 4) || // PiSConfig
+           (PipState == 3) || // PiSIsolation
+           (PipState == 2));  // PiSSleep
+
+    WRITE_PORT_UCHAR(PipAddressPort, 2);
+    WRITE_PORT_UCHAR(PipCommandPort, 2);
+
+    PipReportStateChange(1);
+
+    CurrentCsn = 0x00;
+    CurrentDev = 0xFF;
 }
 
 VOID
