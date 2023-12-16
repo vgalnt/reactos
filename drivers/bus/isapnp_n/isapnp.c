@@ -965,11 +965,32 @@ PipMapReadDataPort(
     return STATUS_SUCCESS;
 }
 
+/* Plug and Play ISA Specification. Version 1.0a May 5, 1994
+   Appendix B.1. Initiation LFSR Function
+*/
 VOID
 NTAPI
 PipLFSRInitiation(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG ix;
+    UCHAR Value = 0x6A;
+
+    ASSERT(PipState == 1); // PiSWaitForKey
+
+    WRITE_PORT_UCHAR(PipAddressPort, 0);
+    WRITE_PORT_UCHAR(PipAddressPort, 0);
+
+    ix = 0x20;
+    do
+    {
+        WRITE_PORT_UCHAR(PipAddressPort, Value);
+        Value = ((Value >> 1) | (((UCHAR)(2 * Value) ^ (UCHAR)(Value & 0xFE)) << 6));
+        ix--;
+    }
+    while (ix);
+
+    DPRINT("PipLFSRInitiation: Sent initiation key\n");
+    PipReportStateChange(2);
 }
 
 VOID
