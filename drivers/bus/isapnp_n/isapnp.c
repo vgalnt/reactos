@@ -762,7 +762,8 @@ NTAPI
 PipReportStateChange(
     _In_ ULONG NewState)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("PipReportStateChange: State transition: %X to %X\n", PipState, NewState);
+    PipState = NewState;
 }
 
 VOID
