@@ -759,6 +759,14 @@ PipReferenceDeviceInformation(
 
 VOID
 NTAPI
+PipReportStateChange(
+    _In_ ULONG NewState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 PipWaitForKey(VOID)
 {
     UNIMPLEMENTED_DBGBREAK();
@@ -978,12 +986,128 @@ PipSleep(VOID)
     UNIMPLEMENTED_DBGBREAK();
 }
 
+/* Plug and Play ISA Specification. Version 1.0a May 5, 1994
+   6. Plug and Play Resources
+   6.1. s_serialidSerial Identifier
+   Appendix B. LFSR Definition
+*/
 VOID
 NTAPI
 PipIsolateCards(
     _Out_ UCHAR* OutNumberOfCards)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG ix;
+    USHORT BitIdx;
+    UCHAR Checksum;
+    UCHAR NumberOfCards = 0;
+    UCHAR PnpHeader[9]; // The serial identifier of all Plug and Play ISA cards (Table 2. Plug and Play Header)
+    UCHAR Test1;
+    UCHAR Test2;
+    UCHAR CurrentBit;
+
+    DPRINT("PipIsolateCards()\n");
+
+    PipLFSRInitiation();
+
+    WRITE_PORT_UCHAR(PipAddressPort, 2);
+    WRITE_PORT_UCHAR(PipCommandPort, 6);
+
+    DPRINT("PipIsolateCards: Reset CSNs, going to WaitForKey\n");
+
+    PipReportStateChange(1);
+
+    *OutNumberOfCards = 0;
+
+    KeStallExecutionProcessor(2000);
+    PipLFSRInitiation();
+    PipIsolation();
+    KeStallExecutionProcessor(1000);
+
+    DPRINT("PipIsolateCards: Wake all cards without CSN, Isolation\n");
+
+    WRITE_PORT_UCHAR(PipAddressPort, 0);
+    WRITE_PORT_UCHAR(PipCommandPort, ((ULONG_PTR)PipReadDataPort >> 2));
+
+    DPRINT("PipIsolateCards: Set RDP to %X\n", PipReadDataPort);
+
+    PipIsolation();
+
+    while (TRUE)
+    {
+        WRITE_PORT_UCHAR(PipAddressPort, 1);
+        KeStallExecutionProcessor(1000);
+
+        RtlZeroMemory(PnpHeader, 9);
+
+        /* Appendix B.2. LFSR Checksum Functions */
+        Checksum = 0x6A;
+
+        for (BitIdx = 0; BitIdx < 0x48; BitIdx++) // 72 = 8bit * 9(number of bytes for PnpHeader)
+        {
+            Test1 = READ_PORT_UCHAR(PipReadDataPort);
+            Test2 = READ_PORT_UCHAR(PipReadDataPort);
+
+            CurrentBit = (Test1 == 0x55 && Test2 == 0xAA);
+            PnpHeader[BitIdx / 8] |= (CurrentBit << (BitIdx % 8));
+
+            if (BitIdx < 0x40) // 64 = 8bit * 8(PnpHeader minus Checksum (one byte))
+            {
+                Checksum = ((Checksum >> 1) | ((((Checksum & 2) >> 1) ^ (Checksum & 1) ^ (CurrentBit)) << 7));
+            }
+
+            KeStallExecutionProcessor(250);
+        }
+
+        DPRINT("PipIsolateCards: Card Bytes: %X %X %X %X %X %X %X %X %X\n",
+               PnpHeader[0], PnpHeader[1], PnpHeader[2], PnpHeader[3],
+               PnpHeader[4], PnpHeader[5], PnpHeader[6], PnpHeader[7], PnpHeader[8]);
+
+        if (PnpHeader[8] && Checksum != PnpHeader[8])
+        {
+            DPRINT("PipIsolateCards: invalid read during isolation\n");
+            break;
+        }
+
+        Test1 = 0;
+
+        for (ix = 0; ix < 9; ix++)
+            Test1 |= PnpHeader[ix];
+
+        if (!Test1)
+            break;
+
+        if (!(PnpHeader[0] & 0x7F) || !PnpHeader[1])
+            break;
+
+        DPRINT("PipIsolateCards: Assigning NumberOfCards %d\n", (NumberOfCards + 1));
+
+        WRITE_PORT_UCHAR(PipAddressPort, 6);
+
+        NumberOfCards++;
+        WRITE_PORT_UCHAR(PipCommandPort, NumberOfCards);
+
+        if (READ_PORT_UCHAR(PipReadDataPort) != NumberOfCards)
+        {
+            NumberOfCards--;
+
+            DPRINT1("PipIsolateCards: Assigning NumberOfCards %X FAILED, bailing!\n", (NumberOfCards + 1));
+
+            PipIsolation();
+            PipSleep();
+
+            *OutNumberOfCards = NumberOfCards;
+
+            return;
+        }
+
+        PipIsolation();
+
+        DPRINT("PipIsolateCards: Put card in Sleep, other in Isolation\n");
+    }
+
+    PipSleep();
+
+    *OutNumberOfCards = NumberOfCards;
 }
 
 VOID
