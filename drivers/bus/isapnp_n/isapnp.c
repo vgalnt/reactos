@@ -531,8 +531,17 @@ PiQueryDeviceRelationsFdo(
 
     if ((PipRDPNode->Flags & (0x0020 | 0x0010)) == 0x0010)
     {
-        DPRINT1("PiQueryDeviceRelationsFdo: FIXME\n");
-        ASSERT(FALSE);
+        IsRescan = TRUE;
+
+        for (Entry = FdoExtension->DeviceList.Next; Entry; Entry = Entry->Next)
+        {
+            if (!(CONTAINING_RECORD(Entry, ISAPNP_DEVICE_INFO, Link)->Flags & 0x00000040))
+            {
+                DPRINT("PiQueryDeviceRelationsFdo: Found 1 card, no more isolation\n");
+                IsRescan = FALSE;
+                break;
+            }
+        }
     }
     else
     {
