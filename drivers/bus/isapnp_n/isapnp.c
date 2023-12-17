@@ -435,8 +435,69 @@ PipQueryDeviceRelations(
     _Out_ PDEVICE_RELATIONS* OutDeviceRelations,
     _In_ BOOLEAN IsSkipNode)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_RELATIONS DeviceRelations;
+    PSINGLE_LIST_ENTRY Entry;
+    PDEVICE_OBJECT* Objects;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    ULONG Count = 0;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    PAGED_CODE();
+    DPRINT("PipQueryDeviceRelations: %p, %X\n", FdoExtension, IsSkipNode);
+
+    *OutDeviceRelations = NULL;
+
+    Entry = FdoExtension->DeviceList.Next;
+    if (!Entry)
+        return Status;
+
+    do
+    {
+        DeviceInfo = CONTAINING_RECORD(Entry, ISAPNP_DEVICE_INFO, Link);
+
+        if (!(DeviceInfo->Flags & 0x00000008) || ((DeviceInfo->Flags & 0x40000000) && IsSkipNode))
+            DPRINT("PipQueryDeviceRelations skipping a node, Flags: %X\n", DeviceInfo->Flags);
+        else
+            Count++;
+
+        Entry = Entry->Next;
+    }
+    while (Entry);
+
+    if (!Count)
+        return Status;
+
+    DeviceRelations = ExAllocatePoolWithTag(PagedPool,
+                                            (sizeof(DEVICE_RELATIONS) + ((Count - 1) * sizeof(PDEVICE_OBJECT))),
+                                            'pasI');
+    if (!DeviceRelations)
+    {
+        DPRINT1("PipQueryDeviceRelations: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    DeviceRelations->Count = Count;
+
+    Objects = DeviceRelations->Objects;
+    Entry = FdoExtension->DeviceList.Next;
+
+    while (Entry)
+    {
+        DeviceInfo = CONTAINING_RECORD(Entry, ISAPNP_DEVICE_INFO, Link);
+
+        if ((DeviceInfo->Flags & 0x00000008) && (!(DeviceInfo->Flags & 0x40000000) || !IsSkipNode))
+        {
+            ObReferenceObject(DeviceInfo->ReadDataPortDO);
+            *Objects = DeviceInfo->ReadDataPortDO;
+            Objects++;
+        }
+
+        Entry = Entry->Next;
+    }
+
+    *OutDeviceRelations = DeviceRelations;
+
+    return Status;
 }
 
 NTSTATUS
