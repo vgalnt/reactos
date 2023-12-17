@@ -2209,8 +2209,26 @@ PiQueryDeviceState(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    NTSTATUS Status = STATUS_NOT_SUPPORTED;
+
+    DPRINT("PiQueryDeviceState: %p, %p\n", DeviceObject, Irp);
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, FALSE);
+    if (!DeviceInfo)
+        return Status;
+
+    if ((DeviceInfo->Flags & 0x40000000) && (DeviceInfo->Flags & 0x00000080))
+    {
+        Irp->IoStatus.Information |= 0x34;
+        Status = STATUS_SUCCESS;
+    }
+
+    // FIXME DeviceInfo->?
+
+    PipDereferenceDeviceInformation(DeviceInfo, FALSE);
+
+    return Status;
 }
 
 NTSTATUS
