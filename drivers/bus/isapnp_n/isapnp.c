@@ -274,12 +274,59 @@ PiStartFdo(
 
 NTSTATUS
 NTAPI
+PipRebuildInterfaces(
+    _In_ PISAPNP_FDO_EXTENSION FdoExtension)
+{
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 PiQueryRemoveStopFdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_FDO_EXTENSION FdoExtension;
+    NTSTATUS Status;
+
+    DPRINT("PiQueryRemoveStopFdo: %p\n", DeviceObject);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+
+    KeWaitForSingleObject(&IsaBusNumberLock, Executive, KernelMode, FALSE, NULL);
+
+    if (FdoExtension->BusNumber)
+    {
+        Status = PipRebuildInterfaces(FdoExtension);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PiQueryRemoveStopFdo: Status %X\n", Status);
+            PipCompleteRequest(Irp, Status, 0);
+            return Status;
+        }
+
+        ActiveIsaCount--;
+
+        FdoExtension->Flags |= 0x00000020;
+    }
+    else
+    {
+        Status = STATUS_UNSUCCESSFUL;
+        Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    }
+
+    KeSetEvent(&IsaBusNumberLock, IO_NO_INCREMENT, FALSE);
+
+    if (NT_SUCCESS(Status))
+    {
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+        Status = PipPassIrp(DeviceObject, Irp);
+    }
+
+    DPRINT("PiQueryRemoveStopFdo: ret %X\n", Status);
+
+    return Status;
 }
 
 NTSTATUS
