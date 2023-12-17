@@ -345,8 +345,31 @@ PiCancelRemoveStopFdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_FDO_EXTENSION FdoExtension;
+    NTSTATUS Status;
+
+    DPRINT("PiCancelRemoveStopFdo: %p\n", DeviceObject);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+    PiDeferProcessingFdo(FdoExtension, Irp);
+
+    KeWaitForSingleObject(&IsaBusNumberLock, Executive, KernelMode, FALSE, NULL);
+
+    if (FdoExtension->Flags & 0x00000020)
+        ActiveIsaCount++;
+
+    FdoExtension->Flags &= ~0x00000020;
+
+    KeSetEvent(&IsaBusNumberLock, IO_NO_INCREMENT, FALSE);
+
+    Status = PipRebuildInterfaces(FdoExtension);
+    ASSERT(Status == STATUS_SUCCESS);
+
+    PipCompleteRequest(Irp, STATUS_SUCCESS, 0);
+
+    DPRINT("PiCancelRemoveStopFdo: ret %X\n", Status);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
