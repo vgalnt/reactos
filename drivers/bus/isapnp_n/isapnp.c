@@ -1174,7 +1174,35 @@ NTAPI
 PipCleanupAcquiredResources(
     _In_ PISAPNP_FDO_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PAGED_CODE();
+
+    if (FdoExtension->CommandPort && FdoExtension->IsCommandPortMapped)
+    {
+        MmUnmapIoSpace(FdoExtension->CommandPort, 1);
+        FdoExtension->IsCommandPortMapped = FALSE;
+    }
+    FdoExtension->CommandPort = NULL;
+
+    if (FdoExtension->AddressPort && FdoExtension->IsAddressPortMapped)
+    {
+        MmUnmapIoSpace(FdoExtension->AddressPort, 1);
+        FdoExtension->IsAddressPortMapped = FALSE;
+    }
+    FdoExtension->AddressPort = NULL;
+
+    if (FdoExtension->Rdp)
+    {
+        PipAddressPort = NULL;
+        PipCommandPort = NULL;
+        PipReadDataPort = NULL;
+    }
+
+    if (FdoExtension->Rdp && FdoExtension->IsRdpMapped)
+    {
+        MmUnmapIoSpace((PVOID)((ULONG_PTR)FdoExtension->Rdp - 3), 4);
+        FdoExtension->IsRdpMapped = FALSE;
+    }
+    FdoExtension->Rdp = NULL;
 }
 
 NTSTATUS
