@@ -1437,8 +1437,31 @@ PiQueryDeviceRelationsPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    DPRINT("PiQueryDeviceRelationsPdo: %p, %p\n", DeviceObject, Irp);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.QueryDeviceRelations.Type == RemovalRelations)
+    {
+        DPRINT1("PiQueryDeviceRelationsPdo: FIXME\n");
+        ASSERT(FALSE);
+        return Status;
+    }
+
+    if (IoStack->Parameters.QueryDeviceRelations.Type != TargetDeviceRelation)
+    {
+        DPRINT("PiQueryDeviceRelationsPdo: STATUS_NOT_SUPPORTED\n");
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    /* TargetDeviceRelation */
+
+    DPRINT1("PiQueryDeviceRelationsPdo: FIXME\n");
+    ASSERT(FALSE);
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
