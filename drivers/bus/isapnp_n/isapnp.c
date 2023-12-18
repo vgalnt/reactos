@@ -1637,8 +1637,44 @@ PiStopPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    POWER_STATE PowerState;
+    NTSTATUS Status;
+
+    DPRINT("PiStopPdo: %X\n", DeviceObject);
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, TRUE);
+    if (!DeviceInfo)
+    {
+        DPRINT("PiStopPdo: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    if (DeviceObject != PipRDPNode->ReadDataPortDO)
+    {
+        DPRINT1("PiStopPdo: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    if (DeviceInfo->Flags & 0x00000010)
+    {
+        DeviceInfo->Flags &= ~0x00000010;
+
+        PowerState.DeviceState = PowerDeviceD3;
+        PoSetPowerState(DeviceObject, DevicePowerState, PowerState);
+    }
+
+    DeviceInfo->Flags = ((DeviceInfo->Flags & ~0x00000020) | 0x00000100);
+
+    PipDereferenceDeviceInformation(DeviceInfo, TRUE);
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    DPRINT("PiStopPdo: ret %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
