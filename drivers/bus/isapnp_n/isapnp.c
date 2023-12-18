@@ -1425,6 +1425,9 @@ PipStartReadDataPort(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PCM_RESOURCE_LIST CmResources)
 {
+    UCHAR NumberOfCards;
+    NTSTATUS Status;
+
     DPRINT("PipStartReadDataPort: %X\n", DeviceInfo);
 
     if (!CmResources)
@@ -1449,8 +1452,31 @@ PipStartReadDataPort(
     DPRINT1("PipStartReadDataPort: Starting RDP as port %X\n",
            (CmResources->List[0].PartialResourceList.PartialDescriptors[2].u.Port.Start.LowPart + 3));
 
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    Status = PipMapAddressAndCmdPort(FdoExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PipStartReadDataPort: failed to map the address and command ports\n");
+        return Status;
+    }
+
+    Status = PipMapReadDataPort(FdoExtension,
+                                CmResources->List[0].PartialResourceList.PartialDescriptors[2].u.Port.Start, 
+                                CmResources->List[0].PartialResourceList.PartialDescriptors[2].u.Port.Length);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PipStartReadDataPort: failed to map RDP range\n");
+        return Status;
+    }
+
+    PipIsolateCards(&NumberOfCards);
+
+    DPRINT("PipStartReadDataPort: Found %X cards at RDP %X, WaitForKey\n", NumberOfCards, FdoExtension->Rdp);
+
+    DeviceInfo->Flags = ((DeviceInfo->Flags & ~0x00000080) | 0x00000010);
+
+    PipWaitForKey();
+
+    return Status;
 }
 
 NTSTATUS
