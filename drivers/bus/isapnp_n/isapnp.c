@@ -1537,8 +1537,78 @@ PiQueryRemoveStopPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    PIO_STACK_LOCATION IoStack;
+    PCHAR Type;
+    NTSTATUS Status;
+
+    IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+
+    if (IoStack->MinorFunction == IRP_MN_QUERY_STOP_DEVICE)
+        Type = "Stop";
+    else
+        Type = "Remove";
+
+    DPRINT("PiQueryRemoveStopPdo: Query%s irp received (PDO %p)\n", Type, DeviceObject);
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, FALSE);
+    if (!DeviceInfo)
+    {
+        DPRINT("PiQueryRemoveStopPdo: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    //FIXME DeviceInfo->?
+
+    if (DeviceInfo->Flags & 0x40000000)
+    {
+        if (IoStack->MinorFunction != IRP_MN_QUERY_STOP_DEVICE)
+        {
+            Status = STATUS_SUCCESS;
+            goto Exit1;
+        }
+
+        if ((DeviceInfo->Flags & 0x00000080))
+        {
+            Status = STATUS_RESOURCE_REQUIREMENTS_CHANGED;
+            goto Exit1;
+        }
+
+        DPRINT1("PiQueryRemoveStopPdo: FIXME\n");
+        ASSERT(FALSE);
+        goto Exit1;
+    }
+
+    if (IoStack->MinorFunction == IRP_MN_QUERY_STOP_DEVICE && !(DeviceInfo->Flags & 0x00000008))
+    {
+        DPRINT1("PiQueryRemoveStopPdo: STATUS_UNSUCCESSFUL\n");
+        Status = STATUS_UNSUCCESSFUL;
+        goto Exit1;
+    }
+
+    ASSERT(!(PipRDPNode->Flags & 0x0102)); // (DF_STOPPED | DF_REMOVED)
+
+    if (IoStack->MinorFunction != IRP_MN_QUERY_REMOVE_DEVICE)
+    {
+        DeviceInfo->Flags |= 0x00000020;
+        Status = STATUS_SUCCESS;
+        goto Exit1;
+    }
+
+    //FIXME DeviceInfo->CardInfo->?
+
+    DPRINT("PiQueryRemoveStopPdo: Failed query remove due to broken isolatee\n");
+
+Exit1:
+
+    PipDereferenceDeviceInformation(DeviceInfo, FALSE);
+
+Exit:
+
+    DPRINT("PiQueryRemoveStopPdo: Query%s Device ret %X\n", Type, Status);
+
+    return Status;
 }
 
 NTSTATUS
