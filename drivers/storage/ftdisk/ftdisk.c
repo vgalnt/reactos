@@ -2009,8 +2009,8 @@ FtDiskDeviceControl(
                 break;
 
             default:
-                DPRINT1("FtDiskDeviceControl: %p, %p, %X\n", DeviceObject, Irp, ControlCode);
-                ASSERT(FALSE);
+                DPRINT1("FtDiskDeviceControl: not supported %X (%p, %p)\n", ControlCode, DeviceObject, Irp);
+                //ASSERT(FALSE);
                 Status = STATUS_INVALID_DEVICE_REQUEST;
                 break;
         }
@@ -2241,8 +2241,8 @@ FtDiskDeviceControl(
             break;
 
         default:
-            DPRINT1("FtDiskDeviceControl: %p, %p, %X\n", DeviceObject, Irp, ControlCode);
-            ASSERT(FALSE);
+            DPRINT1("FtDiskDeviceControl: not supported %X (%p, %p)\n", ControlCode, DeviceObject, Irp);
+            //ASSERT(FALSE);
             Status = STATUS_INVALID_DEVICE_REQUEST;
             break;
     }
