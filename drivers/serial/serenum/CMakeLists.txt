@@ -15,4 +15,4 @@ add_library(serenum MODULE
 add_pch(serenum serenum.h SOURCE)
 set_module_type(serenum kernelmodedriver)
 add_importlibs(serenum ntoskrnl hal)
-add_cd_file(TARGET serenum DESTINATION reactos/system32/drivers FOR all)
+add_cd_file(TARGET serenum DESTINATION reactos/system32/drivers NO_CAB FOR all)

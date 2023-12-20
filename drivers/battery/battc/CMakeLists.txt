@@ -9,4 +9,4 @@ add_library(battc MODULE
 
 set_module_type(battc kernelmodedriver)
 add_importlibs(battc ntoskrnl hal)
-add_cd_file(TARGET battc DESTINATION reactos/system32/drivers FOR all)
+add_cd_file(TARGET battc DESTINATION reactos/system32/drivers NO_CAB FOR all)

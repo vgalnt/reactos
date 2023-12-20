@@ -22,4 +22,4 @@ add_library(serial MODULE
 set_module_type(serial kernelmodedriver)
 add_importlibs(serial ntoskrnl hal)
 add_pch(serial serial.h SOURCE)
-add_cd_file(TARGET serial DESTINATION reactos/system32/drivers FOR all)
+add_cd_file(TARGET serial DESTINATION reactos/system32/drivers NO_CAB FOR all)
