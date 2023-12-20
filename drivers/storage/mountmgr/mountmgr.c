@@ -1854,7 +1854,7 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject,
 
     RtlCopyUnicodeString(&(DeviceExtension->RegistryPath), RegistryPath);
 
-    DeviceExtension->NoAutoMount = MountmgrReadNoAutoMount(&(DeviceExtension->RegistryPath));
+    DeviceExtension->NoAutoMount = !MountmgrReadNoAutoMount(&(DeviceExtension->RegistryPath));
 
     GlobalCreateSymbolicLink(&DosDevicesMount, &DeviceMount);
 
