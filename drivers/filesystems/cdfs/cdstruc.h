@@ -349,10 +349,6 @@ typedef struct _CD_DATA {
 
     PDEVICE_OBJECT FileSystemDeviceObject;
 
-#ifdef __REACTOS__
-    PDEVICE_OBJECT HddFileSystemDeviceObject;
-#endif
-
     //
     //  Following are used to manage the async and delayed close queue.
     //

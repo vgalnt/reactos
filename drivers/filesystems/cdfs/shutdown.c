@@ -167,10 +167,6 @@ Return Value:
 
     IoUnregisterFileSystem( CdData.FileSystemDeviceObject );
     IoDeleteDevice( CdData.FileSystemDeviceObject );
-#ifdef __REACTOS__
-    IoUnregisterFileSystem( CdData.HddFileSystemDeviceObject );
-    IoDeleteDevice( CdData.HddFileSystemDeviceObject );
-#endif
 
     CdCompleteRequest( IrpContext, Irp, STATUS_SUCCESS );
     return STATUS_SUCCESS;

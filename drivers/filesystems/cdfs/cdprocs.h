@@ -1124,6 +1124,16 @@ CdFilterCallbackAcquireForCreateSection (
     _Unreferenced_parameter_ PVOID *CompletionContext
     );
 
+  #if (NTDDI_VERSION < NTDDI_VISTA)                         
+_Function_class_(FAST_IO_RELEASE_FILE)
+_Requires_lock_held_(_Global_critical_region_)
+VOID
+NTAPI /* ReactOS Change: GCC Does not support STDCALL by default */
+CdAcquireForCreateSection (
+    _In_ PFILE_OBJECT FileObject
+    );
+  #endif
+
 _Function_class_(FAST_IO_RELEASE_FILE)
 _Requires_lock_held_(_Global_critical_region_)
 VOID

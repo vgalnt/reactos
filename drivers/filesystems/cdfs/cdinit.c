@@ -45,10 +45,6 @@ NTSTATUS
 CdInitializeGlobalData (
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PDEVICE_OBJECT FileSystemDeviceObject
-#ifdef __REACTOS__
-    ,
-    IN PDEVICE_OBJECT HddFileSystemDeviceObject
-#endif
     );
 
 #ifdef ALLOC_PRAGMA
@@ -92,10 +88,9 @@ Return Value:
     NTSTATUS Status;
     UNICODE_STRING UnicodeString;
     PDEVICE_OBJECT CdfsFileSystemDeviceObject;
+  #if (NTDDI_VERSION >= NTDDI_VISTA)                         
     FS_FILTER_CALLBACKS FilterCallbacks;
-#ifdef __REACTOS__
-    PDEVICE_OBJECT HddFileSystemDeviceObject;
-#endif
+  #endif
 
     UNREFERENCED_PARAMETER( RegistryPath );
 
@@ -116,27 +111,6 @@ Return Value:
     if (!NT_SUCCESS( Status )) {
         return Status;
     }
-
-#ifdef __REACTOS__
-    //
-    // Create the HDD device object.
-    //
-
-    RtlInitUnicodeString( &UnicodeString, L"\\CdfsHdd" );
-
-    Status = IoCreateDevice( DriverObject,
-                             0,
-                             &UnicodeString,
-                             FILE_DEVICE_DISK_FILE_SYSTEM,
-                             0,
-                             FALSE,
-                             &HddFileSystemDeviceObject );
-
-    if (!NT_SUCCESS( Status )) {
-        IoDeleteDevice (CdfsFileSystemDeviceObject);
-        return Status;
-    }
-#endif
 
 #ifdef _MSC_VER
 #pragma prefast(push)
@@ -183,6 +157,7 @@ Return Value:
 #endif
     DriverObject->FastIoDispatch = &CdFastIoDispatch;
 
+  #if (NTDDI_VERSION >= NTDDI_VISTA)                         
     //
     //  Initialize the filter callbacks we use.
     //
@@ -199,26 +174,17 @@ Return Value:
     if (!NT_SUCCESS( Status )) {
 
         IoDeleteDevice( CdfsFileSystemDeviceObject );
-#ifdef __REACTOS__
-        IoDeleteDevice (HddFileSystemDeviceObject);
-#endif
         return Status;
     }
+  #endif
 
     //
     //  Initialize the global data structures
     //
 
-#ifndef __REACTOS__
     Status = CdInitializeGlobalData( DriverObject, CdfsFileSystemDeviceObject );
-#else
-    Status = CdInitializeGlobalData( DriverObject, CdfsFileSystemDeviceObject, HddFileSystemDeviceObject );
-#endif
     if (!NT_SUCCESS (Status)) {
         IoDeleteDevice (CdfsFileSystemDeviceObject);
-#ifdef __REACTOS__
-        IoDeleteDevice (HddFileSystemDeviceObject);
-#endif
         return Status;
     }
 
@@ -229,16 +195,9 @@ Return Value:
     //
 
     CdfsFileSystemDeviceObject->Flags |= DO_LOW_PRIORITY_FILESYSTEM;
-#ifdef __REACTOS__
-    HddFileSystemDeviceObject->Flags |= DO_LOW_PRIORITY_FILESYSTEM;
-#endif
 
     IoRegisterFileSystem( CdfsFileSystemDeviceObject );
     ObReferenceObject (CdfsFileSystemDeviceObject);
-#ifdef __REACTOS__
-    IoRegisterFileSystem( HddFileSystemDeviceObject );
-    ObReferenceObject (HddFileSystemDeviceObject);
-#endif
 
 #ifdef CDFS_TELEMETRY_DATA
     //
@@ -298,9 +257,6 @@ Return Value:
     IoFreeWorkItem (CdData.CloseItem);
     ExDeleteResourceLite( &CdData.DataResource );
     ObDereferenceObject (CdData.FileSystemDeviceObject);
-#ifdef __REACTOS__
-    ObDereferenceObject (CdData.HddFileSystemDeviceObject);
-#endif
 }
 
 //
@@ -311,10 +267,6 @@ NTSTATUS
 CdInitializeGlobalData (
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PDEVICE_OBJECT FileSystemDeviceObject
-#ifdef __REACTOS__
-    ,
-    IN PDEVICE_OBJECT HddFileSystemDeviceObject
-#endif
     )
 
 /*++
@@ -360,8 +312,11 @@ Return Value:
     //
     //  This callback has been replaced by CdFilterCallbackAcquireForCreateSection.
     //
-
+  #if (NTDDI_VERSION >= NTDDI_VISTA)                         
     CdFastIoDispatch.AcquireFileForNtCreateSection =  NULL;
+  #else
+    CdFastIoDispatch.AcquireFileForNtCreateSection =  CdAcquireForCreateSection;
+  #endif
     CdFastIoDispatch.ReleaseFileForNtCreateSection =  CdReleaseForCreateSection;
     CdFastIoDispatch.FastIoQueryNetworkOpenInfo =     CdFastQueryNetworkInfo;   //  QueryNetworkInfo
     
@@ -385,9 +340,6 @@ Return Value:
 
     CdData.DriverObject = DriverObject;
     CdData.FileSystemDeviceObject = FileSystemDeviceObject;
-#ifdef __REACTOS__
-    CdData.HddFileSystemDeviceObject = HddFileSystemDeviceObject;
-#endif
 
     InitializeListHead( &CdData.VcbQueue );
 

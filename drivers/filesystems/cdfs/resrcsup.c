@@ -23,10 +23,15 @@ Abstract:
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, CdAcquireForCache)
+  #if (NTDDI_VERSION >= NTDDI_VISTA)                         
 #pragma alloc_text(PAGE, CdFilterCallbackAcquireForCreateSection)
+  #endif
 #pragma alloc_text(PAGE, CdAcquireResource)
 #pragma alloc_text(PAGE, CdNoopAcquire)
 #pragma alloc_text(PAGE, CdNoopRelease)
+  #if (NTDDI_VERSION < NTDDI_VISTA)                         
+#pragma alloc_text(PAGE, CdAcquireForCreateSection)
+  #endif
 #pragma alloc_text(PAGE, CdReleaseForCreateSection)
 #pragma alloc_text(PAGE, CdReleaseFromCache)
 #endif
@@ -278,7 +283,7 @@ Return Value:
     UNREFERENCED_PARAMETER( Fcb );
 }
 
-
+  #if (NTDDI_VERSION >= NTDDI_VISTA)                         
 _Requires_lock_held_(_Global_critical_region_)
 NTSTATUS
 NTAPI /* ReactOS Change: GCC Does not support STDCALL by default */
@@ -361,6 +366,23 @@ Return Value:
 
     UNREFERENCED_PARAMETER( CompletionContext );
 }
+  #endif
+
+  #if (NTDDI_VERSION < NTDDI_VISTA)                         
+_Function_class_(FAST_IO_RELEASE_FILE)
+_Requires_lock_held_(_Global_critical_region_)
+VOID
+NTAPI /* ReactOS Change: GCC Does not support STDCALL by default */
+CdAcquireForCreateSection (
+    _In_ PFILE_OBJECT FileObject
+    )
+{
+    PAGED_CODE();
+
+    ExAcquireResourceExclusiveLite(&((PFCB)FileObject->FsContext)->FcbNonpaged->FcbResource, TRUE);
+    ExAcquireSharedStarveExclusive(((PFCB)FileObject->FsContext)->Resource, TRUE);
+}
+  #endif
 
 
 _Function_class_(FAST_IO_RELEASE_FILE)

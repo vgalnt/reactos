@@ -641,10 +641,6 @@ Return Value:
     ULONG TocDiskFlags = 0;
     ULONG MediaChangeCount = 0;
 
-#ifdef __REACTOS__
-    DEVICE_TYPE FilesystemDeviceType;
-#endif
-
 #ifdef CDFS_TELEMETRY_DATA
     GUID VolumeGuid;
     GUID VolumeCorrelationId = { 0 };
@@ -657,16 +653,7 @@ Return Value:
     //  always be waitable.
     //
 
-#ifdef __REACTOS__
-    if (IrpSp->DeviceObject == CdData.HddFileSystemDeviceObject) {
-        FilesystemDeviceType = FILE_DEVICE_DISK_FILE_SYSTEM;
-    } else {
-#endif
     NT_ASSERT( Vpb->RealDevice->DeviceType == FILE_DEVICE_CD_ROM );
-#ifdef __REACTOS__
-        FilesystemDeviceType = FILE_DEVICE_CD_ROM_FILE_SYSTEM;
-    }
-#endif
     NT_ASSERT( FlagOn( IrpContext->Flags, IRP_CONTEXT_FLAG_WAIT ));
 
 #ifdef CDFS_TELEMETRY_DATA
@@ -712,11 +699,7 @@ Return Value:
     //
 
     Status = CdPerformDevIoCtrl( IrpContext,
-#ifndef __REACTOS__
                                  IOCTL_CDROM_CHECK_VERIFY,
-#else
-                                 (FilesystemDeviceType == FILE_DEVICE_DISK_FILE_SYSTEM ? IOCTL_DISK_CHECK_VERIFY : IOCTL_CDROM_CHECK_VERIFY),
-#endif
                                  DeviceObjectWeTalkTo,
                                  &MediaChangeCount,
                                  sizeof(ULONG),
@@ -745,11 +728,7 @@ Return Value:
     //
 
     Status = CdPerformDevIoCtrl( IrpContext,
-#ifndef __REACTOS__
                                  IOCTL_CDROM_GET_DRIVE_GEOMETRY,
-#else
-                                 (FilesystemDeviceType == FILE_DEVICE_DISK_FILE_SYSTEM ? IOCTL_DISK_GET_DRIVE_GEOMETRY : IOCTL_CDROM_GET_DRIVE_GEOMETRY),
-#endif
                                  DeviceObjectWeTalkTo,
                                  &DiskGeometry,
                                  sizeof( DISK_GEOMETRY ),
@@ -817,11 +796,7 @@ Return Value:
         Status = IoCreateDevice( CdData.DriverObject,
                                  sizeof( VOLUME_DEVICE_OBJECT ) - sizeof( DEVICE_OBJECT ),
                                  NULL,
-#ifndef __REACTOS__
                                  FILE_DEVICE_CD_ROM_FILE_SYSTEM,
-#else
-                                 FilesystemDeviceType,
-#endif
                                  0,
                                  FALSE,
                                  (PDEVICE_OBJECT *) &VolDo );
@@ -875,21 +850,7 @@ Return Value:
 
         if (Status != STATUS_SUCCESS)  { 
 
-#ifdef __REACTOS__
-
-            //
-            // Don't bail out if that was a disk based ISO image, it is legit
-            //
-
-            if (FilesystemDeviceType == FILE_DEVICE_DISK_FILE_SYSTEM) {
-                CdFreePool( &CdromToc );
-                Status = STATUS_SUCCESS;
-            } else {
-#endif
             try_leave( Status ); 
-#ifdef __REACTOS__
-            }
-#endif
         }
 
         //
@@ -1066,12 +1027,7 @@ Return Value:
         //
 
         if (!FlagOn( Vcb->VcbState, VCB_STATE_AUDIO_DISK) &&
-#ifndef __REACTOS__
             ((Vcb->CdromToc->LastTrack - Vcb->CdromToc->FirstTrack) == 0)) {
-#else
-           ((FilesystemDeviceType == FILE_DEVICE_DISK_FILE_SYSTEM) ||
-            ((Vcb->CdromToc->LastTrack - Vcb->CdromToc->FirstTrack) == 0))) {
-#endif
 
             ULONG Index;
             PUCHAR Buffer;
@@ -2499,12 +2455,7 @@ Return Value:
     //  We only allow the invalidate call to come in on our file system devices.
     //
     
-#ifndef __REACTOS__
     if (IrpSp->DeviceObject != CdData.FileSystemDeviceObject)  {
-#else
-    if (IrpSp->DeviceObject != CdData.FileSystemDeviceObject &&
-        IrpSp->DeviceObject != CdData.HddFileSystemDeviceObject)  {
-#endif
 
         CdCompleteRequest( IrpContext, Irp, STATUS_INVALID_DEVICE_REQUEST );
 
