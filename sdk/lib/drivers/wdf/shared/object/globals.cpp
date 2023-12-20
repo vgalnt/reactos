@@ -1071,7 +1071,7 @@ FxAllocateDriverGlobals(
   #ifndef __REACTOS__
     *pFxDriverGlobals = {};
   #else
-    RtlZeroMemory(&pFxDriverGlobals, sizeof(FX_DRIVER_GLOBALS));
+    RtlZeroMemory(pFxDriverGlobals, sizeof(FX_DRIVER_GLOBALS));
   #endif
 
     pFxDriverGlobals->Refcnt = 1;
