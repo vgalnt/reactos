@@ -35,8 +35,15 @@ NTAPI
 MmIsDriverVerifying(
     _In_ PDRIVER_OBJECT DriverObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PLDR_DATA_TABLE_ENTRY LdrEntry;
+
+    /* Get the loader entry */
+    LdrEntry = (PLDR_DATA_TABLE_ENTRY)DriverObject->DriverSection;
+    if (!LdrEntry)
+        return FALSE;
+
+    /* Check if we're verifying or not */
+    return ((LdrEntry->Flags & LDRP_IMAGE_VERIFYING) ? TRUE: FALSE);
 }
 
 NTSTATUS
