@@ -2744,11 +2744,7 @@ ClassReadDriveCapacity(_In_ PDEVICE_OBJECT Fdo)
     PFUNCTIONAL_DEVICE_EXTENSION fdoExt = Fdo->DeviceExtension;
     PCOMMON_DEVICE_EXTENSION commonExtension = Fdo->DeviceExtension;
     PCLASS_PRIVATE_FDO_DATA fdoData = fdoExt->PrivateFdoData;
-  #ifndef __REACTOS__
-    READ_CAPACITY_DATA_EX PTRALIGN readCapacityData = {0};
-  #else
     READ_CAPACITY_DATA_EX PTRALIGN readCapacityData = {{{0}}};
-  #endif
     PTRANSFER_PACKET pkt;
     NTSTATUS status;
     PMDL driveCapMdl = NULL;
@@ -4054,11 +4050,7 @@ ClassSendSrbSynchronous(
 
     PFUNCTIONAL_DEVICE_EXTENSION fdoExtension = Fdo->DeviceExtension;
     PCLASS_PRIVATE_FDO_DATA fdoData = fdoExtension->PrivateFdoData;
-  #ifndef __REACTOS__
-    IO_STATUS_BLOCK ioStatus = { 0 };
-  #else
-    IO_STATUS_BLOCK ioStatus = {{ 0 }};
-  #endif
+    IO_STATUS_BLOCK ioStatus = {{0}};
     PIRP irp;
     PIO_STACK_LOCATION irpStack;
     KEVENT event;
@@ -6295,11 +6287,7 @@ __ClassInterpretSenseInfo_ProcessingInvalidSenseBuffer:
         ULONG totalSize;
         ULONG senseBufferSize = 0;
         IO_ERROR_LOG_PACKET staticErrLogEntry = {0};
-      #ifndef __REACTOS__
-        CLASS_ERROR_LOG_DATA staticErrLogData = {0};
-      #else
         CLASS_ERROR_LOG_DATA staticErrLogData = {{{0}}};
-      #endif
         SENSE_DATA convertedSenseBuffer = {0};
         UCHAR convertedSenseBufferLength = 0;
         BOOLEAN senseDataConverted = FALSE;
@@ -7496,11 +7484,7 @@ ClassDeviceControl(
 
             PMOUNTDEV_SUGGESTED_LINK_NAME suggestedName;
             WCHAR driveLetterNameBuffer[10] = {0};
-          #ifndef __REACTOS__
-            RTL_QUERY_REGISTRY_TABLE queryTable[2] = {0};
-          #else
             RTL_QUERY_REGISTRY_TABLE queryTable[2] = {{0}};
-          #endif
             PWSTR valueName;
             UNICODE_STRING driveLetterName;
 
@@ -12673,16 +12657,9 @@ ClasspScanForSpecialInRegistry(
     OBJECT_ATTRIBUTES  objectAttributes = {0};
     UNICODE_STRING     subkeyName;
     NTSTATUS           status;
-
-    //
-    // seeded in the ENUM tree by ClassInstaller
-    //
+    /* seeded in the ENUM tree by ClassInstaller */
     ULONG deviceHacks;
-  #ifndef __REACTOS__
-    RTL_QUERY_REGISTRY_TABLE queryTable[2] = {0}; // null terminated array
-  #else
     RTL_QUERY_REGISTRY_TABLE queryTable[2] = {{0}}; // null terminated array
-  #endif
 
     PAGED_CODE();
 

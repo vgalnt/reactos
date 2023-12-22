@@ -2353,11 +2353,7 @@ Return Value:
 {
     NTSTATUS status;
     STORAGE_IDLE_POWER idlePower = {0};
-  #ifndef __REACTOS__
-    IO_STATUS_BLOCK ioStatus = { 0 };
-  #else
-    IO_STATUS_BLOCK ioStatus = {{ 0 }};
-  #endif
+    IO_STATUS_BLOCK ioStatus = {{0}};
     PFUNCTIONAL_DEVICE_EXTENSION fdoExtension = (PFUNCTIONAL_DEVICE_EXTENSION)DeviceObject->DeviceExtension;
     PCOMMON_DEVICE_EXTENSION commonExtension = &(fdoExtension->CommonExtension);
 
