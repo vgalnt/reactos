@@ -1719,7 +1719,7 @@ PiQueryDeviceRelationsPdo(
     if (IoStack->Parameters.QueryDeviceRelations.Type == RemovalRelations)
     {
         DPRINT1("PiQueryDeviceRelationsPdo: FIXME\n");
-        ASSERT(FALSE);
+        ASSERT(FALSE);Status=STATUS_NOT_IMPLEMENTED;
         return Status;
     }
 
