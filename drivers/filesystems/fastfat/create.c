@@ -274,7 +274,7 @@ FatCheckShareAccess (
 #pragma alloc_text(PAGE, FatSetFullNameInFcb)
 #endif
 
-
+
 _Function_class_(IRP_MJ_CREATE)
 _Function_class_(DRIVER_DISPATCH)
 NTSTATUS
@@ -573,7 +573,7 @@ Return Value:
 
 {
     NTSTATUS Status;
-    IO_STATUS_BLOCK Iosb = {0};
+    IO_STATUS_BLOCK Iosb = {{0}};
     PIO_STACK_LOCATION IrpSp;
 
     PFILE_OBJECT FileObject;
@@ -2576,7 +2576,7 @@ Return Value:
     return Iosb;
 }
 
-
+
 //
 //  Internal support routine
 //
@@ -2620,7 +2620,7 @@ Arguments:
 
 {
     PDCB RootDcb;
-    IO_STATUS_BLOCK Iosb = {0};
+    IO_STATUS_BLOCK Iosb = {{0}};
 
     //
     //  The following variables are for abnormal termination
@@ -2751,7 +2751,7 @@ Arguments:
     return Iosb;
 }
 
-
+
 //
 //  Internal support routine
 //
@@ -2806,7 +2806,7 @@ Return Value:
 --*/
 
 {
-    IO_STATUS_BLOCK Iosb = {0};
+    IO_STATUS_BLOCK Iosb = {{0}};
     PBCB DirentBcb = NULL;
     PDIRENT Dirent;
 
@@ -3171,7 +3171,7 @@ Return Value:
     return Iosb;
 }
 
-
+
 //
 //  Internal support routine
 //
@@ -3249,7 +3249,7 @@ Return Value:
 --*/
 
 {
-    IO_STATUS_BLOCK Iosb = {0};
+    IO_STATUS_BLOCK Iosb = {{0}};
 
     PBCB DirentBcb = NULL;
     PDIRENT Dirent;
@@ -3913,7 +3913,7 @@ Return Value:
 
     return Iosb;
 }
-
+
 //
 //  Internal support routine
 //
@@ -3958,7 +3958,7 @@ Return Value:
 --*/
 
 {
-    IO_STATUS_BLOCK Iosb = {0};
+    IO_STATUS_BLOCK Iosb = {{0}};
 
     //
     //  The following variables are for abnormal termination
@@ -4122,7 +4122,7 @@ Return Value:
 }
 
 
-
+
 //
 //  Internal support routine
 //
@@ -4202,7 +4202,7 @@ Return Value:
 --*/
 
 {
-    IO_STATUS_BLOCK Iosb = {0};
+    IO_STATUS_BLOCK Iosb = {{0}};
 
     //
     //  The following variables are for abnormal termination
@@ -4402,7 +4402,7 @@ Return Value:
     return Iosb;
 }
 
-
+
 //
 //  Internal support routine
 //
@@ -4498,7 +4498,7 @@ Return Value:
 --*/
 
 {
-    IO_STATUS_BLOCK Iosb = {0};
+    IO_STATUS_BLOCK Iosb = {{0}};
 
     ACCESS_MASK AddedAccess = 0;
 
@@ -4882,7 +4882,7 @@ Return Value:
     return Iosb;
 }
 
-
+
 //
 //  Internal support routine
 //
@@ -5596,7 +5596,7 @@ Return Value:
     return Iosb;
 }
 
-
+
 //
 //  Internal support routine
 //
@@ -5683,7 +5683,7 @@ Return Value:
 --*/
 
 {
-    IO_STATUS_BLOCK Iosb = {0};
+    IO_STATUS_BLOCK Iosb = {{0}};
 
     PFCB Fcb = NULL;
 
@@ -6344,7 +6344,7 @@ Return Value:
     return Iosb;
 }
 
-
+
 //
 //  Internal support routine
 //
@@ -6396,7 +6396,7 @@ Return Value:
 --*/
 
 {
-    IO_STATUS_BLOCK Iosb = {0};
+    IO_STATUS_BLOCK Iosb = {{0}};
 
     PDIRENT Dirent;
     PBCB DirentBcb;
@@ -6409,7 +6409,7 @@ Return Value:
 
     ULONG NotifyFilter;
     ULONG HeaderSize = 0;
-    LARGE_INTEGER AllocSize = {0};
+    LARGE_INTEGER AllocSize = {{0}};
 
     //
     //  The following variables are for abnormal termination
@@ -6823,7 +6823,7 @@ Return Value:
     }
 }
 
-
+
 NTSTATUS
 FatCheckSystemSecurityAccess (
     _In_ PIRP_CONTEXT IrpContext
@@ -6865,7 +6865,7 @@ FatCheckSystemSecurityAccess (
     return STATUS_SUCCESS;
 }
 
-
+
 NTSTATUS
 FatCheckShareAccess (
     _In_ PIRP_CONTEXT IrpContext,
