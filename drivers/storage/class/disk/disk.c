@@ -1012,8 +1012,64 @@ DiskReadPartitionTableEx(
     _In_ BOOLEAN IsNotCaching,
     _Out_ PDRIVE_LAYOUT_INFORMATION_EX* OutPartitionList)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDISK_DATA Data = FdoExtension->CommonExtension.DriverData;
+    PDRIVE_LAYOUT_INFORMATION_EX DriveLayout = NULL;
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT("DiskReadPartitionTableEx: %p, %X\n", FdoExtension, IsNotCaching);
+
+    if (IsNotCaching)
+    {
+        Data->CachedPartitionTableValid = FALSE;
+        DPRINT("DiskReadPartitionTableEx: cache bypassed and invalidated for FDO %#p\n", FdoExtension);
+    }
+
+    if (Data->CachedPartitionTableValid)
+    {
+        for (ix = 0; ix < Data->CachedPartitionTable->PartitionCount; ix++)
+        {
+            Data->CachedPartitionTable->PartitionEntry[ix].PartitionNumber = 0;
+        }
+
+        *OutPartitionList = Data->CachedPartitionTable;
+
+        DPRINT("DiskReadPartitionTableEx: cached PT returned (%#p) for FDO %#p\n", *OutPartitionList, FdoExtension);
+
+        return STATUS_SUCCESS;
+    }
+
+    ASSERT(DiskBreakOnPtInval == FALSE);
+
+    if (Data->CachedPartitionTable)
+    {
+        DPRINT("DiskReadPartitionTableEx: cached PT (%#p) freed for FDO %#p\n", Data->CachedPartitionTable, FdoExtension);
+
+        ExFreePool(Data->CachedPartitionTable);
+        Data->CachedPartitionTable = NULL;
+    }
+
+    Status = IoReadPartitionTableEx(FdoExtension->DeviceObject, &DriveLayout);
+
+    if (DiskDisableGpt)
+    {
+        DPRINT1("DiskReadPartitionTableEx: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    Data->CachedPartitionTable = DriveLayout;
+
+    if (!NT_SUCCESS(Status))
+        Data->CachedPartitionTable = NULL;
+    else
+        Data->CachedPartitionTableValid = TRUE;
+
+    *OutPartitionList = Data->CachedPartitionTable;
+
+    DPRINT("DiskReadPartitionTableEx: returning PT %#p for FDO %#p with Status %X. PT is %scached\n",
+           *OutPartitionList, FdoExtension, Status, (Data->CachedPartitionTableValid ? "" : "not "));
+
+    return Status;
 }
 
 NTSTATUS
