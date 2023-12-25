@@ -13,6 +13,13 @@
 
 #include <scsi.h>
 
+#ifdef __REACTOS__
+  /* NT5.x compatibility enabled */
+  #define REACTOS_NT5x TRUE
+#else
+  #define REACTOS_NT5x FALSE
+#endif
+
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
