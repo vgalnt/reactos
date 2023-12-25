@@ -535,6 +535,8 @@ Return Value:
         goto DiskCreateFdoExit;
     }
 
+    KeInitializeEvent(&((PDISK_DATA)fdoExtension->CommonExtension.DriverData)->PartitioningEvent, SynchronizationEvent, TRUE);
+
     //
     // Clear the init flag.
     //
@@ -959,6 +961,46 @@ SkipTable:
 
     return STATUS_SUCCESS;
 }
+
+#if REACTOS_NT5x
+
+VOID
+NTAPI
+DiskAcquirePartitioningLock(
+    _In_ PFUNCTIONAL_DEVICE_EXTENSION FdoExtension)
+{
+    PDISK_DATA Data;
+
+    PAGED_CODE();
+    DPRINT("DiskAcquirePartitioningLock()\n");
+
+    ASSERT(((PCOMMON_DEVICE_EXTENSION)(FdoExtension->DeviceObject)->DeviceExtension)->IsFdo);
+
+    KeEnterCriticalRegion();
+
+    Data = FdoExtension->CommonExtension.DriverData;
+    KeWaitForSingleObject(&Data->PartitioningEvent, UserRequest, KernelMode, FALSE, NULL);
+}
+
+VOID
+NTAPI
+DiskReleasePartitioningLock(
+    _In_ PFUNCTIONAL_DEVICE_EXTENSION FdoExtension)
+{
+    PDISK_DATA Data;
+
+    PAGED_CODE();
+    DPRINT("DiskReleasePartitioningLock()\n");
+
+    ASSERT(((PCOMMON_DEVICE_EXTENSION)(FdoExtension->DeviceObject)->DeviceExtension)->IsFdo);
+
+    Data = FdoExtension->CommonExtension.DriverData;
+    KeSetEvent(&Data->PartitioningEvent, IO_NO_INCREMENT, FALSE);
+
+    KeLeaveCriticalRegion();
+}
+
+#endif
 
 NTSTATUS
 NTAPI /* ReactOS Change: GCC Does not support STDCALL by default */

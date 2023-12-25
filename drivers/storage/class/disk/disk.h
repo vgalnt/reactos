@@ -324,6 +324,10 @@ typedef struct _DISK_DATA {
 
     SCSI_ADDRESS ScsiAddress;
 
+  #if REACTOS_NT5x
+    KEVENT PartitioningEvent;
+  #endif
+
     //
     // What type of failure prediction mechanism is available
     //
