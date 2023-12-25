@@ -997,6 +997,9 @@ Return Value:
     TracePrint((TRACE_LEVEL_VERBOSE, TRACE_FLAG_IOCTL, "DiskDeviceControl: Received IOCTL 0x%X for device %p through IRP %p\n",
                 ioctlCode, DeviceObject, Irp));
 
+  #if __REACTOS__
+    DPRINT("DiskDeviceControl: %p, %p, ioctlCode %X\n", DeviceObject, Irp, ioctlCode);
+  #endif
 
     switch (ioctlCode) {
 
@@ -1107,6 +1110,81 @@ Return Value:
             status = DiskIoctlGetVolumeDiskExtents(DeviceObject, Irp);
             break;
         }
+
+      #if REACTOS_NT5x
+        case IOCTL_DISK_GET_PARTITION_INFO:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_GET_PARTITION_INFO (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_GET_PARTITION_INFO_EX:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_GET_PARTITION_INFO_EX (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_SET_PARTITION_INFO:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_SET_PARTITION_INFO (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_SET_PARTITION_INFO_EX:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_SET_PARTITION_INFO_EX (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_GET_DRIVE_LAYOUT:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_GET_DRIVE_LAYOUT (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_GET_DRIVE_LAYOUT_EX:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_GET_DRIVE_LAYOUT_EX (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_SET_DRIVE_LAYOUT:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_SET_DRIVE_LAYOUT (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_SET_DRIVE_LAYOUT_EX:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_SET_DRIVE_LAYOUT_EX (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_CREATE_DISK:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_CREATE_DISK (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_GROW_PARTITION:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_GROW_PARTITION (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_DELETE_DRIVE_LAYOUT:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_DELETE_DRIVE_LAYOUT (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+        case IOCTL_DISK_UPDATE_PROPERTIES:
+        {
+            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_UPDATE_PROPERTIES (%X)\n", DeviceObject, Irp, ioctlCode);
+            ASSERT(FALSE);
+            break;
+        }
+      #endif
 
         default: {
 
