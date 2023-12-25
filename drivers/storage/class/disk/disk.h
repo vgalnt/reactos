@@ -405,7 +405,8 @@ typedef struct _DISK_DATA {
 #define DiskDeviceCacheIsPowerProtected     L"CacheIsPowerProtected"
 
 
-#define FUNCTIONAL_EXTENSION_SIZE sizeof(FUNCTIONAL_DEVICE_EXTENSION) + sizeof(DISK_DATA)
+#define FUNCTIONAL_EXTENSION_SIZE (sizeof(FUNCTIONAL_DEVICE_EXTENSION) + sizeof(DISK_DATA))
+#define PHYSICAL_EXTENSION_SIZE   (sizeof(PHYSICAL_DEVICE_EXTENSION)   + sizeof(DISK_DATA))
 
 #define MODE_DATA_SIZE      192
 #define VALUE_BUFFER_SIZE  2048
@@ -984,6 +985,43 @@ DiskIoctlSmartSendDriveCommand(
     IN PDEVICE_OBJECT DeviceObject,
     IN OUT PIRP Irp
     );
+
+#ifdef REACTOS_NT5x
+
+NTSTATUS
+NTAPI
+DiskInitPdo(
+    _In_ PDEVICE_OBJECT Pdo
+);
+
+NTSTATUS
+NTAPI
+DiskStartPdo(
+    _In_ PDEVICE_OBJECT Pdo
+);
+
+NTSTATUS
+NTAPI
+DiskQueryPnpCapabilities(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PDEVICE_CAPABILITIES Capabilities
+);
+
+NTSTATUS
+NTAPI
+DiskEnumerateDevice(
+    _In_ PDEVICE_OBJECT DeviceObject
+);
+
+NTSTATUS
+NTAPI
+DiskQueryId(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ BUS_QUERY_ID_TYPE IdType,
+    _In_ PUNICODE_STRING IdString
+);
+
+#endif
 
 FORCEINLINE // __REACTOS__
 PCDB

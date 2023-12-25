@@ -37,6 +37,11 @@ Revision History:
 #include "disk.tmh"
 #endif
 
+  #if __REACTOS__
+//#define NDEBUG
+#include <debug.h>
+  #endif
+
 #ifdef ALLOC_PRAGMA
 
 #pragma alloc_text(INIT, DriverEntry)
@@ -170,9 +175,10 @@ Return Value:
     CLASS_INIT_DATA InitializationData = { 0 };
     CLASS_QUERY_WMI_REGINFO_EX_LIST classQueryWmiRegInfoExList = { 0 };
     GUID guidQueryRegInfoEx = GUID_CLASSPNP_QUERY_REGINFOEX;
+  #if !REACTOS_NT5x
     GUID guidSrbSupport = GUID_CLASSPNP_SRB_SUPPORT;
     ULONG srbSupport;
-
+  #endif
     NTSTATUS status;
 
     //
@@ -213,7 +219,6 @@ Return Value:
     InitializationData.FdoData.ClassShutdownFlush = DiskShutdownFlush;
     InitializationData.FdoData.ClassCreateClose   = NULL;
 
-
     InitializationData.FdoData.ClassWmiInfo.GuidCount               = 7;
     InitializationData.FdoData.ClassWmiInfo.GuidRegInfo             = DiskWmiFdoGuidList;
     InitializationData.FdoData.ClassWmiInfo.ClassQueryWmiRegInfo    = DiskFdoQueryWmiRegInfo;
@@ -222,6 +227,27 @@ Return Value:
     InitializationData.FdoData.ClassWmiInfo.ClassSetWmiDataItem     = DiskFdoSetWmiDataItem;
     InitializationData.FdoData.ClassWmiInfo.ClassExecuteWmiMethod   = DiskFdoExecuteWmiMethod;
     InitializationData.FdoData.ClassWmiInfo.ClassWmiFunctionControl = DiskWmiFunctionControl;
+
+  #if REACTOS_NT5x
+    InitializationData.PdoData.DeviceExtensionSize = PHYSICAL_EXTENSION_SIZE;
+    InitializationData.PdoData.DeviceType = FILE_DEVICE_DISK;
+    InitializationData.PdoData.DeviceCharacteristics = FILE_DEVICE_SECURE_OPEN;
+
+    InitializationData.PdoData.ClassInitDevice = DiskInitPdo;
+    InitializationData.PdoData.ClassStartDevice = DiskStartPdo;
+    InitializationData.PdoData.ClassStopDevice = DiskStopDevice;
+    InitializationData.PdoData.ClassPowerDevice = NULL;
+    InitializationData.PdoData.ClassError = NULL;
+    InitializationData.PdoData.ClassReadWriteVerification = DiskReadWriteVerification;
+    InitializationData.PdoData.ClassDeviceControl = DiskDeviceControl;
+    InitializationData.PdoData.ClassShutdownFlush = DiskShutdownFlush;
+    InitializationData.PdoData.ClassCreateClose = NULL;
+    InitializationData.PdoData.ClassQueryPnpCapabilities = DiskQueryPnpCapabilities;
+    InitializationData.PdoData.ClassRemoveDevice = DiskRemoveDevice;
+
+    InitializationData.ClassEnumerateDevice = DiskEnumerateDevice;
+    InitializationData.ClassQueryId = DiskQueryId;
+  #endif
 
     InitializationData.ClassAddDevice = DiskAddDevice;
     InitializationData.ClassUnload = DiskUnload;
@@ -256,6 +282,7 @@ Return Value:
     (VOID)ClassInitializeEx(DriverObject,
                             &guidQueryRegInfoEx,
                             &classQueryWmiRegInfoExList);
+  #if !REACTOS_NT5x
 
     //
     // Call class init Ex routine to register SRB support
@@ -270,6 +297,7 @@ Return Value:
         NT_ASSERT(FALSE);
     }
 
+  #endif
 
     return status;
 
@@ -6216,4 +6244,55 @@ Return Value:
     return;
 }
 
+#ifdef REACTOS_NT5x
+
+NTSTATUS
+NTAPI
+DiskInitPdo(
+    _In_ PDEVICE_OBJECT Pdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DiskStartPdo(
+    _In_ PDEVICE_OBJECT Pdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DiskQueryPnpCapabilities(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PDEVICE_CAPABILITIES Capabilities)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DiskEnumerateDevice(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DiskQueryId(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ BUS_QUERY_ID_TYPE IdType,
+    _In_ PUNICODE_STRING IdString)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+#endif
 
