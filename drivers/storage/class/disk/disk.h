@@ -182,6 +182,15 @@ typedef enum _DISK_USER_WRITE_CACHE_SETTING
 
 } DISK_USER_WRITE_CACHE_SETTING, *PDISK_USER_WRITE_CACHE_SETTING;
 
+  #if REACTOS_NT5x
+typedef
+VOID
+(NTAPI* PDISK_UPDATE_PARTITIONS)(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PDRIVE_LAYOUT_INFORMATION_EX PartitionList
+);
+  #endif
+
 typedef struct _DISK_DATA {
 
     //
@@ -318,6 +327,10 @@ typedef struct _DISK_DATA {
 
     NTSTATUS ReadyStatus;
 
+  #if REACTOS_NT5x
+    PDISK_UPDATE_PARTITIONS UpdatePartitionRoutine;
+  #endif
+
     //
     // SCSI address used for SMART operations.
     //
@@ -366,6 +379,11 @@ typedef struct _DISK_DATA {
 
     DISK_GEOMETRY RealGeometry;
 #endif
+
+  #if REACTOS_NT5x
+    ULONG CachedPartitionTableValid;
+    PDRIVE_LAYOUT_INFORMATION_EX CachedPartitionTable;
+  #endif
 
     //
     // This mutex prevents more than one IOCTL_DISK_VERIFY from being

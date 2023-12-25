@@ -78,6 +78,11 @@ Revision History:
 
 #endif
 
+  #if __REACTOS__
+BOOLEAN DiskBreakOnPtInval = FALSE;
+BOOLEAN DiskDisableGpt = FALSE;
+  #endif
+
 //
 //  ETW related globals
 //
@@ -1000,6 +1005,83 @@ DiskReleasePartitioningLock(
     KeLeaveCriticalRegion();
 }
 
+NTSTATUS
+NTAPI
+DiskReadPartitionTableEx(
+    _In_ PFUNCTIONAL_DEVICE_EXTENSION FdoExtension,
+    _In_ BOOLEAN IsNotCaching,
+    _Out_ PDRIVE_LAYOUT_INFORMATION_EX* OutPartitionList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DiskIoctlGetDriveLayoutEx(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    PFUNCTIONAL_DEVICE_EXTENSION FdoExtension;
+    PDRIVE_LAYOUT_INFORMATION_EX PartitionList;
+    PIO_STACK_LOCATION IoStack;
+    PDISK_DATA Data;
+    ULONG Size;
+    BOOLEAN IsCached = TRUE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskIoctlGetDriveLayoutEx: %p, %p\n", DeviceObject, Irp);
+
+    ASSERT(DeviceObject);
+    ASSERT(Irp);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+    Data = FdoExtension->CommonExtension.DriverData;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (!Data->CachedPartitionTableValid)
+    {
+        DiskReadDriveCapacity(FdoExtension->DeviceObject);
+        IsCached = FALSE;
+    }
+
+    DiskAcquirePartitioningLock(FdoExtension);
+
+    Status = DiskReadPartitionTableEx(FdoExtension, FALSE, &PartitionList);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskIoctlGetDriveLayoutEx: Status %X\n", Status);
+        DiskReleasePartitioningLock(FdoExtension);
+        return Status;
+    }
+
+    Size = FIELD_OFFSET(DRIVE_LAYOUT_INFORMATION_EX, PartitionEntry[0]);
+    Size += (PartitionList->PartitionCount * sizeof(PARTITION_INFORMATION_EX));
+
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < Size)
+    {
+        Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
+        DiskReleasePartitioningLock(FdoExtension);
+        return Irp->IoStatus.Status;
+    }
+
+    ASSERT(Data->UpdatePartitionRoutine != NULL);
+    Data->UpdatePartitionRoutine(DeviceObject, PartitionList);
+
+    RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, PartitionList, Size);
+
+    Irp->IoStatus.Information = Size;
+    Irp->IoStatus.Status = Status;
+
+    DiskReleasePartitioningLock(FdoExtension);
+
+    if (!IsCached)
+        ClassInvalidateBusRelations(DeviceObject);
+
+    return Status;
+}
+
 #endif
 
 NTSTATUS
@@ -1030,8 +1112,26 @@ Return Value:
     PIO_STACK_LOCATION  irpStack = IoGetCurrentIrpStackLocation(Irp);
     NTSTATUS            status = STATUS_SUCCESS;
     ULONG               ioctlCode;
+  #if REACTOS_NT5x
+    PCOMMON_DEVICE_EXTENSION Extension = DeviceObject->DeviceExtension;
+    PSCSI_REQUEST_BLOCK Srb;
+    PCDB Cdb;
+  #endif
 
     NT_ASSERT(DeviceObject != NULL);
+
+  #if REACTOS_NT5x
+    Srb = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Srb), 'SDcS');
+    if (!Srb)
+    {
+        DPRINT1("DiskDeviceControl: STATUS_INSUFFICIENT_RESOURCES! FIXME\n");
+        ASSERT(FALSE);
+        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        return Irp->IoStatus.Status;
+    }
+    RtlZeroMemory(Srb, sizeof(*Srb));
+    Cdb = (PCDB)Srb->Cdb;
+  #endif
 
     Irp->IoStatus.Information = 0;
     ioctlCode = irpStack->Parameters.DeviceIoControl.IoControlCode;
@@ -1186,8 +1286,20 @@ Return Value:
         }
         case IOCTL_DISK_GET_DRIVE_LAYOUT_EX:
         {
-            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_GET_DRIVE_LAYOUT_EX (%X)\n", DeviceObject, Irp, ioctlCode);
-            ASSERT(FALSE);
+            DPRINT1("IOCTL_DISK_GET_DRIVE_LAYOUT_EX to device %p through irp %p\n", DeviceObject, Irp);
+            DPRINT1("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
+
+            if (!Extension->IsFdo)
+            {
+                ClassReleaseRemoveLock(DeviceObject, Irp);
+
+                ExFreePoolWithTag(Srb, 'SDcS');
+
+                IoCopyCurrentIrpStackLocationToNext(Irp);
+                return IoCallDriver(Extension->LowerDeviceObject, Irp);
+            }
+
+            status = DiskIoctlGetDriveLayoutEx(DeviceObject, Irp);
             break;
         }
         case IOCTL_DISK_SET_DRIVE_LAYOUT:
@@ -1260,6 +1372,9 @@ Return Value:
         Irp->IoStatus.Status = status;
         ClassReleaseRemoveLock(DeviceObject, Irp);
         ClassCompleteRequest(DeviceObject, Irp, IO_NO_INCREMENT);
+      #if REACTOS_NT5x
+        ExFreePoolWithTag(Srb, 'SDcS');
+      #endif
     }
 
     return(status);
