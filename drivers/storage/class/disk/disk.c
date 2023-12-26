@@ -1138,6 +1138,115 @@ DiskIoctlGetDriveLayoutEx(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+DiskIoctlGetPartitionInfo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    PCOMMON_DEVICE_EXTENSION Extension;
+    PFUNCTIONAL_DEVICE_EXTENSION ZeroFdoExtension;
+    PPARTITION_INFORMATION Info;
+    PIO_STACK_LOCATION IoStack;
+    PDISK_DATA Data;
+    PDISK_DATA ZeroData;
+    UCHAR Type;
+    BOOLEAN IsRecognized;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskIoctlGetPartitionInfo: %p, %p\n", DeviceObject, Irp);
+
+    ASSERT(DeviceObject);
+    ASSERT(Irp);
+
+    Extension = DeviceObject->DeviceExtension;
+    ZeroFdoExtension = Extension->PartitionZeroExtension;
+
+    Data = Extension->DriverData;
+    ZeroData = ZeroFdoExtension->CommonExtension.DriverData;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(PARTITION_INFORMATION))
+    {
+        DPRINT1("DiskIoctlGetPartitionInfo: STATUS_BUFFER_TOO_SMALL\n");
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    Status = DiskReadDriveCapacity(ZeroFdoExtension->DeviceObject);
+
+    if (ZeroData->ReadyStatus != InterlockedExchange(&ZeroData->ReadyStatus, Status))
+        IoInvalidateDeviceRelations(ZeroFdoExtension->LowerPdo, BusRelations);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskIoctlGetPartitionInfo: Status %X\n", Status);
+        return Status;
+    }
+
+    if (!Extension->PartitionNumber)
+    {
+        Info = Irp->AssociatedIrp.SystemBuffer;
+
+        Info->StartingOffset.QuadPart = Extension->StartingOffset.QuadPart;
+        Info->PartitionLength.QuadPart = Extension->PartitionLength.QuadPart;
+        Info->HiddenSectors = 0;
+        Info->PartitionNumber = Extension->PartitionNumber;
+        Info->PartitionType = 0;
+        Info->BootIndicator = FALSE;
+        Info->RewritePartition = FALSE;
+        Info->RecognizedPartition = FALSE;
+
+        goto Finish;
+    }
+
+    if (Data->PartitionStyle)
+    {
+        DPRINT1("DiskIoctlGetPartitionInfo: STATUS_INVALID_DEVICE_REQUEST\n");
+        Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
+        return Irp->IoStatus.Status;
+    }
+
+    DiskEnumerateDevice(ZeroFdoExtension->DeviceObject);
+
+    DiskAcquirePartitioningLock(ZeroFdoExtension);
+
+    Info = Irp->AssociatedIrp.SystemBuffer;
+
+    Info->StartingOffset.QuadPart = Extension->StartingOffset.QuadPart;
+    Info->PartitionLength.QuadPart = Extension->PartitionLength.QuadPart;
+    Info->HiddenSectors = Data->Mbr.HiddenSectors;
+    Info->PartitionNumber = Extension->PartitionNumber;
+    Info->PartitionType = Data->Mbr.PartitionType;
+    Info->BootIndicator = Data->Mbr.BootIndicator;
+    Info->RewritePartition = FALSE;
+
+    Type = Data->Mbr.PartitionType;
+
+    IsRecognized = (((Type & 0x80) && (Type & 0x3F) == 1) ||
+                    ((Type & 0x80) && (Type & 0x3F) == 6) ||
+                    ((Type & 0x80) && (Type & 0x3F) == 7) ||
+                    ((Type & 0x80) && (Type & 0x3F) == 0xB) ||
+                    ((Type & 0x80) && (Type & 0x3F) == 0xC) ||
+                    ((Type & 0x80) && (Type & 0x3F) == 0xE) ||
+                    Type == 1 ||
+                    Type == 4 ||
+                    Type == 6 ||
+                    Type == 7 ||
+                    Type == 0xB ||
+                    Type == 0xC ||
+                    Type == 0xE);
+
+    Info->RecognizedPartition = IsRecognized;
+
+    DiskReleasePartitioningLock(ZeroFdoExtension);
+
+Finish:
+
+    Irp->IoStatus.Information = 0x20;
+    return STATUS_SUCCESS;
+}
+
 #endif
 
 NTSTATUS
@@ -1312,8 +1421,10 @@ Return Value:
       #if REACTOS_NT5x
         case IOCTL_DISK_GET_PARTITION_INFO:
         {
-            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_GET_PARTITION_INFO (%X)\n", DeviceObject, Irp, ioctlCode);
-            ASSERT(FALSE);
+            DPRINT1("IOCTL_DISK_GET_PARTITION_INFO to device %p through irp %p\n", DeviceObject, Irp);
+            DPRINT1("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
+
+            status = DiskIoctlGetPartitionInfo(DeviceObject, Irp);
             break;
         }
         case IOCTL_DISK_GET_PARTITION_INFO_EX:
