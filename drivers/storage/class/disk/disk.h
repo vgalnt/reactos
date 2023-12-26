@@ -1043,6 +1043,20 @@ DiskQueryId(
     _In_ PUNICODE_STRING IdString
 );
 
+VOID
+NTAPI
+DiskUpdatePartitions(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PDRIVE_LAYOUT_INFORMATION_EX PartitionList
+);
+
+VOID
+NTAPI
+DiskUpdateRemovablePartitions(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PDRIVE_LAYOUT_INFORMATION_EX PartitionList
+);
+
 #endif
 
 FORCEINLINE // __REACTOS__

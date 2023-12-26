@@ -363,10 +363,18 @@ Return Value:
         ClassInitializeMediaChangeDetection(fdoExtension,
                                             (PUCHAR)"Disk");
 
+      #if REACTOS_NT5x
+        diskData->UpdatePartitionRoutine = DiskUpdateRemovablePartitions;
+      #endif
+
     } else {
 
         SET_FLAG(fdoExtension->DeviceFlags, DEV_SAFE_START_UNIT);
         SET_FLAG(fdoExtension->SrbFlags, SRB_FLAGS_NO_QUEUE_FREEZE);
+
+      #if REACTOS_NT5x
+        diskData->UpdatePartitionRoutine = DiskUpdatePartitions;
+      #endif
 
     }
 
@@ -488,11 +496,7 @@ Return Value:
     {
         PIRP irp;
         KEVENT event;
-      #ifndef __REACTOS__
-        IO_STATUS_BLOCK statusBlock = { 0 };
-      #else
-        IO_STATUS_BLOCK statusBlock = {{ 0 }};
-      #endif
+        IO_STATUS_BLOCK statusBlock = {{0}};
 
         KeInitializeEvent(&event, SynchronizationEvent, FALSE);
 

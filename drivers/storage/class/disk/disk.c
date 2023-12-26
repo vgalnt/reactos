@@ -6696,5 +6696,23 @@ DiskQueryId(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+NTAPI
+DiskUpdatePartitions(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PDRIVE_LAYOUT_INFORMATION_EX PartitionList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+DiskUpdateRemovablePartitions(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PDRIVE_LAYOUT_INFORMATION_EX PartitionList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 #endif
 
