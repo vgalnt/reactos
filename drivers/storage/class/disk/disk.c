@@ -6696,13 +6696,205 @@ DiskQueryId(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+NTSTATUS
+NTAPI
+DiskCreatePdo(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ ULONG Ordinal,
+    _In_ PPARTITION_INFORMATION_EX PartitionEntry,
+    _In_ ULONG PartitionStyle,
+    _Out_ PDEVICE_OBJECT* OutPdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 DiskUpdatePartitions(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PDRIVE_LAYOUT_INFORMATION_EX PartitionList)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PFUNCTIONAL_DEVICE_EXTENSION FdoExtension;
+    PPHYSICAL_DEVICE_EXTENSION PrevChildExt = NULL;
+    PPHYSICAL_DEVICE_EXTENSION ChildExt = NULL;
+    PDEVICE_OBJECT Pdo;
+    PDISK_DATA Data;
+    ULONG PartitionNumber;
+    ULONG Ordinal;
+    ULONG ix;
+    LONG jx;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskUpdatePartitions: %p, %p\n", Fdo, PartitionList);
+
+    FdoExtension = Fdo->DeviceExtension;
+    ClassAcquireChildLock(FdoExtension);
+
+    PrevChildExt = FdoExtension->CommonExtension.ChildList;
+    FdoExtension->CommonExtension.ChildList = NULL;
+
+    for (ix = 0; ix < PartitionList->PartitionCount; ix++)
+        PartitionList->PartitionEntry[ix].PartitionNumber = 0;
+
+    while (PrevChildExt)
+    {
+        ChildExt = PrevChildExt;
+        Data = ChildExt->CommonExtension.DriverData;
+
+        for (ix = 0, Ordinal = 0; ix < PartitionList->PartitionCount; ix++)
+        {
+            if (PartitionList->PartitionStyle == 0)
+            {
+                if (PartitionList->PartitionEntry[ix].Mbr.PartitionType == 0 ||
+                    PartitionList->PartitionEntry[ix].Mbr.PartitionType == 5 ||
+                    PartitionList->PartitionEntry[ix].Mbr.PartitionType == 0xF)
+                {
+                    continue;
+                }
+            }
+
+            Ordinal++;
+
+            if (PartitionList->PartitionEntry[ix].PartitionNumber == 0 &&
+                PartitionList->PartitionEntry[ix].StartingOffset.QuadPart == ChildExt->CommonExtension.StartingOffset.QuadPart &&
+                PartitionList->PartitionEntry[ix].PartitionLength.QuadPart == ChildExt->CommonExtension.PartitionLength.QuadPart)
+            {
+                PartitionList->PartitionEntry[ix].PartitionNumber = ChildExt->CommonExtension.PartitionNumber;
+
+                if (PartitionList->PartitionStyle == 0)
+                    Data->Mbr.HiddenSectors = PartitionList->PartitionEntry[ix].Mbr.HiddenSectors;
+
+                break;
+            }
+        }
+
+        if (ix == PartitionList->PartitionCount)
+        {
+            DPRINT("DiskUpdatePartitions: Deleting %wZ\n", &ChildExt->CommonExtension.DeviceName);
+            if (PartitionList->PartitionStyle == 1)
+            {
+                DPRINT("DiskUpdatePartitions: EFI Partition %ws\n", Data->Efi.PartitionName);
+            }
+
+            ChildExt->CommonExtension.PartitionLength.QuadPart = 0;
+
+            PrevChildExt = ChildExt->CommonExtension.ChildList;
+            ChildExt->CommonExtension.ChildList = (PVOID)-1;
+
+            ClassMarkChildMissing(ChildExt, FALSE);
+        }
+        else
+        {
+            DPRINT("DiskUpdatePartitions: Matched %wZ to #%d, ordinal %d\n",
+                   &ChildExt->CommonExtension.DeviceName, PartitionList->PartitionEntry[ix].PartitionNumber, Ordinal);
+
+            ASSERT(PartitionList->PartitionEntry[ix].PartitionLength.LowPart != 0x23456789);
+
+            Data->PartitionStyle = PartitionList->PartitionStyle;
+            Data->PartitionOrdinal = Ordinal;
+
+            if (PartitionList->PartitionStyle == 0)
+            {
+                if (PartitionList->PartitionEntry[ix].RewritePartition)
+                    Data->Mbr.PartitionType = PartitionList->PartitionEntry[ix].Mbr.PartitionType;
+            }
+            else
+            {
+                DPRINT1("DiskUpdatePartitions: FIXME! EFI Partition %ws\n", Data->Efi.PartitionName);
+                ASSERT(FALSE);
+            }
+
+            ChildExt->IsMissing = FALSE;
+
+            PrevChildExt = ChildExt->CommonExtension.ChildList;
+            ChildExt->CommonExtension.ChildList = FdoExtension->CommonExtension.ChildList;
+            FdoExtension->CommonExtension.ChildList = ChildExt;
+        }
+    }
+
+    Ordinal = 0;
+    PartitionNumber = 0;
+
+    for (ix = 0; ix < PartitionList->PartitionCount; ix++)
+    {
+        if (PartitionList->PartitionStyle == 0)
+        {
+            if (PartitionList->PartitionEntry[ix].Mbr.PartitionType == 0 ||
+                PartitionList->PartitionEntry[ix].Mbr.PartitionType == 5 ||
+                PartitionList->PartitionEntry[ix].Mbr.PartitionType == 0xF)
+            {
+                continue;
+            }
+        }
+
+        Ordinal++;
+        PartitionNumber++;
+
+        if (PartitionList->PartitionEntry[ix].PartitionNumber != 0)
+            continue;
+
+        for (jx = 0; jx < PartitionList->PartitionCount; jx++)
+        {
+            if (PartitionList->PartitionStyle == 0)
+            {
+                if (PartitionList->PartitionEntry[jx].Mbr.PartitionType == 0 ||
+                    PartitionList->PartitionEntry[jx].Mbr.PartitionType == 5 ||
+                    PartitionList->PartitionEntry[jx].Mbr.PartitionType == 0xF)
+                {
+                    continue;
+                }
+            }
+
+            if (PartitionList->PartitionEntry[jx].PartitionNumber == PartitionNumber)
+            {
+                PartitionNumber++;
+                jx = -1;
+            }
+        }
+
+        PartitionList->PartitionEntry[ix].PartitionNumber = PartitionNumber;
+
+        DPRINT("DiskUpdatePartitions: Found new partition #%d, ord %d starting at %#016I64x and running for %#016I64x\n",
+               PartitionList->PartitionEntry[ix].PartitionNumber,
+               Ordinal,
+               PartitionList->PartitionEntry[ix].StartingOffset.QuadPart,
+               PartitionList->PartitionEntry[ix].PartitionLength.QuadPart);
+
+        ClassReleaseChildLock(FdoExtension);
+        Status = DiskCreatePdo(Fdo, Ordinal, &PartitionList->PartitionEntry[ix], PartitionList->PartitionStyle, &Pdo);
+        ClassAcquireChildLock(FdoExtension);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("DiskUpdatePartitions: error %lx creating new PDO for partition ordinal %d, number %d\n",
+                    Status, Ordinal, PartitionList->PartitionEntry[ix].PartitionNumber);
+
+            PartitionList->PartitionEntry[ix].PartitionNumber = 0;
+            PartitionNumber--;
+
+            continue;
+        }
+
+        ChildExt = Pdo->DeviceExtension;
+        ChildExt->IsMissing = FALSE;
+    }
+
+    Data = FdoExtension->CommonExtension.DriverData;
+
+    if (PartitionList->PartitionStyle == 0)
+    {
+        Data->PartitionStyle = 0;
+        Data->Mbr.Signature = PartitionList->Mbr.Signature;
+    }
+    else
+    {
+        DPRINT1("DiskUpdatePartitions: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    ClassReleaseChildLock(FdoExtension);
 }
 
 VOID
