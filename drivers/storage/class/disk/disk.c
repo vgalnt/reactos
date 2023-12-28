@@ -6687,8 +6687,68 @@ NTAPI
 DiskEnumerateDevice(
     _In_ PDEVICE_OBJECT DeviceObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFUNCTIONAL_DEVICE_EXTENSION FdoExtension;
+    PDRIVE_LAYOUT_INFORMATION_EX PartitionList;
+    PDISK_DATA Data;
+    ULONG Size;
+    BOOLEAN IsNewPartitionList = FALSE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskEnumerateDevice: %p\n", DeviceObject);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+    ASSERT(FdoExtension->CommonExtension.IsFdo);
+
+    Data = FdoExtension->CommonExtension.DriverData;
+    if (Data->CachedPartitionTableValid == 1)
+        return STATUS_SUCCESS;
+
+    DiskReadDriveCapacity(DeviceObject);
+
+    DiskAcquirePartitioningLock(FdoExtension);
+
+    Status = DiskReadPartitionTableEx(FdoExtension, FALSE, &PartitionList);
+
+    if (!NT_SUCCESS(Status) || !PartitionList->PartitionCount)
+    {
+        DPRINT1("DiskEnumerateDevice: Status %X\n", Status);
+
+        if (DeviceObject->Characteristics & 1)
+        {
+            Data->ReadyStatus = Status;
+
+            Size = FIELD_OFFSET(DRIVE_LAYOUT_INFORMATION_EX, PartitionEntry[1]);
+            PartitionList = ExAllocatePoolWithTag(NonPagedPool, Size, 'pDcS');
+
+            if (PartitionList)
+            {
+                RtlZeroMemory(PartitionList, Size);
+
+                PartitionList->PartitionStyle = 0;
+                PartitionList->PartitionCount = 1;
+
+                IsNewPartitionList = TRUE;
+
+                Status = STATUS_SUCCESS;
+            }
+            else
+            {
+                DPRINT1("DiskEnumerateDevice: STATUS_INSUFFICIENT_RESOURCES\n");
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+            }
+        }
+    }
+
+    if (NT_SUCCESS(Status))
+        Data->UpdatePartitionRoutine(DeviceObject, PartitionList);
+
+    DiskReleasePartitioningLock(FdoExtension);
+
+    if (IsNewPartitionList)
+        ExFreePoolWithTag(PartitionList, 'pDcS');
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
