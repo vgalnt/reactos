@@ -27,11 +27,14 @@ Revision History:
 #include "pnp.tmh"
 #endif
 
-#ifndef __REACTOS__
-extern PULONG InitSafeBootMode;
-#else
+  #ifdef __REACTOS__
+//#define NDEBUG
+#include <debug.h>
+
 extern NTSYSAPI ULONG InitSafeBootMode;
-#endif
+  #else
+extern PULONG InitSafeBootMode;
+  #endif
 ULONG diskDeviceSequenceNumber = 0;
 extern BOOLEAN DiskIsPastReinit;
 
@@ -620,6 +623,7 @@ DiskStopDevice(
     return STATUS_SUCCESS;
 }
 
+#if !REACTOS_NT5x
 NTSTATUS
 DiskGenerateDeviceName(
     IN ULONG DeviceNumber,
@@ -682,6 +686,63 @@ Return Value:
 
     return STATUS_SUCCESS;
 }
+#else
+NTSTATUS
+NTAPI
+DiskGenerateDeviceName(
+    _In_ BOOLEAN IsPartition0,
+    _In_ ULONG DeviceNumber,
+    _In_ ULONG PartitionNumber,
+    _In_ PLARGE_INTEGER StartingOffset,
+    _In_ PLARGE_INTEGER PartitionLength,
+    _Out_ PCHAR* OutDeviceName)
+{
+    CHAR NameString[64] = {0};
+
+    PAGED_CODE();
+    DPRINT("DiskGenerateDeviceName: %X, %X, %X\n", IsPartition0, DeviceNumber, PartitionNumber);
+
+    if (IsPartition0)
+    {
+        /* Entire raw disk (FDO) */
+
+        ASSERT(!ARGUMENT_PRESENT((PVOID)(ULONG_PTR) PartitionNumber));
+        ASSERT(!ARGUMENT_PRESENT(PartitionLength));
+        ASSERT(!ARGUMENT_PRESENT(StartingOffset));
+
+        _snprintf(NameString, (sizeof(NameString) - 1), "\\Device\\Harddisk%d\\DR%d",
+                  DeviceNumber, diskDeviceSequenceNumber);
+
+        diskDeviceSequenceNumber++;
+    }
+    else
+    {
+        /* Disk partition (PDO) */
+
+        ASSERT(ARGUMENT_PRESENT((PVOID)(ULONG_PTR) PartitionNumber));
+        ASSERT(ARGUMENT_PRESENT(PartitionLength));
+        ASSERT(ARGUMENT_PRESENT(StartingOffset));
+
+        _snprintf(NameString, (sizeof(NameString) - 1), "\\Device\\Harddisk%d\\DP(%d)%#I64x-%#I64x+%lx",
+                  DeviceNumber, PartitionNumber,StartingOffset->QuadPart, PartitionLength->QuadPart, diskDeviceSequenceNumber);
+
+        diskDeviceSequenceNumber++;
+    }
+
+    *OutDeviceName = ExAllocatePoolWithTag(PagedPool, (strlen(NameString) + 1), 'NDcS');
+    if (*OutDeviceName == NULL)
+    {
+        DPRINT1("DiskGenerateDeviceName: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    strncpy(*OutDeviceName, NameString, (strlen(NameString) + 1));
+
+    DPRINT("DiskGenerateDeviceName: generated \"%s\"\n", NameString);
+
+    return STATUS_SUCCESS;
+}
+#endif
 
 
 VOID
