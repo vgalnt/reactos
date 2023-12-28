@@ -710,11 +710,24 @@ ResetBus(
     IN PDEVICE_OBJECT DeviceObject
     );
 
+#if !REACTOS_NT5x
 NTSTATUS
 DiskGenerateDeviceName(
     IN ULONG DeviceNumber,
     OUT PCCHAR *RawName
     );
+#else
+NTSTATUS
+NTAPI
+DiskGenerateDeviceName(
+    _In_ BOOLEAN IsPartition0,
+    _In_ ULONG DeviceNumber,
+    _In_ ULONG PartitionNumber,
+    _In_ PLARGE_INTEGER StartingOffset,
+    _In_ PLARGE_INTEGER PartitionLength,
+    _Out_ PCHAR* OutDeviceName
+);
+#endif
 
 VOID
 DiskCreateSymbolicLinks(

@@ -37,7 +37,7 @@ Revision History:
 #include "disk.tmh"
 #endif
 
-  #if __REACTOS__
+  #ifdef __REACTOS__
 //#define NDEBUG
 #include <debug.h>
   #endif
@@ -451,7 +451,11 @@ Return Value:
     // \Device\HarddiskN\Partition0, where N = device number.
     //
 
+  #if !REACTOS_NT5x
     status = DiskGenerateDeviceName(*DeviceCount, &deviceName);
+  #else
+    status = DiskGenerateDeviceName(TRUE, *DeviceCount, 0, NULL, NULL, &deviceName);
+  #endif
 
     if(!NT_SUCCESS(status)) {
         TracePrint((TRACE_LEVEL_FATAL, TRACE_FLAG_PNP, "DiskCreateFdo - couldn't create name %lx\n", status));
@@ -540,7 +544,9 @@ Return Value:
         goto DiskCreateFdoExit;
     }
 
+  #if REACTOS_NT5x
     KeInitializeEvent(&((PDISK_DATA)fdoExtension->CommonExtension.DriverData)->PartitioningEvent, SynchronizationEvent, TRUE);
+  #endif
 
     //
     // Clear the init flag.
@@ -1304,7 +1310,7 @@ Return Value:
     TracePrint((TRACE_LEVEL_VERBOSE, TRACE_FLAG_IOCTL, "DiskDeviceControl: Received IOCTL 0x%X for device %p through IRP %p\n",
                 ioctlCode, DeviceObject, Irp));
 
-  #if __REACTOS__
+  #ifdef __REACTOS__
     DPRINT("DiskDeviceControl: %p, %p, ioctlCode %X\n", DeviceObject, Irp, ioctlCode);
   #endif
 
@@ -6705,8 +6711,92 @@ DiskCreatePdo(
     _In_ ULONG PartitionStyle,
     _Out_ PDEVICE_OBJECT* OutPdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPHYSICAL_DEVICE_EXTENSION PdoExtension;
+    PFUNCTIONAL_DEVICE_EXTENSION FdoExtension;
+    PDEVICE_OBJECT DeviceObject = 0;
+    PCHAR ObjectNameBuffer = 0;
+    PDISK_DATA Data;
+    ULONG NumberElements;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskCreatePdo: %p, %X, %X\n", Fdo, Ordinal, PartitionStyle);
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    Status = DiskGenerateDeviceName(FALSE,
+                                    FdoExtension->DeviceNumber,
+                                    PartitionEntry->PartitionNumber,
+                                    &PartitionEntry->StartingOffset,
+                                    &PartitionEntry->PartitionLength,
+                                    &ObjectNameBuffer);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskCreatePdo: Can't generate name %X\n", Status);
+        return Status;
+    }
+
+    DPRINT("DiskCreatePdo: Create device object %s\n", ObjectNameBuffer);
+
+    Status = ClassCreateDeviceObject(Fdo->DriverObject, ObjectNameBuffer, Fdo, 0, &DeviceObject);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskCreatePdo: Can't create device object for %s\n", ObjectNameBuffer);
+        ExFreePool(ObjectNameBuffer);
+        return Status;
+    }
+
+    ExFreePool(ObjectNameBuffer);
+
+    PdoExtension = DeviceObject->DeviceExtension;
+
+    DeviceObject->Flags |= 0x10;
+    DeviceObject->StackSize = (PdoExtension->CommonExtension.LowerDeviceObject->StackSize + 1);
+
+    if (DeviceObject->AlignmentRequirement < Fdo->AlignmentRequirement)
+        DeviceObject->AlignmentRequirement = Fdo->AlignmentRequirement;
+
+    if (FdoExtension->SrbFlags & 2)
+        NumberElements = 30;
+    else
+        NumberElements = 8;
+
+    ClassInitializeSrbLookasideList(&PdoExtension->CommonExtension, NumberElements);
+
+    PdoExtension->CommonExtension.PartitionNumber = PartitionEntry->PartitionNumber;
+
+    Data = PdoExtension->CommonExtension.DriverData;
+    Data->PartitionOrdinal = Ordinal;
+    Data->PartitionStyle = PartitionStyle;
+
+    if (PartitionStyle == 0)
+    {
+        Data->Mbr.PartitionType = PartitionEntry->Mbr.PartitionType;
+        Data->Mbr.BootIndicator = PartitionEntry->Mbr.BootIndicator;
+        Data->Mbr.HiddenSectors = PartitionEntry->Mbr.HiddenSectors;
+    }
+    else
+    {
+        DPRINT1("DiskCreatePdo: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    DPRINT("DiskCreatePdo: Partition type is %X\n", Data->Mbr.PartitionType);
+
+    PdoExtension->CommonExtension.StartingOffset.QuadPart = PartitionEntry->StartingOffset.QuadPart;
+    PdoExtension->CommonExtension.PartitionLength.QuadPart = PartitionEntry->PartitionLength.QuadPart;
+
+    DPRINT("DiskCreatePdo: hidden sectors value for pdo %#p set to %#X\n", DeviceObject, Data->Mbr.HiddenSectors);
+
+    if (FdoExtension->DeviceDescriptor->RemovableMedia)
+        DeviceObject->Characteristics |= 1;
+
+    PdoExtension->DeviceObject = DeviceObject;
+    DeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
+
+    *OutPdo = DeviceObject;
+
+    return Status;
 }
 
 VOID
@@ -6856,7 +6946,7 @@ DiskUpdatePartitions(
 
         PartitionList->PartitionEntry[ix].PartitionNumber = PartitionNumber;
 
-        DPRINT("DiskUpdatePartitions: Found new partition #%d, ord %d starting at %#016I64x and running for %#016I64x\n",
+        DPRINT("DiskUpdatePartitions: Found new partition #%d, ord %d starting at %#016I64X and running for %#016I64X\n",
                PartitionList->PartitionEntry[ix].PartitionNumber,
                Ordinal,
                PartitionList->PartitionEntry[ix].StartingOffset.QuadPart,
@@ -6868,7 +6958,7 @@ DiskUpdatePartitions(
 
         if (!NT_SUCCESS(Status))
         {
-            DPRINT1("DiskUpdatePartitions: error %lx creating new PDO for partition ordinal %d, number %d\n",
+            DPRINT1("DiskUpdatePartitions: error %X creating new PDO for partition ordinal %d, number %d\n",
                     Status, Ordinal, PartitionList->PartitionEntry[ix].PartitionNumber);
 
             PartitionList->PartitionEntry[ix].PartitionNumber = 0;
