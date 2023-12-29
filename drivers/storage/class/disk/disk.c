@@ -1357,6 +1357,109 @@ Finish:
     return STATUS_SUCCESS;
 }
 
+PDRIVE_LAYOUT_INFORMATION
+NTAPI
+DiskConvertExtendedToLayout(
+    _In_ PDRIVE_LAYOUT_INFORMATION_EX PartitionList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+NTSTATUS
+NTAPI
+DiskIoctlGetDriveLayout(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    PDRIVE_LAYOUT_INFORMATION_EX PartitionList = NULL;
+    PFUNCTIONAL_DEVICE_EXTENSION FdoExtension;
+    PDRIVE_LAYOUT_INFORMATION Layout;
+    PIO_STACK_LOCATION IoStack;
+    PDISK_DATA Data;
+    ULONG Size;
+    BOOLEAN IsNotCaching = TRUE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskIoctlGetDriveLayout: %p, %p\n", DeviceObject, Irp);
+
+    ASSERT(DeviceObject);
+    ASSERT(Irp);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+    Data = FdoExtension->CommonExtension.DriverData;
+
+    if (!Data->CachedPartitionTableValid)
+    {
+        DiskReadDriveCapacity(FdoExtension->DeviceObject);
+        IsNotCaching = FALSE;
+    }
+
+    DiskAcquirePartitioningLock(FdoExtension);
+
+    Status = DiskReadPartitionTableEx(FdoExtension, FALSE, &PartitionList);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskIoctlGetDriveLayout: Status %p\n", Status);
+        DiskReleasePartitioningLock(FdoExtension);
+        return Status;
+    }
+
+    if (PartitionList->PartitionStyle)
+    {
+        DPRINT1("DiskIoctlGetDriveLayout: STATUS_INVALID_DEVICE_REQUEST\n");
+        DiskReleasePartitioningLock(FdoExtension);
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    Size = FIELD_OFFSET(DRIVE_LAYOUT_INFORMATION, PartitionEntry[0]);
+    Size += (PartitionList->PartitionCount * sizeof(PARTITION_INFORMATION));
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < Size)
+    {
+        DPRINT1("DiskIoctlGetDriveLayout: STATUS_BUFFER_TOO_SMALL\n");
+
+        Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
+
+        DiskReleasePartitioningLock(FdoExtension);
+
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    ASSERT(Data->UpdatePartitionRoutine != NULL);
+
+    Data->UpdatePartitionRoutine(DeviceObject, PartitionList);
+
+    Layout = DiskConvertExtendedToLayout(PartitionList);
+    if (!Layout)
+    {
+        DPRINT1("DiskIoctlGetDriveLayout: STATUS_INSUFFICIENT_RESOURCES\n");
+
+        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+
+        DiskReleasePartitioningLock(FdoExtension);
+
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlMoveMemory(Irp->AssociatedIrp.SystemBuffer, Layout, Size);
+
+    Irp->IoStatus.Information = Size;
+    Irp->IoStatus.Status = Status;
+
+    ExFreePool(Layout);
+
+    DiskReleasePartitioningLock(FdoExtension);
+
+    if (!IsNotCaching)
+        ClassInvalidateBusRelations(DeviceObject);
+
+    return Status;
+}
+
 #endif
 
 NTSTATUS
@@ -1539,8 +1642,8 @@ Return Value:
         }
         case IOCTL_DISK_GET_PARTITION_INFO_EX:
         {
-            DPRINT1("IOCTL_DISK_GET_PARTITION_INFO_EX to device %p through irp %p\n", DeviceObject, Irp);
-            DPRINT1("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
+            DPRINT("IOCTL_DISK_GET_PARTITION_INFO_EX to device %p through irp %p\n", DeviceObject, Irp);
+            DPRINT("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
 
             status = DiskIoctlGetPartitionInfoEx(DeviceObject, Irp);
             break;
@@ -1559,8 +1662,19 @@ Return Value:
         }
         case IOCTL_DISK_GET_DRIVE_LAYOUT:
         {
-            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_GET_DRIVE_LAYOUT (%X)\n", DeviceObject, Irp, ioctlCode);
-            ASSERT(FALSE);
+            DPRINT("IOCTL_DISK_GET_DRIVE_LAYOUT to device %p through irp %p\n", DeviceObject, Irp);
+            DPRINT("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
+
+            if (!Extension->IsFdo)
+            {
+                ClassReleaseRemoveLock(DeviceObject, Irp);
+                ExFreePoolWithTag(Srb, 'SDcS');
+
+                IoCopyCurrentIrpStackLocationToNext(Irp);
+                return IoCallDriver(Extension->LowerDeviceObject, Irp);
+            }
+
+            status = DiskIoctlGetDriveLayout(DeviceObject, Irp);
             break;
         }
         case IOCTL_DISK_GET_DRIVE_LAYOUT_EX:
