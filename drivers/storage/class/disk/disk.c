@@ -6702,8 +6702,9 @@ NTAPI
 DiskStartPdo(
     _In_ PDEVICE_OBJECT Pdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+    DPRINT("DiskStartPdo: %p\n", Pdo);
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
