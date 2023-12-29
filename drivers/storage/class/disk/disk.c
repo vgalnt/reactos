@@ -6659,8 +6659,42 @@ NTAPI
 DiskInitPdo(
     _In_ PDEVICE_OBJECT Pdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPHYSICAL_DEVICE_EXTENSION PdoExtension;
+    UNICODE_STRING SymbolicLinkName;
+    PDISK_DATA Data;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskInitPdo: %p\n", Pdo);
+
+    PdoExtension = Pdo->DeviceExtension;
+    Data = PdoExtension->CommonExtension.DriverData;
+
+    DiskCreateSymbolicLinks(Pdo);
+    RtlInitUnicodeString(&SymbolicLinkName, NULL);
+
+    Status = IoRegisterDeviceInterface(Pdo, &GUID_DEVINTERFACE_PARTITION, NULL, &SymbolicLinkName);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("DiskInitPdo: Status %X\n", Status);
+        SymbolicLinkName.Buffer = NULL;
+    }
+    else
+    {
+        Data->PartitionInterfaceString = SymbolicLinkName;
+        Status = IoSetDeviceInterfaceState(&SymbolicLinkName, TRUE);
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskInitPdo: Unable to register partition DCA for pdo %p [%X]\n", Pdo, Status);
+
+        RtlFreeUnicodeString(&SymbolicLinkName);
+        RtlInitUnicodeString(&Data->PartitionInterfaceString, NULL);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS

@@ -339,6 +339,8 @@ typedef struct _DISK_DATA {
 
   #if REACTOS_NT5x
     KEVENT PartitioningEvent;
+    UNICODE_STRING DiskInterfaceString;
+    UNICODE_STRING PartitionInterfaceString;
   #endif
 
     //
