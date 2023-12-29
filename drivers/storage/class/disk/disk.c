@@ -1253,6 +1253,110 @@ Finish:
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+DiskIoctlGetPartitionInfoEx(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    PPHYSICAL_DEVICE_EXTENSION PdoExtension;
+    PFUNCTIONAL_DEVICE_EXTENSION ZeroFdoExtension;
+    PPARTITION_INFORMATION_EX Info;
+    PIO_STACK_LOCATION IoStack;
+    PDISK_DATA ZeroFdoData;
+    PDISK_DATA Data;
+    ULONG Type;
+    BOOLEAN IsRecognized;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskIoctlGetPartitionInfoEx: %p, %p\n", DeviceObject, Irp);
+
+    ASSERT(DeviceObject);
+    ASSERT(Irp);
+
+    PdoExtension = DeviceObject->DeviceExtension;
+    ZeroFdoExtension = PdoExtension->CommonExtension.PartitionZeroExtension;
+
+    Data = PdoExtension->CommonExtension.DriverData;
+    ZeroFdoData = ZeroFdoExtension->CommonExtension.DriverData;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*Info))
+    {
+        DPRINT1("DiskIoctlGetPartitionInfo: STATUS_BUFFER_TOO_SMALL\n");
+        return Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
+    }
+
+    Status = DiskReadDriveCapacity(ZeroFdoExtension->DeviceObject);
+
+    if (ZeroFdoData->ReadyStatus != InterlockedExchange(&ZeroFdoData->ReadyStatus, Status))
+        IoInvalidateDeviceRelations(ZeroFdoExtension->LowerPdo, BusRelations);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskIoctlGetPartitionInfoEx: %p, %p\n", DeviceObject, Irp);
+        return Status;
+    }
+
+    if (PdoExtension->CommonExtension.PartitionNumber)
+    {
+        DiskEnumerateDevice(ZeroFdoExtension->DeviceObject);
+        DiskAcquirePartitioningLock(ZeroFdoExtension);
+    }
+
+    Info = Irp->AssociatedIrp.SystemBuffer;
+
+    Info->StartingOffset.QuadPart = PdoExtension->CommonExtension.StartingOffset.QuadPart;
+    Info->PartitionLength.LowPart = PdoExtension->CommonExtension.PartitionLength.QuadPart;
+
+    Info->PartitionNumber = PdoExtension->CommonExtension.PartitionNumber;
+    Info->PartitionStyle = Data->PartitionStyle;
+
+    Info->RewritePartition = FALSE;
+
+    if (Data->PartitionStyle != 0)
+    {
+        DPRINT1("DiskIoctlGetPartitionInfo: FIXME\n");
+        ASSERT(FALSE);
+        goto Finish;
+    }
+
+    Info->Mbr.PartitionType = Data->Mbr.PartitionType;
+    Info->Mbr.HiddenSectors = Data->Mbr.HiddenSectors;
+    Info->Mbr.BootIndicator = Data->Mbr.BootIndicator;
+
+    if (!(Data->Mbr.PartitionType & 0x80) || (Data->Mbr.PartitionType & 0x3F) != 1)
+    {
+        Type = Data->Mbr.PartitionType;
+
+        IsRecognized = (((Type & 0x80) && (Type & 0x3F) == 1) ||
+                        ((Type & 0x80) && (Type & 0x3F) == 6) ||
+                        ((Type & 0x80) && (Type & 0x3F) == 7) ||
+                        ((Type & 0x80) && (Type & 0x3F) == 0xB) ||
+                        ((Type & 0x80) && (Type & 0x3F) == 0xC) ||
+                        ((Type & 0x80) && (Type & 0x3F) == 0xE) ||
+                        Type == 1 ||
+                        Type == 4 ||
+                        Type == 6 ||
+                        Type == 7 ||
+                        Type == 0xB ||
+                        Type == 0xC ||
+                        Type == 0xE);
+    }
+
+    Info->Mbr.RecognizedPartition = IsRecognized;
+
+Finish:
+
+    Irp->IoStatus.Information = sizeof(*Info);
+
+    if (PdoExtension->CommonExtension.PartitionNumber)
+        DiskReleasePartitioningLock(ZeroFdoExtension);
+
+    return STATUS_SUCCESS;
+}
+
 #endif
 
 NTSTATUS
@@ -1435,8 +1539,10 @@ Return Value:
         }
         case IOCTL_DISK_GET_PARTITION_INFO_EX:
         {
-            DPRINT1("DiskDeviceControl: (%p, %p) FIXME IOCTL_DISK_GET_PARTITION_INFO_EX (%X)\n", DeviceObject, Irp, ioctlCode);
-            ASSERT(FALSE);
+            DPRINT1("IOCTL_DISK_GET_PARTITION_INFO_EX to device %p through irp %p\n", DeviceObject, Irp);
+            DPRINT1("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
+
+            status = DiskIoctlGetPartitionInfoEx(DeviceObject, Irp);
             break;
         }
         case IOCTL_DISK_SET_PARTITION_INFO:
