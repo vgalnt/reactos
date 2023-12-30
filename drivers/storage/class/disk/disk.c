@@ -38,6 +38,8 @@ Revision History:
 #endif
 
   #ifdef __REACTOS__
+#include "ntintsafe.h"
+
 //#define NDEBUG
 #include <debug.h>
   #endif
@@ -1360,10 +1362,64 @@ Finish:
 PDRIVE_LAYOUT_INFORMATION
 NTAPI
 DiskConvertExtendedToLayout(
-    _In_ PDRIVE_LAYOUT_INFORMATION_EX PartitionList)
+    _In_ PDRIVE_LAYOUT_INFORMATION_EX LayoutEx)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PDRIVE_LAYOUT_INFORMATION RetLayout;
+    ULONG Size;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskConvertExtendedToLayout: %p\n", LayoutEx);
+
+    ASSERT(LayoutEx);
+
+    if (LayoutEx->PartitionStyle != 0)
+    {
+        DPRINT1("DiskConvertExtendedToLayout: PartitionStyle %X\n", LayoutEx->PartitionStyle);
+        ASSERT(FALSE);
+        return NULL;
+    }
+
+    Status = RtlULongLongToULong((LayoutEx->PartitionCount * sizeof(PARTITION_INFORMATION)), &Size);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskConvertExtendedToLayout: Status %X\n", Status);
+        return NULL;
+    }
+
+    Status = RtlULongAdd(Size, FIELD_OFFSET(DRIVE_LAYOUT_INFORMATION, PartitionEntry[0]), &Size);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskConvertExtendedToLayout: Status %X\n", Status);
+        return NULL;
+    }
+
+    RetLayout = ExAllocatePoolWithTag(NonPagedPool, Size, 'pDcS');
+    if (!RetLayout)
+    {
+        DPRINT1("DiskConvertExtendedToLayout: allocate failed\n");
+        return NULL;
+    }
+
+    RetLayout->Signature = LayoutEx->Mbr.Signature;
+    RetLayout->PartitionCount = LayoutEx->PartitionCount;
+
+    for (ix = 0; ix < LayoutEx->PartitionCount; ix++)
+    {
+        RetLayout->PartitionEntry[ix].StartingOffset.QuadPart = LayoutEx->PartitionEntry[ix].StartingOffset.QuadPart;
+        RetLayout->PartitionEntry[ix].PartitionLength.QuadPart = LayoutEx->PartitionEntry[ix].PartitionLength.QuadPart;
+
+        RetLayout->PartitionEntry[ix].HiddenSectors = LayoutEx->PartitionEntry[ix].Mbr.HiddenSectors;
+        RetLayout->PartitionEntry[ix].PartitionNumber = LayoutEx->PartitionEntry[ix].PartitionNumber;
+        RetLayout->PartitionEntry[ix].PartitionType = LayoutEx->PartitionEntry[ix].Mbr.PartitionType;
+
+        RetLayout->PartitionEntry[ix].BootIndicator = LayoutEx->PartitionEntry[ix].Mbr.BootIndicator;
+        RetLayout->PartitionEntry[ix].RecognizedPartition = LayoutEx->PartitionEntry[ix].Mbr.RecognizedPartition;
+        RetLayout->PartitionEntry[ix].RewritePartition = LayoutEx->PartitionEntry[ix].RewritePartition;
+    }
+
+    return RetLayout;
 }
 
 NTSTATUS
