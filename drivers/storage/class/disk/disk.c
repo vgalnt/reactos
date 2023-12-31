@@ -1620,7 +1620,62 @@ Return Value:
         }
 
         case IOCTL_DISK_IS_WRITABLE: {
+          #if !REACTOS_NT5x
             status = DiskIoctlIsWritable(DeviceObject, Irp);
+          #else
+            PMODE_PARAMETER_HEADER modeData;
+            ULONG modeLength;
+            ULONG Retries;
+
+            DPRINT("DiskDeviceControl: IOCTL_DISK_IS_WRITABLE\n");
+
+            if (!Extension->IsFdo)
+            {
+                ClassReleaseRemoveLock(DeviceObject, Irp);
+                ExFreePoolWithTag(Srb, 'SDcS');
+
+                IoCopyCurrentIrpStackLocationToNext(Irp);
+                return IoCallDriver(Extension->LowerDeviceObject, Irp);
+            }
+
+            RtlZeroMemory(Srb, sizeof(*Srb));
+
+            modeLength = (sizeof(modeData) + 8); // FIXME
+
+            modeData = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, modeLength, 'MDcS');
+            if (!modeData)
+            {
+                DPRINT("DiskDeviceControl: STATUS_INSUFFICIENT_RESOURCES\n");
+                status = STATUS_INSUFFICIENT_RESOURCES;
+                break;
+            }
+            RtlZeroMemory(modeData, modeLength);
+
+            Srb->TimeOutValue = ((PFUNCTIONAL_DEVICE_EXTENSION)Extension)->TimeOutValue;
+            Srb->CdbLength = 6;
+
+            ((PCDB)Srb->Cdb)->MODE_SENSE.OperationCode = SCSIOP_MODE_SENSE;
+            ((PCDB)Srb->Cdb)->MODE_SENSE.PageCode = MODE_SENSE_RETURN_ALL;
+            ((PCDB)Srb->Cdb)->MODE_SENSE.AllocationLength = modeLength;
+
+            for (Retries = 4; Retries; Retries--)
+            {
+                status = ClassSendSrbSynchronous(DeviceObject, Srb, modeData, modeLength, FALSE);
+                if (status != STATUS_VERIFY_REQUIRED)
+                {
+                    if ((Srb->SrbStatus & 0x3F) == 0x12)
+                        status = STATUS_SUCCESS;
+
+                    if (NT_SUCCESS(status) && (modeData->DeviceSpecificParameter & 0x80))
+                        status = STATUS_MEDIA_WRITE_PROTECTED;
+
+                    break;
+                }
+            }
+
+            ExFreePoolWithTag(modeData, 'MDcS');
+          #endif
+
             break;
         }
 
