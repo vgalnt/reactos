@@ -597,9 +597,12 @@ Return Value:
     InitializeListHead(&diskData->FlushContext.CurrList);
     InitializeListHead(&diskData->FlushContext.NextList);
 
-    KeInitializeSpinLock(&diskData->FlushContext.Spinlock);
     KeInitializeEvent(&diskData->FlushContext.Event, SynchronizationEvent, FALSE);
-
+  #if !REACTOS_NT5x
+    KeInitializeSpinLock(&diskData->FlushContext.Spinlock);
+  #else
+    KeInitializeMutex(&diskData->FlushContext.Mutex, 0);
+  #endif
 
     //
     // Restore the saved value

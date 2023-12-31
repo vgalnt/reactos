@@ -140,7 +140,11 @@ typedef struct _DISK_GROUP_CONTEXT
     //
     // The spinlock that will synchronize access to this context
     //
+  #if !REACTOS_NT5x
     KSPIN_LOCK Spinlock;
+  #else
+    KMUTEX Mutex;
+  #endif
 
     //
     // This event will allow for the requests to be sent down synchronously

@@ -1914,6 +1914,7 @@ Return Value:
 
 --*/
 
+#if !REACTOS_NT5x
 {
     PCOMMON_DEVICE_EXTENSION commonExtension = DeviceObject->DeviceExtension;
     PFUNCTIONAL_DEVICE_EXTENSION fdoExtension = commonExtension->PartitionZeroExtension;
@@ -2295,7 +2296,153 @@ Return Value:
 
     return STATUS_PENDING;
 }
+#else
+{
+    PCOMMON_DEVICE_EXTENSION commonExtension;
+    PFUNCTIONAL_DEVICE_EXTENSION fdoExtension;
+    PIO_STACK_LOCATION irpStack;
+    PSCSI_REQUEST_BLOCK srb;
+    PDISK_DATA diskData;
 
+    PAGED_CODE();
+    DPRINT("DiskShutdownFlush: %p, %p\n", DeviceObject, Irp);
+
+    commonExtension = DeviceObject->DeviceExtension;
+    fdoExtension = commonExtension->PartitionZeroExtension;
+    diskData = commonExtension->DriverData;
+
+    if (!commonExtension->IsFdo)
+    {
+        ClassReleaseRemoveLock(DeviceObject, Irp);
+        IoMarkIrpPending(Irp);
+        IoCopyCurrentIrpStackLocationToNext(Irp);
+        IoCallDriver(commonExtension->LowerDeviceObject, Irp);
+        return STATUS_PENDING;
+    }
+
+    irpStack = Irp->Tail.Overlay.CurrentStackLocation;
+    if (irpStack->MajorFunction != IRP_MJ_FLUSH_BUFFERS)
+    {
+        srb = ExAllocatePoolWithTag(NonPagedPool, sizeof(*srb), 'SDcS');
+        if (!srb)
+        {
+            DPRINT1("DiskShutdownFlush: allocate failed\n");
+            Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+
+            ClassReleaseRemoveLock(DeviceObject, Irp);
+            ClassCompleteRequest(DeviceObject, Irp, IO_NO_INCREMENT);
+
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+        RtlZeroMemory(srb, sizeof(*srb));
+
+        srb->Length = sizeof(*srb);
+        srb->TimeOutValue = (fdoExtension->TimeOutValue * 4);
+        srb->QueueTag = 0xFF;
+        srb->QueueAction = 0x20;
+        srb->SrbFlags = fdoExtension->SrbFlags;
+
+        if (fdoExtension->DeviceFlags & 1)
+        {
+            NTSTATUS Status;
+
+            srb->Function = 0;
+            srb->CdbLength = 0xA;
+            srb->Cdb[0] = 0x35;
+
+            Status = ClassSendSrbSynchronous(DeviceObject, srb, NULL, 0, TRUE);
+
+            DPRINT("DiskShutdownFlush: Synchonize cache sent. Status = %lx\n", Status);
+        }
+
+        if (DeviceObject->Characteristics & 1)
+        {
+            DPRINT1("DiskShutdownFlush: FIXME\n");
+            ASSERT(FALSE);
+        }
+
+        srb->CdbLength = 0;
+        srb->Function = 7;
+
+        irpStack->Parameters.Others.Argument4 = NULL;
+        IoSetCompletionRoutine(Irp, ClassIoComplete, srb, TRUE, TRUE, TRUE);
+
+        irpStack = IoGetNextIrpStackLocation(Irp);
+        irpStack->MajorFunction = 0xF;
+        irpStack->Parameters.Scsi.Srb = srb;
+
+        srb->OriginalRequest = Irp;
+
+        IoMarkIrpPending(Irp);
+
+        IoCallDriver(commonExtension->LowerDeviceObject, Irp);
+
+        return STATUS_PENDING;
+    }
+
+    if (fdoExtension->DeviceFlags & 0x10)
+    {
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+        ClassReleaseRemoveLock(DeviceObject, Irp);
+        ClassCompleteRequest(DeviceObject, Irp, 0);
+        return STATUS_SUCCESS;
+    }
+
+    KeWaitForSingleObject(&diskData->FlushContext.Mutex, Executive, KernelMode, FALSE, NULL);
+    IoMarkIrpPending(Irp);
+
+    if (!diskData->FlushContext.CurrIrp)
+    {
+        diskData->FlushContext.CurrIrp = Irp;
+
+        ASSERT(IsListEmpty(&diskData->FlushContext.CurrList));
+        ASSERT(diskData->FlushContext.NextIrp == NULL);
+        ASSERT(IsListEmpty(&diskData->FlushContext.NextList));
+
+        KeReleaseMutex(&diskData->FlushContext.Mutex, FALSE);
+
+        DiskFlushDispatch(DeviceObject, &diskData->FlushContext);
+        return STATUS_PENDING;
+    }
+
+    if (diskData->FlushContext.NextIrp)
+    {
+        diskData->FlushContext.DbgTagCount++;
+
+        InsertTailList(&diskData->FlushContext.NextList, &Irp->Tail.Overlay.ListEntry);
+        KeReleaseMutex(&diskData->FlushContext.Mutex, FALSE);
+
+        return STATUS_PENDING;
+    }
+
+    if (diskData->FlushContext.DbgTagCount < 0x40)
+        diskData->FlushContext.DbgRefCount[diskData->FlushContext.DbgTagCount]++;
+
+    diskData->FlushContext.DbgSavCount += diskData->FlushContext.DbgTagCount;
+    diskData->FlushContext.DbgTagCount = 0;
+
+    diskData->FlushContext.NextIrp = Irp;
+
+    ASSERT(IsListEmpty(&diskData->FlushContext.NextList));
+
+    KeReleaseMutex(&diskData->FlushContext.Mutex, FALSE);
+    KeWaitForSingleObject(&diskData->FlushContext.Event, Executive, KernelMode, FALSE, NULL);
+    KeWaitForSingleObject(&diskData->FlushContext.Mutex, Executive, KernelMode, FALSE, NULL);
+
+    ASSERT(IsListEmpty(&diskData->FlushContext.CurrList));
+
+    while (!IsListEmpty(&diskData->FlushContext.NextList))
+        InsertTailList(&diskData->FlushContext.CurrList, RemoveHeadList(&diskData->FlushContext.NextList));
+
+    diskData->FlushContext.CurrIrp = diskData->FlushContext.NextIrp;
+    diskData->FlushContext.NextIrp = NULL;
+
+    KeReleaseMutex(&diskData->FlushContext.Mutex, FALSE);
+
+    DiskFlushDispatch(DeviceObject, &diskData->FlushContext);
+    return STATUS_PENDING;
+}
+#endif
 
 VOID
 DiskFlushDispatch(
