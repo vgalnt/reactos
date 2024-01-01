@@ -1027,9 +1027,18 @@ IntVideoPortDispatchFdoPnp(
         case IRP_MN_FILTER_RESOURCE_REQUIREMENTS:
             Status = IntVideoPortForwardIrpAndWait(DeviceObject, Irp);
             if (NT_SUCCESS(Status) && NT_SUCCESS(Irp->IoStatus.Status))
+            {
                 Status = IntVideoPortFilterResourceRequirements(DeviceObject, Irp);
+                DPRINT("IntVideoPortDispatchFdoPnp: Status %X\n", Status);
+            }
+
+            if (!NT_SUCCESS(Status))
+            {
+                Status = STATUS_NOT_SUPPORTED;
+                Irp->IoStatus.Information = 0;
+            }
+
             Irp->IoStatus.Status = Status;
-            Irp->IoStatus.Information = 0;
             IoCompleteRequest(Irp, IO_NO_INCREMENT);
             break;
 
