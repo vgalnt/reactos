@@ -1516,13 +1516,62 @@ DiskIoctlGetDriveLayout(
     return Status;
 }
 
+VOID
+NTAPI
+DiskConvertPartitionToExtended(
+    _In_ PPARTITION_INFORMATION Partition,
+    _In_ PPARTITION_INFORMATION_EX PartitionEx)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 PDRIVE_LAYOUT_INFORMATION_EX
 NTAPI
 DiskConvertLayoutToExtended(
     _In_ PDRIVE_LAYOUT_INFORMATION Layout)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PDRIVE_LAYOUT_INFORMATION_EX LayoutEx;
+    ULONG Size;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskConvertLayoutToExtended: %p\n", Layout);
+
+    ASSERT(Layout);
+
+    Status = RtlULongLongToULong((Layout->PartitionCount * sizeof(PARTITION_INFORMATION_EX)), &Size);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskConvertLayoutToExtended: Status %X\n", Status);
+        return NULL;
+    }
+
+    Status = RtlULongAdd(Size, FIELD_OFFSET(DRIVE_LAYOUT_INFORMATION_EX, PartitionEntry[0]), &Size);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DiskConvertLayoutToExtended: Status %X\n", Status);
+        return NULL;
+    }
+
+    LayoutEx = ExAllocatePoolWithTag(NonPagedPool, Size, 'pDcS');
+    if (!LayoutEx)
+    {
+        DPRINT1("DiskConvertLayoutToExtended: allocate failed\n");
+        return NULL;
+    }
+
+    LayoutEx->PartitionStyle = 0;
+    LayoutEx->PartitionCount = Layout->PartitionCount;
+
+    LayoutEx->Mbr.Signature = Layout->Signature;
+
+    for (ix = 0; ix < Layout->PartitionCount; ix++)
+    {
+        DiskConvertPartitionToExtended(&Layout->PartitionEntry[ix], &LayoutEx->PartitionEntry[ix]);
+    }
+
+    return LayoutEx;
 }
 
 NTSTATUS
