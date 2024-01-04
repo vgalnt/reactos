@@ -1522,7 +1522,24 @@ DiskConvertPartitionToExtended(
     _In_ PPARTITION_INFORMATION Partition,
     _In_ PPARTITION_INFORMATION_EX PartitionEx)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PAGED_CODE();
+    DPRINT("DiskConvertPartitionToExtended: %p\n", Partition, PartitionEx);
+
+    ASSERT(Partition);
+    ASSERT(PartitionEx);
+
+    PartitionEx->PartitionStyle = 0;
+
+    PartitionEx->StartingOffset.QuadPart = Partition->StartingOffset.QuadPart;
+    PartitionEx->PartitionLength.QuadPart = Partition->PartitionLength.QuadPart;
+
+    PartitionEx->PartitionNumber = Partition->PartitionNumber;
+    PartitionEx->RewritePartition = Partition->RewritePartition;
+
+    PartitionEx->Mbr.PartitionType = Partition->PartitionType;
+    PartitionEx->Mbr.BootIndicator = Partition->BootIndicator;
+    PartitionEx->Mbr.RecognizedPartition = Partition->RecognizedPartition;
+    PartitionEx->Mbr.HiddenSectors = Partition->HiddenSectors;
 }
 
 PDRIVE_LAYOUT_INFORMATION_EX
