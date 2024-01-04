@@ -1597,8 +1597,17 @@ DiskWritePartitionTableEx(
     _In_ PFUNCTIONAL_DEVICE_EXTENSION FdoExtension,
     _In_ PDRIVE_LAYOUT_INFORMATION_EX LayoutEx)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDISK_DATA Data;
+
+    DPRINT("DiskWritePartitionTableEx: Invalidating PT cache for FDO %#p\n", FdoExtension);
+
+    Data = FdoExtension->CommonExtension.DriverData;
+    Data->CachedPartitionTableValid = 0;
+
+    if (DiskDisableGpt && LayoutEx->PartitionStyle == 1)
+        return STATUS_NOT_SUPPORTED;
+
+    return IoWritePartitionTableEx(FdoExtension->DeviceObject, LayoutEx);
 }
 
 NTSTATUS
