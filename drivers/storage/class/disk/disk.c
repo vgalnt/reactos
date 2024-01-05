@@ -1739,6 +1739,7 @@ Return Value:
     PCOMMON_DEVICE_EXTENSION Extension = DeviceObject->DeviceExtension;
     PFUNCTIONAL_DEVICE_EXTENSION FdoExtension = DeviceObject->DeviceExtension;
     TARGET_DEVICE_CUSTOM_NOTIFICATION Notification = {0};
+    PDISK_DATA Data = Extension->DriverData;
     PSCSI_REQUEST_BLOCK Srb;
     PCDB Cdb;
   #endif
@@ -1791,7 +1792,45 @@ Return Value:
         }
 
         case IOCTL_DISK_GET_DRIVE_GEOMETRY: {
+          #if !REACTOS_NT5x
             status = DiskIoctlGetDriveGeometry(DeviceObject, Irp);
+          #else
+            DPRINT1("IOCTL_DISK_GET_DRIVE_GEOMETRY to device %p through irp %p\n", DeviceObject, Irp);
+            DPRINT1("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
+
+            if (irpStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(DISK_GEOMETRY))
+            {
+                DPRINT1("IOCTL_DISK_GET_DRIVE_GEOMETRY: STATUS_BUFFER_TOO_SMALL (%X-%X)\n",
+                        irpStack->Parameters.DeviceIoControl.OutputBufferLength, sizeof(DISK_GEOMETRY));
+
+                status = STATUS_BUFFER_TOO_SMALL;
+                break;
+            }
+
+            if (!Extension->IsFdo)
+            {
+                ClassReleaseRemoveLock(DeviceObject, Irp);
+                ExFreePoolWithTag(Srb, 'SDcS');
+
+                IoCopyCurrentIrpStackLocationToNext(Irp);
+                return IoCallDriver(Extension->LowerDeviceObject, Irp);
+            }
+
+            if (DeviceObject->Characteristics & 1)
+            {
+                Data->ReadyStatus = status = DiskReadDriveCapacity(Extension->PartitionZeroExtension->DeviceObject);
+                if (!NT_SUCCESS(status))
+                {
+                    DPRINT1("IOCTL_DISK_GET_DRIVE_GEOMETRY: status %X\n", status);
+                    break;
+                }
+            }
+
+            RtlMoveMemory(Irp->AssociatedIrp.SystemBuffer, &FdoExtension->DiskGeometry, sizeof(DISK_GEOMETRY));
+            Irp->IoStatus.Information = sizeof(DISK_GEOMETRY);
+
+            status = STATUS_SUCCESS;
+          #endif
             break;
         }
 
