@@ -4390,8 +4390,7 @@ ACPIMatchKernelPorts(
                 }
                 default:
                 {
-                    DPRINT1("ACPIMatchKernelPorts: FIXME! (TagName %X)\n", TagName);
-                    ASSERT(FALSE);
+                    DPRINT1("ACPIMatchKernelPorts: unsupported TagName %X\n", TagName);
                     goto Next;
                 }
             }
@@ -4420,8 +4419,7 @@ ACPIMatchKernelPorts(
                 }
                 default:
                 {
-                    DPRINT1("ACPIMatchKernelPorts: FIXME! (TagName %X)\n", TagName);
-                    ASSERT(FALSE);
+                    DPRINT1("ACPIMatchKernelPorts: unsupported TagName %X\n", TagName);
                     goto Next;
                 }
             }
