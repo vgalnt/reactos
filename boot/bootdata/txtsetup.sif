@@ -109,6 +109,7 @@ fastfat.sys  = 1,,,,,,x,4,,,,1,4
 floppy.sys   = 1,,,,,,x,4,,,,1,4
 ftdisk.sys   = 1,,,,,,x,4,,,,1,4
 kbdclass.sys = 1,,,,,,x,4,,,,1,4
+mouclass.sys = 1,,,,,,x,4,,,,1,4
 nmidebug.sys = 1,,,,,,x,4,,,,1,4
 mountmgr.sys = 1,,,,,,x,4,,,,1,4
 partmgr.sys  = 1,,,,,,x,4,,,,1,4
