@@ -40,7 +40,7 @@ Revision History:
   #ifdef __REACTOS__
 #include "ntintsafe.h"
 
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
   #endif
 

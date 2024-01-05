@@ -28,7 +28,7 @@ Revision History:
 #endif
 
   #ifdef __REACTOS__
-//#define NDEBUG
+#define NDEBUG
 #include <debug.h>
 
 extern NTSYSAPI ULONG InitSafeBootMode;
