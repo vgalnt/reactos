@@ -1310,7 +1310,7 @@ DiskIoctlGetPartitionInfoEx(
     Info = Irp->AssociatedIrp.SystemBuffer;
 
     Info->StartingOffset.QuadPart = PdoExtension->CommonExtension.StartingOffset.QuadPart;
-    Info->PartitionLength.LowPart = PdoExtension->CommonExtension.PartitionLength.QuadPart;
+    Info->PartitionLength.QuadPart = PdoExtension->CommonExtension.PartitionLength.QuadPart;
 
     Info->PartitionNumber = PdoExtension->CommonExtension.PartitionNumber;
     Info->PartitionStyle = Data->PartitionStyle;
