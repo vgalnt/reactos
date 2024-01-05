@@ -2184,6 +2184,9 @@ PciScanBus(
     PCHAR Name;
     PCI_CAPABILITIES_HEADER PcixCapHeader;
     PCI_CAPABILITIES_HEADER CapHeader;
+    PCI_PM_CAPABILITY PmCapability;
+    PCI_AGP_CAPABILITY AgpCapability;
+    PVOID Capability = NULL;
     PCI_SLOT_NUMBER PciSlot;
     LONGLONG HackFlags;
     ULONG MaxDevice = PCI_MAX_DEVICES;
@@ -2494,17 +2497,19 @@ PciScanBus(
                     /* Power management capability is heavily used by the bus */
                     case PCI_CAPABILITY_ID_POWER_MANAGEMENT:
 
-                        /* Dump the capability */
                         Name = "POWER";
                         Size = sizeof(PCI_PM_CAPABILITY);
+                        TempOffset = PciReadDeviceCapability(NewExtension, CapOffset, CapHeader.CapabilityID, (PVOID)&PmCapability, Size);
+                        Capability = &PmCapability;
                         break;
 
                     /* AGP capability is required for AGP bus functionality */
                     case PCI_CAPABILITY_ID_AGP:
 
-                        /* Dump the capability */
                         Name = "AGP";
                         Size = sizeof(PCI_AGP_CAPABILITY);
+                        TempOffset = PciReadDeviceCapability(NewExtension, CapOffset, CapHeader.CapabilityID, (PVOID)&AgpCapability, Size);
+                        Capability = &AgpCapability;
                         break;
 
                     /* This driver doesn't really use anything other than that */
@@ -2523,7 +2528,6 @@ PciScanBus(
                 if (Size)
                 {
                     /* Read the whole capability data */
-                    TempOffset = PciReadDeviceCapability(NewExtension, CapOffset, CapHeader.CapabilityID, &CapHeader, Size);
                     if (TempOffset != CapOffset)
                     {
                         /* Again, a strange issue that shouldn't be seen */
@@ -2533,7 +2537,7 @@ PciScanBus(
                     }
 
                     for (ix = 0; ix < Size; ix += 2)
-                        DPRINT("  %04X\n", *(PUSHORT)((ULONG_PTR)&CapHeader + ix));
+                        DPRINT("  %04X\n", *(PUSHORT)((ULONG_PTR)&Capability + ix));
                 }
 
                 DPRINT("\n");
