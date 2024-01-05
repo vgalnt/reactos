@@ -2210,13 +2210,13 @@ HKLM,"SYSTEM\CurrentControlSet\Services\IntelIde","Type",0x00010001,0x00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\IntelIde","Tag",0x00010001,0x00000005
 
 ; AMD AHCI Compatible RAID Controller driver
-HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","ErrorControl",0x00010001,0x00000001
-HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Group",0x00000000,"SCSI Miniport"
-HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","ImagePath",0x00020000,"system32\drivers\ahcix86.sys"
-HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Start",0x00010001,0x00000000
-HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Type",0x00010001,0x00000001
-HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Tag",0x00010001,0x00000003
-HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","DisplayName",0x00000000,"AMD AHCI Compatible RAID Controller"
+;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","ErrorControl",0x00010001,0x00000001
+;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Group",0x00000000,"SCSI Miniport"
+;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","ImagePath",0x00020000,"system32\drivers\ahcix86.sys"
+;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Start",0x00010001,0x00000000
+;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Type",0x00010001,0x00000001
+;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Tag",0x00010001,0x00000003
+;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","DisplayName",0x00000000,"AMD AHCI Compatible RAID Controller"
 
 ; iaStor driver
 HKLM,"SYSTEM\CurrentControlSet\Services\iaStor","ErrorControl",0x00010001,0x00000001
