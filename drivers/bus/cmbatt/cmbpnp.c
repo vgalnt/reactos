@@ -272,9 +272,6 @@ CmBattPnpDispatch(IN PDEVICE_OBJECT DeviceObject,
     IoStackLocation = IoGetCurrentIrpStackLocation(Irp);
     DeviceExtension = DeviceObject->DeviceExtension;
 
-    /* Set default error */
-    Status = STATUS_NOT_SUPPORTED;
-
     /* Try to acquire the lock before doing anything */
     Status = IoAcquireRemoveLock(&DeviceExtension->RemoveLock, Irp);
     if (!NT_SUCCESS(Status))
@@ -284,6 +281,9 @@ CmBattPnpDispatch(IN PDEVICE_OBJECT DeviceObject,
         IoCompleteRequest(Irp, IO_NO_INCREMENT);
         return STATUS_DEVICE_REMOVED;
     }
+
+    /* Set default error */
+    Status = STATUS_NOT_SUPPORTED;
 
     /* What's the operation? */
     switch (IoStackLocation->MinorFunction)
