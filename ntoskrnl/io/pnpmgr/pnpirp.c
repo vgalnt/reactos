@@ -547,13 +547,18 @@ IopQueryLegacyBusInformation(
     if (!DeviceNode)
         goto Exit;
 
+    if (DeviceNode->ServiceName.Buffer)
+    {
+        DPRINT1("IopQueryLegacyBusInformation: Driver '%wZ'\n", &DeviceNode->ServiceName);
+    }
+
     ParentDeviceNode = DeviceNode->Parent;
     if (!ParentDeviceNode)
         goto Exit;
 
     if (ParentDeviceNode->ServiceName.Buffer)
     {
-        DPRINT1("IopQueryLegacyBusInformation: Driver '%wZ'\n", &ParentDeviceNode->ServiceName);
+        DPRINT1("IopQueryLegacyBusInformation: Parent driver '%wZ'\n", &ParentDeviceNode->ServiceName);
     }
 
 Exit:
