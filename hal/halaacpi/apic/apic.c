@@ -982,7 +982,25 @@ HalpGetRedirEntry(
     _Out_ ULONG* OutEntry,
     _Out_ ULONG* OutDestination)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIO_APIC_REGISTERS IoApicRegs;
+    UCHAR IoUnit;
+
+    DPRINT("HalpGetRedirEntry: IntI %X\n", IntI);
+
+    for (IoUnit = 0; IoUnit < MAX_IOAPICS; IoUnit++)
+    {
+        if (IntI <= (HalpMaxApicInti[IoUnit] - 1))
+            break;
+
+        IntI -= HalpMaxApicInti[IoUnit];
+    }
+
+    ASSERT(IoUnit < MAX_IOAPICS);
+
+    IoApicRegs = (PIO_APIC_REGISTERS)HalpMpInfoTable.IoApicVA[IoUnit];
+
+    *OutDestination = IoApicRead(IoApicRegs, (2 * IntI + 0x11));
+    *OutEntry = IoApicRead(IoApicRegs, (2 * IntI + 0x10));
 }
 
 VOID
@@ -1059,7 +1077,7 @@ HalDisableSystemInterrupt(
 
     HalpReleaseHighLevelLock(&HalpAccountingLock, Lock);
 
-    DPRINT1("HalDisableSystemInterrupt: exit\n");
+    DPRINT("HalDisableSystemInterrupt: exit\n");
 }
 
 FORCEINLINE
