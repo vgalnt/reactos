@@ -943,12 +943,49 @@ HalEnableSystemInterrupt(
 
 VOID
 NTAPI
+HalpDisableRedirEntry(
+    _In_ USHORT IntI,
+    _In_ UCHAR ProcessorNumber)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 HalDisableSystemInterrupt(
     _In_ ULONG Vector,
     _In_ KIRQL Irql)
 {
+    ULONG Lock;
+    USHORT IntI;
+    UCHAR CpuNumber;
+
     DPRINT1("HalDisableSystemInterrupt: Vector %X, Irql %X\n", Vector, Irql);
-    ASSERT(FALSE); // DbgBreakPoint();
+
+    ASSERT(Vector < 0x20FF); // ((1 + HALP_SUPPORTED_NODE_COUNT) * 0x100 - 1);
+    ASSERT(Irql <= 0x1F);    // HIGH_LEVEL
+
+    IntI = HalpVectorToINTI[Vector];
+    if (IntI == 0xFFFF)
+        return;
+
+    Lock = HalpAcquireHighLevelLock(&HalpAccountingLock);
+
+    CpuNumber = KeGetPcr()->Prcb->Number;
+
+    if (HalpIntiInfo[IntI].Type == 0)
+    {
+        HalpDisableRedirEntry(IntI, CpuNumber);
+    }
+    else if (HalpIntiInfo[IntI].Type == 3)
+    {
+        DPRINT1("HalDisableSystemInterrupt: FIXME\n");
+        DbgBreakPoint(); // ASSERT(0);
+    }
+
+    HalpReleaseHighLevelLock(&HalpAccountingLock, Lock);
+
+    DPRINT1("HalDisableSystemInterrupt: exit\n");
 }
 
 FORCEINLINE
