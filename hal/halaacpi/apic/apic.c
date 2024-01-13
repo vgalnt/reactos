@@ -944,9 +944,33 @@ HalEnableSystemInterrupt(
 UCHAR
 NTAPI
 HalpRemoveInterruptDest(
-    _In_ ULONG Destinations,
+    _In_ UCHAR Destinations,
     _In_ UCHAR ProcessorNumber)
 {
+    UCHAR Destination;
+
+    DPRINT("HalpRemoveInterruptDest: Destinations %X, PrcNum %X\n", Destinations, ProcessorNumber);
+
+    if (HalpForceApicPhysicalDestinationMode)
+    {
+        DPRINT1("HalpRemoveInterruptDest: HalpForceApicPhysicalDestinationMode - TRUE\n");
+        return 0;
+    }
+
+    Destination = HalpIntDestMap[ProcessorNumber];
+    if (!Destination)
+    {
+        DPRINT("HalpRemoveInterruptDest: ret %X\n", Destinations);
+        return Destinations;
+    }
+
+    if (!HalpMaxProcsPerCluster)
+    {
+        Destinations &= ~Destination;
+        DPRINT("HalpRemoveInterruptDest: ret %X\n", Destinations);
+        return Destinations;
+    }
+
     UNIMPLEMENTED_DBGBREAK();
     return 0;
 }
