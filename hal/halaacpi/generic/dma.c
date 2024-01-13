@@ -517,9 +517,7 @@ HalFreeCommonBuffer(
     _In_ PVOID VirtualAddress,
     _In_ BOOLEAN CacheEnabled)
 {
-    //PADAPTER_OBJECT AdapterObject = (PADAPTER_OBJECT)DmaAdapter;
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // HalpDbgBreakPointEx();
+    MmFreeContiguousMemorySpecifyCache(VirtualAddress, Length, (CacheEnabled ? MmCached : MmNonCached));
 }
 
 /* HalpCopyBufferMap
