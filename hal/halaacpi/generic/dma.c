@@ -450,9 +450,17 @@ NTAPI
 HalPutDmaAdapter(
     _In_ PDMA_ADAPTER DmaAdapter)
 {
-    //PADAPTER_OBJECT AdapterObject = (PADAPTER_OBJECT)DmaAdapter;
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // HalpDbgBreakPointEx();
+    PADAPTER_OBJECT AdapterObject = (PADAPTER_OBJECT)DmaAdapter;
+    KIRQL OldIrql;
+
+    if (AdapterObject->ChannelNumber == 0xFF)
+    {
+        KeAcquireSpinLock(&HalpDmaAdapterListLock, &OldIrql);
+        RemoveEntryList(&AdapterObject->AdapterList);
+        KeReleaseSpinLock(&HalpDmaAdapterListLock, OldIrql);
+    }
+
+    ObDereferenceObject(AdapterObject);
 }
 
 PVOID
