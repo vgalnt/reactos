@@ -690,7 +690,7 @@ MmFreeContiguousMemorySpecifyCache(
     _In_ SIZE_T NumberOfBytes,
     _In_ MEMORY_CACHING_TYPE CacheType)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    MmFreeContiguousMemory(BaseAddress);
 }
 
 /* EOF */
