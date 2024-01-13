@@ -2147,7 +2147,7 @@ IopResourceRequirementsListToReqList(
                 ReqDesc->ReqEntry.CmDescriptor.Type = 7; // ?
                 ReqDesc->ReqEntry.Count++;
 
-                for (kx = ReqDesc->ReqEntry.Count; ; kx++)
+                for (kx = ReqDesc->ReqEntry.Count; ; ReqDesc->ReqEntry.Count = kx)
                 {
                     IoDescriptor++;
 
@@ -2176,7 +2176,7 @@ IopResourceRequirementsListToReqList(
                         break;
                     }
 
-                    ReqDesc->ReqEntry.Count = kx;
+                    kx++;
                 }
 
                 IopDumpReqDescriptor(ReqDesc, jx+1);
