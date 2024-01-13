@@ -941,13 +941,63 @@ HalEnableSystemInterrupt(
     return TRUE;
 }
 
+UCHAR
+NTAPI
+HalpRemoveInterruptDest(
+    _In_ ULONG Destinations,
+    _In_ UCHAR ProcessorNumber)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+VOID
+NTAPI
+HalpGetRedirEntry(
+    _In_ USHORT IntI,
+    _Out_ ULONG* OutEntry,
+    _Out_ ULONG* OutDestination)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 VOID
 NTAPI
 HalpDisableRedirEntry(
     _In_ USHORT IntI,
     _In_ UCHAR ProcessorNumber)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    IOAPIC_REDIRECTION_REGISTER IoApicReg;
+    ULONG Destination;
+    ULONG Entry;
+    ULONG IntiDest;
+    ULONG dummy;
+
+    DPRINT("HalpDisableRedirEntry: IntI %X, ProcessorNumber %X\n", IntI, ProcessorNumber);
+
+    IntiDest = HalpRemoveInterruptDest(HalpIntiInfo[IntI].Destinations, ProcessorNumber);
+    HalpIntiInfo[IntI].Destinations = IntiDest;
+
+    DPRINT("HalpDisableRedirEntry: IntiDest %X\n", IntiDest);
+
+    HalpGetRedirEntry(IntI, &Entry, &dummy);
+
+    if (!HalpForceApicPhysicalDestinationMode && IntiDest)
+    {
+        Destination = (IntiDest << 24);
+    }
+    else
+    {
+        Entry |= 0x00010000;
+        Destination = 0;
+    }
+
+    IoApicReg.LongLong = Entry;
+
+    HalpSetRedirEntry(IntI, &IoApicReg, Destination);
+
+    if (Entry & 0x00010000)
+        HalpIntiInfo[IntI].Enabled = 0;
 }
 
 VOID
