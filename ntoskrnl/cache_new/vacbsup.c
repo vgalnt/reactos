@@ -69,8 +69,109 @@ CcGetBcbListHeadLargeOffset(
     _In_ LONGLONG FileOffset,
     _In_ BOOLEAN Flag3)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PVACB* CurrentVacbs;
+    PVACB* NextVacbs;
+    PVACB* VacbsArray[7];
+    ULONG IndexArray[7];
+    ULONG VacbShift;
+    ULONG Index;
+    ULONG Level = 0;
+    ULONG ix = 0;
+    ULONG Idx;
+
+    CurrentVacbs = SharedMap->Vacbs;
+    VacbShift = 0x19;
+
+    ASSERT(SharedMap->SectionSize.QuadPart > 0x2000000);//VACB_SIZE_OF_FIRST_LEVEL
+
+    do
+    {
+        VacbShift += 7;
+        Level++;
+    }
+    while (SharedMap->SectionSize.QuadPart > (1LL << VacbShift));
+
+    if (FileOffset >= (1LL << VacbShift))
+        return &SharedMap->BcbList;
+
+    VacbShift -= 7;
+
+    while (TRUE)
+    {
+        Level--;
+
+        Index = (FileOffset >> VacbShift);
+        ASSERT(Index <= 0x7F);//VACB_LAST_INDEX_FOR_LEVEL
+
+        NextVacbs = (PVACB *)CurrentVacbs[Index];
+        if (NextVacbs)
+            goto Next;
+
+        while (TRUE)
+        {
+            if (Flag3)
+            {
+                if (Index != 0x7F)
+                {
+                    do
+                    {
+                        if (Index == 0x7F)
+                            break;
+
+                        Index++;
+                    }
+                    while (!CurrentVacbs[Index]);
+
+                    NextVacbs = (PVACB *)CurrentVacbs[Index];
+                    if (NextVacbs)
+                    {
+                        FileOffset = 0;
+                        break;
+                    }
+                }
+            }
+            else if (Index)
+            {
+                do
+                {
+                    if (!Index)
+                        break;
+
+                    Index--;
+                }
+                while (!CurrentVacbs[Index]);
+
+                NextVacbs = (PVACB *)CurrentVacbs[Index];
+                if (NextVacbs)
+                {
+                    FileOffset = 0x7FFFFFFFFFFFFFFF;
+                    break;
+                }
+            }
+            if (!ix)
+                return &SharedMap->BcbList;
+
+            Level++;
+
+            ix--;
+            Index = IndexArray[ix];
+            CurrentVacbs = VacbsArray[ix];
+        }
+Next:
+        Idx = ix++;
+        VacbsArray[Idx] = CurrentVacbs;
+        IndexArray[Idx] = Index;
+
+        CurrentVacbs = NextVacbs;
+
+        FileOffset &= ((1LL << VacbShift) - 1);
+        VacbShift -= 7;
+
+        if (!Level)
+            break;
+    }
+
+    return Add2Ptr(&CurrentVacbs[(FileOffset >> VacbShift) & 0xFFFFFFFE], 0x200);
 }
 
 PLIST_ENTRY
