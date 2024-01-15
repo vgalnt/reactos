@@ -482,8 +482,7 @@ PFILE_OBJECT
 NTAPI
 CcGetFileObjectFromBcb(PVOID Bcb)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    return ((PCC_BCB)Bcb)->SharedCacheMap->FileObject;
 }
 
 PFILE_OBJECT
