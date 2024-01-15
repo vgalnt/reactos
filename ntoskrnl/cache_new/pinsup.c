@@ -564,14 +564,102 @@ Exit:
 
 BOOLEAN
 NTAPI
-CcPinMappedData(IN PFILE_OBJECT FileObject,
-                IN PLARGE_INTEGER FileOffset,
-                IN ULONG Length,
-                IN ULONG Flags,
-                IN OUT PVOID *Bcb)
+CcPinMappedData(
+    _In_ PFILE_OBJECT FileObject,
+    _In_ PLARGE_INTEGER FileOffset,
+    _In_ ULONG Length,
+    _In_ ULONG Flags,
+    _Inout_ PVOID* InBcb)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PSHARED_CACHE_MAP SharedMap;
+    PCC_BCB* OutBcb;
+    PVOID oBcb = NULL;
+    PVOID dummy;
+    LARGE_INTEGER BeyondLastByte;
+    LARGE_INTEGER fileOffset;
+    BOOLEAN Result = FALSE;
+
+    fileOffset.QuadPart = FileOffset->QuadPart;
+
+    DPRINT("CcPinMappedData: %p, [%I64X], %X, %X\n", FileObject, fileOffset.QuadPart, Length, Flags);
+
+    if (!(*(PULONG)InBcb & 1))
+        return TRUE;
+
+    *InBcb = Add2Ptr(*InBcb, -1);
+
+    SharedMap = FileObject->SectionObjectPointer->SharedCacheMap;
+    OutBcb = (PCC_BCB *)&oBcb;
+
+    CcPinMappedDataCount++;
+
+    //_SEH2_TRY
+
+    if (((PCC_BCB)*InBcb)->NodeTypeCode != 0x2FD)
+    {
+        if (ExAcquireSharedStarveExclusive(&((PCC_BCB)*InBcb)->BcbResource, ((Flags & 1) == 1)))
+            Result = TRUE;
+        else
+            Result = FALSE;
+
+        goto Exit;
+    }
+
+    while (TRUE)
+    {
+        if (oBcb)
+        {
+            if (OutBcb == (PCC_BCB *)&oBcb)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            Length += (fileOffset.QuadPart - BeyondLastByte.QuadPart);
+
+            fileOffset.QuadPart = BeyondLastByte.QuadPart;
+
+            OutBcb++;
+        }
+
+        if (!CcPinFileData(FileObject,
+                           &fileOffset,
+                           Length,
+                           !(SharedMap->Flags & 0x200),
+                           0,
+                           Flags,
+                           (PCC_BCB *)OutBcb,
+                           &dummy,
+                           &BeyondLastByte))
+        {
+            Result = FALSE;
+            break;
+        }
+
+        if ((BeyondLastByte.QuadPart - fileOffset.QuadPart) >= Length)
+        {
+            CcFreeVirtualAddress((PVACB)*InBcb);
+
+            *InBcb = oBcb;
+            Result = TRUE;
+
+            break;
+        }
+    }
+
+
+Exit:
+
+    //_SEH2_END
+
+    if (Result)
+        return Result;
+
+    *InBcb = Add2Ptr(*InBcb, 1);
+
+    if (oBcb)
+        CcUnpinData((PCC_BCB)oBcb);
+
+    return Result;
 }
 
 BOOLEAN
