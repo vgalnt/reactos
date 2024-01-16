@@ -175,8 +175,7 @@ CcUnpinFileDataEx(
     if (SharedMap->SectionSize.QuadPart > CACHE_OVERALL_SIZE &&
         (SharedMap->Flags & SHARE_FL_MODIFIED_NO_WRITE))
     {
-        DPRINT1("CcUnpinFileDataEx: FIXME\n");
-        ASSERT(FALSE);
+        CcAdjustVacbLevelLockCount(SharedMap, Bcb->FileOffset.QuadPart, -1);
     }
 
     KeReleaseQueuedSpinLockFromDpcLevel(&KeGetCurrentPrcb()->LockQueue[4]);
