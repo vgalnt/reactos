@@ -527,12 +527,18 @@ CcSetVacbLargeOffset(
 {
     PVACB* vacbs[VACB_NUMBER_OF_LEVELS];
     ULONG indexes[VACB_NUMBER_OF_LEVELS];
+    LONGLONG fileOffset = FileOffset;
     PVACB* Vacbs = SharedMap->Vacbs;
     PVACB* NextVacbs;
+    PLIST_ENTRY PreviousList;
+    PLIST_ENTRY NextList;
+    PLIST_ENTRY Entry;
+    PCC_BCB Bcb;
     ULONG Level = 0;
     ULONG Bits;
     ULONG Index;
     ULONG ix = 0;
+    ULONG jx;
     BOOLEAN IsAllocWithBcbs;
     BOOLEAN Special;
 
@@ -575,8 +581,30 @@ CcSetVacbLargeOffset(
 
             if (IsAllocWithBcbs)
             {
-                DPRINT1("CcSetVacbLargeOffset: FIXME\n");
-                ASSERT(FALSE);
+                PreviousList = CcGetBcbListHeadLargeOffset(SharedMap, fileOffset, FALSE);
+
+                while (TRUE)
+                {
+                    Bcb = CONTAINING_RECORD(PreviousList->Blink, CC_BCB, Link);
+                    if (Bcb->NodeTypeCode != 0x2FD)
+                        break;
+
+                    PreviousList = PreviousList->Blink;
+                }
+
+                NextList = PreviousList->Blink;
+                PreviousList->Blink = Entry = (PLIST_ENTRY)(NextVacbs + 0x80);
+                Entry->Flink = PreviousList;
+
+                for (jx = 0; jx < 0x3F; jx++)
+                {
+                    Entry->Blink = (Entry + 1);
+                    Entry++;
+                    Entry->Flink = (Entry - 1);
+                }
+
+                Entry->Blink = NextList;
+                NextList->Flink = Entry;
             }
 
             Vacbs[Index] = (PVACB)NextVacbs;
@@ -625,12 +653,19 @@ CcSetVacbLargeOffset(
 
         ix--;
 
-        IsAllocWithBcbs = FALSE;
-
         if (!Level && (SharedMap->Flags & SHARE_FL_MODIFIED_NO_WRITE))
         {
-            DPRINT1("CcSetVacbLargeOffset: FIXME\n");
-            ASSERT(FALSE);
+            PLIST_ENTRY List1 = (PLIST_ENTRY)Vacbs[0x80];
+            PLIST_ENTRY List2 = (PLIST_ENTRY)Vacbs[0xFF];
+
+            List1->Blink = List2;
+            List2->Flink = List1;
+
+            IsAllocWithBcbs = TRUE;
+        }
+        else
+        {
+            IsAllocWithBcbs = FALSE;
         }
 
         Level++;
