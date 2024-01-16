@@ -151,8 +151,7 @@ CcAllocateInitializeBcb(
     if (SharedMap->SectionSize.QuadPart > CACHE_OVERALL_SIZE &&
         (SharedMap->Flags & SHARE_FL_MODIFIED_NO_WRITE))
     {
-        DPRINT1("CcAllocateInitializeBcb: FIXME\n");
-        ASSERT(FALSE);
+        CcAdjustVacbLevelLockCount(SharedMap, FileOffset->QuadPart, 1);
     }
 
     KeReleaseQueuedSpinLockFromDpcLevel(&KeGetCurrentPrcb()->LockQueue[4]);
