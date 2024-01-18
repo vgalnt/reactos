@@ -3078,8 +3078,10 @@ ClassSendStartUnit(
     PSCSI_REQUEST_BLOCK srb;
     PCOMPLETION_CONTEXT context;
     PCDB cdb;
+  #if !REACTOS_NT5x
     NTSTATUS status;
     PSTORAGE_REQUEST_BLOCK srbEx;
+  #endif
 
     //
     // Allocate Srb from nonpaged pool.
@@ -3108,6 +3110,7 @@ ClassSendStartUnit(
     context->DeviceObject = Fdo;
 
     srb = &context->Srb.Srb;
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx = &context->Srb.SrbEx;
         status = InitializeStorageRequestBlock(srbEx,
@@ -3124,6 +3127,7 @@ ClassSendStartUnit(
         srbEx->SrbFunction = SRB_FUNCTION_EXECUTE_SCSI;
 
     } else {
+  #endif
 
         //
         // Zero out srb.
@@ -3138,7 +3142,9 @@ ClassSendStartUnit(
         srb->Length = sizeof(SCSI_REQUEST_BLOCK);
 
         srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //
     // Set timeout value large enough for drive to spin up.
@@ -4088,12 +4094,14 @@ ClassSendSrbSynchronous(
         Srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
     }
 
+  #if !REACTOS_NT5x
     //
     // The Srb->Function should have been set corresponding to SrbType.
     //
 
     NT_ASSERT( ((fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_SCSI_REQUEST_BLOCK) && (Srb->Function == SRB_FUNCTION_EXECUTE_SCSI)) ||
                ((fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) && (Srb->Function == SRB_FUNCTION_STORAGE_REQUEST_BLOCK)) );
+  #endif
 
 
     //
@@ -7599,7 +7607,9 @@ ClassDeviceControl(
     if (commonExtension->IsFdo){
 
         PULONG_PTR function;
+      #if !REACTOS_NT5x
         PFUNCTIONAL_DEVICE_EXTENSION fdoExtension = (PFUNCTIONAL_DEVICE_EXTENSION)commonExtension;
+      #endif
         size_t sizeNeeded;
 
         //
@@ -7607,12 +7617,16 @@ ClassDeviceControl(
         // NOTE - there is a case where an IOCTL is sent to classpnp before AdapterDescriptor
         // is initialized. In this case, default to legacy SRB.
         //
+      #if !REACTOS_NT5x
         if ((fdoExtension->AdapterDescriptor != NULL) &&
             (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK)) {
             sizeNeeded = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
         } else {
+      #endif
             sizeNeeded = sizeof(SCSI_REQUEST_BLOCK);
+      #if !REACTOS_NT5x
         }
+      #endif
 
         srb = ExAllocatePoolWithTag(NonPagedPoolNx,
                              sizeNeeded +
@@ -7628,6 +7642,7 @@ ClassDeviceControl(
             goto SetStatusAndReturn;
         }
 
+      #if !REACTOS_NT5x
         if ((fdoExtension->AdapterDescriptor != NULL) &&
             (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK)) {
             status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)srb,
@@ -7646,11 +7661,14 @@ ClassDeviceControl(
                 goto SetStatusAndReturn;
             }
         } else {
+      #endif
             RtlZeroMemory(srb, sizeof(SCSI_REQUEST_BLOCK));
             srb->Length = sizeof(SCSI_REQUEST_BLOCK);
             srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
             function = (PULONG_PTR) ((PSCSI_REQUEST_BLOCK) (srb + 1));
+      #if !REACTOS_NT5x
         }
+      #endif
 
         //
         // Save the function code and the device object in the memory after
@@ -11811,11 +11829,15 @@ ClasspReleaseQueue(
         irp = fdoExtension->PrivateFdoData->ReleaseQueueIrp;
     }
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srb = (PSTORAGE_REQUEST_BLOCK_HEADER)&(fdoExtension->PrivateFdoData->ReleaseQueueSrb.SrbEx);
     } else {
+  #endif
         srb = (PSTORAGE_REQUEST_BLOCK_HEADER)&(fdoExtension->ReleaseQueueSrb);
+  #if !REACTOS_NT5x
     }
+  #endif
 
     KeReleaseSpinLockFromDpcLevel(&(fdoExtension->ReleaseQueueSpinLock));
 
@@ -11845,11 +11867,15 @@ ClasspReleaseQueue(
        function = SRB_FUNCTION_RELEASE_QUEUE;
     }
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         ((PSTORAGE_REQUEST_BLOCK)srb)->SrbFunction = function;
     } else {
+  #endif
         srb->Function = (UCHAR)function;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     ClassAcquireRemoveLock(Fdo, irp);
 
@@ -12919,7 +12945,9 @@ ClasspGetInquiryVpdSupportInfo(
     PVPD_SUPPORTED_PAGES_PAGE supportedPages = NULL;
     UCHAR                     bufferLength = VPD_MAX_BUFFER_SIZE;
     ULONG                     allocationBufferLength = bufferLength;
+  #if !REACTOS_NT5x
     UCHAR srbExBuffer[CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE] = {0};
+  #endif
     PSTORAGE_REQUEST_BLOCK_HEADER srbHeader;
 
 #if defined(_ARM_) || defined(_ARM64_)
@@ -12948,6 +12976,7 @@ ClasspGetInquiryVpdSupportInfo(
     RtlZeroMemory(supportedPages, allocationBufferLength);
 
     // prepare the Srb
+  #if !REACTOS_NT5x
     if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 
 #ifdef _MSC_VER
@@ -12972,10 +13001,13 @@ ClasspGetInquiryVpdSupportInfo(
         }
 
     } else {
+  #endif
         srb.Length = SCSI_REQUEST_BLOCK_SIZE;
         srb.Function = SRB_FUNCTION_EXECUTE_SCSI;
         srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&srb;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     SrbSetTimeOutValue(srbHeader, FdoExtension->TimeOutValue);
     SrbSetRequestTag(srbHeader, SP_UNTAGGED);
@@ -13104,12 +13136,16 @@ ClasspGetLBProvisioningInfo(
     if ((FdoExtension->FunctionSupportInfo->ValidInquiryPages.LBProvisioning == TRUE) ||
         (FdoExtension->FunctionSupportInfo->ValidInquiryPages.BlockLimits == TRUE)) {
 
+      #if !REACTOS_NT5x
         if ((FdoExtension->AdapterDescriptor != NULL) &&
             (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK)) {
             srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
         } else {
+      #endif
             srbSize = sizeof(SCSI_REQUEST_BLOCK);
+      #if !REACTOS_NT5x
         }
+      #endif
 
         srb = ExAllocatePoolWithTag(NonPagedPoolNx, srbSize, '0DcS');
 
@@ -13260,12 +13296,16 @@ Return Value:
     //
     // Allocate an SRB for querying the device for LBP-related info.
     //
+  #if !REACTOS_NT5x
     if ((fdoExtension->AdapterDescriptor != NULL) &&
         (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK)) {
         srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
     } else {
+  #endif
         srbSize = sizeof(SCSI_REQUEST_BLOCK);
+  #if !REACTOS_NT5x
     }
+  #endif
 
     srb = ExAllocatePoolWithTag(NonPagedPoolNx, srbSize, CLASSPNP_POOL_TAG_SRB);
 
@@ -13306,6 +13346,7 @@ Return Value:
 
     RtlZeroMemory(dataBuffer, allocationBufferLength);
 
+  #if !REACTOS_NT5x
     if ((fdoExtension->AdapterDescriptor != NULL) &&
         (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK)) {
         status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)srb,
@@ -13334,11 +13375,14 @@ Return Value:
             srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
         }
     } else {
+  #endif
 
         RtlZeroMemory(srb, sizeof(SCSI_REQUEST_BLOCK));
         srb->Length = sizeof(SCSI_REQUEST_BLOCK);
         srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     SrbSetTimeOutValue(srb, fdoExtension->TimeOutValue);
     SrbSetRequestTag(srb, SP_UNTAGGED);
@@ -16443,12 +16487,16 @@ Return Value:
     // the Logical Block Provisioning (0xB2) or Block Limits (0xB0) VPD page
     // exists.
     //
+  #if !REACTOS_NT5x
     if ((FdoExtension->AdapterDescriptor != NULL) &&
         (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK)) {
         srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
     } else {
+  #endif
         srbSize = sizeof(SCSI_REQUEST_BLOCK);
+  #if !REACTOS_NT5x
     }
+  #endif
 
     srb = ExAllocatePoolWithTag(NonPagedPoolNx, srbSize, '1DcS');
     if (srb == NULL) {

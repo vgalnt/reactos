@@ -221,6 +221,7 @@ ClasspPowerUpCompletion(
                    "Context %p\n",
                 PowerContext->DeviceObject, Irp, Context));
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(fdoExtension->PrivateFdoData->PowerSrb.SrbEx);
 
@@ -231,8 +232,11 @@ ClasspPowerUpCompletion(
             srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(PowerContext->Srb);
         }
     } else {
+  #endif
         srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(PowerContext->Srb);
+  #if !REACTOS_NT5x
     }
+  #endif
 
     srbFlags = SrbGetSrbFlags(srbHeader);
     NT_ASSERT(!TEST_FLAG(srbFlags, SRB_FLAGS_FREE_SENSE_BUFFER));
@@ -380,6 +384,7 @@ ClasspPowerUpCompletion(
 
                 PowerContext->RetryCount = fdoExtension->PrivateFdoData->MaxPowerOperationRetryCount;
 
+              #if !REACTOS_NT5x
                 if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
                     status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)srbHeader,
                                                             STORAGE_ADDRESS_TYPE_BTL8,
@@ -406,10 +411,13 @@ ClasspPowerUpCompletion(
                     }
 
                 } else {
+              #endif
                     RtlZeroMemory(srbHeader, sizeof(SCSI_REQUEST_BLOCK));
                     srbHeader->Length = sizeof(SCSI_REQUEST_BLOCK);
                     srbHeader->Function = SRB_FUNCTION_EXECUTE_SCSI;
+              #if !REACTOS_NT5x
                 }
+              #endif
 
                 SrbSetOriginalRequest(srbHeader, fdoExtension->PrivateFdoData->PowerProcessIrp);
                 SrbSetSenseInfoBuffer(srbHeader, commonExtension->PartitionZeroExtension->SenseData);
@@ -556,6 +564,7 @@ ClasspPowerUpCompletionFailure:
             if (PowerContext->QueueLocked) {
                 TracePrint((TRACE_LEVEL_INFORMATION, TRACE_FLAG_POWER, "(%p)\tUnlocking queue\n", Irp));
 
+              #if !REACTOS_NT5x
                 if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
                     //
                     // Will reuse SRB for a non-SCSI SRB.
@@ -582,10 +591,13 @@ ClasspPowerUpCompletionFailure:
                         srbHeader->Function = SRB_FUNCTION_UNLOCK_QUEUE;
                     }
                 } else {
+              #endif
                     RtlZeroMemory(srbHeader, sizeof(SCSI_REQUEST_BLOCK));
                     srbHeader->Length = sizeof(SCSI_REQUEST_BLOCK);
                     srbHeader->Function = SRB_FUNCTION_UNLOCK_QUEUE;
+              #if !REACTOS_NT5x
                 }
+              #endif
                 SrbAssignSrbFlags(srbHeader, SRB_FLAGS_BYPASS_LOCKED_QUEUE);
                 SrbSetOriginalRequest(srbHeader, fdoExtension->PrivateFdoData->PowerProcessIrp);
 
@@ -792,6 +804,7 @@ ClasspPowerDownCompletion(
                    "Irp %p, Context %p\n",
                 PowerContext->DeviceObject, Irp, Context));
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(fdoExtension->PrivateFdoData->PowerSrb.SrbEx);
 
@@ -802,8 +815,11 @@ ClasspPowerDownCompletion(
             srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(PowerContext->Srb);
         }
     } else {
+  #endif
         srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(PowerContext->Srb);
+  #if !REACTOS_NT5x
     }
+  #endif
 
     srbFlags = SrbGetSrbFlags(srbHeader);
     NT_ASSERT(!TEST_FLAG(srbFlags, SRB_FLAGS_FREE_SENSE_BUFFER));
@@ -889,6 +905,7 @@ ClasspPowerDownCompletion(
                 fdoExtension->PrivateFdoData->MaxPowerOperationRetryCount = 0;
                 PowerContext->RetryCount = 0;
 
+              #if !REACTOS_NT5x
                 if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
                     srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(fdoExtension->PrivateFdoData->PowerSrb.SrbEx);
 
@@ -911,10 +928,13 @@ ClasspPowerDownCompletion(
                         srbHeader->Function = SRB_FUNCTION_QUIESCE_DEVICE;
                     }
                 } else {
+              #endif
                     srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(PowerContext->Srb);
                     srbHeader->Length = sizeof(SCSI_REQUEST_BLOCK);
                     srbHeader->Function = SRB_FUNCTION_QUIESCE_DEVICE;
+              #if !REACTOS_NT5x
                 }
+              #endif
 
                 SrbSetOriginalRequest(srbHeader, fdoExtension->PrivateFdoData->PowerProcessIrp);
                 SrbSetTimeOutValue(srbHeader, fdoExtension->TimeOutValue);
@@ -967,6 +987,7 @@ ClasspPowerDownCompletion(
                 fdoExtension->PrivateFdoData->MaxPowerOperationRetryCount = MAXIMUM_RETRIES;
                 PowerContext->RetryCount = MAXIMUM_RETRIES;
 
+              #if !REACTOS_NT5x
                 if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
                     status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)srbHeader,
                                                             STORAGE_ADDRESS_TYPE_BTL8,
@@ -992,10 +1013,13 @@ ClasspPowerDownCompletion(
                     }
 
                 } else {
+              #endif
                     RtlZeroMemory(srbHeader, sizeof(SCSI_REQUEST_BLOCK));
                     srbHeader->Length = sizeof(SCSI_REQUEST_BLOCK);
                     srbHeader->Function = SRB_FUNCTION_EXECUTE_SCSI;
+              #if !REACTOS_NT5x
                 }
+              #endif
 
 
                 SrbSetOriginalRequest(srbHeader, fdoExtension->PrivateFdoData->PowerProcessIrp);
@@ -1192,6 +1216,7 @@ ClasspPowerDownCompletion(
 
                 PowerContext->RetryCount = fdoExtension->PrivateFdoData->MaxPowerOperationRetryCount;
 
+              #if !REACTOS_NT5x
                 if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
                     status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)srbHeader,
                                                             STORAGE_ADDRESS_TYPE_BTL8,
@@ -1218,10 +1243,13 @@ ClasspPowerDownCompletion(
                     }
 
                 } else {
+              #endif
                     RtlZeroMemory(srbHeader, sizeof(SCSI_REQUEST_BLOCK));
                     srbHeader->Length = sizeof(SCSI_REQUEST_BLOCK);
                     srbHeader->Function = SRB_FUNCTION_EXECUTE_SCSI;
+              #if !REACTOS_NT5x
                 }
+              #endif
 
                 SrbSetOriginalRequest(srbHeader, fdoExtension->PrivateFdoData->PowerProcessIrp);
                 SrbSetSenseInfoBuffer(srbHeader, commonExtension->PartitionZeroExtension->SenseData);
@@ -1412,6 +1440,7 @@ ClasspPowerDownCompletion(
 
                 TracePrint((TRACE_LEVEL_INFORMATION, TRACE_FLAG_POWER, "(%p)\tUnlocking queue\n", OriginalIrp));
 
+              #if !REACTOS_NT5x
                 if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
                     //
                     // Will reuse SRB for a non-SCSI SRB.
@@ -1439,10 +1468,13 @@ ClasspPowerDownCompletion(
                         srbHeader->Function = SRB_FUNCTION_UNLOCK_QUEUE;
                     }
                 } else {
+              #endif
                     RtlZeroMemory(srbHeader, sizeof(SCSI_REQUEST_BLOCK));
                     srbHeader->Length = sizeof(SCSI_REQUEST_BLOCK);
                     srbHeader->Function = SRB_FUNCTION_UNLOCK_QUEUE;
+              #if !REACTOS_NT5x
                 }
+              #endif
 
                 SrbSetOriginalRequest(srbHeader, fdoExtension->PrivateFdoData->PowerProcessIrp);
                 SrbAssignSrbFlags(srbHeader, (SRB_FLAGS_BYPASS_LOCKED_QUEUE |
@@ -1565,7 +1597,9 @@ ClasspPowerHandler(
     PCLASS_POWER_CONTEXT context;
     PSTORAGE_REQUEST_BLOCK_HEADER srbHeader;
     ULONG srbFlags;
+  #if !REACTOS_NT5x
     NTSTATUS status;
+  #endif
 
     _Analysis_assume_(fdoExtension);
     _Analysis_assume_(fdoExtension->PrivateFdoData);
@@ -1733,6 +1767,7 @@ ClasspPowerHandler(
     RtlZeroMemory(context, sizeof(CLASS_POWER_CONTEXT));
     context->InUse = TRUE;
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(fdoExtension->PrivateFdoData->PowerSrb.SrbEx);
 
@@ -1755,10 +1790,13 @@ ClasspPowerHandler(
             srbHeader->Function = SRB_FUNCTION_LOCK_QUEUE;
         }
     } else {
+  #endif
         srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)&(context->Srb);
         srbHeader->Length = sizeof(SCSI_REQUEST_BLOCK);
         srbHeader->Function = SRB_FUNCTION_LOCK_QUEUE;
+  #if !REACTOS_NT5x
     }
+  #endif
     nextIrpStack->Parameters.Scsi.Srb = (PSCSI_REQUEST_BLOCK)srbHeader;
     nextIrpStack->MajorFunction = IRP_MJ_SCSI;
 
@@ -2101,8 +2139,10 @@ RetryPowerRequest(
     )
 {
     PIO_STACK_LOCATION nextIrpStack = IoGetNextIrpStackLocation(Irp);
+  #if !REACTOS_NT5x
     PFUNCTIONAL_DEVICE_EXTENSION fdoExtension =
         (PFUNCTIONAL_DEVICE_EXTENSION)Context->DeviceObject->DeviceExtension;
+  #endif
     PSTORAGE_REQUEST_BLOCK_HEADER srb;
     LONGLONG dueTime;
     ULONG srbFlags;
@@ -2111,6 +2151,7 @@ RetryPowerRequest(
     TracePrint((TRACE_LEVEL_INFORMATION, TRACE_FLAG_POWER, "(%p)\tDelaying retry by queueing DPC\n", Irp));
 
     //NT_ASSERT(Context->Irp == Irp);
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srb = (PSTORAGE_REQUEST_BLOCK_HEADER)&(fdoExtension->PrivateFdoData->PowerSrb.SrbEx);
 
@@ -2124,9 +2165,12 @@ RetryPowerRequest(
             srbFunction = ((PSTORAGE_REQUEST_BLOCK)srb)->SrbFunction;
         }
     } else {
+  #endif
         srb = (PSTORAGE_REQUEST_BLOCK_HEADER)&(Context->Srb);
         srbFunction = srb->Function;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     NT_ASSERT(Context->DeviceObject == DeviceObject);
     srbFlags = SrbGetSrbFlags(srb);

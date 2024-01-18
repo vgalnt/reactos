@@ -1623,6 +1623,7 @@ ClassReadCapacity16 (
     //
     // Initialize the SRB.
     //
+  #if !REACTOS_NT5x
     if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)Srb,
                                                 STORAGE_ADDRESS_TYPE_BTL8,
@@ -1638,10 +1639,13 @@ ClassReadCapacity16 (
             NT_ASSERT(FALSE);
         }
     } else {
+  #endif
         RtlZeroMemory(Srb, sizeof(SCSI_REQUEST_BLOCK));
         Srb->Length = sizeof(SCSI_REQUEST_BLOCK);
         Srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //prepare the Srb
     if (NT_SUCCESS(status))
@@ -2408,6 +2412,7 @@ NTSTATUS ClasspDeviceGetLBProvisioningVPDPage(
 
         RtlZeroMemory(dataBuffer, allocationBufferLength);
 
+      #if !REACTOS_NT5x
         if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
             status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)Srb,
                                                    STORAGE_ADDRESS_TYPE_BTL8,
@@ -2423,11 +2428,14 @@ NTSTATUS ClasspDeviceGetLBProvisioningVPDPage(
                 NT_ASSERT(FALSE);
             }
         } else {
+      #endif
             RtlZeroMemory(Srb, sizeof(SCSI_REQUEST_BLOCK));
             Srb->Length = sizeof(SCSI_REQUEST_BLOCK);
             Srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
             status = STATUS_SUCCESS;
+      #if !REACTOS_NT5x
         }
+      #endif
 
         if (NT_SUCCESS(status)) {
             // prepare the Srb
@@ -2583,6 +2591,7 @@ NTSTATUS ClasspDeviceGetBlockLimitsVPDPage(
 
         RtlZeroMemory(dataBuffer, allocationBufferLength);
 
+      #if !REACTOS_NT5x
         if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 
 #ifdef _MSC_VER
@@ -2603,11 +2612,14 @@ NTSTATUS ClasspDeviceGetBlockLimitsVPDPage(
                 NT_ASSERT(FALSE);
             }
         } else {
+      #endif
             RtlZeroMemory(Srb, sizeof(SCSI_REQUEST_BLOCK));
             Srb->Length = sizeof(SCSI_REQUEST_BLOCK);
             Srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
             status = STATUS_SUCCESS;
+      #if !REACTOS_NT5x
         }
+      #endif
 
         if (NT_SUCCESS(status)) {
             // prepare the Srb
@@ -3397,6 +3409,7 @@ Return Value:
             //
             // Initialize the SRB.
             //
+          #if !REACTOS_NT5x
             if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
                 status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)Srb,
                                                        STORAGE_ADDRESS_TYPE_BTL8,
@@ -3414,10 +3427,13 @@ Return Value:
                 }
 
             } else {
+          #endif
                 RtlZeroMemory(Srb, sizeof(SCSI_REQUEST_BLOCK));
                 Srb->Length = sizeof(SCSI_REQUEST_BLOCK);
                 Srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
+          #if !REACTOS_NT5x
             }
+          #endif
 
             //
             // Prepare the Srb
@@ -4731,6 +4747,7 @@ Return Value:
     //
     // Initialize the SRB.
     //
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)Srb,
                                                 STORAGE_ADDRESS_TYPE_BTL8,
@@ -4746,10 +4763,13 @@ Return Value:
             NT_ASSERT(FALSE);
         }
     } else {
+  #endif
         RtlZeroMemory(Srb, sizeof(SCSI_REQUEST_BLOCK));
         Srb->Length = sizeof(SCSI_REQUEST_BLOCK);
         Srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //
     // Build and send down the Log Sense command.
@@ -5170,12 +5190,16 @@ Arguments:
     //
     // Allocate an SRB for getting the LBP log page.
     //
+  #if !REACTOS_NT5x
     if ((fdoExtension->AdapterDescriptor != NULL) &&
         (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK)) {
         srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
     } else {
+  #endif
         srbSize = sizeof(SCSI_REQUEST_BLOCK);
+  #if !REACTOS_NT5x
     }
+  #endif
 
     srb = ExAllocatePoolWithTag(NonPagedPoolNx,
                                 srbSize,

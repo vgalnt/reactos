@@ -225,6 +225,7 @@ NTSTATUS InitializeTransferPackets(PDEVICE_OBJECT Fdo)
     //
 
     if (NT_SUCCESS(status))  {
+      #if !REACTOS_NT5x
         if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
             ULONG ByteSize = 0;
 
@@ -264,6 +265,7 @@ NTSTATUS InitializeTransferPackets(PDEVICE_OBJECT Fdo)
                 NT_ASSERT(FALSE);
             }
         } else {
+      #endif
             fdoData->SrbTemplate = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(SCSI_REQUEST_BLOCK), '-brs');
             if (fdoData->SrbTemplate == NULL) {
                 status = STATUS_INSUFFICIENT_RESOURCES;
@@ -272,7 +274,9 @@ NTSTATUS InitializeTransferPackets(PDEVICE_OBJECT Fdo)
                 fdoData->SrbTemplate->Length = sizeof(SCSI_REQUEST_BLOCK);
                 fdoData->SrbTemplate->Function = SRB_FUNCTION_EXECUTE_SCSI;
             }
+      #if !REACTOS_NT5x
         }
+      #endif
     }
 
     if (status == STATUS_SUCCESS) {
@@ -351,6 +355,7 @@ PTRANSFER_PACKET NewTransferPacket(PDEVICE_OBJECT Fdo)
         } else {
             RtlZeroMemory(newPkt, sizeof(TRANSFER_PACKET));
             newPkt->AllocateNode = KeGetCurrentNodeNumber();
+          #if !REACTOS_NT5x
             if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 #if (NTDDI_VERSION >= NTDDI_WINBLUE)
                 if ((fdoExt->MiniportDescriptor != NULL) &&
@@ -383,6 +388,7 @@ PTRANSFER_PACKET NewTransferPacket(PDEVICE_OBJECT Fdo)
                                     );
 #endif
             } else {
+          #endif
 #ifdef _MSC_VER
 #pragma prefast(suppress:6014, "The allocated memory that Pkt->Srb points to will be freed in DestroyTransferPacket().")
 #endif
@@ -391,7 +397,9 @@ PTRANSFER_PACKET NewTransferPacket(PDEVICE_OBJECT Fdo)
                     status = STATUS_INSUFFICIENT_RESOURCES;
                 }
 
+          #if !REACTOS_NT5x
             }
+          #endif
 
             if (status != STATUS_SUCCESS)
             {
@@ -747,12 +755,16 @@ VOID SetupReadWriteTransferPacket(  PTRANSFER_PACKET Pkt,
      *  Tell lower drivers to sort the SRBs by the logical block address
      *  so that disk seeks are minimized.
      */
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbLength = ((PSTORAGE_REQUEST_BLOCK) fdoData->SrbTemplate)->SrbLength;
         NT_ASSERT(((PSTORAGE_REQUEST_BLOCK) Pkt->Srb)->SrbLength >= srbLength);
     } else {
+  #endif
         srbLength = fdoData->SrbTemplate->Length;
+  #if !REACTOS_NT5x
     }
+  #endif
     RtlCopyMemory(Pkt->Srb, fdoData->SrbTemplate, srbLength); // copies _contents_ of SRB blocks
     SrbSetDataBuffer(Pkt->Srb, Buf);
     SrbSetDataTransferLength(Pkt->Srb, Len);
@@ -1324,12 +1336,16 @@ VOID SetupEjectionTransferPacket(   TRANSFER_PACKET *Pkt,
 
     PAGED_CODE();
 
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbLength = ((PSTORAGE_REQUEST_BLOCK) fdoData->SrbTemplate)->SrbLength;
         NT_ASSERT(((PSTORAGE_REQUEST_BLOCK) Pkt->Srb)->SrbLength >= srbLength);
     } else {
+  #endif
         srbLength = fdoData->SrbTemplate->Length;
+  #if !REACTOS_NT5x
     }
+  #endif
     RtlCopyMemory(Pkt->Srb, fdoData->SrbTemplate, srbLength); // copies _contents_ of SRB blocks
 
     SrbSetRequestAttribute(Pkt->Srb, SRB_SIMPLE_TAG_REQUEST);
@@ -1379,12 +1395,16 @@ VOID SetupModeSenseTransferPacket(TRANSFER_PACKET *Pkt,
 
     PAGED_CODE();
 
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbLength = ((PSTORAGE_REQUEST_BLOCK) fdoData->SrbTemplate)->SrbLength;
         NT_ASSERT(((PSTORAGE_REQUEST_BLOCK) Pkt->Srb)->SrbLength >= srbLength);
     } else {
+  #endif
         srbLength = fdoData->SrbTemplate->Length;
+  #if !REACTOS_NT5x
     }
+  #endif
     RtlCopyMemory(Pkt->Srb, fdoData->SrbTemplate, srbLength); // copies _contents_ of SRB blocks
 
     SrbSetRequestAttribute(Pkt->Srb, SRB_SIMPLE_TAG_REQUEST);
@@ -1435,12 +1455,16 @@ VOID SetupModeSelectTransferPacket(TRANSFER_PACKET *Pkt,
     PCDB pCdb;
     ULONG srbLength;
 
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbLength = ((PSTORAGE_REQUEST_BLOCK) fdoData->SrbTemplate)->SrbLength;
         NT_ASSERT(((PSTORAGE_REQUEST_BLOCK) Pkt->Srb)->SrbLength >= srbLength);
     } else {
+  #endif
         srbLength = fdoData->SrbTemplate->Length;
+  #if !REACTOS_NT5x
     }
+  #endif
     RtlCopyMemory(Pkt->Srb, fdoData->SrbTemplate, srbLength); // copies _contents_ of SRB blocks
 
     SrbSetRequestAttribute(Pkt->Srb, SRB_SIMPLE_TAG_REQUEST);
@@ -1490,12 +1514,16 @@ VOID SetupDriveCapacityTransferPacket(   TRANSFER_PACKET *Pkt,
     ULONG srbLength;
     ULONG timeoutValue = fdoExt->TimeOutValue;
 
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbLength = ((PSTORAGE_REQUEST_BLOCK) fdoData->SrbTemplate)->SrbLength;
         NT_ASSERT(((PSTORAGE_REQUEST_BLOCK) Pkt->Srb)->SrbLength >= srbLength);
     } else {
+  #endif
         srbLength = fdoData->SrbTemplate->Length;
+  #if !REACTOS_NT5x
     }
+  #endif
     RtlCopyMemory(Pkt->Srb, fdoData->SrbTemplate, srbLength); // copies _contents_ of SRB blocks
 
     SrbSetRequestAttribute(Pkt->Srb, SRB_SIMPLE_TAG_REQUEST);
@@ -1742,12 +1770,16 @@ Return Value:
     fdoExt = Pkt->Fdo->DeviceExtension;
     fdoData = fdoExt->PrivateFdoData;
 
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbLength = ((PSTORAGE_REQUEST_BLOCK) fdoData->SrbTemplate)->SrbLength;
         NT_ASSERT(((PSTORAGE_REQUEST_BLOCK) Pkt->Srb)->SrbLength >= srbLength);
     } else {
+  #endif
         srbLength = fdoData->SrbTemplate->Length;
+  #if !REACTOS_NT5x
     }
+  #endif
     RtlCopyMemory(Pkt->Srb, fdoData->SrbTemplate, srbLength); // copies _contents_ of SRB blocks
 
     SrbSetRequestAttribute(Pkt->Srb, SRB_SIMPLE_TAG_REQUEST);
@@ -1839,12 +1871,16 @@ Return Value:
     fdoExt = Pkt->Fdo->DeviceExtension;
     fdoData = fdoExt->PrivateFdoData;
 
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbLength = ((PSTORAGE_REQUEST_BLOCK) fdoData->SrbTemplate)->SrbLength;
         NT_ASSERT(((PSTORAGE_REQUEST_BLOCK) Pkt->Srb)->SrbLength >= srbLength);
     } else {
+  #endif
         srbLength = fdoData->SrbTemplate->Length;
+  #if !REACTOS_NT5x
     }
+  #endif
     RtlCopyMemory(Pkt->Srb, fdoData->SrbTemplate, srbLength); // copies _contents_ of SRB blocks
 
     SrbSetRequestAttribute(Pkt->Srb, SRB_SIMPLE_TAG_REQUEST);
@@ -1940,12 +1976,16 @@ Return Value:
     fdoExt = Pkt->Fdo->DeviceExtension;
     fdoData = fdoExt->PrivateFdoData;
 
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbLength = ((PSTORAGE_REQUEST_BLOCK) fdoData->SrbTemplate)->SrbLength;
         NT_ASSERT(((PSTORAGE_REQUEST_BLOCK) Pkt->Srb)->SrbLength >= srbLength);
     } else {
+  #endif
         srbLength = fdoData->SrbTemplate->Length;
+  #if !REACTOS_NT5x
     }
+  #endif
     RtlCopyMemory(Pkt->Srb, fdoData->SrbTemplate, srbLength); // copies _contents_ of SRB blocks
 
     SrbSetRequestAttribute(Pkt->Srb, SRB_SIMPLE_TAG_REQUEST);
@@ -2038,12 +2078,16 @@ Return Value:
     fdoExt = Pkt->Fdo->DeviceExtension;
     fdoData = fdoExt->PrivateFdoData;
 
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbLength = ((PSTORAGE_REQUEST_BLOCK) fdoData->SrbTemplate)->SrbLength;
         NT_ASSERT(((PSTORAGE_REQUEST_BLOCK) Pkt->Srb)->SrbLength >= srbLength);
     } else {
+  #endif
         srbLength = fdoData->SrbTemplate->Length;
+  #if !REACTOS_NT5x
     }
+  #endif
     RtlCopyMemory(Pkt->Srb, fdoData->SrbTemplate, srbLength); // copies _contents_ of SRB blocks
 
     SrbSetRequestAttribute(Pkt->Srb, SRB_SIMPLE_TAG_REQUEST);

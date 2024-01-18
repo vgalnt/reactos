@@ -1314,7 +1314,9 @@ ClasspPrepareMcnIrp(
 )
 {
     PSCSI_REQUEST_BLOCK srb;
+  #if !REACTOS_NT5x
     PSTORAGE_REQUEST_BLOCK srbEx;
+  #endif
     PIO_STACK_LOCATION irpStack;
     PIO_STACK_LOCATION nextIrpStack;
     NTSTATUS status;
@@ -1458,6 +1460,7 @@ ClasspPrepareMcnIrp(
     // SRB used here is the MediaChangeSrb in _MEDIA_CHANGE_DETECTION_INFO.
     //
     srb = nextIrpStack->Parameters.Scsi.Srb;
+  #if !REACTOS_NT5x
     if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx = (PSTORAGE_REQUEST_BLOCK)nextIrpStack->Parameters.Scsi.Srb;
 
@@ -1490,6 +1493,7 @@ ClasspPrepareMcnIrp(
         cdb = SrbGetCdb(srbEx);
 
     } else {
+  #endif
         RtlZeroMemory(srb, sizeof(SCSI_REQUEST_BLOCK));
 
         srb->QueueTag        = SP_UNTAGGED;
@@ -1510,7 +1514,9 @@ ClasspPrepareMcnIrp(
 
         cdb = (PCDB) &srb->Cdb[0];
 
+  #if !REACTOS_NT5x
     }
+  #endif
 
     if (cdb) {
         if (!UseGesn) {

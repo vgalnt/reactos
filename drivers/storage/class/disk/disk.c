@@ -2314,11 +2314,15 @@ Return Value:
         // Allocate SCSI request block.
         //
 
+      #if !REACTOS_NT5x
         if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
             srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
         } else {
+      #endif
             srbSize = sizeof(SCSI_REQUEST_BLOCK);
+      #if !REACTOS_NT5x
         }
+      #endif
 
         srb = ExAllocatePoolWithTag(NonPagedPoolNx,
                                     srbSize,
@@ -2336,6 +2340,7 @@ Return Value:
         }
 
         RtlZeroMemory(srb, srbSize);
+      #if !REACTOS_NT5x
         if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 
             srbEx = (PSTORAGE_REQUEST_BLOCK)srb;
@@ -2395,6 +2400,7 @@ Return Value:
             }
 
         } else {
+      #endif
 
             //
             // Write length to SRB.
@@ -2413,7 +2419,9 @@ Return Value:
             srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
 
             cdb = (PCDB)srb->Cdb;
+      #if !REACTOS_NT5x
         }
+      #endif
 
         //
         // If the write cache is enabled then send a synchronize cache request.
@@ -2421,11 +2429,15 @@ Return Value:
 
         if (TEST_FLAG(fdoExtension->DeviceFlags, DEV_WRITE_CACHE)) {
 
+      #if !REACTOS_NT5x
             if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
                 srbExDataCdb16->CdbLength = 10;
             } else {
+      #endif
                 srb->CdbLength = 10;
+      #if !REACTOS_NT5x
             }
+      #endif
 
             cdb->CDB10.OperationCode = SCSIOP_SYNCHRONIZE_CACHE;
 
@@ -2445,6 +2457,7 @@ Return Value:
         if (TEST_FLAG(DeviceObject->Characteristics, FILE_REMOVABLE_MEDIA))
         {
 
+          #if !REACTOS_NT5x
             if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 
                 //
@@ -2463,6 +2476,7 @@ Return Value:
                 srbEx->TimeOutValue = fdoExtension->TimeOutValue;
 
             } else {
+          #endif
 
                 //
                 // Reinitialize status fields to 0 in case there was a previous request
@@ -2478,7 +2492,9 @@ Return Value:
                 //
 
                 srb->TimeOutValue = fdoExtension->TimeOutValue;
+          #if !REACTOS_NT5x
             }
+          #endif
 
             cdb->MEDIA_REMOVAL.OperationCode = SCSIOP_MEDIUM_REMOVAL;
             cdb->MEDIA_REMOVAL.Prevent = FALSE;
@@ -2496,6 +2512,7 @@ Return Value:
         // Set up a SHUTDOWN SRB
         //
 
+      #if !REACTOS_NT5x
         if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
             srbEx->NumSrbExData = 0;
             srbEx->SrbExDataOffset[0] = 0;
@@ -2504,11 +2521,14 @@ Return Value:
             srbEx->SrbLength = CLASS_SRBEX_NO_SRBEX_DATA_BUFFER_SIZE;
             srbEx->SrbStatus = 0;
         } else {
+      #endif
             srb->CdbLength = 0;
             srb->Function = SRB_FUNCTION_SHUTDOWN;
             srb->SrbStatus = 0;
             srb->OriginalRequest = Irp;
+      #if !REACTOS_NT5x
         }
+      #endif
 
         //
         // Set the retry count to zero.
@@ -2724,15 +2744,20 @@ Return Value:
 {
     PFUNCTIONAL_DEVICE_EXTENSION fdoExt = Fdo->DeviceExtension;
     PSCSI_REQUEST_BLOCK srb = &FlushContext->Srb.Srb;
+  #if !REACTOS_NT5x
     PSTORAGE_REQUEST_BLOCK srbEx = &FlushContext->Srb.SrbEx;
+  #endif
     PIO_STACK_LOCATION  irpSp = NULL;
+  #if !REACTOS_NT5x
     PSTOR_ADDR_BTL8 storAddrBtl8;
     PSRBEX_DATA_SCSI_CDB16 srbExDataCdb16;
+  #endif
     NTSTATUS SyncCacheStatus = STATUS_SUCCESS;
 
     //
     // Fill in the srb fields appropriately
     //
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         RtlZeroMemory(srbEx, sizeof(FlushContext->Srb.SrbExBuffer));
 
@@ -2757,6 +2782,7 @@ Return Value:
         storAddrBtl8->AddressLength = STOR_ADDR_BTL8_ADDRESS_LENGTH;
 
     } else {
+  #endif
         RtlZeroMemory(srb, SCSI_REQUEST_BLOCK_SIZE);
 
         srb->Length       = SCSI_REQUEST_BLOCK_SIZE;
@@ -2764,7 +2790,9 @@ Return Value:
         srb->QueueTag     = SP_UNTAGGED;
         srb->QueueAction  = SRB_SIMPLE_TAG_REQUEST;
         srb->SrbFlags     = fdoExt->SrbFlags;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //
     // If write caching is enabled then send down a synchronize cache request
@@ -2772,6 +2800,7 @@ Return Value:
     if (TEST_FLAG(fdoExt->DeviceFlags, DEV_WRITE_CACHE))
     {
 
+      #if !REACTOS_NT5x
         if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
             srbEx->SrbFunction = SRB_FUNCTION_EXECUTE_SCSI;
             srbEx->NumSrbExData = 1;
@@ -2795,10 +2824,13 @@ Return Value:
             }
 
         } else {
+      #endif
             srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
             srb->CdbLength = 10;
             srb->Cdb[0] = SCSIOP_SYNCHRONIZE_CACHE;
+      #if !REACTOS_NT5x
         }
+      #endif
 
         TracePrint((TRACE_LEVEL_VERBOSE, TRACE_FLAG_SCSI, "DiskFlushDispatch: sending sync cache\n"));
 
@@ -2808,6 +2840,7 @@ Return Value:
     //
     // Set up a FLUSH SRB
     //
+  #if !REACTOS_NT5x
     if (fdoExt->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx->SrbFunction = SRB_FUNCTION_FLUSH;
         srbEx->NumSrbExData = 0;
@@ -2821,6 +2854,7 @@ Return Value:
         SET_FLAG(srbEx->SrbFlags, SRB_CLASS_FLAGS_PERSISTANT);
 
    } else {
+  #endif
         srb->Function  = SRB_FUNCTION_FLUSH;
         srb->CdbLength = 0;
         srb->OriginalRequest = FlushContext->CurrIrp;
@@ -2831,7 +2865,9 @@ Return Value:
         // Make sure that this srb does not get freed
         //
         SET_FLAG(srb->SrbFlags, SRB_CLASS_FLAGS_PERSISTANT);
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //
     // Make sure that this request does not get retried
@@ -3003,10 +3039,12 @@ Return Value:
     NTSTATUS status;
     PULONG buffer;
     PMODE_PARAMETER_BLOCK blockDescriptor;
+  #if !REACTOS_NT5x
     UCHAR srbExBuffer[CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE] = {0};
     PSTORAGE_REQUEST_BLOCK srbEx = (PSTORAGE_REQUEST_BLOCK)srbExBuffer;
     PSTOR_ADDR_BTL8 storAddrBtl8;
     PSRBEX_DATA_SCSI_CDB16 srbExDataCdb16;
+  #endif
     PSCSI_REQUEST_BLOCK srbPtr;
 
     PAGED_CODE();
@@ -3066,6 +3104,7 @@ Return Value:
     // Build the MODE SELECT CDB.
     //
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 
         //
@@ -3118,6 +3157,7 @@ Return Value:
        srbPtr = (PSCSI_REQUEST_BLOCK)srbEx;
 
     } else {
+  #endif
 
         srb.CdbLength = 6;
         cdb = (PCDB)srb.Cdb;
@@ -3129,7 +3169,9 @@ Return Value:
         srb.TimeOutValue = fdoExtension->TimeOutValue * 2;
 
         srbPtr = &srb;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     cdb->MODE_SELECT.OperationCode = SCSIOP_MODE_SELECT;
     cdb->MODE_SELECT.SPBit = SavePage;
@@ -3225,9 +3267,11 @@ DiskIoctlVerifyThread(
     LARGE_INTEGER sectorOffset;
     ULONG sectorCount;
     NTSTATUS status = STATUS_SUCCESS;
+  #if !REACTOS_NT5x
     PSTORAGE_REQUEST_BLOCK srbEx = NULL;
     PSTOR_ADDR_BTL8 storAddrBtl8 = NULL;
     PSRBEX_DATA_SCSI_CDB16 srbExDataCdb16 = NULL;
+  #endif
 
     PAGED_CODE();
 
@@ -3280,6 +3324,7 @@ DiskIoctlVerifyThread(
     //
     // Initialize SCSI SRB for a verify CDB
     //
+  #if !REACTOS_NT5x
     if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         RtlZeroMemory(Srb, CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE);
         srbEx = (PSTORAGE_REQUEST_BLOCK)Srb;
@@ -3335,6 +3380,7 @@ DiskIoctlVerifyThread(
         }
 
     } else {
+  #endif
         RtlZeroMemory(Srb, SCSI_REQUEST_BLOCK_SIZE);
 
         Srb->Length = sizeof(SCSI_REQUEST_BLOCK);
@@ -3349,12 +3395,15 @@ DiskIoctlVerifyThread(
             Cdb->CDB10.OperationCode = SCSIOP_VERIFY;
         }
 
+  #if !REACTOS_NT5x
     }
+  #endif
 
     while (NT_SUCCESS(status) && (sectorCount != 0)) {
 
         USHORT numSectors = (USHORT) min(sectorCount, MAX_SECTORS_PER_VERIFY);
 
+      #if !REACTOS_NT5x
         if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 
             //
@@ -3371,6 +3420,7 @@ DiskIoctlVerifyThread(
 
             srbEx->TimeOutValue = ((numSectors + 0x7F) >> 7) * FdoExtension->TimeOutValue;
         } else {
+      #endif
 
             //
             // Reset status fields
@@ -3385,7 +3435,9 @@ DiskIoctlVerifyThread(
             //
 
             Srb->TimeOutValue = ((numSectors + 0x7F) >> 7) * FdoExtension->TimeOutValue;
+      #if !REACTOS_NT5x
         }
+      #endif
 
         //
         // Update verify CDB info.
@@ -3899,8 +3951,10 @@ Return Value:
     PFUNCTIONAL_DEVICE_EXTENSION fdoExtension = Fdo->DeviceExtension;
     PSCSI_REQUEST_BLOCK srb;
     PCOMPLETION_CONTEXT context;
+  #if !REACTOS_NT5x
     PSTORAGE_REQUEST_BLOCK srbEx = NULL;
     PSTOR_ADDR_BTL8 storAddrBtl8 = NULL;
+  #endif
 
     TracePrint((TRACE_LEVEL_INFORMATION, TRACE_FLAG_GENERAL, "Disk ResetBus: Sending reset bus request to port driver.\n"));
 
@@ -3924,6 +3978,7 @@ Return Value:
     context->DeviceObject = Fdo;
     srb = &context->Srb.Srb;
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx = &context->Srb.SrbEx;
 
@@ -3954,6 +4009,7 @@ Return Value:
         storAddrBtl8->AddressLength = STOR_ADDR_BTL8_ADDRESS_LENGTH;
 
     } else {
+  #endif
 
         //
         // Zero out srb.
@@ -3969,7 +4025,9 @@ Return Value:
 
         srb->Function = SRB_FUNCTION_RESET_BUS;
 
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //
     // Build the asynchronous request to be sent to the port driver.
@@ -3997,12 +4055,16 @@ Return Value:
 
     irpStack->MajorFunction = IRP_MJ_SCSI;
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx->RequestPriority = IoGetIoPriorityHint(irp);
         srbEx->OriginalRequest = irp;
     } else {
+  #endif
         srb->OriginalRequest = irp;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //
     // Store the SRB address in next stack for port driver.
@@ -5203,9 +5265,11 @@ Return Value:
     BOOLEAN writable = TRUE;
     BOOLEAN mediaPresent = FALSE;
     ULONG srbSize;
+  #if !REACTOS_NT5x
     PSTORAGE_REQUEST_BLOCK srbEx = NULL;
     PSTOR_ADDR_BTL8 storAddrBtl8 = NULL;
     PSRBEX_DATA_SCSI_CDB16 srbExDataCdb16 = NULL;
+  #endif
 
     //
     // This function must be called at less than dispatch level.
@@ -5226,11 +5290,15 @@ Return Value:
         return STATUS_BUFFER_TOO_SMALL;
     }
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
     } else {
+  #endif
         srbSize = SCSI_REQUEST_BLOCK_SIZE;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     srb = ExAllocatePoolWithTag(NonPagedPoolNx,
                                 srbSize,
@@ -5247,6 +5315,7 @@ Return Value:
     // Send a TUR to determine if media is present.
     //
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx = (PSTORAGE_REQUEST_BLOCK)srb;
 
@@ -5298,6 +5367,7 @@ Return Value:
         }
 
     } else {
+  #endif
 
         srb->Length = SCSI_REQUEST_BLOCK_SIZE;
         srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
@@ -5310,7 +5380,9 @@ Return Value:
 
         srb->TimeOutValue = fdoExtension->TimeOutValue;
 
+  #if !REACTOS_NT5x
     }
+  #endif
     cdb->CDB6GENERIC.OperationCode = SCSIOP_TEST_UNIT_READY;
 
     status = ClassSendSrbSynchronous(DeviceObject,
@@ -5340,6 +5412,7 @@ Return Value:
     // Build the MODE SENSE CDB using previous SRB.
     //
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx->SrbStatus = 0;
         srbExDataCdb16->ScsiStatus = 0;
@@ -5351,6 +5424,7 @@ Return Value:
 
         srbEx->TimeOutValue = fdoExtension->TimeOutValue;
     } else {
+  #endif
         srb->SrbStatus = 0;
         srb->ScsiStatus = 0;
         srb->CdbLength = 6;
@@ -5360,7 +5434,9 @@ Return Value:
         //
 
         srb->TimeOutValue = fdoExtension->TimeOutValue;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //
     // Page code of 0x3F will return all pages.
@@ -5724,7 +5800,9 @@ Return Value:
 
 {
     PCOMMON_DEVICE_EXTENSION commonExtension = DeviceObject->DeviceExtension;
+  #if !REACTOS_NT5x
     PFUNCTIONAL_DEVICE_EXTENSION fdoExtension = DeviceObject->DeviceExtension;
+  #endif
     PIO_STACK_LOCATION irpStack = IoGetCurrentIrpStackLocation (Irp);
     PVERIFY_INFORMATION verifyInfo = Irp->AssociatedIrp.SystemBuffer;
     PDISK_VERIFY_WORKITEM_CONTEXT Context = NULL;
@@ -5743,11 +5821,15 @@ Return Value:
         return STATUS_INFO_LENGTH_MISMATCH;
     }
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
     } else {
+  #endif
         srbSize = SCSI_REQUEST_BLOCK_SIZE;
+  #if !REACTOS_NT5x
     }
+  #endif
     srb = ExAllocatePoolWithTag(NonPagedPoolNx,
                                 srbSize,
                                 DISK_TAG_SRB);
@@ -5857,9 +5939,11 @@ Return Value:
     ULONG blockNumber;
     ULONG blockCount;
     ULONG srbSize;
+  #if !REACTOS_NT5x
     PSTORAGE_REQUEST_BLOCK srbEx;
     PSTOR_ADDR_BTL8 storAddrBtl8;
     PSRBEX_DATA_SCSI_CDB16 srbExDataCdb16;
+  #endif
 
     //
     // This function must be called at less than dispatch level.
@@ -5895,11 +5979,15 @@ Return Value:
         return STATUS_INFO_LENGTH_MISMATCH;
     }
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
     } else {
+  #endif
         srbSize = SCSI_REQUEST_BLOCK_SIZE;
+  #if !REACTOS_NT5x
     }
+  #endif
     srb = ExAllocatePoolWithTag(NonPagedPoolNx,
                                 srbSize,
                                 DISK_TAG_SRB);
@@ -5949,6 +6037,7 @@ Return Value:
     // Build a SCSI SRB containing a SCSIOP_REASSIGN_BLOCKS cdb
     //
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx = (PSTORAGE_REQUEST_BLOCK)srb;
 
@@ -6000,6 +6089,7 @@ Return Value:
         }
 
     } else {
+  #endif
         srb->Length = SCSI_REQUEST_BLOCK_SIZE;
         srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
         srb->CdbLength = 6;
@@ -6011,7 +6101,9 @@ Return Value:
         srb->TimeOutValue = fdoExtension->TimeOutValue;
 
         cdb = (PCDB)srb->Cdb;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     cdb->CDB6GENERIC.OperationCode = SCSIOP_REASSIGN_BLOCKS;
 
@@ -6064,9 +6156,11 @@ Return Value:
     ULONG bufferSize;
     ULONG blockCount;
     ULONG srbSize;
+  #if !REACTOS_NT5x
     PSTORAGE_REQUEST_BLOCK srbEx;
     PSTOR_ADDR_BTL8 storAddrBtl8;
     PSRBEX_DATA_SCSI_CDB16 srbExDataCdb16;
+  #endif
 
     //
     // This function must be called at less than dispatch level.
@@ -6102,11 +6196,15 @@ Return Value:
         return STATUS_INFO_LENGTH_MISMATCH;
     }
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
     } else {
+  #endif
         srbSize = SCSI_REQUEST_BLOCK_SIZE;
+  #if !REACTOS_NT5x
     }
+  #endif
     srb = ExAllocatePoolWithTag(NonPagedPoolNx,
                                 srbSize,
                                 DISK_TAG_SRB);
@@ -6156,6 +6254,7 @@ Return Value:
     // Build a SCSI SRB containing a SCSIOP_REASSIGN_BLOCKS cdb
     //
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx = (PSTORAGE_REQUEST_BLOCK)srb;
 
@@ -6207,6 +6306,7 @@ Return Value:
         }
 
     } else {
+  #endif
         srb->Length = SCSI_REQUEST_BLOCK_SIZE;
         srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
         srb->CdbLength = 6;
@@ -6218,7 +6318,9 @@ Return Value:
         srb->TimeOutValue = fdoExtension->TimeOutValue;
 
         cdb = (PCDB)srb->Cdb;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     cdb->CDB6GENERIC.OperationCode = SCSIOP_REASSIGN_BLOCKS;
     cdb->CDB6GENERIC.CommandUniqueBits =  1; // LONGLBA
@@ -6271,9 +6373,11 @@ Return Value:
     ULONG modeLength;
     ULONG retries = 4;
     ULONG srbSize;
+  #if !REACTOS_NT5x
     PSTORAGE_REQUEST_BLOCK srbEx;
     PSTOR_ADDR_BTL8 storAddrBtl8;
     PSRBEX_DATA_SCSI_CDB16 srbExDataCdb16;
+  #endif
 
     //
     // This function must be called at less than dispatch level.
@@ -6288,11 +6392,15 @@ Return Value:
 
     TracePrint((TRACE_LEVEL_INFORMATION, TRACE_FLAG_IOCTL, "DiskIoctlIsWritable: DeviceObject %p Irp %p\n", DeviceObject, Irp));
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
     } else {
+  #endif
         srbSize = SCSI_REQUEST_BLOCK_SIZE;
+  #if !REACTOS_NT5x
     }
+  #endif
     srb = ExAllocatePoolWithTag(NonPagedPoolNx,
                                 srbSize,
                                 DISK_TAG_SRB);
@@ -6328,6 +6436,7 @@ Return Value:
     // Build the MODE SENSE CDB
     //
 
+  #if !REACTOS_NT5x
     if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbEx = (PSTORAGE_REQUEST_BLOCK)srb;
 
@@ -6379,6 +6488,7 @@ Return Value:
         }
 
     } else {
+  #endif
         srb->Length = SCSI_REQUEST_BLOCK_SIZE;
         srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
         srb->CdbLength = 6;
@@ -6390,7 +6500,9 @@ Return Value:
         srb->TimeOutValue = fdoExtension->TimeOutValue;
 
         cdb = (PCDB)srb->Cdb;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //
     // Page code of 0x3F will return all pages.

@@ -593,8 +593,10 @@ typedef _Struct_size_bytes_(Size) struct _STORAGE_ADAPTER_DESCRIPTOR {
   USHORT BusMajorVersion;
   USHORT BusMinorVersion;
 #if (NTDDI_VERSION >= NTDDI_WIN8)
+ #if !REACTOS_NT5x
   UCHAR SrbType;
   UCHAR AddressType;
+ #endif
 #endif
 } STORAGE_ADAPTER_DESCRIPTOR, *PSTORAGE_ADAPTER_DESCRIPTOR;
 

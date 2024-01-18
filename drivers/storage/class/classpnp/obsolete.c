@@ -581,7 +581,9 @@ Return Value:
     PCDB                cdb;
     ULONG               logicalBlockAddress;
     USHORT              transferBlocks;
+  #if !REACTOS_NT5x
     NTSTATUS            status;
+  #endif
     PSTORAGE_REQUEST_BLOCK_HEADER srbHeader = (PSTORAGE_REQUEST_BLOCK_HEADER)Srb;
 
     // This function is obsolete, but still called by CDROM.SYS .
@@ -605,6 +607,7 @@ Return Value:
     // NOTE - for extended SRB, size used is based on allocation in ClasspAllocateSrb.
     //
 
+  #if !REACTOS_NT5x
     if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         status = InitializeStorageRequestBlock((PSTORAGE_REQUEST_BLOCK)Srb,
                                                STORAGE_ADDRESS_TYPE_BTL8,
@@ -618,6 +621,7 @@ Return Value:
 
         ((PSTORAGE_REQUEST_BLOCK)Srb)->SrbFunction = SRB_FUNCTION_EXECUTE_SCSI;
     } else {
+  #endif
         RtlZeroMemory(Srb, sizeof(SCSI_REQUEST_BLOCK));
 
         //
@@ -627,7 +631,9 @@ Return Value:
         Srb->Length = sizeof(SCSI_REQUEST_BLOCK);
 
         Srb->Function = SRB_FUNCTION_EXECUTE_SCSI;
+  #if !REACTOS_NT5x
     }
+  #endif
 
 
     //
@@ -1022,6 +1028,7 @@ ClassInitializeSrbLookasideList(   _Inout_ PCOMMON_DEVICE_EXTENSION CommonExtens
             //
             // Check FDO extension on the SRB type supported
             //
+          #if !REACTOS_NT5x
             if (fdo->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 
                 //
@@ -1031,8 +1038,11 @@ ClassInitializeSrbLookasideList(   _Inout_ PCOMMON_DEVICE_EXTENSION CommonExtens
                 sizeNeeded = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
 
             } else {
+          #endif
                 sizeNeeded = sizeof(SCSI_REQUEST_BLOCK);
+          #if !REACTOS_NT5x
             }
+          #endif
 
         } else {
 

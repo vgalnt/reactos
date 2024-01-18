@@ -357,8 +357,10 @@ ClasspCleanupProtectedLocks(
         if ((newDeviceLockCount == 0) && (fdoExtension->LockCount == 0)) {
 
             SCSI_REQUEST_BLOCK srb = {0};
+          #if !REACTOS_NT5x
             UCHAR srbExBuffer[CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE] = {0};
             PSTORAGE_REQUEST_BLOCK srbEx = (PSTORAGE_REQUEST_BLOCK)srbExBuffer;
+          #endif
             PCDB cdb = NULL;
             NTSTATUS status;
             PSCSI_REQUEST_BLOCK srbPtr;
@@ -367,6 +369,7 @@ ClasspCleanupProtectedLocks(
                         "ClasspCleanupProtectedLocks: FDO lock count dropped "
                         "to zero\n"));
 
+          #if !REACTOS_NT5x
             if (fdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 #ifdef _MSC_VER
                 #pragma prefast(suppress:26015, "InitializeStorageRequestBlock ensures buffer access is bounded")
@@ -393,13 +396,16 @@ ClasspCleanupProtectedLocks(
                 }
 
             } else {
+          #endif
 
                 srb.TimeOutValue = fdoExtension->TimeOutValue;
                 srb.CdbLength = 6;
                 cdb = (PCDB) &(srb.Cdb);
                 srbPtr = &srb;
 
+          #if !REACTOS_NT5x
             }
+          #endif
 
             cdb->MEDIA_REMOVAL.OperationCode = SCSIOP_MEDIUM_REMOVAL;
 
@@ -635,6 +641,7 @@ ClasspEjectionControl(
                 _SEH2_LEAVE;
             }
 
+          #if !REACTOS_NT5x
             if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 
                 //
@@ -652,8 +659,11 @@ ClasspEjectionControl(
                 }
 
             } else {
+          #endif
                 RtlZeroMemory(srb, sizeof(SCSI_REQUEST_BLOCK));
+          #if !REACTOS_NT5x
             }
+          #endif
 
             SrbSetCdbLength(srb, 6);
             cdb = SrbGetCdb(srb);

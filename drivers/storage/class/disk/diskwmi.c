@@ -533,9 +533,11 @@ Return Value:
     LARGE_INTEGER startingOffset;
     ULONG length;
     PIO_STACK_LOCATION irpStack;
+  #if !REACTOS_NT5x
     UCHAR srbExBuffer[CLASS_SRBEX_NO_SRBEX_DATA_BUFFER_SIZE] = {0};
     PSTORAGE_REQUEST_BLOCK srbEx = (PSTORAGE_REQUEST_BLOCK)srbExBuffer;
     PSTOR_ADDR_BTL8 storAddrBtl8;
+  #endif
 
     PAGED_CODE();
 
@@ -705,6 +707,7 @@ Return Value:
     // Fill in SRB fields.
     //
 
+  #if !REACTOS_NT5x
     if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         irpStack->Parameters.Others.Argument1 = srbEx;
 
@@ -756,6 +759,7 @@ Return Value:
         storAddrBtl8->Lun = srb.Lun = diskData->ScsiAddress.Lun;
 
     } else {
+  #endif
         irpStack->Parameters.Others.Argument1 = &srb;
 
         srb.PathId = diskData->ScsiAddress.PathId;
@@ -787,7 +791,9 @@ Return Value:
 
         srb.DataBuffer = SrbControl;
         srb.DataTransferLength = length;
+  #if !REACTOS_NT5x
     }
+  #endif
 
     //
     // Flush the data buffer for output. This will insure that the data is
@@ -1940,9 +1946,11 @@ DiskInfoExceptionCheck(
     UCHAR senseInfoBufferLength = 0;
     ULONG isRemoved;
     ULONG srbSize;
+  #if !REACTOS_NT5x
     PSTORAGE_REQUEST_BLOCK srbEx = NULL;
     PSTOR_ADDR_BTL8 storAddrBtl8 = NULL;
     PSRBEX_DATA_SCSI_CDB16 srbExDataCdb16 = NULL;
+  #endif
 
     modeData = ExAllocatePoolWithTag(NonPagedPoolNxCacheAligned,
                                      MODE_DATA_SIZE,
@@ -1954,11 +1962,15 @@ DiskInfoExceptionCheck(
         return(STATUS_INSUFFICIENT_RESOURCES);
     }
 
+  #if !REACTOS_NT5x
     if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
         srbSize = CLASS_SRBEX_SCSI_CDB16_BUFFER_SIZE;
     } else {
+  #endif
         srbSize = SCSI_REQUEST_BLOCK_SIZE;
+  #if !REACTOS_NT5x
     }
+  #endif
     srb = ExAllocatePoolWithTag(NonPagedPoolNx,
                                 srbSize,
                                 DISK_TAG_SRB);
@@ -2078,6 +2090,7 @@ DiskInfoExceptionCheck(
     // Build the MODE SENSE CDB.
     //
 
+  #if !REACTOS_NT5x
     if (FdoExtension->AdapterDescriptor->SrbType == SRB_TYPE_STORAGE_REQUEST_BLOCK) {
 
         //
@@ -2161,6 +2174,7 @@ DiskInfoExceptionCheck(
         }
 
     } else {
+  #endif
 
         //
         // Write length to SRB.
@@ -2216,7 +2230,9 @@ DiskInfoExceptionCheck(
         srb->CdbLength = 6;
         cdb = (PCDB)srb->Cdb;
 
+  #if !REACTOS_NT5x
     }
+  #endif
 
     cdb->MODE_SENSE.OperationCode = SCSIOP_MODE_SENSE;
     cdb->MODE_SENSE.PageCode = MODE_PAGE_FAULT_REPORTING;
