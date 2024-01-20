@@ -7555,8 +7555,32 @@ DiskQueryPnpCapabilities(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PDEVICE_CAPABILITIES Capabilities)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPHYSICAL_DEVICE_EXTENSION PdoExtension;
+
+    DPRINT("DiskQueryPnpCapabilities: %p, %X\n", Pdo, Capabilities);
+
+    PAGED_CODE();
+    ASSERT(Capabilities);
+
+    PdoExtension = Pdo->DeviceExtension;
+
+    if (PdoExtension->CommonExtension.IsFdo)
+    {
+        DPRINT1("DiskQueryPnpCapabilities: STATUS_NOT_IMPLEMENTED\n");
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    Capabilities->SilentInstall = 1;
+    Capabilities->RawDeviceOK = 1;
+
+    if (Pdo->Characteristics & FILE_REMOVABLE_MEDIA)
+        Capabilities->UniqueID = 0;
+    else
+        Capabilities->UniqueID = 1;
+
+    Capabilities->Address = PdoExtension->CommonExtension.PartitionNumber;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
