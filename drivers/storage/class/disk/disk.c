@@ -7635,8 +7635,81 @@ DiskQueryId(
     _In_ BUS_QUERY_ID_TYPE IdType,
     _In_ PUNICODE_STRING IdString)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPHYSICAL_DEVICE_EXTENSION PdoExtension;
+    PDISK_DATA Data;
+    ANSI_STRING AnsiId;
+    USHORT Length;
+    CHAR String[0x40];
+
+    PAGED_CODE();
+    DPRINT("DiskQueryId: %p, %X\n", Pdo, IdType);
+
+    ASSERT(!(((PCOMMON_DEVICE_EXTENSION)Pdo->DeviceExtension)->IsFdo));
+
+    if (IdType == BusQueryDeviceID)
+    {
+        if (Pdo->Characteristics & FILE_REMOVABLE_MEDIA)
+            RtlInitAnsiString(&AnsiId, "STORAGE\\RemovableMedia");
+        else
+            RtlInitAnsiString(&AnsiId, "STORAGE\\Partition");
+
+        return RtlAnsiStringToUnicodeString(IdString, &AnsiId, 1);
+    }
+
+    if (IdType == BusQueryInstanceID)
+    {
+        PdoExtension = Pdo->DeviceExtension;
+        Data = PdoExtension->CommonExtension.PartitionZeroExtension->CommonExtension.DriverData;
+
+        RtlZeroMemory(&String, sizeof(String));
+
+        if (Pdo->Characteristics & FILE_REMOVABLE_MEDIA)
+        {
+            sprintf(String, "RM");
+        }
+        else
+        {
+            if (Data->PartitionStyle == 0)
+            {
+                _snprintf(String, (sizeof(String) - 1), "S%08lx_O%I64lx_L%I64lx",
+                          Data->Mbr.Signature,
+                          PdoExtension->CommonExtension.StartingOffset.QuadPart,
+                          PdoExtension->CommonExtension.PartitionLength.QuadPart);
+            }
+            else
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+
+        RtlInitAnsiString(&AnsiId, String);
+
+        return RtlAnsiStringToUnicodeString(IdString, &AnsiId, 1);
+    }
+
+    if (IdType != BusQueryHardwareIDs && IdType != BusQueryCompatibleIDs)
+    {
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    RtlInitAnsiString(&AnsiId, "STORAGE\\Volume");
+
+    if (NlsMbCodePageTag)
+        Length = RtlxAnsiStringToUnicodeSize(&AnsiId);
+    else
+        Length = (AnsiId.Length * 2 + 2);
+
+    IdString->MaximumLength = (Length + 2);
+
+    IdString->Buffer = ExAllocatePoolWithTag(PagedPool, IdString->MaximumLength, 'iDcS');
+    if (!IdString->Buffer)
+    {
+        DPRINT1("DiskQueryId: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(IdString->Buffer, IdString->MaximumLength);
+
+    return RtlAnsiStringToUnicodeString(IdString, &AnsiId, 0);
 }
 
 NTSTATUS
