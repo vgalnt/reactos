@@ -7930,7 +7930,119 @@ DiskUpdateRemovablePartitions(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PDRIVE_LAYOUT_INFORMATION_EX PartitionList)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PFUNCTIONAL_DEVICE_EXTENSION FdoExtension;
+    PPHYSICAL_DEVICE_EXTENSION PdoExtension;
+    PARTITION_INFORMATION_EX partitionEntry;
+    PDEVICE_OBJECT Pdo;
+    PDISK_DATA Data;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DiskUpdateRemovablePartitions: %p, %p\n", Fdo, PartitionList);
+
+    ASSERT(Fdo->Characteristics & FILE_REMOVABLE_MEDIA);
+
+    for (ix = 0; ix < PartitionList->PartitionCount; ix++)
+        PartitionList->PartitionEntry[ix].PartitionNumber = 0;
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    ClassAcquireChildLock(FdoExtension);
+
+    PdoExtension = FdoExtension->CommonExtension.ChildList;
+    if (!PdoExtension)
+    {
+        RtlZeroMemory(&partitionEntry, sizeof(partitionEntry));
+
+        partitionEntry.PartitionNumber = 1;
+
+        DPRINT("DiskUpdateRemovablePartitions: Creating RM partition\n");
+
+        Status = DiskCreatePdo(Fdo, 0, &partitionEntry, PartitionList->PartitionStyle, &Pdo);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("DiskUpdateRemovablePartitions: error %X creating new PDO for RM partition\n", Status);
+            goto Finish;
+        }
+
+        PdoExtension = Pdo->DeviceExtension;
+        PdoExtension->IsMissing = FALSE;
+    }
+
+    Data = PdoExtension->CommonExtension.DriverData;
+
+    for (ix = 0; ix < PartitionList->PartitionCount; ix++)
+    {
+        if (PartitionList->PartitionStyle == 0 &&
+            (PartitionList->PartitionEntry[ix].Mbr.PartitionType == 0 ||
+             PartitionList->PartitionEntry[ix].Mbr.PartitionType == 5 ||
+             PartitionList->PartitionEntry[ix].Mbr.PartitionType == 0xF))
+        {
+            continue;
+        }
+
+        DPRINT("DiskUpdateRemovablePartitions: Matched '%wZ' to #%d\n",
+               &PdoExtension->CommonExtension.DeviceName, PartitionList->PartitionEntry[ix].PartitionNumber);
+
+        PartitionList->PartitionEntry[ix].PartitionNumber = 1;
+
+        Data->PartitionStyle = PartitionList->PartitionStyle;
+        Data->PartitionOrdinal = 1;
+
+        ASSERT(PartitionList->PartitionEntry[ix].PartitionLength.LowPart != 0x23456789);
+
+        PdoExtension->CommonExtension.StartingOffset = PartitionList->PartitionEntry[ix].StartingOffset;
+        PdoExtension->CommonExtension.PartitionLength = PartitionList->PartitionEntry[ix].PartitionLength;
+
+        if (PartitionList->PartitionStyle == 0)
+        {
+            Data->Mbr.HiddenSectors = PartitionList->PartitionEntry[ix].Mbr.HiddenSectors;
+            Data->Mbr.BootIndicator = PartitionList->PartitionEntry[ix].Mbr.BootIndicator;
+
+            if (PartitionList->PartitionEntry[ix].RewritePartition)
+                Data->Mbr.PartitionType = PartitionList->PartitionEntry[ix].Mbr.PartitionType;
+        }
+        else
+        {
+            DPRINT1("DiskUpdateRemovablePartitions: FIXME\n");
+            ASSERT(FALSE);
+        }
+
+        PdoExtension->IsMissing = FALSE;
+        goto Finish;
+    }
+
+    if (PartitionList->PartitionStyle == 0)
+    {
+        Data->Mbr.HiddenSectors = 0;
+        Data->Mbr.PartitionType = PARTITION_ENTRY_UNUSED;
+    }
+    else
+    {
+        DPRINT1("DiskUpdateRemovablePartitions: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    PdoExtension->CommonExtension.StartingOffset.QuadPart  = 0;
+    PdoExtension->CommonExtension.PartitionLength.QuadPart = 0;
+
+Finish:
+
+    Data = FdoExtension->CommonExtension.DriverData;
+
+    if (PartitionList->PartitionStyle == 0)
+    {
+        Data->PartitionStyle = 0;
+        Data->Mbr.Signature = PartitionList->Mbr.Signature;
+    }
+    else
+    {
+        DPRINT1("DiskUpdateRemovablePartitions: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    ClassReleaseChildLock(FdoExtension);
 }
 
 #endif
