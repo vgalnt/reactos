@@ -781,7 +781,9 @@ Return Value:
 
     WCHAR wideSourceName[64] = { 0 };
     UNICODE_STRING unicodeSourceName;
-
+  #if REACTOS_NT5x
+    ULONG DeviceNumber = commonExtension->PartitionNumber;
+  #endif
     NTSTATUS status;
 
     PAGED_CODE();
@@ -800,8 +802,13 @@ Return Value:
         //
 
         status = RtlStringCchPrintfW(wideSourceName, sizeof(wideSourceName) / sizeof(wideSourceName[0]) - 1,
+                                   #if !REACTOS_NT5x
                                      L"\\Device\\Harddisk%d\\Partition0",
                                      commonExtension->PartitionZeroExtension->DeviceNumber);
+                                   #else
+                                     L"\\Device\\Harddisk%d\\Partition%d",
+                                     commonExtension->PartitionZeroExtension->DeviceNumber, DeviceNumber);
+                                   #endif
 
         if (NT_SUCCESS(status)) {
 
@@ -820,8 +827,11 @@ Return Value:
         }
     }
 
+  #if !REACTOS_NT5x
     if (!diskData->LinkStatus.PhysicalDriveLinkCreated) {
-
+  #else
+    if (!diskData->LinkStatus.PhysicalDriveLinkCreated && commonExtension->IsFdo) {
+  #endif
         //
         // Create a physical drive N link using the device number we saved
         // away during AddDevice.
@@ -846,6 +856,10 @@ Return Value:
             }
         }
     }
+  #if REACTOS_NT5x
+    else if (!commonExtension->IsFdo)
+        diskData->LinkStatus.PhysicalDriveLinkCreated = FALSE;
+  #endif
 
 
     return;
