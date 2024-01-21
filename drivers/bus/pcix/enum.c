@@ -2122,47 +2122,86 @@ PciProcessBus(
     _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
     PPCI_PDO_EXTENSION PdoExtension;
-    PDEVICE_OBJECT PhysicalDeviceObject;
+    PPCI_PDO_EXTENSION CurrentPdoExt;
+    PPCI_PDO_EXTENSION BridgePdoExt;
 
     PAGED_CODE();
     DPRINT("PciProcessBus: %p\n", FdoExtension);
 
-    /* Get the PDO Extension */
-    PhysicalDeviceObject = FdoExtension->PhysicalDeviceObject;
-    PdoExtension = PhysicalDeviceObject->DeviceExtension;
-
     /* Cheeck if this is the root bus */
-    if (!PCI_IS_ROOT_FDO(FdoExtension))
-    {
-        /* Not really handling this year */
-        UNIMPLEMENTED_DBGBREAK();
-
-        /* Check for PCI bridges with the ISA bit set, or required */
-        if (PdoExtension &&
-            PciClassifyDeviceType(PdoExtension) == PciTypePciBridge &&
-            (PdoExtension->Dependent.type1.IsaBitRequired || PdoExtension->Dependent.type1.IsaBitSet))
-        {
-            /* We'll need to do some legacy support */
-            UNIMPLEMENTED_DBGBREAK();
-        }
-    }
+    if (FdoExtension != FdoExtension->BusRootFdoExtension)
+        PdoExtension = FdoExtension->PhysicalDeviceObject->DeviceExtension;
     else
+        PdoExtension = NULL;
+
+    if (PciSystemWideHackFlags & 0x20)
     {
-        /* Scan all of the root bus' children bridges */
-        for (PdoExtension = FdoExtension->ChildBridgePdoList;
-             PdoExtension;
-             PdoExtension = PdoExtension->NextBridge)
+        DPRINT1("PciProcessBus: PciSystemWideHackFlags %X\n", PciSystemWideHackFlags);
+        ASSERT(FALSE);
+        goto Finish;
+    }
+
+    if (PdoExtension &&
+        PciClassifyDeviceType(PdoExtension) == PciTypePciBridge &&
+        (PdoExtension->Dependent.type1.IsaBitRequired || PdoExtension->Dependent.type1.IsaBitSet))
+    {
+        /* Scan all children bridges */
+        for (BridgePdoExt = FdoExtension->ChildBridgePdoList;
+             BridgePdoExt;
+             BridgePdoExt = BridgePdoExt->NextBridge)
         {
+            if (PciClassifyDeviceType(BridgePdoExt) != PciTypePciBridge)
+                continue;
+
             /* Find any that have the VGA decode bit on */
-            if (PdoExtension->Dependent.type1.VgaBitSet)
+            if (BridgePdoExt->Dependent.type1.SubtractiveDecode)
             {
-                /* Again, some more legacy support we'll have to do */
-                UNIMPLEMENTED_DBGBREAK();
+                BridgePdoExt->Dependent.type1.IsaBitRequired = 1;
+            }
+            else
+            {
+                BridgePdoExt->Dependent.type1.IsaBitSet = 1;
+                BridgePdoExt->UpdateHardware = 1;
             }
         }
+
+        goto Finish;
     }
 
-    /* Check for ACPI systems where the OS assigns bus numbers */
+    /* Check for PCI bridges with the ISA bit set, or required */
+    for (BridgePdoExt = FdoExtension->ChildBridgePdoList;
+         BridgePdoExt;
+         BridgePdoExt = BridgePdoExt->NextBridge)
+    {
+        if (!BridgePdoExt->Dependent.type1.VgaBitSet)
+            continue;
+
+        for (CurrentPdoExt = FdoExtension->ChildBridgePdoList;
+             CurrentPdoExt;
+             CurrentPdoExt = CurrentPdoExt->NextBridge)
+        {
+            if (CurrentPdoExt == BridgePdoExt || PciClassifyDeviceType(CurrentPdoExt) != PciTypePciBridge)
+                continue;
+
+            if (CurrentPdoExt->DeviceState == 1)
+                ASSERT(CurrentPdoExt->Dependent.type1.IsaBitRequired || CurrentPdoExt->Dependent.type1.IsaBitSet);
+
+            if (CurrentPdoExt->Dependent.type1.SubtractiveDecode)
+            {
+                CurrentPdoExt->Dependent.type1.IsaBitRequired = 1;
+            }
+            else
+            {
+                CurrentPdoExt->Dependent.type1.IsaBitSet = 1;
+                CurrentPdoExt->UpdateHardware = 1;
+            }
+        }
+
+        break;
+    }
+
+Finish:
+
     if (PciAssignBusNumbers)
         PciConfigureBusNumbers(FdoExtension);
 }
