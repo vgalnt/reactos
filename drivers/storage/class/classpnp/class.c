@@ -2345,10 +2345,18 @@ NTSTATUS ClassPnpStartDevice(IN PDEVICE_OBJECT DeviceObject)
             isMountedDevice = FALSE;
         }
 
+      #if !REACTOS_NT5x
         if (DeviceObject->DeviceType != FILE_DEVICE_CD_ROM) {
 
             isMountedDevice = FALSE;
         }
+      #else
+        if (DeviceObject->DeviceType != FILE_DEVICE_CD_ROM &&
+            DeviceObject->DeviceType != FILE_DEVICE_DISK) {
+
+            isMountedDevice = FALSE;
+        }
+      #endif
 
         //
         // Register for mounted device interface if this is a
