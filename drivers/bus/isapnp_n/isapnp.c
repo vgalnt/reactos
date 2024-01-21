@@ -1563,8 +1563,11 @@ PiQueryRemoveStopPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
+    PISAPNP_FDO_EXTENSION FdoExtension;
+    PISAPNP_DEVICE_INFO RdpDeviceInfo;
     PISAPNP_DEVICE_INFO DeviceInfo;
     PIO_STACK_LOCATION IoStack;
+    PSINGLE_LIST_ENTRY Entry;
     PCHAR Type;
     NTSTATUS Status;
 
@@ -1595,14 +1598,33 @@ PiQueryRemoveStopPdo(
             goto Exit1;
         }
 
-        if ((DeviceInfo->Flags & 0x00000080))
+        if (DeviceInfo->Flags & 0x00000080)
         {
             Status = STATUS_RESOURCE_REQUIREMENTS_CHANGED;
             goto Exit1;
         }
 
-        DPRINT1("PiQueryRemoveStopPdo: FIXME\n");
-        ASSERT(FALSE);
+        Status = STATUS_SUCCESS;
+
+        PipLockDeviceDatabase();
+
+        FdoExtension = DeviceInfo->FdoExtension;
+
+        for (Entry = FdoExtension->DeviceList.Next;
+             Entry;
+             Entry = RdpDeviceInfo->Link.Next)
+        {
+            RdpDeviceInfo = CONTAINING_RECORD(Entry, ISAPNP_DEVICE_INFO, Link);
+
+            if (!(RdpDeviceInfo->Flags & 0x40000000) &&
+                ((RdpDeviceInfo->Flags & 0x00000008) || !(RdpDeviceInfo->Flags & 0x00000002)))
+            {
+                Status = STATUS_UNSUCCESSFUL;
+                break;
+            }
+        }
+
+        PipUnlockDeviceDatabase();
         goto Exit1;
     }
 
