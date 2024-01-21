@@ -1675,8 +1675,32 @@ PiCancelRemoveStopPdo(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PISAPNP_DEVICE_INFO DeviceInfo;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    DPRINT("PiCancelRemoveStopPdo: Cancel%s irp received PDO %p\n",
+           (IoStack->MinorFunction == IRP_MN_CANCEL_STOP_DEVICE ? "Stop" : "Remove"), DeviceObject);
+
+    DeviceInfo = PipReferenceDeviceInformation(DeviceObject, FALSE);
+
+    if (DeviceInfo)
+    {
+        DeviceInfo->Flags &= ~0x20;
+        PipDereferenceDeviceInformation(DeviceInfo, FALSE);
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        Status = STATUS_NO_SUCH_DEVICE;
+    }
+
+    DPRINT("PiCancelRemoveStopPdo: Cancel%s Device ret %X\n",
+           (IoStack->MinorFunction == IRP_MN_CANCEL_STOP_DEVICE ? "Stop" : "Remove"), Status);
+
+    return Status;
 }
 
 NTSTATUS
