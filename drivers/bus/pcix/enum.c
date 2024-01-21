@@ -786,6 +786,7 @@ PciBuildRequirementsList(
     PIO_RESOURCE_DESCRIPTOR NextNewIoDescriptor;
     PIO_RESOURCE_DESCRIPTOR NewIoDescriptor;
     PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    PPCI_CONFIGURATOR Configurator;
     PCI_DEVICE_TYPES PciDeviceType;
     ULONG BaseResourceCount = 0;
     ULONG MinimumVector;
@@ -817,6 +818,7 @@ PciBuildRequirementsList(
     }
 
     PdoExtension->IoSpaceNotRequired = PciIoSpaceNotRequired(PdoExtension);
+    Configurator = &PciConfigurators[PdoExtension->HeaderType];
 
     DPRINT("PciBuildRequirementsList: IoSpaceNotRequired %X\n", PdoExtension->IoSpaceNotRequired);
 
@@ -1030,8 +1032,8 @@ PciBuildRequirementsList(
 
     if (PdoExtension->AdditionalResourceCount)
     {
-        DPRINT1("PciBuildRequirementsList: FIXME\n");
-        ASSERT(FALSE);
+        Configurator->GetAdditionalResourceDescriptors((PVOID)PdoExtension, PciData, NewIoDescriptor);
+        NewIoDescriptor += PdoExtension->AdditionalResourceCount;
     }
 
     ASSERT(IoResources->ListSize == ((ULONG_PTR)NewIoDescriptor - (ULONG_PTR)IoResources));
