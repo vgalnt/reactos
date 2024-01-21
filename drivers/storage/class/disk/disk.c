@@ -2575,6 +2575,7 @@ Return Value:
     PIO_STACK_LOCATION irpStack;
     PSCSI_REQUEST_BLOCK srb;
     PDISK_DATA diskData;
+    NTSTATUS Status;
 
     PAGED_CODE();
     DPRINT("DiskShutdownFlush: %p, %p\n", DeviceObject, Irp);
@@ -2616,21 +2617,26 @@ Return Value:
 
         if (fdoExtension->DeviceFlags & 1)
         {
-            NTSTATUS Status;
-
             srb->Function = 0;
             srb->CdbLength = 0xA;
             srb->Cdb[0] = 0x35;
 
             Status = ClassSendSrbSynchronous(DeviceObject, srb, NULL, 0, TRUE);
 
-            DPRINT("DiskShutdownFlush: Synchonize cache sent. Status = %lx\n", Status);
+            DPRINT("DiskShutdownFlush: Synchonize cache sent (%X)\n", Status);
         }
 
-        if (DeviceObject->Characteristics & 1)
+        if (DeviceObject->Characteristics & FILE_REMOVABLE_MEDIA)
         {
-            DPRINT1("DiskShutdownFlush: FIXME\n");
-            ASSERT(FALSE);
+            srb->TimeOutValue = fdoExtension->TimeOutValue;
+            srb->CdbLength = 6;
+
+            srb->Cdb[0] = 0x1E;
+            srb->Cdb[4] &= ~1;
+
+            Status = ClassSendSrbSynchronous(DeviceObject, srb, NULL, 0, TRUE);
+
+            DPRINT("DiskShutdownFlush: Unlock device request sent (%X)\n", Status);
         }
 
         srb->CdbLength = 0;
