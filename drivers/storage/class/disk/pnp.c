@@ -230,7 +230,7 @@ Return Value:
 {
     PFUNCTIONAL_DEVICE_EXTENSION fdoExtension = Fdo->DeviceExtension;
     PDISK_DATA diskData = (PDISK_DATA) fdoExtension->CommonExtension.DriverData;
-
+    UNICODE_STRING SymbolicLinkName;
     ULONG srbFlags = 0;
     ULONG timeOut = 0;
     ULONG bytesPerSector;
@@ -488,8 +488,34 @@ Return Value:
 
 #endif
 
+  #if REACTOS_NT5x
+
+    RtlInitUnicodeString(&SymbolicLinkName, NULL);
+    status = IoRegisterDeviceInterface(fdoExtension->LowerPdo, &DiskClassGuid, NULL, &SymbolicLinkName);
+
+    if (NT_SUCCESS(status))
+    {
+        diskData->DiskInterfaceString = SymbolicLinkName;
+        status = IoSetDeviceInterfaceState(&SymbolicLinkName, TRUE);
+    }
+    else
+    {
+        SymbolicLinkName.Buffer = NULL;
+    }
+
+    if (!NT_SUCCESS(status))
+    {
+        DPRINT1("DiskInitFdo: Unable to register or set disk DCA for fdo %p (%X)\n", Fdo, status);
+
+        RtlFreeUnicodeString(&SymbolicLinkName);
+        RtlInitUnicodeString(&diskData->DiskInterfaceString, NULL);
+    }
+
+  #endif
+
     DiskCreateSymbolicLinks(Fdo);
 
+  #if !REACTOS_NT5x
     //
     // Get the SCSI address if it's available for use with SMART ioctls.
     // SMART ioctls are used for failure prediction, so we need to get
@@ -529,6 +555,7 @@ Return Value:
             }
         }
     }
+  #endif
 
     //
     // Determine the type of disk and enable failure prediction in the hardware
