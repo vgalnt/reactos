@@ -45,12 +45,46 @@ PciPmeInterfaceInitializer(
 VOID
 NTAPI
 PciPmeGetInformation(
-  IN PDEVICE_OBJECT Pdo,
-  OUT PBOOLEAN PmeCapable,
-  OUT PBOOLEAN PmeStatus,
-  OUT PBOOLEAN PmeEnable)
+    _In_ PDEVICE_OBJECT Pdo,
+    _Out_ BOOLEAN* OutPmeCapable,
+    _Out_ BOOLEAN* OutPmeStatus,
+    _Out_ BOOLEAN* OutPmeEnable)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PPCI_PDO_EXTENSION PdoExtension;
+    PCI_PM_CAPABILITY Buffer;
+    BOOLEAN PmeCapable = FALSE;
+    BOOLEAN PmeEnable = FALSE;
+    BOOLEAN PmeStatus = FALSE;
+
+    DPRINT("PciPmeGetInformation: %p\n", Pdo);
+
+    RtlZeroMemory(&Buffer, sizeof(Buffer));
+
+    PdoExtension = Pdo->DeviceExtension;
+    ASSERT(PdoExtension->ExtensionType == 'icP0');
+
+    if (!(PdoExtension->HackFlags & 0x20000000))
+    {
+        if (PciReadDeviceCapability(PdoExtension, PdoExtension->CapabilitiesPtr, 1, &Buffer.Header, sizeof(Buffer)))
+        {
+            PmeCapable = TRUE;
+
+            if (Buffer.PMCSR.ControlStatus.PMEEnable)
+                PmeEnable = TRUE;
+
+            if (Buffer.PMCSR.ControlStatus.PMEStatus)
+                PmeStatus = TRUE;
+        }
+    }
+
+    if (OutPmeCapable)
+        *OutPmeCapable = PmeCapable;
+
+    if (OutPmeStatus)
+        *OutPmeStatus = PmeStatus;
+
+    if (OutPmeEnable)
+        *OutPmeEnable = PmeEnable;
 }
 
 VOID
