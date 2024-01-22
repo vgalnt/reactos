@@ -680,11 +680,13 @@ PPBridge_ResetDevice(IN PPCI_PDO_EXTENSION PdoExtension,
 
 VOID
 NTAPI
-PPBridge_ChangeResourceSettings(IN PPCI_PDO_EXTENSION PdoExtension,
-                                IN PPCI_COMMON_HEADER PciData)
+PPBridge_ChangeResourceSettings(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER PciData)
 {
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
     PPCI_FDO_EXTENSION FdoExtension;
-    ULONG i;
+    ULONG ix;
 
     DPRINT("PPBridge_ChangeResourceSettings: %p, %p\n", PdoExtension, PciData);
 
@@ -737,9 +739,15 @@ PPBridge_ChangeResourceSettings(IN PPCI_PDO_EXTENSION PdoExtension,
     /* Loop bus resources */
     if (PdoExtension->Resources)
     {
+        CmDescriptor = PdoExtension->Resources->Current;
+
         /* Loop each resource type (the BARs, ROM BAR and Prefetch) */
-        for (i = 0; i < 6; i++)
+        for (ix = 0; ix < 6; ix++, CmDescriptor++)
         {
+            if (CmDescriptor->Type == 0)
+                continue;
+
+            DPRINT1("PPBridge_ChangeResourceSettings: ix %X\n", ix);
             UNIMPLEMENTED_DBGBREAK();
         }
     }
