@@ -695,13 +695,12 @@ PPBridge_ChangeResourceSettings(
        or if they are not ICH bridges, then check if the bridge supports subtractive decode at all.
     */
     if (((PdoExtension->VendorId == 0x8086 &&
-         (PdoExtension->DeviceId == 0x2418 ||
-          PdoExtension->DeviceId == 0x2428 ||
-          PdoExtension->DeviceId == 0x244E ||
-          PdoExtension->DeviceId == 0x2448)) &&
-         (!(PdoExtension->HackFlags & PCI_HACK_BROKEN_SUBTRACTIVE_DECODE) ||
-         PdoExtension->Dependent.type1.SubtractiveDecode == FALSE)) ||
-        PdoExtension->Dependent.type1.SubtractiveDecode == FALSE)
+          (PdoExtension->DeviceId == 0x2418 ||
+           PdoExtension->DeviceId == 0x2428 ||
+           PdoExtension->DeviceId == 0x244E ||
+           PdoExtension->DeviceId == 0x2448)) ||
+         (PdoExtension->HackFlags & PCI_HACK_BROKEN_SUBTRACTIVE_DECODE)) &&
+        PdoExtension->Dependent.type1.SubtractiveDecode)
     {
         /* Get the FDO to read the old PCI configuration header that
            had been saved by the hack in PPBridge_SaveCurrentSettings.
