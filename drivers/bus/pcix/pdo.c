@@ -488,8 +488,34 @@ NTAPI
 PciIsOnVGAPath(
     _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    DPRINT("PciIsOnVGAPath: %p\n", PdoExtension);
+
+    if (!PdoExtension->BaseClass)
+    {
+        if (PdoExtension->SubClass != 1)
+            return FALSE;
+
+        return TRUE;
+    }
+
+    if (PdoExtension->BaseClass != 3)
+    {
+        if (PdoExtension->BaseClass != 6)
+            return FALSE;
+
+        if (PdoExtension->SubClass != 4 && PdoExtension->SubClass != 7)
+            return FALSE;
+
+        if (!PdoExtension->Dependent.type1.VgaBitSet)
+            return FALSE;
+
+        return TRUE;
+    }
+
+    if (PdoExtension->SubClass != 0)
+        return FALSE;
+
+    return TRUE;
 }
 
 NTSTATUS
