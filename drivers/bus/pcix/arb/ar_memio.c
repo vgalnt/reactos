@@ -489,7 +489,11 @@ ario_IsAliasedRangeAvailable(
     _In_ PARBITER_INSTANCE Arbiter,
     _In_ PARBITER_ALLOCATION_STATE ArbState)
 {
+    ARBITER_ALLOCATION_STATE NewState;
     ULONGLONG Start;
+    NTSTATUS Status;
+    UCHAR AttributeAvailableMask;
+    BOOLEAN Available;
     BOOLEAN Result;
 
     DPRINT("ario_IsAliasedRangeAvailable: %p\n", Arbiter);
@@ -498,20 +502,46 @@ ario_IsAliasedRangeAvailable(
     if (ArbState->WorkSpace & 2)
         return TRUE;
 
-    Start = ArbState->Start;
-
-    while (TRUE)
+    if (ArbState->Entry->RequestSource == ArbiterRequestLegacyReported ||
+        ArbState->Entry->RequestSource == ArbiterRequestLegacyAssigned ||
+        (ArbState->Entry->Flags & 1))
     {
-        Result = ario_GetNextAlias(ArbState->CurrentAlternative->Descriptor->Flags, Start, &Start);
-        if (!Result)
-            break;
-
-        DPRINT1("ario_IsAliasedRangeAvailable: FIXME\n");
-        ASSERT(FALSE);
-
-        return FALSE;
+        AttributeAvailableMask = 0x21;
+    }
+    else
+    {
+        AttributeAvailableMask = 0x20;
     }
 
+    Start = ArbState->Start;
+
+    for (Result = ario_GetNextAlias(ArbState->CurrentAlternative->Descriptor->Flags, Start, &Start);
+         Result;
+         Result = ario_GetNextAlias(ArbState->CurrentAlternative->Descriptor->Flags, Start, &Start))
+    {
+        Status = RtlIsRangeAvailable(Arbiter->PossibleAllocation,
+                                     Start,
+                                     (Start + ArbState->CurrentAlternative->Length - 1),
+                                     ((ArbState->CurrentAlternative->Flags & 1) | 2),
+                                     AttributeAvailableMask,
+                                     Arbiter->ConflictCallbackContext,
+                                     Arbiter->ConflictCallback,
+                                     &Available);
+
+        ASSERT(NT_SUCCESS(Status));
+
+        if (Available)
+            continue;
+
+        RtlCopyMemory(&NewState, ArbState, sizeof(NewState));
+
+        NewState.CurrentMinimum = Start;
+        NewState.CurrentMaximum = (Start + ArbState->CurrentAlternative->Length - 1);
+
+        if (!Arbiter->OverrideConflict(Arbiter, &NewState))
+            return FALSE;
+    }
+ 
     return TRUE;
 }
 
