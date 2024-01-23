@@ -173,7 +173,7 @@ PciComputeNewCurrentSettings(
                             /* Shouldn't be a base resource, this is a drain */
                             ASSERT(BaseResource == NULL);
                             DrainPartial = Partial->u.DevicePrivate.Data[1];
-                            ASSERT(DrainPartial == TRUE);
+                            ASSERT(DrainPartial != 0);
                             break;
                     }
                     break;
