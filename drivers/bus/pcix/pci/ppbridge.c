@@ -686,6 +686,9 @@ PPBridge_ChangeResourceSettings(
 {
     PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
     PPCI_FDO_EXTENSION FdoExtension;
+    PHYSICAL_ADDRESS BigLimit;
+    ULONG LowPart;
+    ULONG Limit;
     ULONG ix;
 
     DPRINT("PPBridge_ChangeResourceSettings: %p, %p\n", PdoExtension, PciData);
@@ -746,8 +749,56 @@ PPBridge_ChangeResourceSettings(
             if (CmDescriptor->Type == 0)
                 continue;
 
-            DPRINT1("PPBridge_ChangeResourceSettings: ix %X\n", ix);
-            UNIMPLEMENTED_DBGBREAK();
+            LowPart = CmDescriptor->u.Generic.Start.LowPart;
+
+            if (ix == 0 || ix == 1)
+            {
+                DPRINT1("PPBridge_ChangeResourceSettings: ix %X\n", ix);
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else if (ix == 2)
+            {
+                Limit = (LowPart + CmDescriptor->u.Generic.Length - 1);
+                DPRINT1("PPBridge_ChangeResourceSettings: [%X] %X, %X\n", ix, LowPart, Limit);
+
+                ASSERT(((LowPart & 0xFFF) == 0) && ((Limit & 0xFFF) == 0xFFF));
+
+                if ((PciData->u.type1.IOBase & 0xF) != 1)
+                    ASSERT(((LowPart | Limit) & 0xFFFF0000) == 0);
+
+                PciData->u.type1.IOBaseUpper16 = (LowPart >> 0x10);
+                PciData->u.type1.IOLimitUpper16 = (Limit >> 0x10);
+                PciData->u.type1.IOBase = ((LowPart >> 8) & 0xF0);
+                PciData->u.type1.IOLimit = ((Limit >> 8) & 0xF0);
+            }
+            else if (ix == 3)
+            {
+                Limit = (LowPart + CmDescriptor->u.Generic.Length - 1);
+                DPRINT1("PPBridge_ChangeResourceSettings: [%X] %X, %X\n", ix, LowPart, Limit);
+
+                ASSERT(((LowPart & 0xFFFFF) == 0) && ((Limit & 0xFFFFF) == 0xFFFFF));
+
+                PciData->u.type1.MemoryBase = (LowPart >> 0x10);
+                PciData->u.type1.MemoryLimit = ((Limit >> 0x10) & 0xFFF0);
+            }
+            else if (ix == 4)
+            {
+                Limit = (LowPart + CmDescriptor->u.Generic.Length - 1);
+                BigLimit.QuadPart = CmDescriptor->u.Generic.Start.QuadPart + CmDescriptor->u.Generic.Length - 1;
+                DPRINT1("PPBridge_ChangeResourceSettings: [%X] %X, %X, %I64X\n", ix, LowPart, Limit, BigLimit.QuadPart);
+
+                ASSERT(((LowPart & 0xFFFFF) == 0) && (BigLimit.LowPart & 0xFFFFF) == 0xFFFFF);
+
+                PciData->u.type1.PrefetchLimit = ((BigLimit.LowPart >> 0x10) & 0xFFF0);
+                PciData->u.type1.PrefetchBase = (LowPart >> 0x10);
+                PciData->u.type1.PrefetchBaseUpper32 = CmDescriptor->u.Generic.Start.HighPart;
+                PciData->u.type1.PrefetchLimitUpper32 = BigLimit.HighPart;
+            }
+            else if (ix == 5)
+            {
+                DPRINT1("PPBridge_ChangeResourceSettings: ix %X\n", ix);
+                UNIMPLEMENTED_DBGBREAK();
+            }
         }
     }
 
