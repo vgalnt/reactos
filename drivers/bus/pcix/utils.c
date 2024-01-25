@@ -1669,7 +1669,7 @@ PciQueryPowerCapabilities(
     else
     {
         /* Take the minimums? -- need to check with briang at work */
-        UNIMPLEMENTED;
+        DeviceCapability->WakeFromD3 = PdoExtension->PowerCapabilities.Support.PMED3Cold;
     }
 
     /* Now loop each system power state to determine its device state mapping */
