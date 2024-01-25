@@ -79,7 +79,12 @@ PciFdoIrpStartDevice(
     _In_ PIO_STACK_LOCATION IoStack,
     _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
+    PPCI_PDO_EXTENSION PdoExtension = NULL;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
     PCM_RESOURCE_LIST CmResource;
+    UCHAR Types[2] = {0};
+    ULONG ix;
     NTSTATUS Status;
 
     PAGED_CODE();
@@ -104,9 +109,29 @@ PciFdoIrpStartDevice(
     CmResource = IoStack->Parameters.StartDevice.AllocatedResources;
     if (CmResource && !PCI_IS_ROOT_FDO(FdoExtension))
     {
-        /* These resources would only be for non-root FDOs, unhandled for now */
         ASSERT(CmResource->Count == 1);
-        UNIMPLEMENTED_DBGBREAK();
+
+        PdoExtension = FdoExtension->PhysicalDeviceObject->DeviceExtension;
+
+        if (PdoExtension->Resources && PdoExtension->HeaderType == PCI_BRIDGE_TYPE)
+        {
+            CmDescriptor = CmResource->List[0].PartialResourceList.PartialDescriptors;
+
+            for (ix = 0; ix < 2; ix++)
+            {
+                IoDescriptor = &PdoExtension->Resources->Limit[ix];
+                if (IoDescriptor->Type == CmResourceTypeNull)
+                    continue;
+
+                ASSERT(CmDescriptor->Type == IoDescriptor->Type);
+
+                Types[ix] = CmDescriptor->Type;
+                CmDescriptor->Type = 0;
+
+                ASSERT((CmDescriptor+1)->Type == CmResourceTypeDevicePrivate);
+                CmDescriptor += 2;
+            }
+        }
     }
 
     /* Initialize the arbiter for this FDO */
@@ -119,11 +144,20 @@ PciFdoIrpStartDevice(
     }
 
     /* Again, check for boot-provided resources for non-root FDO */
-    if (CmResource && !PCI_IS_ROOT_FDO(FdoExtension))
+    if (CmResource && !PCI_IS_ROOT_FDO(FdoExtension) && PdoExtension->Resources)
     {
-        /* Unhandled for now */
-        ASSERT(CmResource->Count == 1);
-        UNIMPLEMENTED_DBGBREAK();
+        CmDescriptor = CmResource->List[0].PartialResourceList.PartialDescriptors;
+
+        for (ix = 0; ix < 2; ix++)
+        {
+            if (Types[ix] == CmResourceTypeNull)
+                continue;
+
+            CmDescriptor->Type = Types[ix];
+
+            ASSERT((CmDescriptor+1)->Type == CmResourceTypeDevicePrivate);
+            CmDescriptor += 2;
+        }
     }
 
     /* Commit the transition to the started state */
