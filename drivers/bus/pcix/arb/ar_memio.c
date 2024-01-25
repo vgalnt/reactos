@@ -155,8 +155,39 @@ PciExcludeRangesFromWindow(
     _In_ PRTL_RANGE_LIST RangeList,
     _In_ PRTL_RANGE_LIST ExcludeRangeList)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    RTL_RANGE_LIST_ITERATOR Iterator;
+    PRTL_RANGE Range;
+    NTSTATUS Status;
+
+    DPRINT("PciExcludeRangesFromWindow: %I64X-%I64X\n", Start, End);
+
+    RtlGetFirstRange(ExcludeRangeList, &Iterator, &Range);
+
+    while (TRUE)
+    {
+        if (!Range)
+            return STATUS_SUCCESS;
+
+        if (!Range->Owner)
+        {
+            if ((Start <= Range->Start || Start <= Range->End) &&
+                (Start >= Range->Start || End >= Range->Start))
+            {
+                Status = RtlAddRange(RangeList, Range->Start, Range->End, 0, 1, NULL, NULL);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("PciExcludeRangesFromWindow: (%I64X-%I64X) Status %X\n", Start, End, Status);
+                    break;
+                }
+            }
+        }
+
+        RtlGetNextRange(&Iterator, &Range, TRUE);
+    }
+
+    ASSERT(NT_SUCCESS(Status));
+
+    return Status;
 }
 
 NTSTATUS
