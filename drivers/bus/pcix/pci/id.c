@@ -219,8 +219,6 @@ PciQueryId(
     _In_ BUS_QUERY_ID_TYPE QueryType,
     _Out_ PWCHAR* OutId)
 {
-    PPCI_FDO_EXTENSION ParentFdoExtension;
-    PPCI_PDO_EXTENSION ParentPdoExtension;
     UNICODE_STRING DestinationString;
     PANSI_STRING NextString;
     PCI_ID_BUFFER IdBuffer;
@@ -311,18 +309,18 @@ PciQueryId(
 
             /* And then encode the device and function number */
             PciIdPrintfAppend(&IdBuffer, "%02X",
-                              ((PdoExtension->Slot.u.bits.DeviceNumber << 3) | PdoExtension->Slot.u.bits.FunctionNumber));
+                              ((PdoExtension->Slot.u.bits.DeviceNumber << 3) |
+                               PdoExtension->Slot.u.bits.FunctionNumber));
 
             /* Loop every parent until the root */
-            ParentFdoExtension = PdoExtension->ParentFdoExtension;
-            while (!PCI_IS_ROOT_FDO(ParentFdoExtension))
+            while (!PCI_IS_ROOT_FDO(PdoExtension->ParentFdoExtension))
             {
                 /* And encode the parent's device and function number as well */
-                ParentPdoExtension = ParentFdoExtension->PhysicalDeviceObject->DeviceExtension;
+                PdoExtension = PdoExtension->ParentFdoExtension->PhysicalDeviceObject->DeviceExtension;
 
                 PciIdPrintfAppend(&IdBuffer, "%02X",
-                                  (ParentPdoExtension->Slot.u.bits.DeviceNumber << 3) |
-                                   ParentPdoExtension->Slot.u.bits.FunctionNumber);
+                                  (PdoExtension->Slot.u.bits.DeviceNumber << 3) |
+                                   PdoExtension->Slot.u.bits.FunctionNumber);
             }
             break;
         }
