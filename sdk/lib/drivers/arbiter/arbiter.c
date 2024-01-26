@@ -863,6 +863,106 @@ ArbGetNextAllocationRange(
 
 BOOLEAN
 NTAPI
+ArbShareDriverExclusive(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    WCHAR PropertyBuffer[5]; // FIXME sizeof()...
+    RTL_RANGE_LIST_ITERATOR Iterator;
+    PDEVICE_OBJECT OwnerDevice = NULL;
+    PDEVICE_OBJECT AttachedTo;
+    PDEVICE_OBJECT Pdo;
+    PRTL_RANGE Range;
+    ULONG dummy;
+    BOOLEAN IsRoot;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ArbShareDriverExclusive: Arbiter %p, ArbState %p\n", Arbiter, ArbState);
+
+    Pdo = ArbState->Entry->PhysicalDeviceObject;
+
+    Status = IoGetDeviceProperty(Pdo, DevicePropertyEnumeratorName, 0xA, PropertyBuffer, &dummy);
+
+    if (!NT_SUCCESS(Status) || _wcsicmp(PropertyBuffer, L"ROOT"))
+        IsRoot = FALSE;
+    else
+        IsRoot = TRUE;
+
+    for (RtlGetFirstRange(Arbiter->PossibleAllocation, &Iterator, &Range);
+         Range;
+         RtlGetNextRange(&Iterator, &Range, TRUE))
+    {
+        if ((Range->Start < ArbState->CurrentMinimum && Range->End < ArbState->CurrentMinimum) ||
+            (ArbState->CurrentMinimum < Range->Start && ArbState->CurrentMaximum < Range->Start)) // IsRangesIntersection
+        {
+            continue;
+        }
+
+        if ((Range->Attributes & ArbState->RangeAvailableAttributes) ||
+            (ArbState->CurrentAlternative->Descriptor->ShareDisposition != 2 && !(Range->Attributes & 2)))
+        {
+            continue;
+        }
+
+        if (!Range->Owner)
+            continue;
+
+        if (IsRoot)
+        {
+            Status = IoGetDeviceProperty(Range->Owner, DevicePropertyEnumeratorName, 0xA, PropertyBuffer, &dummy);
+
+            if (NT_SUCCESS(Status) && _wcsicmp(PropertyBuffer, L"ROOT"))
+                IsRoot = FALSE;
+
+            if (IsRoot)
+            {
+                if (OwnerDevice)
+                {
+                    DPRINT("Overriding conflict on IRQ %04x for driver %wZ\n",
+                           (ULONG)ArbState->Start, &OwnerDevice->DriverObject->DriverName);
+                }
+
+                ArbState->Start = ArbState->CurrentMinimum;
+                ArbState->End = ArbState->CurrentMaximum;
+
+                if (ArbState->CurrentAlternative->Descriptor->ShareDisposition == 2)
+                    ArbState->RangeAttributes |= 2;
+
+                return TRUE;
+            }
+        }
+
+        AttachedTo = ArbState->Entry->PhysicalDeviceObject->AttachedDevice;
+
+        for (OwnerDevice = ((PDEVICE_OBJECT)(Range->Owner))->AttachedDevice;
+             OwnerDevice;
+             OwnerDevice = OwnerDevice->AttachedDevice)
+        {
+            for (; AttachedTo; AttachedTo = AttachedTo->AttachedDevice)
+            {
+                if (OwnerDevice->DriverObject != AttachedTo->DriverObject)
+                    continue;
+
+                DPRINT("Overriding conflict on IRQ %04x for driver %wZ\n",
+                       (ULONG)ArbState->Start, &OwnerDevice->DriverObject->DriverName);
+
+                ArbState->Start = ArbState->CurrentMinimum;
+                ArbState->End = ArbState->CurrentMaximum;
+
+                if (ArbState->CurrentAlternative->Descriptor->ShareDisposition == 2)
+                    ArbState->RangeAttributes |= 2;
+
+                return TRUE;
+            }
+        }
+    }
+
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
 ArbFindSuitableRange(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
@@ -910,15 +1010,12 @@ ArbFindSuitableRange(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT("ArbFindSuitableRange: FIXME! Status %X\n", Status);
-        ASSERT(FALSE); // IoDbgBreakPointEx();
-        return FALSE;
-#if 0
+        DPRINT1("ArbFindSuitableRange: Status %X\n", Status);
+
         if (ArbShareDriverExclusive(Arbiter, ArbState))
             return TRUE;
 
         return Arbiter->OverrideConflict(Arbiter, ArbState);
-#endif
     }
 
     ArbState->End = (ArbState->Start + ArbState->CurrentAlternative->Length - 1);
