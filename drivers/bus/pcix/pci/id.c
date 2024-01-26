@@ -11,6 +11,7 @@
 
 #include <pci.h>
 #include <stdio.h>
+#include <strsafe.h>
 
 #define NDEBUG
 #include <debug.h>
@@ -171,45 +172,59 @@ PciIdPrintf(IN PPCI_ID_BUFFER IdBuffer,
     return Length;
 }
 
-ULONG
+VOID
 __cdecl
-PciIdPrintfAppend(IN PPCI_ID_BUFFER IdBuffer,
-                  IN PCCH Format,
-                  ...)
+PciIdPrintfAppend(
+    _In_ PPCI_ID_BUFFER IdBuffer,
+    _In_ PCCH Format,
+    ...)
 {
-    ULONG NextId, Size, Length, MaxLength;
     PANSI_STRING AnsiString;
+    PCHAR IdString;
+    size_t Remaining = 0;
+    ULONG MaxLength;
+    ULONG Length;
+    ULONG Size;
+    ULONG Idx;
     va_list va;
+    HRESULT Result;
 
+    DPRINT("PciIdPrintfAppend: %p, %p, %p, %X\n", IdBuffer, IdBuffer->CharBuffer, IdBuffer->BufferData, IdBuffer->Count);
     ASSERT(IdBuffer->Count);
-  
+
     /* Choose the next static ANSI_STRING to use */
-    NextId = IdBuffer->Count - 1;
-  
+    Idx = (IdBuffer->Count - 1);
+
     /* Max length is from the end of the buffer up until the current pointer */
-    MaxLength = (PCHAR)(IdBuffer + 1) - IdBuffer->CharBuffer; 
-    
+    IdString = (IdBuffer->CharBuffer - 1);
+    Length = (ULONG)(IdString - &IdBuffer->BufferData[0]);
+    MaxLength = (256 - Length - 1);
+
+    /* Select the static ANSI_STRING */
+    AnsiString = &IdBuffer->Strings[Idx];
+
     /* Do the actual append, and return the length this string took */
     va_start(va, Format);
-    Length = vsprintf(IdBuffer->CharBuffer - 1, Format, va);
-    va_end(va);
+
+    Result = StringCbVPrintfExA(IdString, MaxLength, NULL, &Remaining, 0, Format, va);
+    ASSERT(Result >= 0);
+
+    Length = (MaxLength - Remaining);
     ASSERT(Length < MaxLength);
 
-    /* Select the static ANSI_STRING, and update its length information */
-    AnsiString = &IdBuffer->Strings[NextId];
+    va_end(va);
+
+    /* Update length information */
     AnsiString->Length += Length;
     AnsiString->MaximumLength += Length;
-  
+
     /* Calculate the final size of the string, in Unicode */
     Size = RtlAnsiStringToUnicodeSize(AnsiString);
-  
+
     /* Update the buffer with the size, and update the character pointer */
-    IdBuffer->StringSize[NextId] = Size;
+    IdBuffer->StringSize[Idx] = Size;
     IdBuffer->TotalLength += Size;
     IdBuffer->CharBuffer += Length;
-    
-    /* Return the size */
-    return Size;
 }
 
 NTSTATUS
