@@ -181,11 +181,10 @@ typedef VOID
     _Inout_ PARBITER_ALLOCATION_STATE ArbState
 );
 
-/*  Not correct yet, FIXME! */
 typedef NTSTATUS
 (NTAPI * PARB_OVERRIDE_CONFLICT)(
     _In_ PARBITER_INSTANCE Arbiter,
-    _In_ PVOID Param2
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
 );
 
 typedef struct _ARBITER_INSTANCE
@@ -221,7 +220,7 @@ typedef struct _ARBITER_INSTANCE
     PARB_FIND_SUITABLE_RANGE FindSuitableRange;
     PARB_ADD_ALLOCATION AddAllocation;
     PARB_BACKTRACK_ALLOCATION BacktrackAllocation;
-    PARB_OVERRIDE_CONFLICT OverrideConflict; // Not used yet
+    PARB_OVERRIDE_CONFLICT OverrideConflict;
     BOOLEAN TransactionInProgress;
     PVOID Extension;
     PDEVICE_OBJECT BusDeviceObject;

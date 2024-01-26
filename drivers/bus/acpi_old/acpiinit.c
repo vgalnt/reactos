@@ -3402,12 +3402,11 @@ AcpiArbPreprocessEntry(
     return STATUS_SUCCESS;
 }
 
-/*  Not correct yet, FIXME! */
 NTSTATUS
 NTAPI
 AcpiArbOverrideConflict(
     _In_ PARBITER_INSTANCE Arbiter,
-    _In_ PVOID Param2)
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;

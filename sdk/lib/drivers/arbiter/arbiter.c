@@ -1062,12 +1062,11 @@ ArbBacktrackAllocation(
     UNIMPLEMENTED;
 }
 
-/* FIXME: the prototype is not correct yet. */
 NTSTATUS
 NTAPI
 ArbOverrideConflict(
     _In_ PARBITER_INSTANCE Arbiter,
-    _In_ PVOID Param2)
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
     PAGED_CODE();
 

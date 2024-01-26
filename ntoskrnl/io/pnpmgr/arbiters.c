@@ -365,7 +365,7 @@ NTSTATUS
 NTAPI
 IopDmaOverrideConflict(
     _In_ PARBITER_INSTANCE Arbiter,
-    _In_ PVOID Param2)
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
     PAGED_CODE();
 

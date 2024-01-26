@@ -718,12 +718,11 @@ ario_BacktrackAllocation(
     UNIMPLEMENTED_DBGBREAK();
 }
 
-/*  Not correct yet, FIXME! */
 NTSTATUS
 NTAPI
 ario_OverrideConflict(
     _In_ PARBITER_INSTANCE Arbiter,
-    _In_ PVOID Param2)
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
