@@ -724,8 +724,47 @@ ario_OverrideConflict(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    RTL_RANGE_LIST_ITERATOR Iterator;
+    PRTL_RANGE Range;
+    BOOLEAN Result = FALSE;
+
+    PAGED_CODE();
+    DPRINT("ario_OverrideConflict: %p\n", ArbState);
+
+    if (!(ArbState->CurrentAlternative->Flags & 2))
+        return FALSE;
+
+    for (RtlGetFirstRange(Arbiter->PossibleAllocation, &Iterator, &Range);
+         Range;
+         RtlGetNextRange(&Iterator, &Range, TRUE))
+    {
+        if ((Range->Start < ArbState->CurrentMinimum && Range->End < ArbState->CurrentMinimum) ||
+            (Range->Start > ArbState->CurrentMinimum && Range->Start > ArbState->CurrentMaximum)) // IsRangesIntersection
+        {
+            return Result;
+        }
+
+        if (Range->Attributes & ArbState->RangeAvailableAttributes)
+            continue;
+
+        if (Range->Owner == ArbState->Entry->PhysicalDeviceObject && (ArbState->CurrentAlternative->Flags & 2))
+        {
+            DPRINT1("ario_OverrideConflict: Device reported self-conflicting requirement\n");
+
+            ArbState->Start = ArbState->CurrentMinimum;
+            ArbState->End = ArbState->CurrentMaximum;
+
+            Result = TRUE;
+            continue;
+        }
+
+        if (!(ArbState->CurrentAlternative->Descriptor->Flags & 0x40))
+            return FALSE;
+
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return Result;
 }
 
 NTSTATUS
