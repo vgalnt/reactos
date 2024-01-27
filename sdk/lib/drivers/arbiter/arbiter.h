@@ -323,4 +323,11 @@ ArbAddAllocation(
     _Inout_ PARBITER_ALLOCATION_STATE ArbState
 );
 
+VOID
+NTAPI
+ArbBacktrackAllocation(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _Inout_ PARBITER_ALLOCATION_STATE ArbState
+);
+
 /* EOF */

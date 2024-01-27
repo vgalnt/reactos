@@ -715,7 +715,9 @@ ario_BacktrackAllocation(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PAGED_CODE();
+    DPRINT("ario_BacktrackAllocation: %p\n", Arbiter);
+    ario_AddOrBacktrackAllocation(Arbiter, ArbState, ArbBacktrackAllocation);
 }
 
 NTSTATUS
