@@ -122,7 +122,6 @@ ArbArbiterHandler(
         if (!NT_SUCCESS(Status))
         {
             DPRINT1("ArbArbiterHandler: %s for %S FAILED status %X\n", ArbpActionStrings[Action], Arbiter->Name, Status);
-            ASSERT(FALSE); // DbgBreakPoint();
 
             if (ArbReplayOnError == TRUE)
                 continue;
