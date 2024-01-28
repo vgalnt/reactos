@@ -1057,9 +1057,15 @@ ArbBacktrackAllocation(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
-    PAGED_CODE();
+    NTSTATUS Status;
 
-    UNIMPLEMENTED;
+    PAGED_CODE();
+    DPRINT("ArbBacktrackAllocation: %p, %p\n", ArbState, ArbState);
+  
+    Status = RtlDeleteRange(Arbiter->PossibleAllocation, ArbState->Start, ArbState->End, ArbState->Entry->PhysicalDeviceObject);
+    ASSERT(NT_SUCCESS(Status));
+
+    DPRINT("ArbBacktrackAllocation: %I64X-%I64X for %p\n", ArbState->Start, ArbState->End, ArbState->Entry->PhysicalDeviceObject);
 }
 
 NTSTATUS
