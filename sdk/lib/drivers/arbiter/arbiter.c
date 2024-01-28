@@ -736,7 +736,7 @@ ArbGetNextAllocationRange(
         lowestAlternative = ArbState->Alternatives;
 
         for (CurrentAlternative = (ArbState->Alternatives + 1);
-             CurrentAlternative < &ArbState->Alternatives[ArbState->AlternativeCount - 1];
+             CurrentAlternative < &ArbState->Alternatives[ArbState->AlternativeCount];
              CurrentAlternative++)
         {
             DPRINT("ArbGetNextAllocationRange: lowestAlternative %p, lowestAlternative->Priority %X\n", lowestAlternative, lowestAlternative->Priority);
