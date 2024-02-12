@@ -1991,8 +1991,44 @@ ACPIBuildThermalZoneRequest(
     _In_ PVOID CallBack,
     _In_ PVOID CallBackContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_BUILD_REQUEST BuildRequest;
+
+    DPRINT("ACPIBuildThermalZoneRequest: %p\n", DeviceExtension);
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+
+    BuildRequest = ExAllocateFromNPagedLookasideList(&BuildRequestLookAsideList);
+    if (!BuildRequest)
+    {
+        DPRINT1("ACPIBuildThermalZoneRequest: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    if (!DeviceExtension->ReferenceCount)
+    {
+        DPRINT1("ACPIBuildThermalZoneRequest: STATUS_DEVICE_REMOVED\n");
+        ExFreeToNPagedLookasideList(&BuildRequestLookAsideList, BuildRequest);
+        return STATUS_DEVICE_REMOVED;
+    }
+
+    InterlockedIncrement(&DeviceExtension->ReferenceCount);
+
+    RtlZeroMemory(BuildRequest, sizeof(*BuildRequest));
+
+    BuildRequest->Signature = '_SGP';
+    BuildRequest->Flags = 0x1008;
+    BuildRequest->WorkDone = 3;
+    BuildRequest->DeviceExtension = DeviceExtension;
+    BuildRequest->Status = STATUS_SUCCESS;
+    BuildRequest->CallBack = CallBack;
+    BuildRequest->CallBackContext = CallBackContext;
+    BuildRequest->ListHeadForInsert = &AcpiBuildThermalZoneList;
+
+    KeAcquireSpinLockAtDpcLevel(&AcpiBuildQueueLock);
+    InsertTailList(&AcpiBuildQueueList, &BuildRequest->Link);
+    KeReleaseSpinLockFromDpcLevel(&AcpiBuildQueueLock);
+
+    return STATUS_PENDING;
 }
 
 NTSTATUS
