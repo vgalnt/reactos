@@ -1899,8 +1899,89 @@ ACPIBuildThermalZoneExtension(
     _In_ PDEVICE_EXTENSION ParentDeviceExtension,
     _Out_ PDEVICE_EXTENSION* OutDeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension;
+    NTSTATUS Status;
+
+    DPRINT("ACPIBuildThermalZoneExtension: %p, %p\n", NsObject, ParentDeviceExtension);
+
+    Status = ACPIBuildDeviceExtension(NsObject, ParentDeviceExtension, OutDeviceExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIBuildThermalZoneExtension: Status %X\n", Status);
+        return Status;
+    }
+
+    DeviceExtension = *OutDeviceExtension;
+    if (!DeviceExtension)
+    {
+        DPRINT1("ACPIBuildThermalZoneExtension: Status %X\n", Status);
+        return Status;
+    }
+
+    ACPIInternalUpdateFlags(DeviceExtension, 0x0010000008320000, 0);
+
+    DeviceExtension->Thermal.Info = ExAllocatePoolWithTag(NonPagedPool, sizeof(*DeviceExtension->Thermal.Info), 'TpcA');
+    if (!DeviceExtension->Thermal.Info)
+    {
+        DPRINT1("ACPIBuildThermalZoneExtension: failed to allocate %X bytes\n", 0x94);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+    RtlZeroMemory(DeviceExtension->Thermal.Info, sizeof(*DeviceExtension->Thermal.Info));
+
+    DeviceExtension->DeviceID = ExAllocatePoolWithTag(NonPagedPool, (strlen("ACPI\\ThermalZone") + 1), 'SpcA');
+    if (!DeviceExtension->DeviceID)
+    {
+        DPRINT1("ACPIBuildThermalZoneExtension: failed to allocate %X bytes\n", (strlen("ACPI\\ThermalZone") + 1));
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+    strcpy(DeviceExtension->DeviceID, "ACPI\\ThermalZone");
+
+    DeviceExtension->InstanceID = ExAllocatePoolWithTag(NonPagedPool, 5, 'SpcA');
+    if (!DeviceExtension->InstanceID)
+    {
+        DPRINT1("ACPIBuildThermalZoneExtension: failed to allocate %X bytes\n", 5);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+
+    *DeviceExtension->InstanceID = DeviceExtension->AcpiObject->NameSeg;
+    DeviceExtension->InstanceID[4] = 0;
+
+    ACPIInternalUpdateFlags(DeviceExtension, 0x0001E00000000000, 0);
+
+    DPRINT("ACPIBuildThermalZoneExtension: Status %X\n", Status);
+
+    return Status;
+
+ErrorExit:
+
+    DPRINT1("ACPIBuildThermalZoneExtension: STATUS_INSUFFICIENT_RESOURCES\n");
+
+    if (DeviceExtension->InstanceID)
+    {
+        ACPIInternalUpdateFlags(DeviceExtension, 0x0001400000000000, 1);
+        ExFreePoolWithTag(DeviceExtension->InstanceID, 'SpcA');
+        DeviceExtension->InstanceID = NULL;
+    }
+
+    if (DeviceExtension->Address)
+    {
+        ACPIInternalUpdateFlags(DeviceExtension, 0x0000A00000000000, 1);
+        ExFreePoolWithTag(DeviceExtension->DeviceID, 'SpcA');
+        DeviceExtension->Address = NULL;
+    }
+
+    if (DeviceExtension->Thermal.Info)
+    {
+        ExFreePoolWithTag(DeviceExtension->Thermal.Info, 'TpcA');
+        DeviceExtension->Thermal.Info = NULL;
+    }
+
+    ACPIInternalUpdateFlags(DeviceExtension, 0x0002000000000000, 1);
+
+    return Status;
 }
 
 NTSTATUS

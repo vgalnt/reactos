@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <initguid.h>
 #include <wdmguid.h>
+#include <wmilib.h>
 #include <poclass.h>
 #include <acpiioct.h>
 #include "amli.h"
@@ -310,6 +311,40 @@ typedef struct _MODULE_DEVICE_EXTENSION
     struct _ACPI_ARBITER_INSTANCE* Arbiters[3];
 } MODULE_DEVICE_EXTENSION, *PMODULE_DEVICE_EXTENSION;
 
+typedef struct _ACPI_THERMAL_INFO
+{
+    THERMAL_INFORMATION Header;
+    ULONG ActiveCoolingLevel;
+    ULONG CoolingMode;
+    PAMLI_NAME_SPACE_OBJECT NsObjects[0xA];
+    PAMLI_NAME_SPACE_OBJECT CurrentTemperatureMethod;
+    AMLI_OBJECT_DATA TempatureData;
+} ACPI_THERMAL_INFO, *PACPI_THERMAL_INFO;
+
+typedef struct _THERMAL_EXTENSION
+{
+    EXTENSION_WORKER WorkQueue;
+    KSPIN_LOCK SpinLock;
+    union
+    {
+        ULONG Flags;
+        struct
+        {
+            ULONG Cooling : 1;
+            ULONG Temp : 1;
+            ULONG Trip : 1;
+            ULONG Mode : 1;
+            ULONG Init : 1;
+            ULONG Reserved : 24;
+            ULONG Wait : 1;
+            ULONG Busy : 1;
+            ULONG Loop : 1;
+        } UFlags;
+    };
+    PACPI_THERMAL_INFO Info;
+    PWMILIB_CONTEXT WmilibContext;
+} THERMAL_EXTENSION, *PTHERMAL_EXTENSION;
+
 typedef struct _WORK_QUEUE_CONTEXT
 {
     WORK_QUEUE_ITEM Item;
@@ -438,6 +473,7 @@ typedef struct _DEVICE_EXTENSION
         BUTTON_EXTENSION Button;
         PROCESSOR_DEVICE_EXTENSION Processor;
         MODULE_DEVICE_EXTENSION Module;
+        THERMAL_EXTENSION Thermal;
     };
     ACPI_DEVICE_STATE DeviceState;
     ACPI_DEVICE_STATE PreviousState;
