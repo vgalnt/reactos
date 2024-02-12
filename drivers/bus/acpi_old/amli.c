@@ -67,6 +67,7 @@ ULONG gdwcPRObjs;
 ULONG gdwcPCObjs;
 ULONG gdwcBFObjs;
 ULONG gdwcRSObjs;
+ULONG gdwcPHObjs;
 ULONG gdwHighestOSVerQueried;
 BOOLEAN g_AmliHookEnabled;
 BOOLEAN gInitTime;
@@ -1354,6 +1355,111 @@ NewObjData(
     }
 
     return HeapAlloc(Heap, NameSeg, Length);
+}
+
+PVOID
+__cdecl
+MapPhysMem(
+    _In_ PVOID Address,
+    _In_ ULONG NuberOfBytes)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+VOID
+NTAPI 
+MapUnmapCallBack(
+    _In_ PVOID Parameter)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+__cdecl
+MapUnmapPhysMem(
+    _In_ PAMLI_CONTEXT AmliContext,
+    _In_ PVOID BaseAddress,
+    _In_ SIZE_T NumberOfBytes,
+    _Out_ PVOID* OutMappedAddr)
+{
+    PAMLI_PASSIVE_HOOK Hook;
+    PVOID MappedAddr;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("MapUnmapPhysMem: %X, %p, %X, %p\n", AmliContext, BaseAddress, NumberOfBytes, OutMappedAddr);
+
+    giIndent++;
+
+    if (!NumberOfBytes)
+    {
+        DPRINT1("MapUnmapPhysMem: Trying to create 0 length memory opregion");
+        Status = STATUS_ACPI_INVALID_DATA;
+        //LogError(Status);
+        goto Exit;
+    }
+
+    if (KeGetCurrentIrql() == PASSIVE_LEVEL)
+    {
+        if (OutMappedAddr)
+            *OutMappedAddr = MapPhysMem(BaseAddress, NumberOfBytes);
+        else
+            MmUnmapIoSpace(BaseAddress, NumberOfBytes);
+
+        goto Exit;
+    }
+
+    if (!AmliContext)
+    {
+        DPRINT1("MapUnmapPhysMem: IRQL is not at PASSIVE (IRQL=%x)", KeGetCurrentIrql());
+        Status = STATUS_ACPI_FATAL;
+        //LogError(Status);
+        goto Exit;
+    }
+
+    gdwcPHObjs++;
+    gdwcMemObjs++;
+
+    Hook = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Hook), 'PlmA');
+    if (!Hook)
+    {
+        DPRINT1("MapUnmapPhysMem: failed to allocate passive hook");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        //LogError(Status);
+        goto Exit;
+    }
+
+    Hook->AmliContext = AmliContext;
+    Hook->BaseAddress = BaseAddress;
+    Hook->NumberOfBytes = NumberOfBytes;
+    Hook->OutMappedAddr = OutMappedAddr;
+
+    ExInitializeWorkItem(&Hook->WorkQueueItem, MapUnmapCallBack, Hook);
+    OSQueueWorkItem(&Hook->WorkQueueItem);
+
+    Status = 0x8004;//AMLISTA_PENDING
+
+Exit:
+
+    giIndent--;
+
+    if (OutMappedAddr)
+        MappedAddr = *OutMappedAddr;
+    else
+        MappedAddr = NULL;
+
+    DPRINT("MapUnmapPhysMem: %X, %p\n", Status, MappedAddr);
+
+    return Status;
+}
+
+VOID
+__cdecl
+ValidateMemoryOpregionRange(
+    _In_ ULONG_PTR Base,
+    _In_ ULONG Length)
+{
+    UNIMPLEMENTED;
 }
 
 /* CALLBACKS TERM HANDLERS **************************************************/
@@ -4447,8 +4553,10 @@ NTSTATUS __cdecl OpRegion(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEX
 
     if (OpRegionObject->RegionSpace == 0)
     {
-        DPRINT1("OpRegion: FIXME\n");
-        ASSERT(FALSE);
+        if (gInitTime)
+            ValidateMemoryOpregionRange(OpRegionObject->Offset, OpRegionObject->Len);
+
+        Status = MapUnmapPhysMem(AmliContext, (PVOID)OpRegionObject->Offset, OpRegionObject->Len, (PVOID *)&OpRegionObject->Offset);
     }
     else if (OpRegionObject->RegionSpace == 1)
     {

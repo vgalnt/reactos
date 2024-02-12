@@ -522,6 +522,15 @@ typedef struct _AMLI_WRITE_COOK_ACCESS
     UCHAR Pad1[3];
 } AMLI_WRITE_COOK_ACCESS, *PAMLI_WRITE_COOK_ACCESS;
 
+typedef struct _AMLI_PASSIVE_HOOK
+{
+    PAMLI_CONTEXT AmliContext;
+    PVOID BaseAddress;
+    SIZE_T NumberOfBytes;
+    PVOID* OutMappedAddr;
+    WORK_QUEUE_ITEM WorkQueueItem;
+} AMLI_PASSIVE_HOOK, *PAMLI_PASSIVE_HOOK;
+
 /* FUNCTIONS ****************************************************************/
 
 #if 1
