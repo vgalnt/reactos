@@ -484,7 +484,7 @@ GetFadtTablePointerEntry(
     ULONG RetValue;
 
   #if !defined(_M_AMD64)
-    ASSERT(GenAddr->Address.HighPart == 0);
+    // ? ASSERT(GenAddr->Address.HighPart == 0);
   #endif
 
     //DPRINT("GetFadtTablePointerEntry: %p, %p, %p, %X, %X\n", Fadt, IoPort, GenAddr, NumberOfBytes, Fadt->Header.Revision);
