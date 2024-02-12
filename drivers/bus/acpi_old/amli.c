@@ -4873,8 +4873,44 @@ NTSTATUS __cdecl Store(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT T
 }
 NTSTATUS __cdecl ThermalZone(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_FN_HANDLER FnHandler;
+    NTSTATUS Status;
+
+    DPRINT("ThermalZone: %X, %X, %X\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = CreateNameSpaceObject(AmliContext->HeapCurrent,
+                                   TermContext->DataArgs->DataBuff,
+                                   AmliContext->Scope,
+                                   AmliContext->Owner,
+                                   &TermContext->NsObject,
+                                   0);
+    if (Status == STATUS_SUCCESS)
+    {
+        TermContext->NsObject->ObjData.DataType = 0xD;
+
+        if (ghCreate.Handler)
+        {
+            FnHandler = ghCreate.Handler;
+            FnHandler(0xD, TermContext->NsObject);
+        }
+
+        Status = PushScope(AmliContext,
+                           AmliContext->Op,
+                           TermContext->OpEnd,
+                           0,
+                           TermContext->NsObject,
+                           AmliContext->Owner,
+                           AmliContext->HeapCurrent,
+                           TermContext->DataResult);
+    }
+
+    giIndent--;
+
+    DPRINT("ThermalZone: %X, %X\n", Status, TermContext->NsObject);
+
+    return Status;
 }
 NTSTATUS __cdecl Wait(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
