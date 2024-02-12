@@ -1363,8 +1363,20 @@ MapPhysMem(
     _In_ PVOID Address,
     _In_ ULONG NuberOfBytes)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PHYSICAL_ADDRESS PhAddress;
+    PVOID MappedAddr;
+
+    DPRINT("MapPhysMem: %p, %X\n", Address, NuberOfBytes);
+
+    PhAddress.QuadPart = (ULONG_PTR)Address;
+
+    giIndent++;
+    MappedAddr = MmMapIoSpace(PhAddress, NuberOfBytes, 0);
+    giIndent--;
+
+    DPRINT("MapPhysMem: %p", MappedAddr);
+
+    return MappedAddr;
 }
 
 VOID
