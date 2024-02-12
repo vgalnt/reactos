@@ -2240,8 +2240,7 @@ AccessBaseField(
     {
         if (IsRead)
         {
-            DPRINT1("AccessBaseField: FIXME\n");
-            ASSERT(FALSE);
+            *OutData = ReadSystemMem(Addr, AccSize, DataMask);
             goto Exit;
         }
 
@@ -9506,7 +9505,7 @@ ParseAndGetNameSpaceObject(
     }
     else
     {
-        DPRINT1("ParseAndGetNameSpaceObject: object '%s' not found", Name);
+        DPRINT1("ParseAndGetNameSpaceObject: object '%s' not found\n", Name);
     }
 
 Exit:
