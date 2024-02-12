@@ -1892,6 +1892,62 @@ OSNotifyCreateProcessor(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+ACPIBuildThermalZoneExtension(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ PDEVICE_EXTENSION ParentDeviceExtension,
+    _Out_ PDEVICE_EXTENSION* OutDeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ACPIBuildThermalZoneRequest(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PVOID CallBack,
+    _In_ PVOID CallBackContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+OSNotifyCreateThermalZone(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ ULONGLONG FlagValue)
+{
+    PDEVICE_EXTENSION DeviceExtension = NULL;
+    NTSTATUS Status;
+
+    DPRINT("OSNotifyCreateThermalZone: %p, %I64X\n", NsObject, FlagValue);
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    ASSERT(NsObject != NULL);
+
+    Status = ACPIBuildThermalZoneExtension(NsObject, RootDeviceExtension, &DeviceExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("OSNotifyCreateThermalZone: %p, %X\n", NsObject, Status);
+        return Status;
+    }
+
+    InterlockedIncrement(&DeviceExtension->ReferenceCount);
+
+    ACPIInternalUpdateFlags(DeviceExtension, FlagValue, 0);
+
+    Status = ACPIBuildThermalZoneRequest(DeviceExtension, NULL, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("OSNotifyCreateThermalZone: Status %X\n", Status);
+    }
+
+    return Status;
+}
+
 static CHAR NameObject[8];
 
 PCHAR
@@ -1945,8 +2001,7 @@ OSNotifyCreate(
             break;
 
         case 0xD:
-            DPRINT("OSNotifyCreate: FIXME\n");
-            ASSERT(FALSE);
+            Status = OSNotifyCreateThermalZone(NsObject, 0);
             break;
 
         default:
