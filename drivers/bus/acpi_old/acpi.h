@@ -1492,6 +1492,8 @@ NTSTATUS NTAPI ACPIBuildProcessPowerResourceFailure(_In_ PACPI_BUILD_REQUEST Bui
 NTSTATUS NTAPI ACPIBuildProcessPowerResourcePhase0(_In_ PACPI_BUILD_REQUEST BuildRequest);
 NTSTATUS NTAPI ACPIBuildProcessPowerResourcePhase1(_In_ PACPI_BUILD_REQUEST BuildRequest);
 
+NTSTATUS NTAPI ACPIBuildProcessThermalZonePhase0(_In_ PACPI_BUILD_REQUEST BuildRequest);
+
 NTSTATUS NTAPI ACPIDevicePowerProcessInvalid(_In_ PACPI_POWER_REQUEST Request);
 NTSTATUS NTAPI ACPIDevicePowerProcessForward(_In_ PACPI_POWER_REQUEST Request);
 

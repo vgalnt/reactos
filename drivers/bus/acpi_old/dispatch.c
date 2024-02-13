@@ -273,6 +273,14 @@ PACPI_BUILD_DISPATCH AcpiBuildPowerResourceDispatch[] =
     ACPIBuildProcessPowerResourcePhase1
 };
 
+PACPI_BUILD_DISPATCH AcpiBuildThermalZoneDispatch[] =
+{
+    ACPIBuildProcessGenericComplete,
+    NULL,
+    NULL,
+    ACPIBuildProcessThermalZonePhase0
+};
+
 PDRIVER_DISPATCH ACPIDispatchBusFilterPnpTable[] =
 {
     NULL,
@@ -6056,10 +6064,7 @@ ACPIBuildDeviceDpc(
             Status = ACPIBuildProcessGenericList(&AcpiBuildDeviceList, AcpiBuildDeviceDispatch);
 
         if (!IsListEmpty(&AcpiBuildThermalZoneList))
-        {
-            DPRINT1("ACPIBuildDeviceDpc: FIXME\n");
-            ASSERT(FALSE);
-        }
+            ACPIBuildProcessGenericList(&AcpiBuildThermalZoneList, AcpiBuildThermalZoneDispatch);
 
         if (IsListEmpty(&AcpiBuildDeviceList) &&
             IsListEmpty(&AcpiBuildOperationRegionList) &&
@@ -12543,6 +12548,35 @@ ACPIThermalWorker(
     _In_ ULONG Param2)
 {
     UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+ACPIBuildProcessThermalZonePhase0(
+    _In_ PACPI_BUILD_REQUEST BuildRequest)
+{
+    PDEVICE_EXTENSION DeviceExtension;
+    PAMLI_NAME_SPACE_OBJECT Child;
+
+    DPRINT("ACPIBuildProcessThermalZonePhase0: %p\n", BuildRequest);
+
+    DeviceExtension = BuildRequest->DeviceExtension;
+    BuildRequest->BuildReserved1 = 0;
+
+    Child = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, 'PMT_');
+    DeviceExtension->Thermal.Info->CurrentTemperatureMethod = Child;
+
+    if (!Child)
+    {
+        DPRINT1("ACPIBuildProcessThermalZonePhase0: !!! KeBugCheckEx()\n", BuildRequest);
+        KeBugCheckEx(0xA5, 0xD, (ULONG_PTR)DeviceExtension, 'PMT_', 0);
+    }
+
+    ACPIBuildCompleteGeneric(NULL, STATUS_SUCCESS, 0, BuildRequest);
+
+    DPRINT("ACPIBuildProcessThermalZonePhase0: STATUS_SUCCESS\n");
+
+    return STATUS_SUCCESS;
 }
 
 /* Lid FUNCTIOS **************************************************************/
