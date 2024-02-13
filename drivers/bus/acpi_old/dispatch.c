@@ -12673,12 +12673,23 @@ ACPIButtonStartDevice(
 
 NTSTATUS
 NTAPI
+ACPICMButtonStart(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ ULONG Capabilities)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ACPICMPowerButtonStart(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+    return ACPICMButtonStart(DeviceObject, Irp, 0x80000001);
 }
 
 NTSTATUS
