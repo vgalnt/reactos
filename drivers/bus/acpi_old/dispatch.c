@@ -4069,11 +4069,112 @@ NTAPI
 ACPIBuildDevicePowerNodes(
     _In_ PDEVICE_EXTENSION DeviceExtension,
     _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
-    _In_ PAMLI_OBJECT_DATA Data,
-    _In_ ULONG Phase)
+    _In_ PAMLI_OBJECT_DATA InData,
+    _In_ DEVICE_POWER_STATE State)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_PACKAGE_OBJECT InPackageObject;
+    PAMLI_NAME_SPACE_OBJECT PowerNsObject;
+    PACPI_POWER_DEVICE_NODE PowerNode;
+    PACPI_DEVICE_POWER_NODE Node;
+    PAMLI_OBJECT_DATA Data;
+    ULONG Elements;
+    ULONG Offset;
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT("ACPIBuildDevicePowerNodes: %p\n", DeviceExtension);
+
+    InPackageObject = InData->DataBuff;
+
+    if (State == PowerDeviceUnspecified)
+    {
+        if (InPackageObject->Elements < 2)
+        {
+            DPRINT1("ACPIBuildDevicePowerNodes: !!! KeBugCheckEx(), %X\n", InPackageObject->Elements);
+            KeBugCheckEx(0xA5, 5, (ULONG_PTR)DeviceExtension, (ULONG_PTR)NsObject, InPackageObject->Elements);
+        }
+
+        Elements = (InPackageObject->Elements - 2);
+        Offset = 2;
+    }
+    else
+    {
+        Elements = InPackageObject->Elements;
+        Offset = 0;
+    }
+
+    if (!Elements)
+        return STATUS_SUCCESS;
+
+    Node = ExAllocatePoolWithTag(NonPagedPool, (Elements * sizeof(*Node)), 'PpcA');
+    if (!Node)
+    {
+        DPRINT1("ACPIBuildDevicePowerNodes: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    KeAcquireSpinLockAtDpcLevel(&AcpiPowerLock);
+
+    DeviceExtension->PowerInfo.PowerNode[State] = Node;
+
+    for (ix = 0; ix < Elements; ix++, Offset++, Node++)
+    {
+        RtlZeroMemory(Node, sizeof(*Node));
+
+        Data = &InPackageObject->Data[Offset];
+        PowerNsObject = NULL;
+
+        Status = AMLIGetNameSpaceObject(Data->DataBuff, NsObject, &PowerNsObject, 0);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ACPIBuildDevicePowerNodes: '%s' Status %X\n", Data->DataBuff, Status);
+            KeBugCheckEx(0xA5, 6, (ULONG_PTR)DeviceExtension, (ULONG_PTR)NsObject, (ULONG_PTR) Data->DataBuff);
+        }
+
+        if (!PowerNsObject || PowerNsObject->ObjData.DataType != 0xB)
+        {
+            DPRINT1("ACPIBuildDevicePowerNodes: '%s' references bad power object.\n", Data->DataBuff);
+            KeBugCheckEx(0xA5, 0x12, (ULONG_PTR)DeviceExtension, (ULONG_PTR)NsObject, (ULONG_PTR)Data->DataBuff);
+        }
+
+        PowerNode = PowerNsObject->Context;
+
+        Node->PowerNode = PowerNode;
+        Node->SystemState = PowerNode->SystemLevel;
+        Node->DeviceExtension = DeviceExtension;
+        Node->AssociatedDeviceState = State;
+
+        if (State == PowerDeviceUnspecified)
+            Node->WakePowerResource = 1;
+
+        if (State == PowerDeviceD0 && (DeviceExtension->Flags & 0x0000000000400000))
+        {
+            ULONGLONG Flags;
+            ULONGLONG ExChange;
+            ULONGLONG Comperand;
+
+            Flags = Node->PowerNode->Flags;
+            do
+            {
+                Comperand = Flags;
+                ExChange = (Comperand | 0x0000000000000220);
+
+                Flags = ExInterlockedCompareExchange64((PLONGLONG)&Node->PowerNode->Flags, (PLONGLONG)&ExChange, (PLONGLONG)&Comperand, NULL);
+            }
+            while (Comperand != Flags);
+        }
+
+        InsertTailList(&Node->PowerNode->DevicePowerListHead, &Node->DevicePowerListEntry);
+
+        if (ix >= (Elements - 1))
+            Node->Next = NULL;
+        else
+            Node->Next = &Node[1];
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -15077,7 +15178,7 @@ ACPIInternalUpdateFlags(
             Comperand = ReturnFlags;
             ExChange = Comperand & ~InputFlags;
 
-            ReturnFlags = ExInterlockedCompareExchange64((PLONGLONG)DeviceExtension, (PLONGLONG)&ExChange, (PLONGLONG)&Comperand, NULL);
+            ReturnFlags = ExInterlockedCompareExchange64((PLONGLONG)&DeviceExtension->Flags, (PLONGLONG)&ExChange, (PLONGLONG)&Comperand, NULL);
         }
         while (Comperand != ReturnFlags);
     }
@@ -15089,7 +15190,7 @@ ACPIInternalUpdateFlags(
             Comperand = ReturnFlags;
             ExChange = Comperand | InputFlags;
 
-            ReturnFlags = ExInterlockedCompareExchange64((PLONGLONG)DeviceExtension, (PLONGLONG)&ExChange, (PLONGLONG)&Comperand, NULL);
+            ReturnFlags = ExInterlockedCompareExchange64((PLONGLONG)&DeviceExtension->Flags, (PLONGLONG)&ExChange, (PLONGLONG)&Comperand, NULL);
         }
         while (Comperand != ReturnFlags);
     }

@@ -161,6 +161,8 @@ typedef struct _ACPI_DEVICE_POWER_NODE
     struct _ACPI_DEVICE_POWER_NODE* Next;
     PACPI_POWER_DEVICE_NODE PowerNode;
     SYSTEM_POWER_STATE SystemState;
+    DEVICE_POWER_STATE AssociatedDeviceState;
+    CHAR WakePowerResource;
     struct _DEVICE_EXTENSION* DeviceExtension;
     LIST_ENTRY DevicePowerListEntry;
 } ACPI_DEVICE_POWER_NODE, *PACPI_DEVICE_POWER_NODE;
