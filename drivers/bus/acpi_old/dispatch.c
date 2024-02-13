@@ -12671,6 +12671,16 @@ ACPIButtonStartDevice(
     return Status;
 }
 
+VOID
+NTAPI
+ACPICMButtonStartCompletion(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PVOID Context,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 ACPICMButtonStart(
@@ -12678,8 +12688,23 @@ ACPICMButtonStart(
     _In_ PIRP Irp,
     _In_ ULONG Capabilities)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension;
+    NTSTATUS Status;
+  
+    PAGED_CODE();
+    DPRINT("ACPICMButtonStart: %p, %p, %X\n", DeviceObject, Irp, Capabilities);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+
+    KeInitializeSpinLock(&DeviceExtension->Button.SpinLock);
+
+    DeviceExtension->Button.Capabilities = Capabilities;
+
+    Status = ACPIInitStartDevice(DeviceObject, NULL, ACPICMButtonStartCompletion, Irp, Irp);
+    if (NT_SUCCESS(Status))
+        Status = STATUS_PENDING;
+
+    return Status;
 }
 
 NTSTATUS
