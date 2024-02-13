@@ -12415,6 +12415,7 @@ Exit:
     IoCompleteRequest(Irp, 0);
     return Status;
 }
+
 NTSTATUS
 NTAPI
 ACPIInternalDeviceQueryCapabilities(
@@ -12456,6 +12457,19 @@ ACPIInternalDeviceQueryCapabilities(
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
 
     return Status;
+}
+
+NTSTATUS
+NTAPI
+ACPIInternalWaitWakeLoop(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ UCHAR MinorFunction,
+    _In_ POWER_STATE PowerState,
+    _In_ PVOID Context,
+    _In_ PIO_STATUS_BLOCK IoStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 NTSTATUS
@@ -12673,10 +12687,80 @@ ACPIButtonStartDevice(
 
 VOID
 NTAPI
+ACPICMButtonNotify(
+    _In_ PVOID Context,
+    _In_ ULONG NotifyCode)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 ACPICMButtonStartWorker(
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_OBJECT DeviceObject = Context;
+    PDEVICE_EXTENSION DeviceExtension;
+    PDEVICE_OBJECT AttachedTo;
+    IO_STATUS_BLOCK IoStatus;
+    POWER_STATE PowerState;
+    PIRP Irp;
+    NTSTATUS Status;
+    KIRQL Irql;
+
+    DPRINT("ACPICMButtonStartWorker: %p\n", Context);
+
+    AttachedTo = DeviceObject->AttachedDevice;
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(AttachedTo);
+
+    Irp = DeviceObject->CurrentIrp;
+
+    Status = Irp->IoStatus.Status;
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPICMButtonStartWorker: Status %X\n", Status);
+        goto Finish;
+    }
+
+    if (DeviceExtension->Button.Capabilities & 4)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        IoStatus.Status = STATUS_SUCCESS;
+        IoStatus.Information = 0;
+
+        KeAcquireSpinLock(&AcpiPowerLock, &Irql);
+        PowerState.SystemState = DeviceExtension->PowerInfo.SystemWakeLevel;
+        KeReleaseSpinLock(&AcpiPowerLock, Irql);
+
+        ACPIInternalWaitWakeLoop(AttachedTo, 0, PowerState, NULL, &IoStatus);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ACPICMButtonStartWorker: Status %X\n", Status);
+            goto Finish;
+        }
+    }
+
+    ACPIRegisterForDeviceNotifications(AttachedTo, ACPICMButtonNotify, AttachedTo);
+
+    Status = ACPIInternalSetDeviceInterface(AttachedTo, (LPGUID)&GUID_DEVICE_SYS_BUTTON);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPICMButtonStartWorker: Status %X\n", Status);
+    }
+
+Finish:
+
+    Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = Status;
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    DPRINT("ACPICMButtonStartWorker: (%p, %X) Status %X\n", Irp, IoGetCurrentIrpStackLocation(Irp)->MinorFunction, Status);
 }
 
 VOID
