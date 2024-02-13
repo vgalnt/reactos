@@ -12673,12 +12673,43 @@ ACPIButtonStartDevice(
 
 VOID
 NTAPI
+ACPICMButtonStartWorker(
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 ACPICMButtonStartCompletion(
     _In_ PDEVICE_EXTENSION DeviceExtension,
     _In_ PVOID Context,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIRP Irp = Context;
+    PWORK_QUEUE_CONTEXT WorkContext;
+
+    DPRINT("ACPICMButtonStartCompletion: %p, %p, %X\n", DeviceExtension, Context, InStatus);
+
+    Irp->IoStatus.Status = InStatus;
+
+    if (!NT_SUCCESS(InStatus))
+    {
+        DPRINT1("ACPICMButtonStartCompletion: InStatus %X\n", InStatus);
+        IoCompleteRequest(Irp, 0);
+        return;
+    }
+
+    DeviceExtension->DeviceState = 2;
+
+    WorkContext = &DeviceExtension->Filter.WorkContext;
+
+    WorkContext->DeviceObject = DeviceExtension->DeviceObject;
+    WorkContext->Irp = Irp;
+
+    ExInitializeWorkItem(&WorkContext->Item, ACPICMButtonStartWorker, WorkContext);
+
+    ExQueueWorkItem(&WorkContext->Item, DelayedWorkQueue);
 }
 
 NTSTATUS
