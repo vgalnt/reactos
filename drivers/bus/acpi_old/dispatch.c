@@ -6304,6 +6304,15 @@ ACPIBuildDeviceDpc(
     DPRINT("ACPIBuildDeviceDpc: exit (%p)\n", Dpc);
 }
 
+VOID
+NTAPI
+ACPISetDeviceWorker(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ ULONG Events)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 /* HAL FUNCTIOS *************************************************************/
 
 VOID
@@ -12695,7 +12704,32 @@ ACPICMButtonNotify(
     _In_ PVOID Context,
     _In_ ULONG NotifyCode)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_OBJECT DeviceObject = Context;
+    PDEVICE_EXTENSION DeviceExtension;
+
+    DPRINT("ACPICMButtonNotify: %p\n", DeviceObject);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+
+    if (NotifyCode == 2)
+    {
+        ACPIButtonEvent(DeviceObject, 0x80000000, 0);
+        return;
+    }
+
+    if (NotifyCode != 0x80)
+    {
+        DPRINT1("ACPICMButtonNotify: Unknown CM butt notify code %d\n", NotifyCode);
+        return;
+    }
+
+    if (DeviceExtension->Button.Capabilities & 4)
+    {
+        ACPISetDeviceWorker(DeviceExtension, 1);
+        return;
+    }
+
+    ACPIButtonEvent(DeviceObject, (DeviceExtension->Button.Capabilities & 0x7FFFFFFF), 0);
 }
 
 VOID
