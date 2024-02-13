@@ -2693,9 +2693,15 @@ ACPIGetConvertToCompatibleIDWide(
     _Out_ PVOID* OutDataBuff,
     _Out_ ULONG* OutDataLen)
 {
-    PVOID CompatibleId;
+    PWCHAR CompatibleId;
+    PWCHAR Id;
+    PWCHAR* OutPnpId;
+    ULONG* OutPnpIdLen;
     POOL_TYPE PoolType;
     ULONG DataLen;
+    ULONG Len = 0;
+    ULONG Count;
+    ULONG ix;
     NTSTATUS Status = InStatus;
 
     DPRINT("ACPIGetConvertToCompatibleIDWide: %p\n", DeviceExtension);
@@ -2727,14 +2733,109 @@ ACPIGetConvertToCompatibleIDWide(
         return STATUS_SUCCESS;
     }
 
-    if (!NT_SUCCESS(InStatus))
+    if (!NT_SUCCESS(Status))
     {
-        DPRINT("ACPIGetConvertToCompatibleIDWide: InStatus %X\n", InStatus);
+        DPRINT("ACPIGetConvertToCompatibleIDWide: Status %X\n", Status);
         return Status;
     }
 
-    DPRINT1("ACPIGetConvertToCompatibleIDWide: FIXME\n");
-    ASSERT(FALSE);
+    if (AmliData->DataType != 1 && AmliData->DataType != 2 && AmliData->DataType != 4)
+    {
+        DPRINT1("ACPIGetConvertToCompatibleIDWide: DataType %X\n", AmliData->DataType);
+        ASSERT(FALSE);
+        return STATUS_ACPI_INVALID_DATA;
+    }
+
+    if (AmliData->DataType == 1 || AmliData->DataType == 2)
+    {
+        Count = 1;
+    }
+    else if (AmliData->DataType == 4)
+    {
+        DPRINT1("ACPIGetConvertToCompatibleIDWide: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    OutPnpId = ExAllocatePoolWithTag(NonPagedPool, (Count * 4), 'MpcA');
+    if (!OutPnpId)
+    {
+        DPRINT1("ACPIGetConvertToCompatibleIDWide: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(OutPnpId, (Count * 4));
+
+    OutPnpIdLen = ExAllocatePoolWithTag(NonPagedPool, (Count * 4), 'MpcA');
+    if (!OutPnpIdLen)
+    {
+        DPRINT1("ACPIGetConvertToCompatibleIDWide: STATUS_INSUFFICIENT_RESOURCES\n");
+        ExFreePoolWithTag(OutPnpId, 'MpcA');
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(OutPnpIdLen, (Count * 4));
+
+    if (AmliData->DataType == 1)
+    {
+        Status = ACPIGetConvertToPnpIDWide(DeviceExtension, InStatus, AmliData, GetFlags, (PVOID *)OutPnpId, OutPnpIdLen);
+        Len = *OutPnpIdLen;
+    }
+    else if (AmliData->DataType == 2)
+    {
+        DPRINT1("ACPIGetConvertToCompatibleIDWide: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (AmliData->DataType == 4)
+    {
+        DPRINT1("ACPIGetConvertToCompatibleIDWide: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    if (Len <= 2)
+    {
+        DPRINT1("ACPIGetConvertToCompatibleIDWide: STATUS_ACPI_INVALID_DATA\n");
+        Status = STATUS_ACPI_INVALID_DATA;
+        goto Exit;
+    }
+
+    DataLen = (Len + 2);
+
+    CompatibleId = ExAllocatePoolWithTag(PoolType, DataLen, 'SpcA');
+    if (!CompatibleId)
+    {
+        DPRINT1("ACPIGetConvertToCompatibleIDWide: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+    RtlZeroMemory(CompatibleId, DataLen);
+
+    Id = CompatibleId;
+    for (ix = 0; ix < Count; ix++)
+    {
+        if (OutPnpId[ix])
+            RtlCopyMemory(Id, OutPnpId[ix], OutPnpIdLen[ix]);
+
+        Id += (OutPnpIdLen[ix] / 2);
+    }
+
+    *OutDataBuff = CompatibleId;
+
+    if (OutDataLen)
+        *OutDataLen = DataLen;
+
+Exit:
+
+    for (ix = 0; ix < Count; ix++)
+    {
+        if (OutPnpId[ix])
+            ExFreePool(OutPnpId[ix]);
+    }
+
+    ExFreePoolWithTag(OutPnpIdLen, 'MpcA');
+    ExFreePoolWithTag(OutPnpId, 'MpcA');
 
     return Status;
 }
