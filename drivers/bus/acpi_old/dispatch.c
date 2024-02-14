@@ -8169,7 +8169,18 @@ ACPIDeviceIrpCompleteRequest(
     _In_ PVOID Context,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIRP Irp = Context;
+
+    DPRINT("ACPIDeviceIrpCompleteRequest: %p, %X\n", Irp, InStatus);
+
+    PoStartNextPowerIrp(Irp);
+    IoMarkIrpPending(Irp);
+
+    Irp->IoStatus.Status = InStatus;
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+    ACPIInternalDecrementIrpReferenceCount(DeviceExtension);
 }
 
 NTSTATUS
