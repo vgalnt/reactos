@@ -8153,12 +8153,99 @@ ACPIFilterIrpDeviceUsageNotification(
 
 NTSTATUS
 NTAPI
-ACPIWakeWaitIrp(
+ACPIDeviceIrpWaitWakeRequest(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID CallBack)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+ACPIDeviceIrpCompleteRequest(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PVOID Context,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+ACPIDispatchForwardOrFailPowerIrp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ACPIWakeWaitIrp(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    PDEVICE_EXTENSION DeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    SYSTEM_POWER_STATE SystemWakeState;
+    SYSTEM_POWER_STATE IrpWakeState;
+    DEVICE_POWER_STATE DeviceWakeState;
+    DEVICE_POWER_STATE IrpPowerState;
+    NTSTATUS Status;
+
+    DPRINT("ACPIWakeWaitIrp: %p, %p\n", DeviceObject, Irp);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+
+    if (!(DeviceExtension->Flags & 0x10000))
+        return ACPIDispatchForwardOrFailPowerIrp(DeviceObject, Irp);
+
+    SystemWakeState = DeviceExtension->PowerInfo.SystemWakeLevel;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    IrpWakeState = IoStack->Parameters.WaitWake.PowerState;
+
+    if (SystemWakeState < IrpWakeState)
+    {
+        DPRINT1("ACPIWakeWaitIrp: STATUS_INVALID_DEVICE_STATE (%X, %X)\n", (SystemWakeState - 1), (IrpWakeState - 1));
+
+        Irp->IoStatus.Status = STATUS_INVALID_DEVICE_STATE;
+
+        PoStartNextPowerIrp(Irp);
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+        return STATUS_INVALID_DEVICE_STATE;
+    }
+
+    DeviceWakeState = DeviceExtension->PowerInfo.DeviceWakeLevel;
+    IrpPowerState = DeviceExtension->PowerInfo.PowerState;
+
+    if (DeviceWakeState < IrpPowerState)
+    {
+        DPRINT1("ACPIWakeWaitIrp: STATUS_INVALID_DEVICE_STATE (%X, %X)\n", (DeviceWakeState - 1), (IrpPowerState - 1));
+
+        Irp->IoStatus.Status = STATUS_INVALID_DEVICE_STATE;
+
+        PoStartNextPowerIrp(Irp);
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+        return STATUS_INVALID_DEVICE_STATE;
+    }
+
+    IoMarkIrpPending(Irp);
+
+    InterlockedIncrement(&DeviceExtension->OutstandingIrpCount);
+
+    Status = ACPIDeviceIrpWaitWakeRequest(DeviceObject, Irp, ACPIDeviceIrpCompleteRequest);
+
+    if (Status == STATUS_MORE_PROCESSING_REQUIRED)
+        Status = STATUS_PENDING;
+    else
+        ACPIInternalDecrementIrpReferenceCount(DeviceExtension);
+
+    return Status;
 }
 
 NTSTATUS
