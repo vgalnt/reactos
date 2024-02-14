@@ -918,6 +918,11 @@ PCHAR StateName[] =
     "\\_S5"
 };
 
+WMIGUIDREGINFO ACPIThermalGuidList =
+{
+    &THERMAL_ZONE_GUID, 1, 0
+};
+
 extern NPAGED_LOOKASIDE_LIST BuildRequestLookAsideList;
 extern NPAGED_LOOKASIDE_LIST RequestLookAsideList;
 extern KSPIN_LOCK AcpiDeviceTreeLock;
@@ -13065,14 +13070,118 @@ ACPIThermalDeviceControl(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+NTAPI
+ACPIThermalEvent(
+    _In_ PVOID Context,
+    _In_ ULONG NotifyCode)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+ACPIThermalQueryWmiRegInfo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PULONG RegFlags,
+    _In_ PUNICODE_STRING InstanceName,
+    _Out_ PUNICODE_STRING* OutRegistryPath,
+    _In_ PUNICODE_STRING MofResourceName,
+    _Out_ PDEVICE_OBJECT* OutPdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ACPIThermalQueryWmiDataBlock(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ ULONG GuidIndex,
+    _In_ ULONG InstanceIndex,
+    _In_ ULONG InstanceCount,
+    _Out_ ULONG* OutInstanceLengthArray,
+    _In_ ULONG BufferAvail,
+    _Out_ UCHAR* OutBuffer)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+ACPIThermalLoop(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ ULONG InFlags)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 ACPIThermalStartDevice(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension;
+    PWMILIB_CONTEXT WmilibContext;
+    NTSTATUS Status;
+
+    DPRINT("ACPIThermalStartDevice: %p, %p\n", DeviceObject, Irp);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+
+    Status = ACPIInternalSetDeviceInterface(DeviceObject, (LPGUID)&GUID_DEVICE_THERMAL_ZONE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIThermalStartDevice: Status %X\n", Status);
+        goto Exit;
+    }
+
+    ACPIRegisterForDeviceNotifications(DeviceObject, ACPIThermalEvent, DeviceObject);
+
+    WmilibContext = ExAllocatePoolWithTag(PagedPool, sizeof(*WmilibContext), 'TpcA');
+    if (!WmilibContext)
+    {
+        DPRINT1("ACPIThermalStartDevice: IRP_MN_START_DEVICE\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+    RtlZeroMemory(WmilibContext, sizeof(*WmilibContext));
+
+    WmilibContext->GuidCount = 1;
+    WmilibContext->GuidList = &ACPIThermalGuidList;
+    WmilibContext->QueryWmiRegInfo = ACPIThermalQueryWmiRegInfo;
+    WmilibContext->QueryWmiDataBlock = ACPIThermalQueryWmiDataBlock;
+
+    DeviceExtension->Thermal.WmilibContext = WmilibContext;
+
+    Status = IoWMIRegistrationControl(DeviceObject, 1);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIThermalStartDevice: Status %X\n", Status);
+
+        DeviceExtension->Button.Capabilities = 0;
+
+        ExFreePoolWithTag(WmilibContext, 'TpcA');
+        goto Exit;
+    }
+
+    DeviceExtension->DeviceState = 2;
+
+    Status = ACPIDeviceInternalDeviceRequest(DeviceExtension, 1, NULL, NULL, 0);
+    if (Status == STATUS_PENDING)
+        Status = STATUS_SUCCESS;
+
+    ACPIThermalLoop(DeviceExtension, 0xC);
+ 
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
