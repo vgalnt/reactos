@@ -13110,12 +13110,170 @@ ACPIThermalQueryWmiDataBlock(
 }
 
 VOID
+__cdecl
+ACPIThermalTempatureRead(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ NTSTATUS InStatus,
+    _In_ PAMLI_OBJECT_DATA Result,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+BOOLEAN
+NTAPI
+ACPIThermalCompletePendingIrps(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PACPI_THERMAL_INFO Info)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+__cdecl
+ACPIThermalComplete(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ NTSTATUS InStatus,
+    _In_ ULONG Unknown3,
+    _In_ PDEVICE_EXTENSION DeviceExtension)
+{
+    ACPIThermalLoop(DeviceExtension, 0x40000000);
+}
+
+VOID
 NTAPI
 ACPIThermalLoop(
     _In_ PDEVICE_EXTENSION DeviceExtension,
     _In_ ULONG InFlags)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PACPI_THERMAL_INFO Info;
+    NTSTATUS Status;
+    BOOLEAN IsLocked;
+    KIRQL Irql;
+
+    DPRINT("ACPIThermalLoop: %p, %X\n", DeviceExtension, InFlags);
+
+    Info = DeviceExtension->Thermal.Info;
+
+    KeAcquireSpinLock(&DeviceExtension->Thermal.SpinLock, &Irql);
+
+    DeviceExtension->Thermal.Flags &= ~InFlags;
+
+    if (DeviceExtension->Thermal.Flags & 0x80000000)
+    {
+        KeReleaseSpinLock(&DeviceExtension->Thermal.SpinLock, Irql);
+        return;
+    }
+
+    IsLocked = TRUE;
+
+    DPRINT1("ACPIThermalLoop: %X, %X\n", DeviceExtension->Thermal.Flags, InFlags);
+
+    DeviceExtension->Thermal.Flags |= 0x80000000;
+
+    while (TRUE)
+    {
+        if (!IsLocked)
+        {
+            KeAcquireSpinLock(&DeviceExtension->Thermal.SpinLock, &Irql);
+            IsLocked = TRUE;
+        }
+
+        if (DeviceExtension->Thermal.Flags & 0x40000000)
+            break;
+
+        if (!(DeviceExtension->Thermal.Flags & 0x00000010))
+        {
+            DeviceExtension->Thermal.Flags |= 0x40000010;
+            ACPISetDeviceWorker(DeviceExtension, 0x11);
+            continue;
+        }
+
+        if (!(DeviceExtension->Thermal.Flags & 0x00000008))
+        {
+            DeviceExtension->Thermal.Flags |= 0x40000008;
+
+            KeReleaseSpinLock(&DeviceExtension->Thermal.SpinLock, Irql);
+
+            IsLocked = FALSE;
+
+            Status = ACPIGet(DeviceExtension,
+                             'PCS_', // Set Cooling Policy
+                             0x41100000,
+                             (PVOID)Info->CoolingMode,
+                             4,
+                             ACPIThermalComplete,
+                             DeviceExtension,
+                             NULL,
+                             NULL);
+
+            if (Status != STATUS_PENDING)
+                ACPIThermalLoop(DeviceExtension, 0x40000000);
+
+            continue;
+        }
+
+        if (!(DeviceExtension->Thermal.Flags & 0x00000004))
+        {
+            DeviceExtension->Thermal.Flags |= 0x40000004;
+            ACPISetDeviceWorker(DeviceExtension, 4);
+            continue;
+        }
+
+        if (!(DeviceExtension->Thermal.Flags & 0x00000001))
+        {
+            DeviceExtension->Thermal.Flags |= 0x40000001;
+            ACPISetDeviceWorker(DeviceExtension, 1);
+            continue;
+        }
+
+        if ((DeviceExtension->Thermal.Flags & 0x20000000) &&
+            (DeviceExtension->Thermal.Flags & 0x00000002))
+        {
+            break;
+        }
+
+        if (DeviceExtension->Thermal.Flags & 0x00000002)
+        {
+            if (!ACPIThermalCompletePendingIrps(DeviceExtension, Info))
+                break;
+
+            continue;
+        }
+
+        if (!Info->CurrentTemperatureMethod)
+        {
+            DPRINT1("ACPIThermalLoop: %X, %X\n", DeviceExtension->Thermal.Flags, InFlags);
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        Info->Header.ThermalStamp++;
+
+        DeviceExtension->Thermal.Flags |= 0x40000002;
+
+        KeReleaseSpinLock(&DeviceExtension->Thermal.SpinLock, Irql);
+
+        RtlZeroMemory(&Info->TempatureData, sizeof(Info->TempatureData));
+
+        IsLocked = FALSE;
+
+        Info->TempatureData.DataType = 0;
+
+        Status = AMLIAsyncEvalObject(Info->CurrentTemperatureMethod,
+                                     &Info->TempatureData,
+                                     0,
+                                     NULL,
+                                     ACPIThermalTempatureRead,
+                                     DeviceExtension);
+
+        if (Status != STATUS_PENDING)
+            ACPIThermalTempatureRead(Info->CurrentTemperatureMethod, Status, &Info->TempatureData, DeviceExtension);
+    }
+
+    DeviceExtension->Thermal.Flags &= ~0x80000000;
+
+    KeReleaseSpinLock(&DeviceExtension->Thermal.SpinLock, Irql);
 }
 
 NTSTATUS

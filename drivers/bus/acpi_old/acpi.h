@@ -1679,6 +1679,13 @@ ACPIDeviceInternalDeviceRequest(
     _In_ ULONG Flags
 );
 
+VOID
+NTAPI
+ACPIThermalLoop(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ ULONG InFlags
+);
+
 /* registry.c */
 VOID
 NTAPI
