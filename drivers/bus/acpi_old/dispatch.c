@@ -13038,8 +13038,21 @@ ACPIThermalFanStartDevice(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension;
+
+    DPRINT("ACPIThermalFanStartDevice: %p, %p\n", DeviceObject, Irp);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+    DeviceExtension->DeviceState = 2;
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+
+    IoCompleteRequest(Irp, 0);
+
+    DPRINT("ACPIThermalFanStartDevice: STATUS_SUCCESS (%p, %X)\n", Irp, IoGetCurrentIrpStackLocation(Irp)->MinorFunction);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
