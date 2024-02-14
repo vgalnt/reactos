@@ -950,17 +950,20 @@ extern LIST_ENTRY AcpiPowerPhase5List;
 extern LIST_ENTRY AcpiPowerWaitWakeList;
 extern LIST_ENTRY AcpiPowerNodeList;
 extern LIST_ENTRY AcpiButtonList;
+extern LIST_ENTRY ACPIDeviceWorkQueue;
 extern KDPC AcpiBuildDpc;
 extern KDPC AcpiPowerDpc;
 extern BOOLEAN AcpiBuildDpcRunning;
 extern BOOLEAN AcpiBuildWorkDone;
 extern BOOLEAN AcpiPowerWorkDone;
 extern BOOLEAN AcpiPowerDpcRunning;
+extern BOOLEAN ACPIWorkerBusy;
 extern PRSDTINFORMATION RsdtInformation;
 extern PDEVICE_EXTENSION RootDeviceExtension;
 extern ULONG AcpiOverrideAttributes;
 extern KSPIN_LOCK AcpiPowerLock;
 extern KSPIN_LOCK AcpiButtonLock;
+extern KSPIN_LOCK ACPIWorkerSpinLock;
 extern PUCHAR GpeEnable;
 extern PUCHAR GpeWakeHandler;
 extern PUCHAR GpeSpecialHandler;
@@ -971,6 +974,7 @@ extern ULONG gdwcCTObjsMax;
 extern PUCHAR GpeWakeEnable;
 extern PUCHAR GpeCurEnable;
 extern PUCHAR GpePending;
+extern WORK_QUEUE_ITEM ACPIWorkItem;
 
 /* FUNCTIOS *****************************************************************/
 
@@ -6320,7 +6324,29 @@ ACPISetDeviceWorker(
     _In_ PDEVICE_EXTENSION DeviceExtension,
     _In_ ULONG Events)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    BOOLEAN IsNotBusy;
+    KIRQL Irql;
+
+    DPRINT("ACPISetDeviceWorker: %X, %X\n", DeviceExtension, Events);
+
+    KeAcquireSpinLock(&ACPIWorkerSpinLock, &Irql);
+
+    IsNotBusy = FALSE;
+
+    DeviceExtension->WorkQueue.PendingEvents |= Events;
+
+    if (!DeviceExtension->WorkQueue.Link.Flink)
+    {
+        InsertTailList(&ACPIDeviceWorkQueue, &DeviceExtension->WorkQueue.Link);
+
+        IsNotBusy = (ACPIWorkerBusy == FALSE);
+        ACPIWorkerBusy = TRUE;
+    }
+
+    KeReleaseSpinLock(&ACPIWorkerSpinLock, Irql);
+
+    if (IsNotBusy)
+        ExQueueWorkItem(&ACPIWorkItem, DelayedWorkQueue);
 }
 
 /* HAL FUNCTIOS *************************************************************/

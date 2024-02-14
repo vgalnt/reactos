@@ -103,6 +103,7 @@ BOOLEAN AcpiPowerWorkDone;
 BOOLEAN AcpiPowerDpcRunning;
 BOOLEAN AcpiArbCardbusPresent;
 BOOLEAN AcpiInterruptRoutingFailed = FALSE;
+BOOLEAN ACPIWorkerBusy;
 
 extern IRP_DISPATCH_TABLE AcpiFdoIrpDispatch;
 extern PACPI_INFORMATION AcpiInformation;
