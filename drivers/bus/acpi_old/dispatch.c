@@ -904,6 +904,11 @@ DEVICE_POWER_STATE DevicePowerStateTranslation[4] =
     1, 2, 3, 4
 };
 
+LONG AcpiSystemStateTranslation[] =
+{
+    -1, 0, 1, 2, 3, 4, 5
+};
+
 PCHAR StateName[] =
 {
     "\\_S1",
@@ -8158,8 +8163,28 @@ ACPIDeviceIrpWaitWakeRequest(
     _In_ PIRP Irp,
     _In_ PVOID CallBack)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension;
+    POWER_STATE State;
+    LONG Wake;
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+
+    State.SystemState = IoGetCurrentIrpStackLocation(Irp)->Parameters.WaitWake.PowerState;
+
+    if (State.SystemState < 7)
+        Wake = AcpiSystemStateTranslation[State.SystemState];
+    else
+        Wake = -1;
+
+    DPRINT1("ACPIDeviceIrpWaitWakeRequest: %p, %X\n", Irp, Wake);
+
+    return ACPIDeviceInitializePowerRequest(DeviceExtension,
+                                            State,
+                                            CallBack,
+                                            Irp,
+                                            PowerActionNone,
+                                            AcpiPowerRequestWaitWake,
+                                            2);
 }
 
 VOID
