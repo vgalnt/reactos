@@ -13380,11 +13380,211 @@ ACPIThermalWmi(
 
 VOID
 NTAPI
-ACPIThermalWorker(
-    _In_ struct _DEVICE_EXTENSION* DeviceExtension,
-    _In_ ULONG Param2)
+ACPIThermalPowerCallback(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PVOID Context,
+    _In_ NTSTATUS InStatus)
+{
+    if (!NT_SUCCESS(InStatus))
+    {
+        DPRINT1("ACPIThermalPowerCallback: failed power setting %X\n", InStatus);
+    }
+}
+
+VOID
+NTAPI
+ACPIThermalCalculateProcessorMask(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ PTHERMAL_INFORMATION InfoHeader)
 {
     UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+ACPIThermalWorker(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ ULONG Flags)
+{
+    PAMLI_NAME_SPACE_OBJECT ScopeObject;
+    PAMLI_NAME_SPACE_OBJECT PslObject;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    PAMLI_PACKAGE_OBJECT PackageObject;
+    PACPI_THERMAL_INFO Info;
+    AMLI_OBJECT_DATA Data1;
+    AMLI_OBJECT_DATA Data2;
+    ULONGLONG Time;
+    ULONG ActiveList[0xA];
+    ULONG ActiveCooling[0xA];
+    ULONG Count;
+    ULONG jx;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT1("ACPIThermalWorker: %p, %X\n", DeviceExtension, Flags);
+
+    Time = KeQueryInterruptTime();
+
+    Info = DeviceExtension->Thermal.Info;
+    ScopeObject = DeviceExtension->AcpiObject;
+
+    if (Flags & 0x10)
+    {
+        ActiveList[0] = '0LA_';
+        ActiveList[1] = '1LA_';
+        ActiveList[2] = '2LA_';
+        ActiveList[3] = '3LA_';
+        ActiveList[4] = '4LA_';
+        ActiveList[5] = '5LA_';
+        ActiveList[6] = '6LA_';
+        ActiveList[7] = '7LA_';
+        ActiveList[8] = '8LA_';
+        ActiveList[9] = '9LA_';
+
+        Info->CoolingMode = 1;
+
+        for (ix = 0; ix < 0xA; ix++)
+        {
+            NsObject = ACPIAmliGetNamedChild(ScopeObject, ActiveList[ix]);
+            if (!NsObject)
+                break;
+
+            Info->NsObjects[ix] = NsObject;
+        }
+    }
+
+    if (Flags & 1)
+    {
+        RtlZeroMemory(&Data1, sizeof(Data1));
+        RtlZeroMemory(&Data2, sizeof(Data2));
+
+        for (ix = 0; ix < 0xA; ix++)
+        {
+            if (!Info->NsObjects[ix])
+                break;
+
+            Status = AMLIEvalNameSpaceObject(Info->NsObjects[ix], &Data1, 0, NULL);
+            if (!NT_SUCCESS(Status))
+                break;
+
+            PackageObject = Data1.DataBuff;
+            Count = PackageObject->Elements;
+
+            for (jx = 0; jx < Count; jx++)
+            {
+                Status = AMLIEvalPkgDataElement(&Data1, jx, &Data2);
+                if (!NT_SUCCESS(Status))
+                    break;
+
+                DPRINT1("ACPIThermalWorker: (%I64X) Turn '%s' %s\n", Time, (ix < Info->ActiveCoolingLevel ? "off" : "on "), Data2.DataBuff);
+
+                Status = AMLIGetNameSpaceObject(Data2.DataBuff, ScopeObject, &NsObject, 0);
+                AMLIFreeDataBuffs(&Data2, 1);
+
+                if (!NT_SUCCESS(Status))
+                    break;
+
+                if (!NsObject->Context)
+                    break;
+
+                ACPIDeviceInternalDeviceRequest((PDEVICE_EXTENSION)NsObject->Context,
+                                                (ix < Info->ActiveCoolingLevel ? 4 : 1),
+                                                ACPIThermalPowerCallback,
+                                                NULL,
+                                                0);
+            }
+
+            AMLIFreeDataBuffs(&Data1, 1);
+        }
+    }
+
+    if (Flags & 4)
+        goto Finish;
+
+    ActiveCooling[0] = '0CA_';
+    ActiveCooling[1] = '1CA_';
+    ActiveCooling[2] = '2CA_';
+    ActiveCooling[3] = '3CA_';
+    ActiveCooling[4] = '4CA_';
+    ActiveCooling[5] = '5CA_';
+    ActiveCooling[6] = '6CA_';
+    ActiveCooling[7] = '7CA_';
+    ActiveCooling[8] = '8CA_';
+    ActiveCooling[9] = '9CA_';
+
+    ACPIGet(DeviceExtension, '1CT_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.ThermalConstant1, NULL);
+    DPRINT1("ACPIThermalWorker: (%I64X) ThermalConstant1 %X\n", Time, Info->Header.ThermalConstant1);
+
+    ACPIGet(DeviceExtension, '2CT_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.ThermalConstant2, NULL);
+    DPRINT1("ACPIThermalWorker: (%I64X) ThermalConstant2 X\n", Time, Info->Header.ThermalConstant2);
+
+    ACPIGet(DeviceExtension, 'VSP_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.PassiveTripPoint, NULL);
+    DPRINT1("ACPIThermalWorker: (%I64X) PassiveTripPoint %d.%dK\n", Time, Info->Header.PassiveTripPoint / 0xA);
+
+    ACPIGet(DeviceExtension, 'TRC_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.CriticalTripPoint, NULL);
+    DPRINT1("ACPIThermalWorker: (%I64X) CriticalTripPoint %d.%dK\n", Time, Info->Header.CriticalTripPoint / 0xA);
+
+    ACPIGet(DeviceExtension, 'PST_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.SamplingPeriod, NULL);
+    DPRINT1("ACPIThermalWorker: (%I64X) SamplingPeriod %X\n", Time, Info->Header.SamplingPeriod);
+
+    for (ix = 0; ix < 0xA; ix++)
+    {
+        Status = ACPIGet(DeviceExtension,
+                         ActiveCooling[ix],
+                         0x20040002,
+                         NULL,
+                         0,
+                         NULL,
+                         0,
+                         (PVOID *)&Info->Header.ActiveTripPoint[ix],
+                         NULL);
+
+        if (!NT_SUCCESS(Status))
+            break;
+
+        DPRINT1("ACPIThermalWorker: (%I64X) Active Cooling Level %x = %d.%dK\n",
+                Time, ix, (Info->Header.ActiveTripPoint[ix] / 0xA), (Info->Header.ActiveTripPoint[ix] % 0xA));
+    }
+
+    Info->Header.ActiveTripPointCount = ix;
+
+    RtlZeroMemory(&Data1, sizeof(Data1));
+    RtlZeroMemory(&Data2, sizeof(Data2));
+
+    Info->Header.Processors = 0;
+
+    PslObject = ACPIAmliGetNamedChild(ScopeObject, 'LSP_');
+    if (!PslObject)
+        goto Finish;
+
+    Status = AMLIEvalNameSpaceObject(PslObject, &Data1, 0, NULL);
+    if (!NT_SUCCESS(Status))
+        goto Finish;
+
+    PackageObject = Data1.DataBuff;
+    Count = PackageObject->Elements;
+
+    for (jx = 0; jx < Count; jx++)
+    {
+        Status = AMLIEvalPkgDataElement(&Data1, jx, &Data2);
+        if (!NT_SUCCESS(Status))
+            break;
+
+        Status = AMLIGetNameSpaceObject(Data2.DataBuff, 0, &NsObject, 0);
+        AMLIFreeDataBuffs(&Data2, 1);
+
+        if (!NT_SUCCESS(Status))
+            break;
+
+        ACPIThermalCalculateProcessorMask(NsObject, &Info->Header);
+    }
+
+    AMLIFreeDataBuffs(&Data1, 1);
+
+Finish:
+
+    ACPIThermalLoop(DeviceExtension, 0x40000002);
 }
 
 NTSTATUS
