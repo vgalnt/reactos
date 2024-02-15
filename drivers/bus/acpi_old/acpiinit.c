@@ -3218,6 +3218,7 @@ AcpiArbCrackPRT(
     _Out_ PAMLI_NAME_SPACE_OBJECT* OutLinkNode,
     _Out_ ULONG* OutVector)
 {
+    PACPI_PM_DISPATCH_TABLE HalAcpiDispatchTable = (PVOID)PmHalDispatchTable;
     PINT_ROUTE_INTERFACE_STANDARD PciInterface;
     PAMLI_NAME_SPACE_OBJECT PrtNsObject;
     PDEVICE_OBJECT ParentPdo;
@@ -3238,6 +3239,7 @@ AcpiArbCrackPRT(
     UCHAR pin;
     UCHAR ClassCode;
     UCHAR SubClassCode;
+    UCHAR CfgBuffer;
     UCHAR Flags;
     UCHAR flags;
     KIRQL Irql;
@@ -3286,8 +3288,10 @@ AcpiArbCrackPRT(
 
     if (ClassCode == 1 && SubClassCode == 1)
     {
-        DPRINT1("AcpiArbCrackPRT: FIXME\n");
-        ASSERT(FALSE);
+        HalAcpiDispatchTable->HalPciInterfaceReadConfig(NULL, Bus, PciSlot, &CfgBuffer, 9, 1); // FIXME
+
+        if (!(CfgBuffer & 5))
+            return STATUS_RESOURCE_REQUIREMENTS_CHANGED;
     }
 
     if (RoutingToken.LinkNode || (RoutingToken.Flags & 2))
@@ -3343,8 +3347,9 @@ AcpiArbCrackPRT(
 
         if (SubClassCode == 4)
         {
-            DPRINT1("AcpiArbCrackPRT: FIXME\n");
-            ASSERT(FALSE);
+            InterruptPin = ((((PciSlot.u.bits.DeviceNumber % 4) + InterruptPin - 1) % 4) + 1);
+            PciSlot.u.AsULONG = Slot.u.AsULONG;
+            DPRINT("AcpiArbCrackPRT: InterruptPin %X, PciSlot.u.AsULONG %X\n", InterruptPin, PciSlot.u.AsULONG);
         }
         else if (SubClassCode == 7)
         {
@@ -3420,8 +3425,20 @@ AcpiArbCrackPRT(
     {
         if (LinkNodeData.DataType == 2 && LinkNodeData.DataBuff)
         {
-            DPRINT1("AcpiArbCrackPRT: FIXME\n");
-            ASSERT(FALSE);
+            Status = AMLIGetNameSpaceObject(LinkNodeData.DataBuff, PrtNsObject, OutLinkNode, 0);
+            if (NT_SUCCESS(Status))
+            {
+                RoutingToken.StaticVector = 0;
+                RoutingToken.Flags = 0;
+                RoutingToken.LinkNode = *OutLinkNode;
+
+                PciInterface->SetInterruptRoutingToken(Pdo, &RoutingToken);
+
+                AMLIFreeDataBuffs(&LinkNodeData, 1);
+                AMLIFreeDataBuffs(&VectorData, 1);
+
+                return Status;
+            }
         }
 
         if (VectorData.DataType != 1)
