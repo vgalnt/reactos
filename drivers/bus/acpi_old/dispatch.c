@@ -13977,6 +13977,7 @@ NTAPI
 AcpiRegisterPciRegionSupport(
     _In_ PDEVICE_OBJECT DeviceObject)
 {
+    PACPI_PM_DISPATCH_TABLE HalAcpiDispatchTable = (PVOID)PmHalDispatchTable;
     PDEVICE_EXTENSION DeviceExtension;
     PBUS_INTERFACE_STANDARD Interface;
     ULONG_PTR dummyInformation;
@@ -14030,10 +14031,7 @@ AcpiRegisterPciRegionSupport(
     if ((Buffer.HeaderType & 0x7F) == 1 || (Buffer.HeaderType & 0x7F) == 2)
     {
         if (Buffer.u.type1.SecondaryBus)
-        {
-            DPRINT1("AcpiRegisterPciRegionSupport: FIXME\n");
-            ASSERT(FALSE);
-        }
+            HalAcpiDispatchTable->HalSetMaxLegacyPciBusNumber(Buffer.u.type1.SecondaryBus);
     }
 
 Exit:
