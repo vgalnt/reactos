@@ -12773,14 +12773,31 @@ ACPIInternalWaitWakeLoop(
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+ACPIInternalDeviceClockIrpStartDeviceCompletion(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PVOID Context,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 ACPIInternalDeviceClockIrpStartDevice(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    Status = ACPIInitStartDevice(DeviceObject, NULL, ACPIInternalDeviceClockIrpStartDeviceCompletion, Irp, Irp);
+    if (NT_SUCCESS(Status))
+        Status = STATUS_PENDING;
+
+    return Status;
 }
 
 /* Internal Device Power FUNCTIOS *******************************************/
