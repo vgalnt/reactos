@@ -13397,7 +13397,20 @@ ACPIThermalCalculateProcessorMask(
     _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
     _In_ PTHERMAL_INFORMATION InfoHeader)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_EXTENSION DeviceExtension;
+    KIRQL Irql;
+
+    if (!NsObject)
+        return;
+
+    KeAcquireSpinLock(&AcpiDeviceTreeLock, &Irql);
+
+    DeviceExtension = NsObject->Context;
+
+    if (DeviceExtension)
+        InfoHeader->Processors |= (1 << DeviceExtension->Processor.ProcessorIndex);
+
+    KeReleaseSpinLock(&AcpiDeviceTreeLock, Irql);
 }
 
 VOID
