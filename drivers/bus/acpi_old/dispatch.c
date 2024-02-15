@@ -951,6 +951,7 @@ extern LIST_ENTRY AcpiPowerWaitWakeList;
 extern LIST_ENTRY AcpiPowerNodeList;
 extern LIST_ENTRY AcpiButtonList;
 extern LIST_ENTRY ACPIDeviceWorkQueue;
+extern LIST_ENTRY AcpiThermalList;
 extern KDPC AcpiBuildDpc;
 extern KDPC AcpiPowerDpc;
 extern BOOLEAN AcpiBuildDpcRunning;
@@ -964,6 +965,7 @@ extern ULONG AcpiOverrideAttributes;
 extern KSPIN_LOCK AcpiPowerLock;
 extern KSPIN_LOCK AcpiButtonLock;
 extern KSPIN_LOCK ACPIWorkerSpinLock;
+extern KSPIN_LOCK AcpiThermalLock;
 extern PUCHAR GpeEnable;
 extern PUCHAR GpeWakeHandler;
 extern PUCHAR GpeSpecialHandler;
@@ -13233,8 +13235,20 @@ ACPIThermalCompletePendingIrps(
     _In_ PDEVICE_EXTENSION DeviceExtension,
     _In_ PACPI_THERMAL_INFO Info)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    BOOLEAN Result = FALSE;
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&AcpiThermalLock, &Irql);
+
+    if (!IsListEmpty(&AcpiThermalList))
+    {
+        Result = TRUE;
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    KeReleaseSpinLock(&AcpiThermalLock, Irql);
+
+    return Result;
 }
 
 VOID
