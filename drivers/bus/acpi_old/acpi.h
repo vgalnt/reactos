@@ -1230,9 +1230,9 @@ ACPITableNotifyFreeObject(
 NTSTATUS
 __cdecl
 NotifyHandler(
-    _In_ int Param1,
-    _In_ int Param2,
-    _In_ int Param3
+    _In_ ULONG EventType,
+    _In_ ULONG Notify,
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject
 );
 
 NTSTATUS
@@ -1346,6 +1346,23 @@ USHORT
 NTAPI
 ACPIReadGpeStatusRegister(
     _In_ ULONG Size
+);
+
+NTSTATUS
+NTAPI
+ACPIBuildRunMethodRequest(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PVOID CallBack,
+    _In_ PVOID CallBackContext,
+    _In_ PVOID Context,
+    _In_ ULONG Param5,
+    _In_ BOOLEAN IsInsertDpc
+);
+
+PACPI_POWER_INFO
+NTAPI
+OSPowerFindPowerInfo(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject
 );
 
 /* dispatch.c */
@@ -1749,17 +1766,6 @@ VOID
 NTAPI
 ACPIRegDumpAcpiTables(
     VOID
-);
-
-NTSTATUS
-NTAPI
-ACPIBuildRunMethodRequest(
-    _In_ PDEVICE_EXTENSION DeviceExtension,
-    _In_ PVOID CallBack,
-    _In_ PVOID CallBackContext,
-    _In_ PVOID Context,
-    _In_ ULONG Param5,
-    _In_ BOOLEAN IsInsertDpc
 );
 
 #endif /* _ACPI_H_ */

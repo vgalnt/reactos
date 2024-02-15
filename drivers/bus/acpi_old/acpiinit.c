@@ -111,6 +111,7 @@ extern PAMLI_NAME_SPACE_OBJECT ProcessorList[0x20];
 extern ANSI_STRING AcpiProcessorString;
 extern ULONG AcpiOverrideAttributes;
 extern KSPIN_LOCK GpeTableLock;
+extern KSPIN_LOCK NotifyHandlerLock;
 extern PPM_DISPATCH_TABLE PmHalDispatchTable;
 extern ULONG InterruptModel;
 extern BOOLEAN PciInterfacesInstantiated;
@@ -1596,15 +1597,85 @@ ACPITableNotifyFreeObject(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+PACPI_POWER_INFO
+NTAPI
+OSPowerFindPowerInfo(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject)
+{
+    PDEVICE_EXTENSION DeviceExtension;
+    PACPI_POWER_INFO PowerInfo;
+    KIRQL OldIrql;
+
+    ASSERT(NsObject != NULL);
+
+    KeAcquireSpinLock(&AcpiDeviceTreeLock, &OldIrql);
+
+    DeviceExtension = NsObject->Context;
+    if (!DeviceExtension)
+    {
+        KeReleaseSpinLock(&AcpiDeviceTreeLock, OldIrql);
+        return NULL;
+    }
+
+    ASSERT(DeviceExtension->Signature == '_SGP');//ACPI_SIGNATURE
+
+    KeReleaseSpinLock(&AcpiDeviceTreeLock, OldIrql);
+
+    PowerInfo = &DeviceExtension->PowerInfo;
+
+    return PowerInfo;
+}
+
 NTSTATUS
 __cdecl
 NotifyHandler(
-    _In_ int Param1,
-    _In_ int Param2,
-    _In_ int Param3)
+    _In_ ULONG EventType,
+    _In_ ULONG Notify,
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    VOID (NTAPI* DeviceNotifyHandler)(PVOID, ULONG);
+    PACPI_POWER_INFO Info;
+    PVOID HandlerContext;
+    KIRQL Irql;
+
+    ASSERT(EventType == 2);//EVTYPE_NOTIFY
+
+    DPRINT1("ACPINotifyHandler: Notify on %p value %X, object type %X\n", NsObject, Notify, NsObject->ObjData.DataType);
+
+    switch (Notify)
+    {
+        case 0:
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 1:
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 2:
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 3:
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+    }
+
+    Info = OSPowerFindPowerInfo(NsObject);
+    if (!Info)
+        return STATUS_SUCCESS;
+
+    KeAcquireSpinLock(&NotifyHandlerLock, &Irql);
+
+    DeviceNotifyHandler = Info->DeviceNotifyHandler;
+    HandlerContext = Info->HandlerContext;
+
+    KeReleaseSpinLock(&NotifyHandlerLock, Irql);
+
+    if (DeviceNotifyHandler)
+        DeviceNotifyHandler(HandlerContext, Notify);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
