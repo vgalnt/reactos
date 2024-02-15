@@ -14062,6 +14062,9 @@ ACPIWakeInitializePciDevice(
     _In_ PDEVICE_OBJECT DeviceObject)
 {
     PDEVICE_EXTENSION DeviceExtension;
+    BOOLEAN PmeCapable;
+    BOOLEAN PmeStatus;
+    BOOLEAN PmeEnable;
     KIRQL Irql;
 
     DPRINT("ACPIWakeInitializePciDevice: %p\n", DeviceObject);
@@ -14074,8 +14077,17 @@ ACPIWakeInitializePciDevice(
 
         if (PciPmeInterfaceInstantiated)
         {
-            DPRINT1("ACPIWakeInitializePciDevice: FIXME\n");
-            ASSERT(FALSE);
+            PciPmeInterface->GetPmeInformation(DeviceExtension->PhysicalDeviceObject, &PmeCapable, &PmeStatus, &PmeEnable);
+
+            if (PmeCapable)
+            {
+                ACPIInternalUpdateFlags(DeviceExtension, 0x0800000000000000, 0);
+
+                if (PmeEnable)
+                    PciPmeInterface->UpdateEnable(DeviceExtension->PhysicalDeviceObject, FALSE);
+                else if (PmeStatus)
+                    PciPmeInterface->ClearPmeStatus(DeviceExtension->PhysicalDeviceObject);
+            }
         }
 
         KeReleaseSpinLock(&AcpiPowerLock, Irql);
