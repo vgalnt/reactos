@@ -13201,7 +13201,30 @@ ACPIThermalTempatureRead(
     _In_ PAMLI_OBJECT_DATA Result,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_EXTENSION DeviceExtension = Context;
+    PACPI_THERMAL_INFO Info;
+    ULONGLONG Time;
+
+    if (!NT_SUCCESS(InStatus))
+    {
+        DPRINT1("ACPIThermalTempatureRead: InStatus %X\n", InStatus);
+        goto Finish;
+    }
+
+    ASSERT(Result->DataType == 1);//OBJTYPE_INTDATA
+
+    Info = DeviceExtension->Thermal.Info;
+    Info->Header.CurrentTemperature = (ULONG)Result->DataValue;
+
+    AMLIFreeDataBuffs(Result, 1);
+
+    Time = KeQueryInterruptTime();
+
+    DPRINT1("ACPIThermalTempatureRead: (%I64X) Current Temperature is %d.%dK\n", Time, (Info->Header.CurrentTemperature / 0xA));
+
+Finish:
+
+    ACPIThermalLoop(DeviceExtension, 0x40000000);
 }
 
 BOOLEAN
