@@ -3130,6 +3130,47 @@ ACPIGetWorkerForData(
     ExFreePool(AcpiGetContext);
 }
 
+VOID
+__cdecl
+ACPIGetWorkerForNothing(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ NTSTATUS InStatus,
+    _In_ PAMLI_OBJECT_DATA AmliData,
+    _In_ PVOID Context)
+{
+    PACPI_GET_CONTEXT AcpiGetContext = Context;
+    PAMLI_FN_ASYNC_CALLBACK CallBack;
+    BOOLEAN IsFreeBuffs;
+    KIRQL Irql;
+
+    DPRINT("ACPIGetWorkerForNothing: %p, %X\n", AcpiGetContext, AcpiGetContext->Flags);
+
+    if (NT_SUCCESS(InStatus))
+        IsFreeBuffs = TRUE;
+    else
+        IsFreeBuffs = FALSE;
+
+    AcpiGetContext->Status = InStatus;
+
+    if (IsFreeBuffs)
+        AMLIFreeDataBuffs(AmliData, 1);
+
+    if (AcpiGetContext->Flags & 0x20000000)
+        return;
+
+    if (AcpiGetContext->CallBack)
+    {
+        CallBack = AcpiGetContext->CallBack;
+        CallBack(NsObject, InStatus, NULL, AcpiGetContext->CallBackContext);
+    }
+
+    KeAcquireSpinLock(&AcpiGetLock, &Irql);
+    RemoveEntryList(&AcpiGetContext->List);
+    KeReleaseSpinLock(&AcpiGetLock, Irql);
+
+    ExFreePool(AcpiGetContext);
+}
+
 NTSTATUS
 NTAPI
 ACPIGet(
@@ -3195,8 +3236,7 @@ ACPIGet(
     }
     else if ((Flags & 0x1F0000) == 0x100000)
     {
-        DPRINT1("ACPIGet: FIXME\n");
-        ASSERT(FALSE);
+        Worker = ACPIGetWorkerForNothing;
     }
     else
     {
