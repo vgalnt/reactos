@@ -9322,7 +9322,7 @@ NTAPI
 ACPIInternalSendSynchronousIrp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIO_STACK_LOCATION InIoStack,
-    _In_ ULONG_PTR* OutInformation)
+    _Out_ ULONG_PTR* OutInformation)
 {
     PDEVICE_OBJECT AttachedDevice;
     PIO_STACK_LOCATION IoStack;
@@ -9414,8 +9414,8 @@ NTSTATUS
 NTAPI
 ACPIDevicePowerDetermineSupportedDeviceStates(
      _In_ PDEVICE_EXTENSION DeviceExtension,
-     _In_ ULONG* OutSupportedPrStates,
-     _In_ ULONG* OutSupportedPsStates)
+     _Out_ ULONG* OutSupportedPrStates,
+     _Out_ ULONG* OutSupportedPsStates)
 {
     ULONG PsNameSegment[4] = {'0SP_', '1SP_', '2SP_', '3SP_'};
     ULONG PrNameSegment[3] = {'0RP_', '1RP_', '2RP_'};
@@ -9504,10 +9504,10 @@ ACPISystemPowerUpdateWakeCapabilitiesForPDOs(
     _In_ PDEVICE_CAPABILITIES Capabilities,
     _In_ PDEVICE_CAPABILITIES OutCapabilities,
     _In_ DEVICE_POWER_STATE* States,
-    _In_ ULONG* OutDeviceWakeBit,
-    _In_ SYSTEM_POWER_STATE* OutSystemWakeLevel,
-    _In_ DEVICE_POWER_STATE* OutDeviceWakeLevel,
-    _In_ DEVICE_POWER_STATE* OutWakeLevel)
+    _Out_ ULONG* OutDeviceWakeBit,
+    _Out_ SYSTEM_POWER_STATE* OutSystemWakeLevel,
+    _Out_ DEVICE_POWER_STATE* OutDeviceWakeLevel,
+    _Out_ DEVICE_POWER_STATE* OutWakeLevel)
 {
     DEVICE_POWER_STATE DeviceWakeLevel = 0;
     DEVICE_POWER_STATE DeviceWakeState;
@@ -9615,20 +9615,21 @@ ACPISystemPowerUpdateWakeCapabilitiesForFilters(
     _In_ PDEVICE_CAPABILITIES Capabilities,
     _In_ PDEVICE_CAPABILITIES OutCapabilities,
     _In_ DEVICE_POWER_STATE* States,
-    _In_ ULONG* OutDeviceWakeBit,
-    _In_ SYSTEM_POWER_STATE* OutSystemWakeLevel,
-    _In_ DEVICE_POWER_STATE* OutDeviceWakeLevel,
-    _In_ DEVICE_POWER_STATE* OutWakeLevel)
+    _Out_ ULONG* OutDeviceWakeBit,
+    _Out_ SYSTEM_POWER_STATE* OutSystemWakeLevel,
+    _Out_ DEVICE_POWER_STATE* OutDeviceWakeLevel,
+    _Out_ DEVICE_POWER_STATE* OutWakeLevel)
 {
     DEVICE_POWER_STATE DeviceWake;
     DEVICE_POWER_STATE InDeviceWake;
+    SYSTEM_POWER_STATE SystemWakeLevel;
     SYSTEM_POWER_STATE SystemWake;
+    BOOLEAN IsFound = FALSE;
+    BOOLEAN IsUnspecified;
+    KIRQL Irql;
     NTSTATUS Status;
 
     DPRINT("ACPISystemPowerUpdateWakeCapabilitiesForFilters: %p\n", DeviceExtension);
-
-    DeviceWake = OutCapabilities->DeviceWake;
-    SystemWake = OutCapabilities->SystemWake;
 
     if (OutCapabilities->WakeFromD0)
         *OutDeviceWakeBit |= 0x02;
@@ -9646,17 +9647,78 @@ ACPISystemPowerUpdateWakeCapabilitiesForFilters(
     {
         DeviceWake = OutCapabilities->DeviceWake;
         SystemWake = OutCapabilities->SystemWake;
+
+        IsUnspecified = FALSE;
     }
     else
     {
         DeviceWake = 0;
         SystemWake = 0;
+
+        IsUnspecified = TRUE;
     }
 
     if (DeviceExtension->Flags & 0x0000000000010000)
     {
-        DPRINT1("ACPISystemPowerUpdateWakeCapabilitiesForFilters: FIXME\n");
-        ASSERT(FALSE);
+        KeAcquireSpinLock(&AcpiPowerLock, &Irql);
+
+        SystemWakeLevel = DeviceExtension->PowerInfo.SystemWakeLevel;
+        InDeviceWake = ACPISystemPowerDetermineSupportedDeviceWakeState(DeviceExtension);
+
+        KeReleaseSpinLock(&AcpiPowerLock, Irql);
+
+        if (SystemWake > SystemWakeLevel || IsUnspecified)
+            SystemWake = SystemWakeLevel;
+
+        if (InDeviceWake)
+        {
+            DeviceWake = InDeviceWake;
+            IsFound = TRUE;
+        }
+
+        Status = ACPISystemPowerGetSxD(DeviceExtension, SystemWakeLevel, &InDeviceWake);
+
+        if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
+            Status = ACPISystemPowerGetSxD(DeviceExtension, SystemWake, &InDeviceWake);
+
+        if (NT_SUCCESS(Status))
+        {
+            DeviceWake = InDeviceWake;
+            IsFound = TRUE;
+        }
+
+        if (!IsFound)
+        {
+            if (States[SystemWake] == PowerDeviceUnspecified)
+                DeviceWake = 4;
+            else
+                DeviceWake = States[SystemWake];
+        }
+
+        if (!IsUnspecified && DeviceWake < 5)
+        {
+            do
+            {
+                if (*OutDeviceWakeBit & (1 << DeviceWake))
+                    break;
+
+                DeviceWake++;
+            }
+            while (DeviceWake < 5);
+        }
+
+        if (DeviceWake == 5 || DeviceWake == 0)
+        {
+            DeviceWake = 0;
+            SystemWake = 0;
+
+            *OutDeviceWakeBit = 0;
+        }
+        else
+        {
+            *OutDeviceWakeBit = (1 << DeviceWake);
+        }
+
         goto Exit;
     }
 
@@ -9715,10 +9777,10 @@ ACPISystemPowerUpdateWakeCapabilities(
      _In_ PDEVICE_CAPABILITIES Capabilities,
      _In_ DEVICE_CAPABILITIES* OutCapabilities,
      _In_ DEVICE_POWER_STATE* States,
-     _In_ ULONG* OutDeviceWakeBit,
-     _In_ SYSTEM_POWER_STATE* OutSystemWakeLevel,
-     _In_ DEVICE_POWER_STATE* OutDeviceWakeLevel,
-     _In_ DEVICE_POWER_STATE* OutWakeLevel)
+     _Out_ ULONG* OutDeviceWakeBit,
+     _Out_ SYSTEM_POWER_STATE* OutSystemWakeLevel,
+     _Out_ DEVICE_POWER_STATE* OutDeviceWakeLevel,
+     _Out_ DEVICE_POWER_STATE* OutWakeLevel)
 {
     PAGED_CODE();
 
