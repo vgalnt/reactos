@@ -9493,8 +9493,21 @@ NTAPI
 ACPISystemPowerDetermineSupportedDeviceWakeState(
      _In_ PDEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PACPI_DEVICE_POWER_NODE Node;
+    DEVICE_POWER_STATE RetDeviceState = PowerDeviceMaximum;
+
+    for (Node = DeviceExtension->PowerInfo.PowerNode[0];
+         Node;
+         Node = Node->Next)
+    {
+        if (RetDeviceState > Node->AssociatedDeviceState)
+            RetDeviceState = Node->AssociatedDeviceState;
+    }
+
+    if (RetDeviceState == PowerDeviceMaximum)
+        RetDeviceState = PowerDeviceUnspecified;
+
+    return RetDeviceState;
 }
 
 NTSTATUS
