@@ -4482,8 +4482,61 @@ NTSTATUS __cdecl Name(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT Te
 }
 NTSTATUS __cdecl Notify(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_FN_HANDLER2 FnHandler;
+    NTSTATUS Status;
+
+    DPRINT("Notify: %X, %X, %X\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = ValidateArgTypes(TermContext->DataArgs, "OI");
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("Notify: Status %X", Status);
+        goto Exit;
+    }
+
+    if ((ULONG)TermContext->DataArgs[1].DataValue > 0xFF)
+    {
+        Status = STATUS_ACPI_INVALID_DATA;
+        //LogError(STATUS_ACPI_INVALID_DATA);
+        DPRINT1("Notify: Notification value is greater than a byte value (%X)", TermContext->DataArgs[1].DataValue);
+    }
+
+    if (!ghNotify.Handler)
+        goto Exit;
+
+    TermContext->NsObject = TermContext->DataArgs[0].Alias;
+
+    DPRINT("Notify: %X, '%s', %p\n", TermContext->DataArgs[1].DataValue, GetObjectPath(TermContext->NsObject), ghNotify.Context);
+
+    giIndent++;
+
+    FnHandler = ghNotify.Handler;
+    Status = FnHandler(2, (ULONG)TermContext->DataArgs[1].DataValue, TermContext->NsObject);
+
+    if (Status == STATUS_PENDING)
+    {
+        Status = 0x8004;//AMLISTA_PENDING
+    }
+    else if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("Notify: Status %X", Status);
+        //LogError(STATUS_ACPI_FATAL);
+        Status = STATUS_ACPI_FATAL;
+    }
+
+    giIndent--;
+
+    DPRINT("Notify!\n");
+
+Exit:
+
+    giIndent--;
+
+    DPRINT("Notify: %X (%s)\n", Status, GetObjectPath(TermContext->NsObject));
+
+    return Status;
 }
 NTSTATUS __cdecl ObjTypeSizeOf(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
