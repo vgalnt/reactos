@@ -13142,7 +13142,25 @@ ACPIThermalEvent(
     _In_ PVOID Context,
     _In_ ULONG NotifyCode)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_OBJECT DeviceObject = Context;
+    PDEVICE_EXTENSION DeviceExtension;
+    ULONGLONG Time;
+    ULONG Flags;
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+
+    Time = KeQueryInterruptTime();
+
+    DPRINT1("ACPIThermalEvent: (%I64X) Notify %X\n", Time, NotifyCode);
+
+    if (NotifyCode == 0x80)
+        Flags = 0x20000002;
+    else if (NotifyCode == 0x81)
+        Flags = 0x20000006;
+    else
+        Flags = 0;
+
+    ACPIThermalLoop(DeviceExtension, Flags);
 }
 
 NTSTATUS
