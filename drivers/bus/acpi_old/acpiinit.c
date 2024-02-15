@@ -4152,7 +4152,36 @@ VOID
 NTAPI
 ACPIWorkerThread(PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_EXTENSION DeviceExtension;
+    PLIST_ENTRY Entry;
+    ULONG Events;
+    KIRQL Irql;
+
+    DPRINT("ACPIWorkerThread()\n");
+
+    KeAcquireSpinLock(&ACPIWorkerSpinLock, &Irql);
+
+    ACPIWorkerBusy = TRUE;
+
+    while (!IsListEmpty(&ACPIDeviceWorkQueue))
+    {
+        Entry = ACPIDeviceWorkQueue.Flink;
+        RemoveEntryList(Entry);
+        Entry->Flink = NULL;
+
+        DeviceExtension = CONTAINING_RECORD(Entry, DEVICE_EXTENSION, WorkQueue.Link);
+
+        Events = DeviceExtension->WorkQueue.PendingEvents;
+        DeviceExtension->WorkQueue.PendingEvents = 0;
+
+        KeReleaseSpinLock(&ACPIWorkerSpinLock, Irql);
+        DeviceExtension->DispatchTable->Worker(DeviceExtension, Events);
+        KeAcquireSpinLock(&ACPIWorkerSpinLock, &Irql);
+    }
+
+    ACPIWorkerBusy = FALSE;
+
+    KeReleaseSpinLock(&ACPIWorkerSpinLock, Irql);
 }
 
 VOID
