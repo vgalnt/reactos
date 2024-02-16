@@ -8380,8 +8380,23 @@ ACPIDispatchForwardPowerIrp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension;
+    NTSTATUS Status;
+
+    PoStartNextPowerIrp(Irp);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+
+    if (!DeviceExtension->TargetDeviceObject || (DeviceExtension->Flags & 0x20))
+    {
+        Status = Irp->IoStatus.Status;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        return Status;
+    }
+
+    IoSkipCurrentIrpStackLocation(Irp);
+
+    return PoCallDriver(DeviceExtension->TargetDeviceObject, Irp);
 }
 
 NTSTATUS
