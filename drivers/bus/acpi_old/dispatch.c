@@ -12765,12 +12765,8 @@ ACPIInternalWaitWakeLoop(
     _In_ PVOID Context,
     _In_ PIO_STATUS_BLOCK IoStatus)
 {
-    if (!NT_SUCCESS(IoStatus->Status))
-        return IoStatus->Status;
-
-    PoRequestPowerIrp(DeviceObject, MinorFunction, PowerState, (PREQUEST_POWER_COMPLETE)ACPIInternalWaitWakeLoop, Context, NULL);
-
-    return STATUS_SUCCESS;
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 VOID
@@ -12780,7 +12776,41 @@ ACPIInternalDeviceClockIrpStartDeviceCompletion(
     _In_ PVOID Context,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIRP Irp = Context;
+    POWER_STATE PowerState;
+    IO_STATUS_BLOCK IoStatus;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("ACPIInternalDeviceClockIrpStartDeviceCompletion: %p, %p\n", DeviceExtension, Irp);
+
+    Irp->IoStatus.Status = InStatus;
+    if (!NT_SUCCESS(InStatus))
+    {
+        DPRINT1("ACPIInternalDeviceClockIrpStartDeviceCompletion: InStatus %X\n", InStatus);
+        goto Finish;
+    }
+
+    DeviceExtension->DeviceState = 2;
+
+    if (!(DeviceExtension->Flags & 0x10000))
+        goto Finish;
+
+    KeAcquireSpinLock(&AcpiPowerLock, &Irql);
+    PowerState.SystemState = DeviceExtension->PowerInfo.SystemWakeLevel;
+    KeReleaseSpinLock(&AcpiPowerLock, Irql);
+
+    IoStatus.Status = STATUS_SUCCESS;
+    IoStatus.Information = 0;
+
+    Status = ACPIInternalWaitWakeLoop(DeviceExtension->DeviceObject, 0, PowerState, NULL, &IoStatus);
+
+    if (!NT_SUCCESS(Status))
+        Irp->IoStatus.Status = Status;
+
+Finish:
+
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
 }
 
 NTSTATUS
