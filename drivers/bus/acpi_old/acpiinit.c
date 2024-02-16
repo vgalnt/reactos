@@ -2768,15 +2768,44 @@ AcpiArbScoreRequirement(
 
 BOOLEAN
 NTAPI
+LinkNodeInUse(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PAMLI_NAME_SPACE_OBJECT LinkNode,
+    _Out_ ULONG* OutIrq,
+    _Out_ UCHAR* OutFlags)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
+AcpiArbGetLinkNodeOptions(
+    _In_ PAMLI_NAME_SPACE_OBJECT LinkNode,
+    _In_ PCM_RESOURCE_LIST* OutCmResource,
+    _Out_ UCHAR* OutOptions)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
 AcpiArbFindSuitableRange(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
     PACPI_PM_DISPATCH_TABLE HalAcpiDispatchTable = (PVOID)PmHalDispatchTable;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
     PAMLI_NAME_SPACE_OBJECT LinkNode = NULL;
-    ULONG Vector = 0;
-    ULONG vector;
-    UCHAR OutFlags;
+    PARBITER_EXTENSION ArbExtension;
+    PCM_RESOURCE_LIST CmResource;
+    ULONG DeviceIrq = 0;
+    ULONG Vector;
+    ULONG Count;
+    ULONG ix;
+    UCHAR VectorFlags;
+    UCHAR Options;
     UCHAR Flags;
     NTSTATUS Status;
 
@@ -2786,35 +2815,35 @@ AcpiArbFindSuitableRange(
     if (!ArbFindSuitableRange(Arbiter, ArbState))
         return FALSE;
 
-    Status = AcpiArbCrackPRT(ArbState->Entry->PhysicalDeviceObject, &LinkNode, &Vector);
+    Status = AcpiArbCrackPRT(ArbState->Entry->PhysicalDeviceObject, &LinkNode, &DeviceIrq);
     if (Status == STATUS_UNSUCCESSFUL)
         return FALSE;
 
     if (Status != STATUS_SUCCESS)
     {
-        for (vector = ArbState->Start; vector <= ArbState->End; vector++)
+        for (Vector = ArbState->Start; Vector <= ArbState->End; Vector++)
         {
-            Status = GetIsaVectorFlags(vector, &OutFlags);
+            Status = GetIsaVectorFlags(Vector, &VectorFlags);
             if (!NT_SUCCESS(Status))
             {
-                OutFlags = ((ArbState->CurrentAlternative->Descriptor->Flags == 1) ? 0 : 3);
+                VectorFlags = ((ArbState->CurrentAlternative->Descriptor->Flags == 1) ? 0 : 3);
             }
 
-            Status = GetVectorProperties(vector, &Flags);
+            Status = GetVectorProperties(Vector, &Flags);
             if (NT_SUCCESS(Status))
             {
-                if (OutFlags != Flags)
+                if (VectorFlags != Flags)
                     continue;
             }
 
-            if (!HalAcpiDispatchTable->HalIsVectorValid(vector))
+            if (!HalAcpiDispatchTable->HalIsVectorValid(Vector))
             {
                 DPRINT1("AcpiArbFindSuitableRange: Status %X\n", Status);
                 ASSERT(FALSE);
             }
 
-            ArbState->Start = vector;
-            ArbState->End = vector;
+            ArbState->Start = Vector;
+            ArbState->End = Vector;
             ArbState->CurrentAlternative->Length = 1;
 
             return TRUE;
@@ -2825,30 +2854,98 @@ AcpiArbFindSuitableRange(
 
     if (!LinkNode)
     {
-        vector = Vector;
-
-        Status = GetVectorProperties(vector, &Flags);
+        Status = GetVectorProperties(DeviceIrq, &Flags);
         if (NT_SUCCESS(Status))
         {
             if (!(Flags & 1) || !(Flags & 2))
                 return FALSE;
         }
 
-        if (ArbState->CurrentMinimum > vector || ArbState->CurrentMaximum < vector)
+        if (ArbState->CurrentMinimum > DeviceIrq || ArbState->CurrentMaximum < DeviceIrq)
             return FALSE;
 
         DPRINT("AcpiArbFindSuitableRange: found %X from a static mapping.\n", (ULONG)ArbState->Start);
 
-        if (!HalAcpiDispatchTable->HalIsVectorValid(vector))
+        if (!HalAcpiDispatchTable->HalIsVectorValid(DeviceIrq))
         {
             DPRINT1("AcpiArbFindSuitableRange: Status %X\n", Status);
             ASSERT(FALSE);
         }
 
-        ArbState->End = ArbState->Start = vector;
+        ArbState->Start = DeviceIrq;
+        ArbState->End = DeviceIrq;
         ArbState->CurrentAlternative->Length = 1;
 
         return TRUE;
+    }
+
+    if (!LinkNodeInUse(Arbiter, LinkNode, &DeviceIrq, NULL))
+    {
+        Status = AcpiArbGetLinkNodeOptions(LinkNode, &CmResource, &Options);
+
+        DPRINT("AcpiArbFindSuitableRange: Link node contained CM(%p)\n", CmResource);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("AcpiArbFindSuitableRange: (%p) Status %X\n", CmResource, Status);
+            return FALSE;
+        }
+
+        ArbExtension = Arbiter->Extension;
+        ASSERT(ArbExtension);
+
+        ASSERT(CmResource->Count == 1);
+        Count = CmResource->List[0].PartialResourceList.Count;
+
+        for (ix = 0; ix < Count; ix++)
+        {
+            CmDescriptor = &CmResource->List[0].PartialResourceList.PartialDescriptors[(ix + AcpiArbPciAlternativeRotation) % Count];
+            ASSERT(CmDescriptor->Type == CmResourceTypeInterrupt);
+
+            Status = GetVectorProperties(CmDescriptor->u.Interrupt.Vector, &Flags);
+
+            if (NT_SUCCESS(Status) && Options != Flags)
+                continue;
+
+            if (CmDescriptor->u.Interrupt.Vector < ArbState->CurrentMinimum ||
+                CmDescriptor->u.Interrupt.Vector > ArbState->CurrentMaximum)
+            {
+                continue;
+            }
+
+            if (!HalAcpiDispatchTable->HalIsVectorValid(CmDescriptor->u.Interrupt.Vector))
+            {
+                DPRINT1("AcpiArbFindSuitableRange: Status %X\n", Status);
+                ASSERT(FALSE);
+            }
+
+            ArbState->Start = CmDescriptor->u.Interrupt.Vector;
+            ArbState->End = CmDescriptor->u.Interrupt.Vector;
+            ArbState->CurrentAlternative->Length = 1;
+
+            DPRINT1("AcpiArbFindSuitableRange: found %X from an unused link node.\n", CmDescriptor->u.Interrupt.Vector);
+
+            ExFreePool(CmResource);
+
+            ArbExtension->CurrentLinkNode = LinkNode;
+            ArbExtension->LastPciIrq[ArbExtension->LastPciIrqIndex] = ArbState->Start;
+            ArbExtension->LastPciIrqIndex = ((ArbExtension->LastPciIrqIndex + 1) % 0xA);
+
+            return TRUE;
+        }
+
+        ExFreePool(CmResource);
+
+        DPRINT1("AcpiArbFindSuitableRange: %X, %X\n", ix, Count);
+
+        return FALSE;
+    }
+
+    if (ArbState->CurrentMinimum > DeviceIrq || ArbState->CurrentMaximum < DeviceIrq)
+    {
+        DPRINT1("AcpiArbFindSuitableRange: Status %X\n", Status);
+        ASSERT(FALSE);
+        return FALSE;
     }
 
     DPRINT1("AcpiArbFindSuitableRange: Status %X\n", Status);
