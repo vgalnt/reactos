@@ -14688,7 +14688,24 @@ ACPIDeviceIrpForwardRequest(
     _In_ PVOID Context,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIRP Irp = Context;
+
+    DPRINT("ACPIDeviceIrpForwardRequest: %p, %X\n", Irp, InStatus);
+
+    if (NT_SUCCESS(InStatus))
+    {
+        ACPIDispatchForwardPowerIrp(IoGetCurrentIrpStackLocation(Irp)->DeviceObject, Irp);
+        goto Finish;
+    }
+
+    PoStartNextPowerIrp(Irp);
+
+    Irp->IoStatus.Status = InStatus;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+Finish:
+
+    ACPIInternalDecrementIrpReferenceCount(DeviceExtension);
 }
 
 NTSTATUS
