@@ -14698,8 +14698,46 @@ ACPIDeviceIrpDeviceRequest(
     _In_ PIRP Irp,
     _In_ PVOID CallBack)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    POWER_ACTION ShutdownType;
+    POWER_STATE PowerState;
+    BOOLEAN IsShutdown = FALSE;
+    NTSTATUS Status;
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+    IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+
+    PowerState.SystemState = IoStack->Parameters.Power.State.SystemState;
+    ShutdownType = IoStack->Parameters.Power.ShutdownType;
+
+    DPRINT("ACPIDeviceIrpDeviceRequest: %p, %X\n", Irp, (PowerState.SystemState - 1));
+
+    if (Irp->PendingReturned)
+        IoMarkIrpPending(Irp);
+
+    Status = Irp->IoStatus.Status;
+
+    if (!NT_SUCCESS(Status) && CallBack)
+    {
+        ((VOID (NTAPI *)(PDEVICE_EXTENSION, PVOID, NTSTATUS))CallBack)(DeviceExtension, Irp, Status);
+        return Status;
+    }
+
+    if (ShutdownType == PowerActionShutdown ||
+        ShutdownType == PowerActionShutdownReset ||
+        ShutdownType == PowerActionShutdownOff)
+    {
+        IsShutdown = TRUE;
+    }
+
+    return ACPIDeviceInitializePowerRequest(DeviceExtension,
+                                            PowerState,
+                                            CallBack,
+                                            Irp,
+                                            ShutdownType,
+                                            AcpiPowerRequestDevice,
+                                            (IsShutdown ? 8 : 0));
 }
 
 NTSTATUS
