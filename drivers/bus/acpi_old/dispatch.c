@@ -14666,14 +14666,83 @@ ACPIFilterIrpSurpriseRemoval(
 
 /* Filter Power FUNCTIOS ****************************************************/
 
+VOID
+NTAPI
+ACPIDeviceIrpForwardRequest(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PVOID Context,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+ACPIDeviceIrpDeviceRequest(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID CallBack)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 ACPIFilterIrpSetPower(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
+    PAMLI_NAME_SPACE_OBJECT NsObject = NULL;
+    PDEVICE_EXTENSION DeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    DPRINT("ACPIFilterIrpSetPower: %p, %p\n", DeviceObject, Irp);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.Power.Type == SystemPowerState)
+    {
+        if (IoStack->Parameters.Power.ShutdownType != PowerActionWarmEject)
+            return ACPIDispatchForwardPowerIrp(DeviceObject, Irp);
+
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (!(DeviceExtension->Flags & 0x0008000000000000))
+        NsObject = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, 'GER_');
+
+    if (IoStack->Parameters.Power.State.DeviceState == 1)
+    {
+        IoMarkIrpPending(Irp);
+
+        InterlockedIncrement(&DeviceExtension->OutstandingIrpCount);
+
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+
+        if (!NsObject)
+            Status = ACPIDeviceIrpDeviceRequest(DeviceObject, Irp, ACPIDeviceIrpForwardRequest);
+        else
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (Status != STATUS_MORE_PROCESSING_REQUIRED)
+            return Status;
+
+        return STATUS_PENDING;
+    }
+
+    if (NsObject)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_PENDING;
+    }
+
     UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    return STATUS_PENDING;
 }
 
 NTSTATUS
