@@ -12765,8 +12765,12 @@ ACPIInternalWaitWakeLoop(
     _In_ PVOID Context,
     _In_ PIO_STATUS_BLOCK IoStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    if (!NT_SUCCESS(IoStatus->Status))
+        return IoStatus->Status;
+
+    PoRequestPowerIrp(DeviceObject, MinorFunction, PowerState, (PREQUEST_POWER_COMPLETE)ACPIInternalWaitWakeLoop, Context, NULL);
+
+    return STATUS_SUCCESS;
 }
 
 VOID
