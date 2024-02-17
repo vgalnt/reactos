@@ -2774,8 +2774,48 @@ LinkNodeInUse(
     _Out_ ULONG* OutIrq,
     _Out_ UCHAR* OutFlags)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PARBITER_EXTENSION ArbExtension;
+    PACPI_LINK_NODE Node;
+
+    PAGED_CODE();
+    ASSERT(LinkNode);
+
+    ArbExtension = Arbiter->Extension;
+
+    if (IsListEmpty(&ArbExtension->LinkNodeHead))
+    {
+        DPRINT1("LinkNodeInUse: LinkNode list empty\n");
+        return FALSE;
+    }
+
+    Node = CONTAINING_RECORD(ArbExtension->LinkNodeHead.Flink, ACPI_LINK_NODE, List);
+
+    while (Node->NameSpaceObject != LinkNode)
+    {
+        Node = CONTAINING_RECORD(Node->List.Flink, ACPI_LINK_NODE, List);
+
+        if (&Node->List == &ArbExtension->LinkNodeHead)
+        {
+            DPRINT1("LinkNodeInUse: Didn't find our link node (%p) on the Link Node List\n", LinkNode);
+            return FALSE;
+        }
+    }
+
+    if ((LONG)(Node->ReferenceCount + Node->TempRefCount) <= 0)
+    {
+        DPRINT1("LinkNodeInUse: Link Node %p is currently unreferenced\n", LinkNode);
+        return FALSE;
+    }
+
+    if (OutIrq)
+        *OutIrq = (ULONG)Node->TempIrq;
+
+    if (OutFlags)
+        *OutFlags = Node->Flags;
+
+    DPRINT1("LinkNodeInUse: Link Node %p is in use\n", LinkNode);
+
+    return TRUE;
 }
 
 NTSTATUS
