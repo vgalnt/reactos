@@ -2825,8 +2825,63 @@ AcpiArbGetLinkNodeOptions(
     _In_ PCM_RESOURCE_LIST* OutCmResource,
     _Out_ UCHAR* OutOptions)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResource = NULL;
+    PCM_RESOURCE_LIST CmResource = NULL;
+    PVOID Data = NULL;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("AcpiArbGetLinkNodeOptions: %p\n", LinkNode);
+
+    ASSERT(LinkNode);
+    ACPIGet(LinkNode, 'SRP_', 0x28010008, NULL, 0, NULL, 0, &Data, NULL);
+
+    if (!Data)
+    {
+        DPRINT1("AcpiArbGetLinkNodeOptions: STATUS_NOT_FOUND\n");
+        return STATUS_NOT_FOUND;
+    }
+
+    Status = PnpBiosResourcesToNtResources(Data, 0, &IoResource);
+
+    ExFreePool(Data);
+
+    if (!IoResource)
+    {
+        DPRINT1("AcpiArbGetLinkNodeOptions: STATUS_UNSUCCESSFUL\n");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("AcpiArbGetLinkNodeOptions: Status %X\n", Status);
+        return Status;
+    }
+
+    *OutOptions = 0;
+
+    ASSERT(IoResource->AlternativeLists == 1);
+
+    *OutOptions |= (UCHAR)IoResource->List[0].Descriptors[0].u.ConfigData.Reserved2;
+
+    if (IoResource->List[0].Descriptors[0].Flags != 1)
+        *OutOptions |= 1;
+    else
+        *OutOptions |= 0;
+
+    Status = PnpIoResourceListToCmResourceList(IoResource, &CmResource);
+
+    ExFreePool(IoResource);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("AcpiArbGetLinkNodeOptions: Status %X\n", Status);
+        return Status;
+    }
+
+    *OutCmResource = CmResource;
+
+    return STATUS_SUCCESS;
 }
 
 BOOLEAN

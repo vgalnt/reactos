@@ -1703,6 +1703,13 @@ ACPIThermalLoop(
     _In_ ULONG InFlags
 );
 
+NTSTATUS
+NTAPI
+PnpIoResourceListToCmResourceList(
+    _In_ PIO_RESOURCE_REQUIREMENTS_LIST IoResource,
+    _Out_ PCM_RESOURCE_LIST* OutCmResource
+);
+
 /* registry.c */
 VOID
 NTAPI
