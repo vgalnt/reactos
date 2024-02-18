@@ -3737,6 +3737,17 @@ GetVectorProperties(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+AcpiArbReferenceLinkNode(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PAMLI_NAME_SPACE_OBJECT LinkNode,
+    _In_ ULONG Irq)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 AcpiArbAddAllocation(
@@ -3752,7 +3763,8 @@ AcpiArbAddAllocation(
     UCHAR RangeAttributes = 0;
     NTSTATUS Status;
 
-    DPRINT("AcpiArbAddAllocation: %p, %p, %p, %X\n", Arbiter, ArbState, ArbState->Entry->PhysicalDeviceObject, (ULONG)(ArbState->Start & 0xFFFFFFFF));
+    DPRINT("AcpiArbAddAllocation: %p, %p, %p, %X\n",
+           Arbiter, ArbState, ArbState->Entry->PhysicalDeviceObject, (ULONG)(ArbState->Start & 0xFFFFFFFF));
 
     PAGED_CODE();
     ASSERT(ArbState->CurrentAlternative->Descriptor->Type == CmResourceTypeInterrupt);
@@ -3769,8 +3781,31 @@ AcpiArbAddAllocation(
         {
             if (LinkNode)
             {
-                DPRINT1("AcpiArbAddAllocation: FIXME\n");
-                ASSERT(FALSE);
+                AcpiArbReferenceLinkNode(Arbiter, LinkNode, (ULONG)ArbState->Start);
+
+                UserData = LinkNode;
+
+                if (!LinkNodeInUse(Arbiter, LinkNode, 0, &Flags))
+                {
+                    DPRINT1("AcpiArbAddAllocation: %p, %p\n", Arbiter, LinkNode);
+                    ASSERT(FALSE);
+                }
+
+                ASSERT((Flags & ~0x07) == 0);//(VECTOR_MODE | VECTOR_POLARITY | VECTOR_TYPE)
+
+                //ASSERT(ArbState->CurrentAlternative->Descriptor->Flags == CM_RESOURCE_INTERRUPT_LEVEL_SENSITIVE ?
+                //       (Flags & VECTOR_MODE) == VECTOR_LEVEL : (Flags & VECTOR_MODE) == VECTOR_EDGE);
+                ASSERT(ArbState->CurrentAlternative->Descriptor->Flags == CM_RESOURCE_INTERRUPT_LEVEL_SENSITIVE ?
+                       (Flags & 1) == 1 : (Flags & 1) == 0);
+
+                //FIXME TrackDevicesConnectedToLinkNode(..);
+
+                Status = GetVectorProperties((ULONG)ArbState->Start, &PreviousFlags);
+                if (NT_SUCCESS(Status))
+                {
+                    ASSERT((PreviousFlags & ~0x07) == 0);//(VECTOR_MODE | VECTOR_POLARITY | VECTOR_TYPE)
+                    ASSERT(Flags == PreviousFlags);
+                }
             }
             else
             {
@@ -3819,9 +3854,16 @@ AcpiArbAddAllocation(
             RangeFlags = 1;
     }
 
-    Status = RtlAddRange(Arbiter->PossibleAllocation, ArbState->Start, ArbState->End, RangeAttributes, RangeFlags, UserData, ArbState->Entry->PhysicalDeviceObject);
+    Status = RtlAddRange(Arbiter->PossibleAllocation,
+                         ArbState->Start,
+                         ArbState->End,
+                         RangeAttributes,
+                         RangeFlags,
+                         UserData,
+                         ArbState->Entry->PhysicalDeviceObject);
 
     ASSERT(NT_SUCCESS(Status));
+
     DPRINT("AcpiArbAddAllocation: exit %p, %p\n", Arbiter, ArbState);
 }
 
