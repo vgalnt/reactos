@@ -11484,8 +11484,68 @@ PnpiBiosExtendedIrqToIoDescriptor(
     _In_ ULONG Index,
     _In_ ULONG Param5)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PnpiBiosExtendedIrqToIoDescriptor: %p, %X\n", AcpiDesc, ix);
+
+    ASSERT(ResourceListArray != NULL);
+
+    if (ix >= AcpiDesc->TableLength)
+    {
+        DPRINT1("PnpiBiosExtendedIrqToIoDescriptor: STATUS_INVALID_PARAMETER (%p, %X, %X)\n",
+                AcpiDesc, AcpiDesc->TableLength, ix);
+
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!AcpiDesc->IntNumber[ix])
+        return STATUS_SUCCESS;
+
+    Status = PnpiUpdateResourceList(&ResourceListArray[Index], &IoDescriptor);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PnpiBiosExtendedIrqToIoDescriptor: Status %X\n", Status);
+        return Status;
+    }
+
+    if (ix)
+        IoDescriptor->Option = 8;
+    else
+        IoDescriptor->Option = 0;
+
+    IoDescriptor->Type = 2;
+    IoDescriptor->Flags = 0;
+
+    IoDescriptor->u.Interrupt.MaximumVector = AcpiDesc->IntNumber[ix];
+    IoDescriptor->u.Interrupt.MinimumVector = AcpiDesc->IntNumber[ix];
+
+    if (AcpiDesc->VectorFlags & 2)
+    {
+        IoDescriptor->Flags = 1;
+
+        if (AcpiDesc->VectorFlags & 8)
+            IoDescriptor->ShareDisposition = 2;
+        else
+            IoDescriptor->ShareDisposition = 1;
+    }
+    else
+    {
+        IoDescriptor->Flags = 0;
+
+        if (AcpiDesc->VectorFlags & 8)
+            IoDescriptor->ShareDisposition = 3;
+        else
+            IoDescriptor->ShareDisposition = 1;
+    }
+
+    if ((AcpiDesc->VectorFlags & 4) == 4)
+        IoDescriptor->u.ConfigData.Reserved2 = 2;
+    else
+        IoDescriptor->u.ConfigData.Reserved2 = 0;
+
+    return Status;
 }
 
 NTSTATUS
