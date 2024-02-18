@@ -11476,6 +11476,19 @@ PnpiBiosDmaToIoDescriptor(
 }
 
 NTSTATUS
+NTAPI 
+PnpiBiosExtendedIrqToIoDescriptor(
+    _In_ PACPI_EXTENDED_IRQ_DESCRIPTOR AcpiDesc,
+    _In_ UCHAR ix,
+    _In_ PIO_RESOURCE_LIST* ResourceListArray,
+    _In_ ULONG Index,
+    _In_ ULONG Param5)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
 NTAPI
 PnpBiosResourcesToNtResources(
     _In_ PVOID Data,
@@ -11612,8 +11625,9 @@ PnpBiosResourcesToNtResources(
                 }
                 default:
                 {
-                    DPRINT1("PnpBiosResourcesToNtResources: FIXME! (TagName %X)\n", TagName);
-                    ASSERT(FALSE);
+                    DPRINT1("PnpBiosResourcesToNtResources: Unsupported TagName %X\n", TagName);
+                    //ASSERT(FALSE);
+                    break;
                 }
             }
         }
@@ -11669,10 +11683,38 @@ PnpBiosResourcesToNtResources(
                     DPRINT("PnpBiosResourcesToNtResources: TAG_WORD_ADDRESS = %X\n", Status);
                     break;
                 }
-                default:
+                case 0x09:
+                {
+                    PACPI_EXTENDED_IRQ_DESCRIPTOR AcpiDesc = Data;
+                    ULONG ix;
+
+                    for (ix = 0; ix < AcpiDesc->TableLength; ix++)
+                    {
+                        if (!NT_SUCCESS(Status))
+                            break;
+
+                        Status = PnpiBiosExtendedIrqToIoDescriptor(AcpiDesc, ix, ResourceListArray, Index, Param2);
+                    }
+
+                    DPRINT("PnpBiosResourcesToNtResources: TAG_EXTENDED_IRQ(count: %X) = %X\n", ix, Status);
+                    break;
+                }
+                case 0x0A:
                 {
                     DPRINT1("PnpBiosResourcesToNtResources: FIXME! (TagName %X)\n", TagName);
                     ASSERT(FALSE);
+                    break;
+                }
+                case 0x0B:
+                {
+                    DPRINT1("PnpBiosResourcesToNtResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                default:
+                {
+                    DPRINT1("PnpBiosResourcesToNtResources: Unsupported TagName %X\n", TagName);
+                    //ASSERT(FALSE);
                     break;
                 }
             }

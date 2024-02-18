@@ -1042,6 +1042,27 @@ typedef struct _ACPI_DMA_DESCRIPTOR
     };
 } ACPI_DMA_DESCRIPTOR, *PACPI_DMA_DESCRIPTOR;
 
+typedef struct _ACPI_EXTENDED_IRQ_DESCRIPTOR
+{
+    union
+    {
+        struct
+        {
+            UCHAR Name :7;
+            UCHAR Type :1;
+        };
+        UCHAR Tag;
+    };
+    USHORT Length;
+    UCHAR VectorFlags;
+    UCHAR TableLength;
+    ULONG IntNumber[1]; // [TableLength]
+    //...
+    //UCHAR ResourceSourceIndex; // Optional
+    //CHAR ResourceSource[]; // Optional
+
+} ACPI_EXTENDED_IRQ_DESCRIPTOR, *PACPI_EXTENDED_IRQ_DESCRIPTOR;
+
 #include <poppack.h>
 
 typedef struct _ACPI_FILTER_COMPLETION_CONTEXT
