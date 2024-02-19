@@ -3206,6 +3206,18 @@ AcpiArbRollbackAllocation(
 }
 
 NTSTATUS
+__cdecl
+AcpiArbSetLinkNodeIrqWorker(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ NTSTATUS InStatus,
+    _In_ PAMLI_OBJECT_DATA Data,
+    _In_ PVOID InContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
 NTAPI
 AcpiArbSetLinkNodeIrqAsync(
     _In_ PAMLI_NAME_SPACE_OBJECT LinkNode,
@@ -3213,8 +3225,27 @@ AcpiArbSetLinkNodeIrqAsync(
     _In_ PVOID CallBack,
     _In_ PVOID CallBackContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSET_LINK_NODE_IRQ Context;
+
+    DPRINT("AcpiArbSetLinkNodeIrqAsync: %p\n", LinkNode);
+    ASSERT(LinkNode);
+
+    Context = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Context), 'ApcA');
+    if (!Context)
+    {
+        DPRINT1("AcpiArbSetLinkNodeIrqAsync: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(Context, sizeof(*Context));
+
+    Context->NsObject = LinkNode;
+    Context->CmDescriptor = CmDescriptor;
+    Context->CallBack = CallBack;
+    Context->CallBackContext = CallBackContext;
+    Context->Phase = 0;
+    Context->ReferenceCount = -1;
+
+    return AcpiArbSetLinkNodeIrqWorker(LinkNode, STATUS_SUCCESS, NULL, Context);
 }
 
 NTSTATUS

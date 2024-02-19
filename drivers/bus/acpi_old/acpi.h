@@ -1091,6 +1091,19 @@ typedef struct _ACPI_LINK_NODE
     SINGLE_LIST_ENTRY AttachedDevices;
 } ACPI_LINK_NODE, *PACPI_LINK_NODE;
 
+typedef struct _SET_LINK_NODE_IRQ
+{
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PVOID DataBuff;
+    PVOID IrqTag;
+    ULONG Phase;
+    LONG ReferenceCount;
+    AMLI_OBJECT_DATA DataArgs;
+    PVOID CallBack;
+    PVOID CallBackContext;
+} SET_LINK_NODE_IRQ, *PSET_LINK_NODE_IRQ;
+
 /* Headless Terminal ********************************************************/
 // From ntoskrnl/include/internal/hdl.h // FIXME
 
