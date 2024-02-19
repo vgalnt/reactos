@@ -3207,12 +3207,39 @@ AcpiArbRollbackAllocation(
 
 NTSTATUS
 NTAPI
+AcpiArbSetLinkNodeIrqAsync(
+    _In_ PAMLI_NAME_SPACE_OBJECT LinkNode,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor,
+    _In_ PVOID CallBack,
+    _In_ PVOID CallBackContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 AcpiArbSetLinkNodeIrq(
     _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
     _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ACPI_WAIT_CONTEXT WaitContext;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("AcpiArbSetLinkNodeIrq: %p\n", NsObject);
+
+    KeInitializeEvent(&WaitContext.Event, SynchronizationEvent, FALSE);
+    WaitContext.Status = STATUS_NOT_FOUND;
+
+    Status = AcpiArbSetLinkNodeIrqAsync(NsObject, CmDescriptor, AmlisuppCompletePassive, &WaitContext);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&WaitContext.Event, Executive, KernelMode, FALSE, NULL);
+        Status = WaitContext.Status;
+    }
+
+    return Status;
 }
 
 NTSTATUS
