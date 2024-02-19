@@ -3207,26 +3207,34 @@ AcpiArbRollbackAllocation(
 
 NTSTATUS
 NTAPI
+AcpiArbSetLinkNodeIrq(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 MakeTempLinkNodeCountsPermanent(
     _In_ PARBITER_INSTANCE Arbiter)
 {
+    CM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
     PAMLI_NAME_SPACE_OBJECT NsObject;
     PARBITER_EXTENSION ArbExtension;
     PACPI_LINK_NODE Node;
     PACPI_LINK_NODE NextNode;
-    PLIST_ENTRY LinkNodeHead;
-    PLIST_ENTRY Entry;
 
-    DPRINT("MakeTempLinkNodeCountsPermanent: %p\n", Arbiter);
     PAGED_CODE();
+    DPRINT("MakeTempLinkNodeCountsPermanent: %p\n", Arbiter);
 
     ArbExtension = Arbiter->Extension;
-    LinkNodeHead = &ArbExtension->LinkNodeHead;
-    Entry = LinkNodeHead->Flink;
 
-    while (Entry != LinkNodeHead)
+    Node = CONTAINING_RECORD(ArbExtension->LinkNodeHead.Flink, ACPI_LINK_NODE, List);
+
+    while (&Node->List != &ArbExtension->LinkNodeHead)
     {
-        Node = CONTAINING_RECORD(Entry, ACPI_LINK_NODE, List);
         NextNode = CONTAINING_RECORD(Node->List.Flink, ACPI_LINK_NODE, List);
 
         DPRINT("MakeTempLinkNodeCountsPermanent: %p, %X, %X\n", Node, Node->ReferenceCount, Node->TempRefCount);
@@ -3243,14 +3251,21 @@ MakeTempLinkNodeCountsPermanent(
         {
             if (Node->ReferenceCount + Node->TempRefCount)
             {
-                DPRINT("MakeTempLinkNodeCountsPermanent: %p\n", Arbiter);
-                ASSERT(FALSE);
+                CmDescriptor.Type = 2;
+                CmDescriptor.ShareDisposition = 3;
+                CmDescriptor.Flags = 0;
+
+                CmDescriptor.u.Interrupt.Level = (ULONG)Node->TempIrq;
+                CmDescriptor.u.Interrupt.Vector = (ULONG)Node->TempIrq;
+                CmDescriptor.u.Interrupt.Affinity = 0xFFFFFFFF;
+
+                AcpiArbSetLinkNodeIrq(Node->NameSpaceObject, &CmDescriptor);
             }
         }
 
         if (!(Node->ReferenceCount + Node->TempRefCount))
         {
-            NsObject = ACPIAmliGetNamedChild(Node->NameSpaceObject, ((ULONG)'SID_'));
+            NsObject = ACPIAmliGetNamedChild(Node->NameSpaceObject, 'SID_');
             if (NsObject)
                 AMLIEvalNameSpaceObject(NsObject, NULL, 0, NULL);
         }
