@@ -48,6 +48,7 @@ BOOLEAN HalpNMIDumpFlag;
 UCHAR HalpCmosCenturyOffset = 0;
 
 extern BOOLEAN HalpForceApicPhysicalDestinationMode;
+extern BOOLEAN HalpUsePmTimer;
 extern ULONG HalpDefaultApicDestinationModeMask;
 extern ULONG HalpBusType;
 
@@ -856,10 +857,10 @@ HaliAcpiTimerInit(
 
     if (HalpFixedAcpiDescTable.flags & ACPI_USE_PLATFORM_CLOCK)
     {
-        DPRINT1("HaliAcpiTimerInit: ACPI_USE_PLATFORM_CLOCK. DbgBreakPoint()\n");
-        DbgBreakPoint();
+        DPRINT1("HaliAcpiTimerInit: ACPI_USE_PLATFORM_CLOCK. FIXME!\n");
+        //DbgBreakPoint();
         //HalpSetPmTimerFunction();
-        //HalpUsePmTimer = 1;
+        HalpUsePmTimer = TRUE;
     }
 
     /* Now proceed to the timer initialization */
