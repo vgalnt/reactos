@@ -3213,8 +3213,227 @@ AcpiArbSetLinkNodeIrqWorker(
     _In_ PAMLI_OBJECT_DATA Data,
     _In_ PVOID InContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSET_LINK_NODE_IRQ Context = InContext;
+    PACPI_EXTENDED_IRQ_DESCRIPTOR ExtendedIrqDesc;
+    PACPI_RESOURCE_DATA_TYPE ResourceData;
+    PAMLI_FN_ASYNC_CALLBACK CallBack;
+    PAMLI_NAME_SPACE_OBJECT Child;
+    PACPI_IRQ_DESCRIPTOR IrqDesc;
+    PUCHAR Ptr;
+    ULONG Length = 0;
+    USHORT IrqTagLength = 0;
+    USHORT Increment;
+    UCHAR Checksum;
+    BOOLEAN IsTagEnd = FALSE;
+    BOOLEAN IsExtendedIrq = FALSE;
+    BOOLEAN IsFoundIrqTag = FALSE;
+    NTSTATUS Status;
+
+    DPRINT("AcpiArbSetLinkNodeIrqWorker: %p, %X\n", NsObject, InStatus);
+
+    Status = InStatus;
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("AcpiArbSetLinkNodeIrqWorker: Status %X\n", Status);
+        goto Finish;
+    }
+
+    ASSERT(Context->CmDescriptor->Type == CmResourceTypeInterrupt);
+
+    InterlockedIncrement(&Context->ReferenceCount);
+
+    if (Context->Phase > 2)
+    {
+        DPRINT1("AcpiArbSetLinkNodeIrqWorker: KeBugCheckEx()! %X\n", Context->Phase);
+        KeBugCheckEx(0xA3, 1, 5, 0, 0);
+        goto Finish;
+    }
+
+    if (Context->Phase == 0)
+    {
+        Context->Phase = 1;
+
+        Status = ACPIGet(Context->NsObject,
+                         'SRP_',
+                         0x58010008,
+                         NULL,
+                         0,
+                         AcpiArbSetLinkNodeIrqWorker,
+                         Context,
+                         &Context->DataBuff,
+                         NULL);
+
+        if (Status == STATUS_PENDING)
+            return STATUS_PENDING;
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("AcpiArbSetLinkNodeIrqWorker: Status %X\n", Status);
+            goto Finish;
+        }
+    }
+    else if (Context->Phase == 2)
+    {
+        ExFreePoolWithTag(Context->IrqTag, 'ApcA');
+        Status = STATUS_SUCCESS;
+        goto Finish;
+    }
+
+    Context->Phase = 2;
+
+    if (!Context->DataBuff)
+    {
+        Status = STATUS_NOT_FOUND;
+        goto Finish;
+    }
+
+    DPRINT("AcpiArbSetLinkNodeIrqWorker: Read _PRS buffer %p\n", Context->DataBuff);
+
+    ResourceData = Context->DataBuff;
+
+    if (!ResourceData->Small.Tag)
+    {
+        ExFreePool(Context->DataBuff);
+        Status = STATUS_NOT_FOUND;
+        goto Finish;
+    }
+
+    while (ResourceData->Small.Tag)
+    {
+        if (ResourceData->Large.Type)
+        {
+            Increment = (ResourceData->Large.Length + 3);
+
+            if (ResourceData->Large.Name == 0x09) // Extended IRQ Descriptor
+            {
+                IsFoundIrqTag = TRUE;
+                IsExtendedIrq = TRUE;
+
+                IrqTagLength = 9;
+                Length += 9;
+            }
+        }
+        else
+        {
+            Increment = (ResourceData->Small.Length + 1);
+
+            if (ResourceData->Small.Name == 0x0F) // End Tag Descriptor 
+            {
+                Length += Increment;
+
+                if (Increment > 1)
+                    IsTagEnd = 1;
+
+                break;
+            }
+
+            if (ResourceData->Small.Name == 0x04) // IRQ Format Descriptor
+            {
+                IsFoundIrqTag = TRUE;
+
+                IrqTagLength = Increment;
+                Length += Increment;
+            }
+        }
+
+        ResourceData = Add2Ptr(ResourceData, Increment);
+    }
+
+    if (!IsFoundIrqTag)
+    {
+        ExFreePool(Context->DataBuff);
+        Status = STATUS_NOT_FOUND;
+        goto Finish;
+    }
+
+    Context->IrqTag = ExAllocatePoolWithTag(NonPagedPool, Length, 'ApcA');
+    if (!Context->IrqTag)
+    {
+        ExFreePool(Context->DataBuff);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Finish;
+    }
+
+    ASSERT(IrqTagLength <= Length);
+
+    RtlCopyMemory(Context->IrqTag, Context->DataBuff, IrqTagLength);
+
+    ExFreePool(Context->DataBuff);
+
+    if (IsExtendedIrq)
+    {
+        DPRINT("AcpiArbSetLinkNodeIrqWorker: Found large IRQ descriptor\n");
+
+        ExtendedIrqDesc = Context->IrqTag;
+
+        ExtendedIrqDesc->Length = (IrqTagLength - 3);
+        ExtendedIrqDesc->TableLength = 1;
+        ExtendedIrqDesc->IntNumber[0] = Context->CmDescriptor->u.Interrupt.Level;
+    }
+    else
+    {
+        IrqDesc = Context->IrqTag;
+        IrqDesc->IrqMask = (1 << Context->CmDescriptor->u.Interrupt.Level);
+    }
+
+    ResourceData = Add2Ptr(Context->IrqTag, IrqTagLength);
+
+    if (IsTagEnd)
+    {
+        ResourceData->Small.Tag = (0x78 + 1);
+
+        for (Ptr = Context->IrqTag; *Ptr != ResourceData->Small.Tag; Ptr++)
+            Checksum = *Ptr;
+
+        *((PUCHAR)ResourceData + 1) = (0x100 - Checksum);
+    }
+    else
+    {
+        ResourceData->Small.Tag = 0x78;
+    }
+
+    Child = ACPIAmliGetNamedChild(Context->NsObject, 'SRS_');
+    if (!Child)
+    {
+        ExFreePoolWithTag(Context->IrqTag, 'ApcA');
+        Status = STATUS_OBJECT_NAME_NOT_FOUND;
+        goto Finish;
+    }
+
+    Context->DataArgs.DataLen = Length;
+    Context->DataArgs.DataType = 3;
+    Context->DataArgs.DataBuff = Context->IrqTag;
+
+    DPRINT("AcpiArbSetLinkNodeIrqWorker: Running _SRS\n");
+
+    Status = AMLIAsyncEvalObject(Child, NULL, 1, &Context->DataArgs, (PVOID)AcpiArbSetLinkNodeIrqWorker, Context);
+    if (Status == STATUS_PENDING)
+        return STATUS_PENDING;
+
+    if (NT_SUCCESS(Status))
+    {
+        ExFreePoolWithTag(Context->IrqTag, 'ApcA');
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        DPRINT1("AcpiArbSetLinkNodeIrqWorker: Status %X\n", Status);
+    }
+
+Finish:
+
+    if (Context->ReferenceCount)
+    {
+        CallBack = Context->CallBack;
+        CallBack(NsObject, Status, NULL, Context->CallBackContext);
+    }
+
+    ExFreePool(Context);
+
+    DPRINT("AcpiArbSetLinkNodeIrqWorker: Status %X\n", Status);
+
+    return Status;
 }
 
 NTSTATUS
