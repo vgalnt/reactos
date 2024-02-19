@@ -3744,8 +3744,82 @@ AcpiArbReferenceLinkNode(
     _In_ PAMLI_NAME_SPACE_OBJECT LinkNode,
     _In_ ULONG Irq)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_RESOURCE_LIST CmResource = NULL;
+    PARBITER_EXTENSION ArbExtension;
+    PACPI_LINK_NODE Node;
+    UCHAR Flags;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("AcpiArbReferenceLinkNode: %p, %X\n", LinkNode, Irq);
+
+    ASSERT(LinkNode);
+
+    ArbExtension = Arbiter->Extension;
+
+    Node = CONTAINING_RECORD(ArbExtension->LinkNodeHead.Flink, ACPI_LINK_NODE, List);
+
+    while (&Node->List != &ArbExtension->LinkNodeHead)
+    {
+        if (Node->NameSpaceObject == LinkNode)
+        {
+            if (Node->ReferenceCount || Node->TempRefCount)
+            {
+                Status = AcpiArbGetLinkNodeOptions(LinkNode, &CmResource, &Flags);
+
+                if (CmResource)
+                    ExFreePool(CmResource);
+
+                ASSERT(NT_SUCCESS(Status));
+                ASSERT(Flags == Node->Flags);
+            }
+
+            DPRINT("AcpiArbReferenceLinkNode: (%d:%d)\n", Node->ReferenceCount, Node->TempRefCount);
+            goto Finish;
+        }
+
+        Node = CONTAINING_RECORD(Node->List.Flink, ACPI_LINK_NODE, List);
+    }
+
+    Node = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Node), 'ApcA');
+    if (!Node)
+    {
+        DPRINT1("AcpiArbReferenceLinkNode: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(Node, sizeof(*Node));
+
+    Node->CurrentIrq = Irq;
+    Node->TempIrq = Irq;
+
+    Node->NameSpaceObject = LinkNode;
+    Node->AttachedDevices.Next = &Node->AttachedDevices;
+
+    InsertTailList(&ArbExtension->LinkNodeHead, &Node->List);
+
+    Status = AcpiArbGetLinkNodeOptions(LinkNode, &CmResource, &Flags);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("AcpiArbReferenceLinkNode: Status %X\n", Status);
+
+        ASSERT(NT_SUCCESS(Status));
+        Node->Flags = 3;
+    }
+    else
+    {
+        ExFreePool(CmResource);
+        Node->Flags = Flags;
+    }
+
+    DPRINT("AcpiArbReferenceLinkNode: Link node object connected to vector %X (%d:%d)\n", Irq, Node->ReferenceCount, Node->TempRefCount);
+
+Finish:
+
+    Node->TempIrq = Irq;
+    Node->TempRefCount++;
+
+    return STATUS_SUCCESS;
 }
 
 VOID
