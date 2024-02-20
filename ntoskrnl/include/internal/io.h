@@ -1072,16 +1072,6 @@ IopLoadServiceModule(
     OUT PLDR_DATA_TABLE_ENTRY *ModuleObject
 );
 
-NTSTATUS
-FASTCALL
-IopInitializeDriverModule(
-    IN PDEVICE_NODE DeviceNode,
-    IN PLDR_DATA_TABLE_ENTRY ModuleObject,
-    IN PUNICODE_STRING ServiceName,
-    IN BOOLEAN FileSystemDriver,
-    OUT PDRIVER_OBJECT *DriverObject
-);
-
 VOID
 NTAPI
 IopReinitializeDrivers(
