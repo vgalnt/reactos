@@ -2788,10 +2788,7 @@ FtpPnpPdo(
 
                 KeInitializeEvent(&Event, NotificationEvent, FALSE);
 
-                DPRINT1("FtpPnpPdo: FIXME\n");
-                ASSERT(FALSE);
-
-                //FtpZeroRefCallback(VolumeExtension, FtpVolumeOnlineCallback, &Event);
+                FtpZeroRefCallback(VolumeExtension, FtpVolumeOnlineCallback, &Event);
                 KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
             }
 
@@ -3304,6 +3301,11 @@ FtpPnpFdo(
               }
 
               return Status;
+        }
+        case IRP_MN_QUERY_STOP_DEVICE:
+        {
+            IoSkipCurrentIrpStackLocation(Irp);
+            return IoCallDriver(AttachedToDevice, Irp);
         }
         default:
         {
