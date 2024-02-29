@@ -266,7 +266,7 @@ PcMemGetBiosMemoryMap(PFREELDR_MEMORY_DESCRIPTOR MemoryMap, ULONG MaxMemoryMapSi
     {
         /* ACPI 3.0/4.0: Set Extended Attributes to enabled/valid by default, in case entry has no E.A.. */
         ((PBIOS_MEMORY_MAP)BIOSCALLBUFFER)->ExtendedAttributesAsULONG = 0;
-        ((PBIOS_MEMORY_MAP)BIOSCALLBUFFER)->ExtendedAttributes.Enabled_Reserved = 1;
+        //((PBIOS_MEMORY_MAP)BIOSCALLBUFFER)->ExtendedAttributes.Enabled_Reserved = 1;
 
         /* Setup the registers for the BIOS call */
         Regs.x.eax = 0x0000E820;
@@ -330,6 +330,7 @@ PcMemGetBiosMemoryMap(PFREELDR_MEMORY_DESCRIPTOR MemoryMap, ULONG MaxMemoryMapSi
             break;
         }
 
+      #if 0
         if (((PBIOS_MEMORY_MAP)BIOSCALLBUFFER)->ExtendedAttributes.Enabled_Reserved == 0)
         {
             WARN("Discarding disabled/invalid entry. (would-be-PcBiosMapCount = %lu)\n",
@@ -339,6 +340,7 @@ PcMemGetBiosMemoryMap(PFREELDR_MEMORY_DESCRIPTOR MemoryMap, ULONG MaxMemoryMapSi
              */
             goto nextRange;
         }
+      #endif
 
         /*
          * Other deprecated ExtendedAttributes flags such as NonVolatile_Deprecated_Reserved
