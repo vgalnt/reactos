@@ -594,7 +594,7 @@ CcPinMappedData(
 
     //_SEH2_TRY
 
-    if (((PCC_BCB)*InBcb)->NodeTypeCode != 0x2FD)
+    if (((PCC_BCB)*InBcb)->NodeTypeCode == 0x2FD)
     {
         if (ExAcquireSharedStarveExclusive(&((PCC_BCB)*InBcb)->BcbResource, ((Flags & 1) == 1)))
             Result = TRUE;
