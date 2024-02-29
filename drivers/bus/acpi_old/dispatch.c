@@ -2992,6 +2992,7 @@ ACPIGetWorkerForBuffer(
     _In_ PVOID Context)
 {
     PACPI_GET_CONTEXT AcpiGetContext = Context;
+    PAMLI_FN_ASYNC_CALLBACK CallBack;
     PVOID DataBuff;
     POOL_TYPE PoolType;
     KIRQL Irql;
@@ -3065,8 +3066,8 @@ Exit:
 
     if (AcpiGetContext->CallBack)
     {
-        DPRINT1("ACPIGetWorkerForBuffer: FIXME\n");
-        ASSERT(FALSE);
+        CallBack = AcpiGetContext->CallBack;
+        CallBack(NsObject, InStatus, NULL, AcpiGetContext->CallBackContext);
     }
 
     KeAcquireSpinLock(&AcpiGetLock, &Irql);
