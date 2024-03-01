@@ -177,24 +177,24 @@ USBSTOR_PdoHandleQueryDeviceText(
 
 NTSTATUS
 USBSTOR_PdoHandleQueryDeviceId(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN PIRP Irp)
+    _In_ PDEVICE_OBJECT Pdo,
+    _Inout_ PIRP Irp)
 {
-    PPDO_DEVICE_EXTENSION DeviceExtension;
-    NTSTATUS Status;
-    CHAR Buffer[100] = {0};
-    LPCSTR DeviceType;
-    ULONG Offset = 0;
+    PPDO_DEVICE_EXTENSION PdoExtension;
     PINQUIRYDATA InquiryData;
-    ANSI_STRING AnsiString;
+    LPCSTR DeviceType;
     UNICODE_STRING DeviceId;
+    ANSI_STRING AnsiString;
+    ULONG Offset = 0;
+    CHAR Buffer[100] = {0};
+    NTSTATUS Status;
 
-    DeviceExtension = (PPDO_DEVICE_EXTENSION)DeviceObject->DeviceExtension;
-    InquiryData = (PINQUIRYDATA)&DeviceExtension->InquiryData;
+    PdoExtension = Pdo->DeviceExtension;
+    InquiryData = (PINQUIRYDATA)&PdoExtension->InquiryData;
 
     DeviceType = USBSTOR_GetDeviceType(InquiryData);
 
-    // lets create device string
+    /* Lets create device string */
     Offset = sprintf(&Buffer[Offset], "USBSTOR\\");
     Offset += sprintf(&Buffer[Offset], DeviceType);
     Offset += sprintf(&Buffer[Offset], "&Ven_");
@@ -206,12 +206,13 @@ USBSTOR_PdoHandleQueryDeviceId(
 
     RtlInitAnsiString(&AnsiString, (PCSZ)Buffer);
 
-    // allocate DeviceId string
+    /* Allocate DeviceId string */
     DeviceId.Length = 0;
     DeviceId.MaximumLength = (USHORT)((strlen((PCHAR)Buffer) + 1) * sizeof(WCHAR));
     DeviceId.Buffer = ExAllocatePoolWithTag(PagedPool, DeviceId.MaximumLength, USB_STOR_TAG);
     if (!DeviceId.Buffer)
     {
+        DPRINT1("USBSTOR_PdoHandleQueryDeviceId: STATUS_INSUFFICIENT_RESOURCES\n");
         Irp->IoStatus.Information = 0;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -223,7 +224,7 @@ USBSTOR_PdoHandleQueryDeviceId(
         Irp->IoStatus.Information = (ULONG_PTR)DeviceId.Buffer;
     }
 
-    DPRINT("DeviceId %wZ Status %x\n", &DeviceId, Status);
+    DPRINT("USBSTOR_PdoHandleQueryDeviceId: '%wZ', %X\n", &DeviceId, Status);
 
     return Status;
 }
@@ -265,11 +266,11 @@ USBSTOR_ConvertToUnicodeString(
 
 NTSTATUS
 USBSTOR_PdoHandleQueryHardwareId(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN OUT PIRP Irp)
+    _In_ PDEVICE_OBJECT Pdo,
+    _Inout_ PIRP Irp)
 {
-    PPDO_DEVICE_EXTENSION PDODeviceExtension;
-    PFDO_DEVICE_EXTENSION FDODeviceExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PFDO_DEVICE_EXTENSION FdoExtension;
     LPCSTR GenericType, DeviceType;
     LPWSTR Buffer;
     CHAR Id1[50], Id2[50], Id3[50], Id4[50], Id5[50], Id6[50], Id7[50];
@@ -277,18 +278,17 @@ USBSTOR_PdoHandleQueryHardwareId(
     ULONG Offset, TotalLength, Length;
     PINQUIRYDATA InquiryData;
 
-    PDODeviceExtension = (PPDO_DEVICE_EXTENSION)DeviceObject->DeviceExtension;
-    FDODeviceExtension = (PFDO_DEVICE_EXTENSION)PDODeviceExtension->LowerDeviceObject->DeviceExtension;
-    ASSERT(FDODeviceExtension->DeviceDescriptor);
-    InquiryData = (PINQUIRYDATA)&PDODeviceExtension->InquiryData;
+    PdoExtension = Pdo->DeviceExtension;
+    FdoExtension = PdoExtension->LowerDeviceObject->DeviceExtension;
+    ASSERT(FdoExtension->DeviceDescriptor);
+    InquiryData = (PINQUIRYDATA)&PdoExtension->InquiryData;
 
     DeviceType = USBSTOR_GetDeviceType(InquiryData);
     GenericType = USBSTOR_GetGenericType(InquiryData);
 
     ASSERT(GenericType);
 
-    // generate id 1
-    // USBSTOR\SCSIType_VendorId(8)_ProductId(16)_Revision(4)
+    /* Id 1: USBSTOR\SCSIType_VendorId(8)_ProductId(16)_Revision(4) */
     RtlZeroMemory(Id1, sizeof(Id1));
     Offset = 0;
     Offset = sprintf(&Id1[Offset], "USBSTOR\\");
@@ -297,10 +297,9 @@ USBSTOR_PdoHandleQueryHardwareId(
     Offset += CopyField(InquiryData->ProductId, &Id1[Offset], 16);
     Offset += CopyField(InquiryData->ProductRevisionLevel, &Id1[Offset], 4);
     Id1Length = strlen(Id1) + 1;
-    DPRINT("USBSTOR_PdoHandleQueryHardwareId HardwareId1 %s\n", Id1);
+    DPRINT("USBSTOR_PdoHandleQueryHardwareId: '%s'\n", Id1);
 
-    // generate id 2
-    // USBSTOR\SCSIType_VendorId(8)_ProductId(16)
+    /* Id 2: USBSTOR\SCSIType_VendorId(8)_ProductId(16) */
     RtlZeroMemory(Id2, sizeof(Id2));
     Offset = 0;
     Offset = sprintf(&Id2[Offset], "USBSTOR\\");
@@ -308,20 +307,18 @@ USBSTOR_PdoHandleQueryHardwareId(
     Offset += CopyField(InquiryData->VendorId, &Id2[Offset], 8);
     Offset += CopyField(InquiryData->ProductId, &Id2[Offset], 16);
     Id2Length = strlen(Id2) + 1;
-    DPRINT("USBSTOR_PdoHandleQueryHardwareId HardwareId2 %s\n", Id2);
+    DPRINT("USBSTOR_PdoHandleQueryHardwareId: '%s'\n", Id2);
 
-    // generate id 3
-    // USBSTOR\SCSIType_VendorId(8)
+    /* Id 3: USBSTOR\SCSIType_VendorId(8) */
     RtlZeroMemory(Id3, sizeof(Id3));
     Offset = 0;
     Offset = sprintf(&Id3[Offset], "USBSTOR\\");
     Offset += sprintf(&Id3[Offset], DeviceType);
     Offset += CopyField(InquiryData->VendorId, &Id3[Offset], 8);
-    Id3Length = strlen(Id3) + 1;
-    DPRINT("USBSTOR_PdoHandleQueryHardwareId HardwareId3 %s\n", Id3);
+    Id3Length = (strlen(Id3) + 1);
+    DPRINT("USBSTOR_PdoHandleQueryHardwareId: '%s'\n", Id3);
 
-    // generate id 4
-    // USBSTOR\SCSIType_VendorId(8)_ProductId(16)_Revision(1)
+    /* Id 4: USBSTOR\SCSIType_VendorId(8)_ProductId(16)_Revision(1) */
     RtlZeroMemory(Id4, sizeof(Id4));
     Offset = 0;
     Offset = sprintf(&Id4[Offset], "USBSTOR\\");
@@ -329,48 +326,46 @@ USBSTOR_PdoHandleQueryHardwareId(
     Offset += CopyField(InquiryData->VendorId, &Id4[Offset], 8);
     Offset += CopyField(InquiryData->ProductId, &Id4[Offset], 16);
     Offset += CopyField(InquiryData->ProductRevisionLevel, &Id4[Offset], 1);
-    Id4Length = strlen(Id4) + 1;
-    DPRINT("USBSTOR_PdoHandleQueryHardwareId HardwareId4 %s\n", Id4);
+    Id4Length = (strlen(Id4) + 1);
+    DPRINT("USBSTOR_PdoHandleQueryHardwareId: '%s'\n", Id4);
 
-    // generate id 5
-    // SCSIType_VendorId(8)_ProductId(16)_Revision(1)
+    /* Id 5: SCSIType_VendorId(8)_ProductId(16)_Revision(1) */
     RtlZeroMemory(Id5, sizeof(Id5));
     Offset = 0;
     Offset = sprintf(&Id5[Offset], DeviceType);
     Offset += CopyField(InquiryData->VendorId, &Id5[Offset], 8);
     Offset += CopyField(InquiryData->ProductId, &Id5[Offset], 16);
     Offset += CopyField(InquiryData->ProductRevisionLevel, &Id5[Offset], 1);
-    Id5Length = strlen(Id5) + 1;
-    DPRINT("USBSTOR_PdoHandleQueryHardwareId HardwareId5 %s\n", Id5);
+    Id5Length = (strlen(Id5) + 1);
+    DPRINT("USBSTOR_PdoHandleQueryHardwareId: '%s'\n", Id5);
 
-    // generate id 6
-    // USBSTOR\SCSIType
+    /* Id 6: USBSTOR\SCSIType */
     RtlZeroMemory(Id6, sizeof(Id6));
     Offset = 0;
     Offset = sprintf(&Id6[Offset], "USBSTOR\\");
     Offset += sprintf(&Id6[Offset], GenericType);
-    Id6Length = strlen(Id6) + 1;
-    DPRINT("USBSTOR_PdoHandleQueryHardwareId HardwareId6 %s\n", Id6);
+    Id6Length = (strlen(Id6) + 1);
+    DPRINT("USBSTOR_PdoHandleQueryHardwareId: '%s'\n", Id6);
 
-    // generate id 7
-    // SCSIType
+    /* Id 7: SCSIType */
     RtlZeroMemory(Id7, sizeof(Id7));
     Offset = 0;
     Offset = sprintf(&Id7[Offset], GenericType);
-    Id7Length = strlen(Id7) + 1;
-    DPRINT("USBSTOR_PdoHandleQueryHardwareId HardwareId7 %s\n", Id7);
+    Id7Length = (strlen(Id7) + 1);
+    DPRINT("USBSTOR_PdoHandleQueryHardwareId: '%s'\n", Id7);
 
-    // last +1 is for terminating \0 of REG_MULTI_SZ
-    TotalLength = Id1Length + Id2Length + Id3Length + Id4Length + Id5Length + Id6Length + Id7Length + 1;
+    /* Last +1 is for terminating \0 of REG_MULTI_SZ */
+    TotalLength = (Id1Length + Id2Length + Id3Length + Id4Length + Id5Length + Id6Length + Id7Length + 1);
 
-    Buffer = ExAllocatePoolWithTag(PagedPool, TotalLength * sizeof(WCHAR), USB_STOR_TAG);
+    Buffer = ExAllocatePoolWithTag(PagedPool, (TotalLength * sizeof(WCHAR)), USB_STOR_TAG);
     if (!Buffer)
     {
+        DPRINT1("USBSTOR_PdoHandleQueryHardwareId: STATUS_INSUFFICIENT_RESOURCES\n");
         Irp->IoStatus.Information = 0;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    // reset offset
+    /* Reset offset */
     Offset = 0;
     Length = TotalLength;
 
@@ -384,7 +379,7 @@ USBSTOR_PdoHandleQueryHardwareId(
 
     Buffer[Offset] = UNICODE_NULL; // finish the REG_MULTI_SZ
 
-    ASSERT(Offset + 1 == Length);
+    ASSERT((Offset + 1) == Length);
 
     Irp->IoStatus.Information = (ULONG_PTR)Buffer;
     return STATUS_SUCCESS;
@@ -392,29 +387,31 @@ USBSTOR_PdoHandleQueryHardwareId(
 
 NTSTATUS
 USBSTOR_PdoHandleQueryCompatibleId(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN OUT PIRP Irp)
+    _In_ PDEVICE_OBJECT Pdo,
+    _Inout_ PIRP Irp)
 {
-    PPDO_DEVICE_EXTENSION PDODeviceExtension;
-    PFDO_DEVICE_EXTENSION FDODeviceExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PFDO_DEVICE_EXTENSION FdoExtension;
     CHAR Buffer[100] = {0};
     ULONG Length, Offset;
     LPWSTR InstanceId;
     LPCSTR DeviceType;
 
-    PDODeviceExtension = (PPDO_DEVICE_EXTENSION)DeviceObject->DeviceExtension;
-    FDODeviceExtension = (PFDO_DEVICE_EXTENSION)PDODeviceExtension->LowerDeviceObject->DeviceExtension;
-    ASSERT(FDODeviceExtension->DeviceDescriptor);
-    DeviceType = USBSTOR_GetDeviceType((PINQUIRYDATA)&PDODeviceExtension->InquiryData);
+    PdoExtension = Pdo->DeviceExtension;
+    FdoExtension = PdoExtension->LowerDeviceObject->DeviceExtension;
+    ASSERT(FdoExtension->DeviceDescriptor);
+    DeviceType = USBSTOR_GetDeviceType((PINQUIRYDATA)&PdoExtension->InquiryData);
 
-    // format instance id
-    Length = sprintf(Buffer, "USBSTOR\\%s", DeviceType) + 1;
-    // +1 for terminating \0 and another +1 for \0 at the end of REG_MULTI_SZ
-    Length += sprintf(&Buffer[Length], "USBSTOR\\%s", "RAW") + 2;
+    /* Format instance id */
+    Length = (sprintf(Buffer, "USBSTOR\\%s", DeviceType) + 1);
 
-    InstanceId = ExAllocatePoolWithTag(PagedPool, Length * sizeof(WCHAR), USB_STOR_TAG);
+    /* +1 for terminating \0 and another +1 for \0 at the end of REG_MULTI_SZ */
+    Length += (sprintf(&Buffer[Length], "USBSTOR\\%s", "RAW") + 2);
+
+    InstanceId = ExAllocatePoolWithTag(PagedPool, (Length * sizeof(WCHAR)), USB_STOR_TAG);
     if (!InstanceId)
     {
+        DPRINT1("USBSTOR_PdoHandleQueryCompatibleId: STATUS_INSUFFICIENT_RESOURCES\n");
         Irp->IoStatus.Information = 0;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -424,7 +421,7 @@ USBSTOR_PdoHandleQueryCompatibleId(
 
     InstanceId[Offset] = UNICODE_NULL; // finish the REG_MULTI_SZ
 
-    DPRINT("USBSTOR_PdoHandleQueryCompatibleId %S\n", InstanceId);
+    DPRINT("USBSTOR_PdoHandleQueryCompatibleId: '%S'\n", InstanceId);
 
     Irp->IoStatus.Information = (ULONG_PTR)InstanceId;
     return STATUS_SUCCESS;
@@ -432,42 +429,43 @@ USBSTOR_PdoHandleQueryCompatibleId(
 
 NTSTATUS
 USBSTOR_PdoHandleQueryInstanceId(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN OUT PIRP Irp)
+    _In_ PDEVICE_OBJECT Pdo,
+    _Inout_ PIRP Irp)
 {
-    PPDO_DEVICE_EXTENSION PDODeviceExtension;
-    PFDO_DEVICE_EXTENSION FDODeviceExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PFDO_DEVICE_EXTENSION FdoExtension;
     WCHAR Buffer[100];
     ULONG Length;
     LPWSTR InstanceId;
 
-    PDODeviceExtension = (PPDO_DEVICE_EXTENSION)DeviceObject->DeviceExtension;
-    FDODeviceExtension = (PFDO_DEVICE_EXTENSION)PDODeviceExtension->LowerDeviceObject->DeviceExtension;
+    PdoExtension = Pdo->DeviceExtension;
+    FdoExtension = PdoExtension->LowerDeviceObject->DeviceExtension;
 
-    // format instance id
-    if (FDODeviceExtension->SerialNumber)
+    /* Format instance id */
+    if (FdoExtension->SerialNumber)
     {
-        // using serial number from device
-        swprintf(Buffer, L"%s&%c", FDODeviceExtension->SerialNumber->bString, PDODeviceExtension->LUN);
+        /* Using serial number from device */
+        swprintf(Buffer, L"%s&%c", FdoExtension->SerialNumber->bString, PdoExtension->LUN);
     }
     else
     {
-        // use instance count and LUN
-        swprintf(Buffer, L"%04lu&%c", FDODeviceExtension->InstanceCount, PDODeviceExtension->LUN);
+        /* Use instance count and LUN */
+        swprintf(Buffer, L"%04lu&%c", FdoExtension->InstanceCount, PdoExtension->LUN);
     }
 
-    Length = wcslen(Buffer) + 1;
+    Length = (wcslen(Buffer) + 1);
 
-    InstanceId = ExAllocatePoolWithTag(PagedPool, Length * sizeof(WCHAR), USB_STOR_TAG);
+    InstanceId = ExAllocatePoolWithTag(PagedPool, (Length * sizeof(WCHAR)), USB_STOR_TAG);
     if (!InstanceId)
     {
+        DPRINT1("USBSTOR_PdoHandleQueryInstanceId: STATUS_INSUFFICIENT_RESOURCES\n");
         Irp->IoStatus.Information = 0;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     wcscpy(InstanceId, Buffer);
 
-    DPRINT("USBSTOR_PdoHandleQueryInstanceId %S\n", InstanceId);
+    DPRINT("USBSTOR_PdoHandleQueryInstanceId: '%S'\n", InstanceId);
 
     Irp->IoStatus.Information = (ULONG_PTR)InstanceId;
     return STATUS_SUCCESS;
@@ -509,8 +507,8 @@ USBSTOR_PdoHandleDeviceRelations(
 
 NTSTATUS
 USBSTOR_PdoHandlePnp(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN OUT PIRP Irp)
+    _In_ PDEVICE_OBJECT Pdo,
+    _Inout_ PIRP Irp)
 {
     PIO_STACK_LOCATION IoStack;
     PPDO_DEVICE_EXTENSION DeviceExtension;
@@ -519,41 +517,41 @@ USBSTOR_PdoHandlePnp(
     ULONG bDelete;
 
     IoStack = IoGetCurrentIrpStackLocation(Irp);
-    DeviceExtension = (PPDO_DEVICE_EXTENSION)DeviceObject->DeviceExtension;
+    DeviceExtension = Pdo->DeviceExtension;
     ASSERT(DeviceExtension->Common.IsFDO == FALSE);
 
     switch(IoStack->MinorFunction)
     {
        case IRP_MN_QUERY_DEVICE_RELATIONS:
        {
-           Status = USBSTOR_PdoHandleDeviceRelations(DeviceObject, Irp);
+           Status = USBSTOR_PdoHandleDeviceRelations(Pdo, Irp);
            break;
        }
        case IRP_MN_QUERY_DEVICE_TEXT:
        {
-           Status = USBSTOR_PdoHandleQueryDeviceText(DeviceObject, Irp);
+           Status = USBSTOR_PdoHandleQueryDeviceText(Pdo, Irp);
            break;
        }
        case IRP_MN_QUERY_ID:
        {
            if (IoStack->Parameters.QueryId.IdType == BusQueryDeviceID)
            {
-               Status = USBSTOR_PdoHandleQueryDeviceId(DeviceObject, Irp);
+               Status = USBSTOR_PdoHandleQueryDeviceId(Pdo, Irp);
                break;
            }
            else if (IoStack->Parameters.QueryId.IdType == BusQueryHardwareIDs)
            {
-               Status = USBSTOR_PdoHandleQueryHardwareId(DeviceObject, Irp);
+               Status = USBSTOR_PdoHandleQueryHardwareId(Pdo, Irp);
                break;
            }
            else if (IoStack->Parameters.QueryId.IdType == BusQueryInstanceID)
            {
-               Status = USBSTOR_PdoHandleQueryInstanceId(DeviceObject, Irp);
+               Status = USBSTOR_PdoHandleQueryInstanceId(Pdo, Irp);
                break;
            }
            else if (IoStack->Parameters.QueryId.IdType == BusQueryCompatibleIDs)
            {
-               Status = USBSTOR_PdoHandleQueryCompatibleId(DeviceObject, Irp);
+               Status = USBSTOR_PdoHandleQueryCompatibleId(Pdo, Irp);
                break;
            }
 
@@ -564,7 +562,7 @@ USBSTOR_PdoHandlePnp(
        }
        case IRP_MN_REMOVE_DEVICE:
        {
-           DPRINT("IRP_MN_REMOVE_DEVICE\n");
+           DPRINT("USBSTOR_PdoHandlePnp: IRP_MN_REMOVE_DEVICE\n");
 
            if(*DeviceExtension->PDODeviceObject != NULL)
            {
@@ -582,7 +580,7 @@ USBSTOR_PdoHandlePnp(
 
            if (bDelete)
            {
-               IoDeleteDevice(DeviceObject);
+               IoDeleteDevice(Pdo);
            }
            return STATUS_SUCCESS;
        }
@@ -614,7 +612,7 @@ USBSTOR_PdoHandlePnp(
 #endif
            {
                Status = STATUS_UNSUCCESSFUL;
-               DPRINT1("[USBSTOR] Request %x fails because device is still claimed\n", IoStack->MinorFunction);
+               DPRINT1("USBSTOR_PdoHandlePnp: (%X) fails because device is still claimed\n", IoStack->MinorFunction);
            }
            else
                Status = STATUS_SUCCESS;
