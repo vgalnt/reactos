@@ -14,6 +14,8 @@
 #define NDEBUG_USBHUB_ENUM
 #include "dbg_uhub.h"
 
+BOOLEAN IsWaitForBoot = TRUE;
+
 NTSTATUS
 NTAPI
 USBH_IrpCompletion(IN PDEVICE_OBJECT DeviceObject,
@@ -1045,6 +1047,7 @@ USBH_FdoQueryBusRelations(IN PUSBHUB_FDO_EXTENSION HubExtension,
     USB_PORT_STATUS UsbPortStatus;
     PLIST_ENTRY Entry;
     ULONG Length;
+    LARGE_INTEGER Interval;
 
     DPRINT_ENUM("USBH_FdoQueryBusRelations: HubFlags - %lX\n",
                 HubExtension->HubFlags);
@@ -1063,14 +1066,20 @@ USBH_FdoQueryBusRelations(IN PUSBHUB_FDO_EXTENSION HubExtension,
 
     if (!(HubExtension->HubFlags & USBHUB_FDO_FLAG_DO_ENUMERATION))
     {
-        // FIXME: this delay makes devices discovery during early boot more reliable
-        LARGE_INTEGER Interval;
-        Status = STATUS_SUCCESS;
-        IoInvalidateDeviceRelations(HubExtension->LowerPDO, BusRelations);
-        Interval.QuadPart = -10000LL * 1000; // 1 sec.
-        KeDelayExecutionThread(KernelMode, FALSE, &Interval);
+        if (IsWaitForBoot) // ? FIXME - do it ONLY for bootable USB device
+        {
+            /* This delay makes devices discovery during early boot more reliable */
+            Interval.QuadPart = -10000LL * 1000; // 1 sec.
+
+            DPRINT1("USBH_FdoQueryBusRelations: Wait for bootable %p\n", HubExtension);
+
+            IoInvalidateDeviceRelations(HubExtension->LowerPDO, BusRelations);
+            KeDelayExecutionThread(KernelMode, FALSE, &Interval);
+        }
 
         DPRINT_ENUM("USBH_FdoQueryBusRelations: Skip enumeration\n");
+
+        Status = STATUS_SUCCESS;
         goto RelationsWorker;
     }
 
