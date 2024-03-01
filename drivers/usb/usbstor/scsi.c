@@ -550,10 +550,19 @@ USBSTOR_HandleExecuteSCSI(
     IoStack = IoGetCurrentIrpStackLocation(Irp);
     Request = IoStack->Parameters.Scsi.Srb;
 
-    DPRINT("USBSTOR_HandleExecuteSCSI Operation Code %x, Length %lu\n", SrbGetCdb(Request)->CDB10.OperationCode, Request->DataTransferLength);
+    DPRINT("USBSTOR_HandleExecuteSCSI Operation Code %x, Length %lu\n",
+           SrbGetCdb(Request)->CDB10.OperationCode, Request->DataTransferLength);
 
     // check that we're sending to the right LUN
-    ASSERT(SrbGetCdb(Request)->CDB10.LogicalUnitNumber == PDODeviceExtension->LUN);
+    //ASSERT(SrbGetCdb(Request)->CDB10.LogicalUnitNumber == PDODeviceExtension->LUN);
+    if (SrbGetCdb(Request)->CDB10.LogicalUnitNumber != PDODeviceExtension->LUN)
+    {
+        DPRINT1("USBSTOR_HandleExecuteSCSI: %X, %X, %X, %X\n",
+                SrbGetCdb(Request)->CDB10.OperationCode,
+                Request->DataTransferLength,
+                SrbGetCdb(Request)->CDB10.LogicalUnitNumber,
+                PDODeviceExtension->LUN);
+    }
 
     return USBSTOR_SendCBWRequest(PDODeviceExtension->LowerDeviceObject->DeviceExtension, Irp);
 }
