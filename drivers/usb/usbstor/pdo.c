@@ -178,7 +178,7 @@ USBSTOR_PdoHandleQueryDeviceText(
 NTSTATUS
 USBSTOR_PdoHandleQueryDeviceId(
     _In_ PDEVICE_OBJECT Pdo,
-    _Inout_ PIRP Irp)
+    _Inout_ UNICODE_STRING* OutId)
 {
     PPDO_DEVICE_EXTENSION PdoExtension;
     PINQUIRYDATA InquiryData;
@@ -213,7 +213,7 @@ USBSTOR_PdoHandleQueryDeviceId(
     if (!DeviceId.Buffer)
     {
         DPRINT1("USBSTOR_PdoHandleQueryDeviceId: STATUS_INSUFFICIENT_RESOURCES\n");
-        Irp->IoStatus.Information = 0;
+        OutId->Buffer = 0;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -221,7 +221,7 @@ USBSTOR_PdoHandleQueryDeviceId(
 
     if (NT_SUCCESS(Status))
     {
-        Irp->IoStatus.Information = (ULONG_PTR)DeviceId.Buffer;
+        OutId->Buffer = DeviceId.Buffer;
     }
 
     DPRINT("USBSTOR_PdoHandleQueryDeviceId: '%wZ', %X\n", &DeviceId, Status);
@@ -267,7 +267,7 @@ USBSTOR_ConvertToUnicodeString(
 NTSTATUS
 USBSTOR_PdoHandleQueryHardwareId(
     _In_ PDEVICE_OBJECT Pdo,
-    _Inout_ PIRP Irp)
+    _Inout_ UNICODE_STRING* OutId)
 {
     PPDO_DEVICE_EXTENSION PdoExtension;
     PFDO_DEVICE_EXTENSION FdoExtension;
@@ -361,7 +361,7 @@ USBSTOR_PdoHandleQueryHardwareId(
     if (!Buffer)
     {
         DPRINT1("USBSTOR_PdoHandleQueryHardwareId: STATUS_INSUFFICIENT_RESOURCES\n");
-        Irp->IoStatus.Information = 0;
+        OutId->Buffer = 0;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -381,14 +381,14 @@ USBSTOR_PdoHandleQueryHardwareId(
 
     ASSERT((Offset + 1) == Length);
 
-    Irp->IoStatus.Information = (ULONG_PTR)Buffer;
+    OutId->Buffer = Buffer;
     return STATUS_SUCCESS;
 }
 
 NTSTATUS
 USBSTOR_PdoHandleQueryCompatibleId(
     _In_ PDEVICE_OBJECT Pdo,
-    _Inout_ PIRP Irp)
+    _Inout_ UNICODE_STRING* OutId)
 {
     PPDO_DEVICE_EXTENSION PdoExtension;
     PFDO_DEVICE_EXTENSION FdoExtension;
@@ -412,7 +412,7 @@ USBSTOR_PdoHandleQueryCompatibleId(
     if (!InstanceId)
     {
         DPRINT1("USBSTOR_PdoHandleQueryCompatibleId: STATUS_INSUFFICIENT_RESOURCES\n");
-        Irp->IoStatus.Information = 0;
+        OutId->Buffer = 0;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -423,14 +423,14 @@ USBSTOR_PdoHandleQueryCompatibleId(
 
     DPRINT("USBSTOR_PdoHandleQueryCompatibleId: '%S'\n", InstanceId);
 
-    Irp->IoStatus.Information = (ULONG_PTR)InstanceId;
+    OutId->Buffer = InstanceId;
     return STATUS_SUCCESS;
 }
 
 NTSTATUS
 USBSTOR_PdoHandleQueryInstanceId(
     _In_ PDEVICE_OBJECT Pdo,
-    _Inout_ PIRP Irp)
+    _Inout_ UNICODE_STRING* OutId)
 {
     PPDO_DEVICE_EXTENSION PdoExtension;
     PFDO_DEVICE_EXTENSION FdoExtension;
@@ -459,7 +459,7 @@ USBSTOR_PdoHandleQueryInstanceId(
     if (!InstanceId)
     {
         DPRINT1("USBSTOR_PdoHandleQueryInstanceId: STATUS_INSUFFICIENT_RESOURCES\n");
-        Irp->IoStatus.Information = 0;
+        OutId->Buffer = 0;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -467,7 +467,7 @@ USBSTOR_PdoHandleQueryInstanceId(
 
     DPRINT("USBSTOR_PdoHandleQueryInstanceId: '%S'\n", InstanceId);
 
-    Irp->IoStatus.Information = (ULONG_PTR)InstanceId;
+    OutId->Buffer = InstanceId;
     return STATUS_SUCCESS;
 }
 
@@ -510,15 +510,18 @@ USBSTOR_PdoHandlePnp(
     _In_ PDEVICE_OBJECT Pdo,
     _Inout_ PIRP Irp)
 {
+    PPDO_DEVICE_EXTENSION PdoExtension;
     PIO_STACK_LOCATION IoStack;
-    PPDO_DEVICE_EXTENSION DeviceExtension;
-    NTSTATUS Status;
     PDEVICE_CAPABILITIES Caps;
+    PWSTR pChar;
+    UNICODE_STRING Id;
     ULONG bDelete;
+    BOOLEAN IsMultiLine = TRUE;
+    NTSTATUS Status;
 
     IoStack = IoGetCurrentIrpStackLocation(Irp);
-    DeviceExtension = Pdo->DeviceExtension;
-    ASSERT(DeviceExtension->Common.IsFDO == FALSE);
+    PdoExtension = Pdo->DeviceExtension;
+    ASSERT(PdoExtension->Common.IsFDO == FALSE);
 
     switch(IoStack->MinorFunction)
     {
@@ -534,39 +537,63 @@ USBSTOR_PdoHandlePnp(
        }
        case IRP_MN_QUERY_ID:
        {
+           DPRINT("USBSTOR_PdoHandlePnp: IRP_MN_QUERY_ID IdType %X\n", IoStack->Parameters.QueryId.IdType);
+
+           RtlInitUnicodeString(&Id, NULL);
+
            if (IoStack->Parameters.QueryId.IdType == BusQueryDeviceID)
            {
-               Status = USBSTOR_PdoHandleQueryDeviceId(Pdo, Irp);
-               break;
+               IsMultiLine = FALSE;
+               Status = USBSTOR_PdoHandleQueryDeviceId(Pdo, &Id);
            }
            else if (IoStack->Parameters.QueryId.IdType == BusQueryHardwareIDs)
            {
-               Status = USBSTOR_PdoHandleQueryHardwareId(Pdo, Irp);
-               break;
+               Status = USBSTOR_PdoHandleQueryHardwareId(Pdo, &Id);
            }
            else if (IoStack->Parameters.QueryId.IdType == BusQueryInstanceID)
            {
-               Status = USBSTOR_PdoHandleQueryInstanceId(Pdo, Irp);
-               break;
+               IsMultiLine = FALSE;
+               Status = USBSTOR_PdoHandleQueryInstanceId(Pdo, &Id);
            }
            else if (IoStack->Parameters.QueryId.IdType == BusQueryCompatibleIDs)
            {
-               Status = USBSTOR_PdoHandleQueryCompatibleId(Pdo, Irp);
+               Status = USBSTOR_PdoHandleQueryCompatibleId(Pdo, &Id);
+           }
+           else
+           {
+               DPRINT1("USBSTOR_PdoHandlePnp: IRP_MN_QUERY_ID IdType %x unimplemented\n", IoStack->Parameters.QueryId.IdType);
+               Status = STATUS_NOT_SUPPORTED;
+               Irp->IoStatus.Information = 0;
                break;
            }
 
-           DPRINT1("USBSTOR_PdoHandlePnp: IRP_MN_QUERY_ID IdType %x unimplemented\n", IoStack->Parameters.QueryId.IdType);
-           Status = STATUS_NOT_SUPPORTED;
-           Irp->IoStatus.Information = 0;
+           if (NT_SUCCESS(Status) && Id.Buffer)
+           {
+               for (pChar = Id.Buffer; *pChar; )
+               {
+                   if (*pChar <= L' ' || *pChar > 0x7F || *pChar == L',' )
+                       *pChar = L'_';
+
+                   pChar++;
+
+                   if (*pChar)
+                       continue;
+
+                   if (IsMultiLine)
+                       pChar++;
+               }
+           }
+
+           Irp->IoStatus.Information = (ULONG_PTR)Id.Buffer;
            break;
        }
        case IRP_MN_REMOVE_DEVICE:
        {
            DPRINT("USBSTOR_PdoHandlePnp: IRP_MN_REMOVE_DEVICE\n");
 
-           if(*DeviceExtension->PDODeviceObject != NULL)
+           if(*PdoExtension->PDODeviceObject != NULL)
            {
-               *DeviceExtension->PDODeviceObject = NULL;
+               *PdoExtension->PDODeviceObject = NULL;
                bDelete = TRUE;
            }
            else
@@ -587,7 +614,7 @@ USBSTOR_PdoHandlePnp(
        case IRP_MN_QUERY_CAPABILITIES:
        {
            // just forward irp to lower device
-           Status = USBSTOR_SyncForwardIrp(DeviceExtension->LowerDeviceObject, Irp);
+           Status = USBSTOR_SyncForwardIrp(PdoExtension->LowerDeviceObject, Irp);
            ASSERT(Status == STATUS_SUCCESS);
 
            if (NT_SUCCESS(Status))
@@ -606,7 +633,7 @@ USBSTOR_PdoHandlePnp(
            //
            // if we're not claimed it's ok
            //
-           if (DeviceExtension->Claimed)
+           if (PdoExtension->Claimed)
 #else
            if (TRUE)
 #endif
