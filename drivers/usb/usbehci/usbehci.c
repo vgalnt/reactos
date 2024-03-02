@@ -707,9 +707,7 @@ EHCI_CloseEndpoint(IN PVOID ehciExtension,
     PEHCI_ENDPOINT EhciEndpoint = ehciEndpoint;
     ULONG TransferType;
 
-    DPRINT1("EHCI_CloseEndpoint: EhciEndpoint - %p, DisablePeriodic - %X\n",
-            EhciEndpoint,
-            DisablePeriodic);
+    DPRINT("EHCI_CloseEndpoint: %p, %X\n", EhciEndpoint, DisablePeriodic);
 
     if (DisablePeriodic)
     {
