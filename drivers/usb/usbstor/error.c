@@ -63,7 +63,7 @@ USBSTOR_ResetPipeWithHandle(
     Urb->UrbPipeRequest.PipeHandle = PipeHandle;
 
     // send the request
-    DPRINT1("Sending Request DeviceObject %p, Urb %p\n", DeviceObject, Urb);
+    DPRINT("Sending Request DeviceObject %p, Urb %p\n", DeviceObject, Urb);
     Status = USBSTOR_SyncUrbRequest(DeviceObject, Urb);
 
     FreeItem(Urb);
@@ -82,7 +82,7 @@ USBSTOR_ResetPipeWorkItemRoutine(
 
     // clear stall on the corresponding pipe
     Status = USBSTOR_ResetPipeWithHandle(FDODeviceExtension->LowerDeviceObject, Context->Urb.UrbBulkOrInterruptTransfer.PipeHandle);
-    DPRINT1("USBSTOR_ResetPipeWithHandle Status %x\n", Status);
+    DPRINT("USBSTOR_ResetPipeWithHandle Status %x\n", Status);
 
     // now resend the csw as the stall got cleared
     USBSTOR_SendCSWRequest(FDODeviceExtension, Context->Irp);

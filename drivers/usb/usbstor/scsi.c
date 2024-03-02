@@ -557,11 +557,11 @@ USBSTOR_HandleExecuteSCSI(
     //ASSERT(SrbGetCdb(Request)->CDB10.LogicalUnitNumber == PDODeviceExtension->LUN);
     if (SrbGetCdb(Request)->CDB10.LogicalUnitNumber != PDODeviceExtension->LUN)
     {
-        DPRINT1("USBSTOR_HandleExecuteSCSI: %X, %X, %X, %X\n",
-                SrbGetCdb(Request)->CDB10.OperationCode,
-                Request->DataTransferLength,
-                SrbGetCdb(Request)->CDB10.LogicalUnitNumber,
-                PDODeviceExtension->LUN);
+        DPRINT("USBSTOR_HandleExecuteSCSI: %X, %X, %X, %X\n",
+               SrbGetCdb(Request)->CDB10.OperationCode,
+               Request->DataTransferLength,
+               SrbGetCdb(Request)->CDB10.LogicalUnitNumber,
+               PDODeviceExtension->LUN);
     }
 
     return USBSTOR_SendCBWRequest(PDODeviceExtension->LowerDeviceObject->DeviceExtension, Irp);
