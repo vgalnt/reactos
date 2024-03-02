@@ -502,7 +502,7 @@ USBPORT_DeleteEndpoint(IN PDEVICE_OBJECT FdoDevice,
     BOOLEAN Result;
     KIRQL OldIrql;
 
-    DPRINT1("USBPORT_DeleteEndpoint: Endpoint - %p\n", Endpoint);
+    DPRINT("USBPORT_DeleteEndpoint: %p\n", Endpoint);
 
     FdoExtension = FdoDevice->DeviceExtension;
 
@@ -532,9 +532,7 @@ USBPORT_DeleteEndpoint(IN PDEVICE_OBJECT FdoDevice,
         MiniportCloseEndpoint(FdoDevice, Endpoint);
 
         if (Endpoint->HeaderBuffer)
-        {
             USBPORT_FreeCommonBuffer(FdoDevice, Endpoint->HeaderBuffer);
-        }
 
         ExFreePoolWithTag(Endpoint, USB_PORT_TAG);
 
@@ -600,7 +598,7 @@ USBPORT_ClosePipe(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
     BOOLEAN IsReady;
     KIRQL OldIrql;
 
-    DPRINT1("USBPORT_ClosePipe \n");
+    DPRINT("USBPORT_ClosePipe: \n");
 
     FdoExtension = FdoDevice->DeviceExtension;
 
@@ -634,8 +632,7 @@ USBPORT_ClosePipe(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
     {
         IsReady = TRUE;
 
-        KeAcquireSpinLock(&Endpoint->EndpointSpinLock,
-                          &Endpoint->EndpointOldIrql);
+        KeAcquireSpinLock(&Endpoint->EndpointSpinLock, &Endpoint->EndpointOldIrql);
 
         if (!IsListEmpty(&Endpoint->PendingTransferList))
             IsReady = FALSE;
@@ -654,11 +651,11 @@ USBPORT_ClosePipe(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
             IsReady = FALSE;
         KeReleaseSpinLockFromDpcLevel(&Endpoint->StateChangeSpinLock);
 
-        KeReleaseSpinLock(&Endpoint->EndpointSpinLock,
-                          Endpoint->EndpointOldIrql);
+        KeReleaseSpinLock(&Endpoint->EndpointSpinLock, Endpoint->EndpointOldIrql);
 
         if (InterlockedIncrement(&Endpoint->LockCounter))
             IsReady = FALSE;
+
         InterlockedDecrement(&Endpoint->LockCounter);
 
         if (IsReady == TRUE)
@@ -677,8 +674,6 @@ USBPORT_ClosePipe(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
         KeAcquireSpinLock(&FdoExtension->TtSpinLock, &OldIrql);
 
         TtExtension = Endpoint->TtExtension;
-        DPRINT1("USBPORT_ClosePipe: TtExtension - %p\n", TtExtension);
-
         if (TtExtension)
         {
             RemoveEntryList(&Endpoint->TtLink);
@@ -693,11 +688,8 @@ USBPORT_ClosePipe(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
                     USBPORT_UpdateAllocatedBwTt(TtExtension);
 
                     for (ix = 0; ix < USB2_FRAMES; ix++)
-                    {
                         FdoExtension->Bandwidth[ix] += TtExtension->MaxBandwidth;
-                    }
 
-                    DPRINT1("USBPORT_ClosePipe: ExFreePoolWithTag TtExtension - %p\n", TtExtension);
                     ExFreePoolWithTag(TtExtension, USB_PORT_TAG);
                 }
             }
@@ -785,15 +777,12 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
     USHORT AdditionalTransaction;
     BOOLEAN IsAllocatedBandwidth;
 
-    DPRINT1("USBPORT_OpenPipe: DeviceHandle - %p, FdoDevice - %p, PipeHandle - %p\n",
-           DeviceHandle,
-           FdoDevice,
-           PipeHandle);
+    DPRINT("USBPORT_OpenPipe: %p, %p, %p\n", DeviceHandle, FdoDevice, PipeHandle);
 
     FdoExtension = FdoDevice->DeviceExtension;
     Packet = &FdoExtension->MiniPortInterface->Packet;
 
-    EndpointSize = sizeof(USBPORT_ENDPOINT) + Packet->MiniPortEndpointSize;
+    EndpointSize = (sizeof(USBPORT_ENDPOINT) + Packet->MiniPortEndpointSize);
 
     if (Packet->MiniPortFlags & USB_MINIPORT_FLAGS_USB2)
     {
@@ -804,9 +793,7 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
     {
         USBPORT_AddPipeHandle(DeviceHandle, PipeHandle);
 
-        PipeHandle->Flags = (PipeHandle->Flags & ~PIPE_HANDLE_FLAG_CLOSED) |
-                             PIPE_HANDLE_FLAG_NULL_PACKET_SIZE;
-
+        PipeHandle->Flags = (PipeHandle->Flags & ~PIPE_HANDLE_FLAG_CLOSED) | PIPE_HANDLE_FLAG_NULL_PACKET_SIZE;
         PipeHandle->Endpoint = (PUSBPORT_ENDPOINT)-1;
 
         return STATUS_SUCCESS;
@@ -859,16 +846,15 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
     EndpointDescriptor = &PipeHandle->EndpointDescriptor;
 
     MaxPacketSize = EndpointDescriptor->wMaxPacketSize & 0x7FF;
-    AdditionalTransaction = (EndpointDescriptor->wMaxPacketSize >> 11) & 3;
+    AdditionalTransaction = ((EndpointDescriptor->wMaxPacketSize >> 11) & 3);
 
     EndpointProperties->DeviceAddress = DeviceHandle->DeviceAddress;
     EndpointProperties->DeviceSpeed = DeviceHandle->DeviceSpeed;
     EndpointProperties->Period = 0;
     EndpointProperties->EndpointAddress = EndpointDescriptor->bEndpointAddress;
-    EndpointProperties->TransactionPerMicroframe = AdditionalTransaction + 1;
+    EndpointProperties->TransactionPerMicroframe = (AdditionalTransaction + 1);
     EndpointProperties->MaxPacketSize = MaxPacketSize;
-    EndpointProperties->TotalMaxPacketSize = MaxPacketSize *
-                                             (AdditionalTransaction + 1);
+    EndpointProperties->TotalMaxPacketSize = (MaxPacketSize * (AdditionalTransaction + 1));
 
     if (Endpoint->TtExtension)
     {
@@ -887,13 +873,9 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
             EndpointProperties->TransferType = USBPORT_TRANSFER_TYPE_CONTROL;
 
             if (EndpointProperties->EndpointAddress == 0)
-            {
                 EndpointProperties->MaxTransferSize = 0x1000; // OUT Ep0
-            }
             else
-            {
                 EndpointProperties->MaxTransferSize = 0x10000;
-            }
 
             break;
 
@@ -917,13 +899,9 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
     if (EndpointProperties->TransferType == USBPORT_TRANSFER_TYPE_INTERRUPT)
     {
         if (EndpointProperties->DeviceSpeed == UsbHighSpeed)
-        {
             Interval = USBPORT_NormalizeHsInterval(EndpointDescriptor->bInterval);
-        }
         else
-        {
             Interval = EndpointDescriptor->bInterval;
-        }
 
         EndpointProperties->Period = ENDPOINT_INTERRUPT_32ms;
 
@@ -955,20 +933,13 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
     if (EndpointProperties->TransferType == USB_ENDPOINT_TYPE_ISOCHRONOUS)
     {
         if (EndpointProperties->DeviceSpeed == UsbHighSpeed)
-        {
-            EndpointProperties->Period =
-                USBPORT_NormalizeHsInterval(EndpointDescriptor->bInterval);
-        }
+            EndpointProperties->Period = USBPORT_NormalizeHsInterval(EndpointDescriptor->bInterval);
         else
-        {
             EndpointProperties->Period = ENDPOINT_INTERRUPT_1ms;
-        }
     }
 
     if ((DeviceHandle->Flags & DEVICE_HANDLE_FLAG_ROOTHUB) != 0)
-    {
         Endpoint->Flags |= ENDPOINT_FLAG_ROOTHUB_EP0;
-    }
 
     if (Packet->MiniPortFlags & USB_MINIPORT_FLAGS_USB2)
     {
@@ -976,9 +947,7 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
     }
     else
     {
-        EndpointProperties->UsbBandwidth = USBPORT_CalculateUsbBandwidth(FdoDevice,
-                                                                         Endpoint);
-
+        EndpointProperties->UsbBandwidth = USBPORT_CalculateUsbBandwidth(FdoDevice, Endpoint);
         IsAllocatedBandwidth = USBPORT_AllocateBandwidth(FdoDevice, Endpoint);
     }
 
@@ -987,9 +956,7 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
         Status = USBPORT_USBDStatusToNtStatus(NULL, USBD_STATUS_NO_BANDWIDTH);
 
         if (UsbdStatus)
-        {
             *UsbdStatus = USBD_STATUS_NO_BANDWIDTH;
-        }
 
         goto ExitWithError;
     }
@@ -1009,9 +976,7 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
         PdoExtension = FdoExtension->RootHubPdo->DeviceExtension;
 
         if (EndpointProperties->TransferType == USBPORT_TRANSFER_TYPE_INTERRUPT)
-        {
             PdoExtension->Endpoint = Endpoint;
-        }
 
         USBDStatus = USBD_STATUS_SUCCESS;
     }
@@ -1034,14 +999,9 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
         }
 
         if (EndpointRequirements.HeaderBufferSize)
-        {
-            HeaderBuffer = USBPORT_AllocateCommonBuffer(FdoDevice,
-                                                        EndpointRequirements.HeaderBufferSize);
-        }
+            HeaderBuffer = USBPORT_AllocateCommonBuffer(FdoDevice, EndpointRequirements.HeaderBufferSize);
         else
-        {
             HeaderBuffer = NULL;
-        }
 
         if (HeaderBuffer || (EndpointRequirements.HeaderBufferSize == 0))
         {
@@ -1063,31 +1023,23 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
             {
                 ULONG State;
 
-                KeAcquireSpinLock(&Endpoint->EndpointSpinLock,
-                                  &Endpoint->EndpointOldIrql);
+                KeAcquireSpinLock(&Endpoint->EndpointSpinLock, &Endpoint->EndpointOldIrql);
 
                 Endpoint->StateLast = USBPORT_ENDPOINT_PAUSED;
                 Endpoint->StateNext = USBPORT_ENDPOINT_PAUSED;
 
                 USBPORT_SetEndpointState(Endpoint, USBPORT_ENDPOINT_ACTIVE);
 
-                KeReleaseSpinLock(&Endpoint->EndpointSpinLock,
-                                  Endpoint->EndpointOldIrql);
+                KeReleaseSpinLock(&Endpoint->EndpointSpinLock, Endpoint->EndpointOldIrql);
 
                 while (TRUE)
                 {
-                    KeAcquireSpinLock(&Endpoint->EndpointSpinLock,
-                                      &Endpoint->EndpointOldIrql);
-
+                    KeAcquireSpinLock(&Endpoint->EndpointSpinLock, &Endpoint->EndpointOldIrql);
                     State = USBPORT_GetEndpointState(Endpoint);
-
-                    KeReleaseSpinLock(&Endpoint->EndpointSpinLock,
-                                      Endpoint->EndpointOldIrql);
+                    KeReleaseSpinLock(&Endpoint->EndpointSpinLock, Endpoint->EndpointOldIrql);
 
                     if (State == USBPORT_ENDPOINT_ACTIVE)
-                    {
                         break;
-                    }
 
                     USBPORT_Wait(FdoDevice, 1); // 1 msec.
                 }
@@ -1100,19 +1052,13 @@ USBPORT_OpenPipe(IN PDEVICE_OBJECT FdoDevice,
         }
 
         if (MpStatus)
-        {
             USBDStatus = USBD_STATUS_INSUFFICIENT_RESOURCES;
-        }
         else
-        {
             USBDStatus = USBD_STATUS_SUCCESS;
-        }
     }
 
     if (UsbdStatus)
-    {
         *UsbdStatus = USBDStatus;
-    }
 
     Status = USBPORT_USBDStatusToNtStatus(NULL, USBDStatus);
 
@@ -1137,13 +1083,9 @@ ExitWithError:
         if (IsAllocatedBandwidth)
         {
             if (Packet->MiniPortFlags & USB_MINIPORT_FLAGS_USB2)
-            {
                 USBPORT_FreeBandwidthUSB2(FdoDevice, Endpoint);
-            }
             else
-            {
                 USBPORT_FreeBandwidth(FdoDevice, Endpoint);
-            }
         }
 
         if (Endpoint->TtExtension)
@@ -1172,7 +1114,7 @@ USBPORT_ReopenPipe(IN PDEVICE_OBJECT FdoDevice,
     KIRQL MiniportOldIrql;
     NTSTATUS Status;
 
-    DPRINT1("USBPORT_ReopenPipe ... \n");
+    DPRINT("USBPORT_ReopenPipe: %p, %p\n", FdoDevice, Endpoint);
 
     FdoExtension = FdoDevice->DeviceExtension;
     Packet = &FdoExtension->MiniPortInterface->Packet;
@@ -1190,7 +1132,7 @@ USBPORT_ReopenPipe(IN PDEVICE_OBJECT FdoDevice,
     KeAcquireSpinLockAtDpcLevel(&FdoExtension->MiniportSpinLock);
 
     Packet->SetEndpointState(FdoExtension->MiniPortExt,
-                             Endpoint + 1,
+                             (Endpoint + 1),
                              USBPORT_ENDPOINT_REMOVE);
 
     KeReleaseSpinLockFromDpcLevel(&FdoExtension->MiniportSpinLock);
@@ -1200,8 +1142,7 @@ USBPORT_ReopenPipe(IN PDEVICE_OBJECT FdoDevice,
 
     MiniportCloseEndpoint(FdoDevice, Endpoint);
 
-    RtlZeroMemory(Endpoint + 1,
-                  Packet->MiniPortEndpointSize);
+    RtlZeroMemory((Endpoint + 1), Packet->MiniPortEndpointSize);
 
     if (Endpoint->HeaderBuffer)
     {
@@ -1218,14 +1159,9 @@ USBPORT_ReopenPipe(IN PDEVICE_OBJECT FdoDevice,
     KeReleaseSpinLock(&FdoExtension->MiniportSpinLock, MiniportOldIrql);
 
     if (EndpointRequirements.HeaderBufferSize)
-    {
-        HeaderBuffer = USBPORT_AllocateCommonBuffer(FdoDevice,
-                                                    EndpointRequirements.HeaderBufferSize);
-    }
+        HeaderBuffer = USBPORT_AllocateCommonBuffer(FdoDevice, EndpointRequirements.HeaderBufferSize);
     else
-    {
         HeaderBuffer = NULL;
-    }
 
     if (HeaderBuffer || EndpointRequirements.HeaderBufferSize == 0)
     {

@@ -489,9 +489,7 @@ USBPORT_USBDStatusToNtStatus(IN PURB Urb,
 
     if (USBD_ERROR(USBDStatus))
     {
-        DPRINT1("USBPORT_USBDStatusToNtStatus: Urb - %p, USBDStatus - %x\n",
-                Urb,
-                USBDStatus);
+        DPRINT("USBPORT_USBDStatusToNtStatus: Urb - %p, USBDStatus - %x\n", Urb, USBDStatus);
     }
 
     if (Urb)
@@ -2276,10 +2274,7 @@ USBPORT_CompleteTransfer(IN PURB Urb,
         if (!NT_SUCCESS(Status))
         {
             //DbgBreakPoint();
-            DPRINT1("USBPORT_CompleteTransfer: Irp - %p complete with Status - %lx\n",
-                    Irp,
-                    Status);
-
+            DPRINT("USBPORT_CompleteTransfer: Irp - %p complete with Status - %lx\n", Irp, Status);
             USBPORT_DumpingURB(Urb);
         }
 
@@ -2404,8 +2399,8 @@ USBPORT_MapTransfer(IN PDEVICE_OBJECT FdoDevice,
 
         if (PhAddr.QuadPart == PhAddress.QuadPart)
         {
-            DPRINT1("USBPORT_MapTransfer: PhAddr == PhAddress\n");
-            ASSERT(FALSE);
+            DPRINT("USBPORT_MapTransfer: PhAddr == PhAddress\n");
+            //ASSERT(FALSE);
         }
 
         PhAddr = PhAddress;
