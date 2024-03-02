@@ -1188,7 +1188,7 @@ DiskIoctlGetPartitionInfo(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("DiskIoctlGetPartitionInfo: Status %X\n", Status);
+        DPRINT("DiskIoctlGetPartitionInfo: Status %X\n", Status);
         return Status;
     }
 
@@ -1297,7 +1297,7 @@ DiskIoctlGetPartitionInfoEx(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("DiskIoctlGetPartitionInfoEx: %p, %p\n", DeviceObject, Irp);
+        DPRINT("DiskIoctlGetPartitionInfoEx: (%p, %p) %X\n", DeviceObject, Irp, Status);
         return Status;
     }
 
@@ -1457,7 +1457,7 @@ DiskIoctlGetDriveLayout(
     Status = DiskReadPartitionTableEx(FdoExtension, FALSE, &PartitionList);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("DiskIoctlGetDriveLayout: Status %p\n", Status);
+        DPRINT("DiskIoctlGetDriveLayout: Status %p\n", Status);
         DiskReleasePartitioningLock(FdoExtension);
         return Status;
     }
@@ -1795,8 +1795,8 @@ Return Value:
           #if !REACTOS_NT5x
             status = DiskIoctlGetDriveGeometry(DeviceObject, Irp);
           #else
-            DPRINT1("IOCTL_DISK_GET_DRIVE_GEOMETRY to device %p through irp %p\n", DeviceObject, Irp);
-            DPRINT1("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
+            DPRINT("IOCTL_DISK_GET_DRIVE_GEOMETRY to device %p through irp %p\n", DeviceObject, Irp);
+            DPRINT("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
 
             if (irpStack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(DISK_GEOMETRY))
             {
@@ -1821,7 +1821,7 @@ Return Value:
                 Data->ReadyStatus = status = DiskReadDriveCapacity(Extension->PartitionZeroExtension->DeviceObject);
                 if (!NT_SUCCESS(status))
                 {
-                    DPRINT1("IOCTL_DISK_GET_DRIVE_GEOMETRY: status %X\n", status);
+                    DPRINT("IOCTL_DISK_GET_DRIVE_GEOMETRY: status %X\n", status);
                     break;
                 }
             }
@@ -1975,8 +1975,8 @@ Return Value:
       #if REACTOS_NT5x
         case IOCTL_DISK_GET_PARTITION_INFO:
         {
-            DPRINT1("IOCTL_DISK_GET_PARTITION_INFO to device %p through irp %p\n", DeviceObject, Irp);
-            DPRINT1("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
+            DPRINT("IOCTL_DISK_GET_PARTITION_INFO to device %p through irp %p\n", DeviceObject, Irp);
+            DPRINT("Device is a%s.\n", Extension->IsFdo ? "n fdo" : " pdo");
 
             status = DiskIoctlGetPartitionInfo(DeviceObject, Irp);
             break;
@@ -7536,7 +7536,7 @@ DiskInitPdo(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("DiskInitPdo: Unable to register partition DCA for pdo %p [%X]\n", Pdo, Status);
+        DPRINT("DiskInitPdo: Unable to register partition DCA for pdo %p [%X]\n", Pdo, Status);
 
         RtlFreeUnicodeString(&SymbolicLinkName);
         RtlInitUnicodeString(&Data->PartitionInterfaceString, NULL);
@@ -7619,7 +7619,7 @@ DiskEnumerateDevice(
 
     if (!NT_SUCCESS(Status) || !PartitionList->PartitionCount)
     {
-        DPRINT1("DiskEnumerateDevice: Status %X\n", Status);
+        DPRINT("DiskEnumerateDevice: Status %X\n", Status);
 
         if (DeviceObject->Characteristics & 1)
         {
