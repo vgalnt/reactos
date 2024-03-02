@@ -655,7 +655,7 @@ PciAddDevice(
             }
 
             /* Subordinate bus on the bridge */
-            DPRINT1("PCI - AddDevice (new bus is child of bus 0x%x).\n", ParentExtension->BaseBus);
+            DPRINT("PCI - AddDevice (new bus is child of bus 0x%x).\n", ParentExtension->BaseBus);
 
             /* Make sure PCI bus numbers are configured */
             if (!PciAreBusNumbersConfigured(PdoExtension))

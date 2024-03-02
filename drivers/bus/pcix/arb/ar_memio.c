@@ -825,7 +825,7 @@ ario_Constructor(
     if ((ULONG_PTR)InterfaceData != CmResourceTypePort)
     {
         /* Not the right interface */
-        DPRINT1("ario_Constructor: STATUS_INVALID_PARAMETER_5\n");
+        DPRINT("ario_Constructor: STATUS_INVALID_PARAMETER_5\n");
         return STATUS_INVALID_PARAMETER_5;
     }
 
@@ -1196,7 +1196,7 @@ armem_Constructor(
     if ((ULONG_PTR)InterfaceData != CmResourceTypeMemory)
     {
         /* Not the right interface */
-        DPRINT1("armem_Constructor: STATUS_INVALID_PARAMETER_5\n");
+        DPRINT("armem_Constructor: STATUS_INVALID_PARAMETER_5\n");
         return STATUS_INVALID_PARAMETER_5;
     }
 

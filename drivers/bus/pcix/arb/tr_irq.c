@@ -69,7 +69,7 @@ tranirq_Constructor(
     if ((ULONG_PTR)InterfaceData != CmResourceTypeInterrupt)
     {
         /* Fail this invalid request */
-        DPRINT1("tranirq_Constructor: doesn't like %p in InterfaceSpecificData\n", InterfaceData);
+        DPRINT("tranirq_Constructor: doesn't like %p in InterfaceSpecificData\n", InterfaceData);
         return STATUS_INVALID_PARAMETER_3;
     }
 

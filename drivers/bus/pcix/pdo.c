@@ -250,7 +250,7 @@ PciPdoIrpQueryStopDevice(
     if (PdoExtension->BaseClass == 6 &&
         (PdoExtension->SubClass == 4 || PdoExtension->SubClass == 7))
     {
-        DPRINT1("PciPdoIrpQueryStopDevice: STATUS_INVALID_DEVICE_REQUEST\n");
+        DPRINT("PciPdoIrpQueryStopDevice: STATUS_INVALID_DEVICE_REQUEST\n");
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
@@ -262,7 +262,7 @@ PciPdoIrpQueryStopDevice(
 
     if (!PciCanDisableDecodes(PdoExtension, NULL, 0, FALSE))
     {
-        DPRINT1("PciPdoIrpQueryStopDevice: STATUS_INVALID_DEVICE_REQUEST\n");
+        DPRINT("PciPdoIrpQueryStopDevice: STATUS_INVALID_DEVICE_REQUEST\n");
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
@@ -321,7 +321,7 @@ PciPdoIrpQueryInterface(
 
     if (FdoExtension->Fake != 1)
     {
-        DPRINT1("PciPdoIrpQueryInterface: Status %X\n", Status);
+        DPRINT("PciPdoIrpQueryInterface: Status %X\n", Status);
         return Status;
     }
 
@@ -357,7 +357,7 @@ PciPdoIrpQueryDeviceRelations(
     if (IoStack->Parameters.QueryDeviceRelations.Type != TargetDeviceRelation)
     {
         /* All other relations are unsupported */
-        DPRINT1("PciPdoIrpQueryDeviceRelations: STATUS_NOT_SUPPORTED\n");
+        DPRINT("PciPdoIrpQueryDeviceRelations: STATUS_NOT_SUPPORTED\n");
         return STATUS_NOT_SUPPORTED;
     }
 

@@ -130,7 +130,7 @@ arbusno_Constructor(
     if ((ULONG_PTR)InterfaceData != CmResourceTypeBusNumber)
     {
         /* Not the right interface */
-        DPRINT1("arbusno_Constructor: STATUS_INVALID_PARAMETER_5\n");
+        DPRINT("arbusno_Constructor: STATUS_INVALID_PARAMETER_5\n");
         return STATUS_INVALID_PARAMETER_5;
     }
 

@@ -90,7 +90,7 @@ PciInitializeArbiters(
             /* Skip this bus if it does subtractive decode */
             if (PdoExtension->Dependent.type1.SubtractiveDecode)
             {
-                DPRINT1("PciInitializeArbiters: PCI Not creating arbiters for subtractive bus %X\n", PdoExtension->Dependent.type1.SubtractiveDecode);
+                DPRINT("PciInitializeArbiters: PCI Not creating arbiters for subtractive bus %X\n", PdoExtension->Dependent.type1.SubtractiveDecode);
                 continue;
             }
         }
@@ -108,7 +108,7 @@ PciInitializeArbiters(
         if (!*Interfaces)
         {
             /* Skip this arbiter and try the next one */
-            DPRINT1("PciInitializeArbiters: (%p) no '%s' arbiter\n", FdoExtension, PciArbiterNames[ArbiterType - PciArb_Io]);
+            DPRINT("PciInitializeArbiters: (%p) no '%s' arbiter\n", FdoExtension, PciArbiterNames[ArbiterType - PciArb_Io]);
             continue;
         }
 
@@ -143,7 +143,7 @@ PciInitializeArbiters(
                                    PciArbiterDestructor);
 
         /* This arbiter is now initialized, move to the next one */
-        DPRINT1("PciInitializeArbiters: %p, '%S', %p\n", FdoExtension, ArbiterInterface->CommonInstance.Name, ArbiterInterface);
+        DPRINT("PciInitializeArbiters: %p, '%S', %p\n", FdoExtension, ArbiterInterface->CommonInstance.Name, ArbiterInterface);
 
         Status = STATUS_SUCCESS;
     }
@@ -579,7 +579,7 @@ PciInitializeArbiterRanges(
         if (PdoExtension->Dependent.type1.SubtractiveDecode)
         {
             /* There is nothing to do regarding arbitration of resources */
-            DPRINT1("PciInitializeArbiterRanges: Skipping arbiter initialization for subtractive bridge FDOX %p\n", FdoExtension);
+            DPRINT("PciInitializeArbiterRanges: Skipping arbiter initialization for subtractive bridge FDOX %p\n", FdoExtension);
             return STATUS_SUCCESS;
         }
     }

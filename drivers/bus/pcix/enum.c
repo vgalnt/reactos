@@ -695,7 +695,7 @@ PciGetInterruptAssignment(
 
     if (!PdoExtension->InterruptPin)
     {
-        DPRINT1("PciGetInterruptAssignment: STATUS_RESOURCE_TYPE_NOT_FOUND\n");
+        DPRINT("PciGetInterruptAssignment: STATUS_RESOURCE_TYPE_NOT_FOUND\n");
         return STATUS_RESOURCE_TYPE_NOT_FOUND;
     }
 
@@ -1098,7 +1098,7 @@ PciQueryRequirements(
     if (*OutIoResources == PciZeroIoResourceRequirements)
     {
         /* A simple NULL will suffice for the PnP Manager */
-        DPRINT1("PciQueryRequirements: Returning NULL requirements list\n");
+        DPRINT("PciQueryRequirements: Returning NULL requirements list\n");
         *OutIoResources = NULL;
     }
     else
@@ -1746,7 +1746,7 @@ PciGetEnhancedCapabilities(
                                  sizeof(PCI_PM_CAPABILITY)))
     {
         /* No power management, so act as if it had the hackflag set */
-        DPRINT1("PciGetEnhancedCapabilities: No PM caps, disabling PM\n");
+        DPRINT("PciGetEnhancedCapabilities: No PM caps, disabling PM\n");
         PdoExtension->HackFlags |= PCI_HACK_NO_PM_CAPS;
         goto Finish;
     }
@@ -1777,8 +1777,8 @@ PciGetEnhancedCapabilities(
     /* Save all the power capabilities */
     PdoExtension->PowerCapabilities = PowerCapabilities.PMC.Capabilities;
 
-    DPRINT1("PciGetEnhancedCapabilities: PM Caps Found! Wake Level: %d Power State: %d\n",
-            WakeLevel, PdoExtension->PowerState.CurrentDeviceState);
+    DPRINT("PciGetEnhancedCapabilities: PM Caps Found! Wake Level: %d Power State: %d\n",
+           WakeLevel, PdoExtension->PowerState.CurrentDeviceState);
 
 Finish:
 
@@ -1790,7 +1790,7 @@ Finish:
     CommandEnables = (PCI_ENABLE_IO_SPACE | PCI_ENABLE_MEMORY_SPACE | PCI_ENABLE_BUS_MASTER);
     PdoExtension->PowerState.CurrentDeviceState = ((PciData->Command & CommandEnables) ? PowerDeviceD0: PowerDeviceD3);
 
-    DPRINT1("PM is off, so assumed device is: %d based on enables\n", PdoExtension->PowerState.CurrentDeviceState);
+    DPRINT("PM is off, so assumed device is: %d based on enables\n", PdoExtension->PowerState.CurrentDeviceState);
 }
 
 VOID
@@ -2347,7 +2347,7 @@ PciScanBus(
                !(HackFlags & PCI_HACK_DONT_DISABLE_DECODES))
             {
                 /* Do not disable their decodes either */
-                DPRINT1("PciScanBus: Not allowing PM because device is VGA\n");
+                DPRINT("PciScanBus: Not allowing PM because device is VGA\n");
                 HackFlags |= PCI_HACK_CRITICAL_DEVICE;
             }
 

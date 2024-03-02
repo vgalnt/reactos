@@ -163,7 +163,7 @@ PciAllowExtendedInterruptVectors(
     if (!NT_SUCCESS(Status))
     {
         /* This is not an in-progress Setup boot, so query the suite version */
-        DPRINT1("PciAllowExtendedInterruptVectors: Status %X\n", Status);
+        DPRINT("PciAllowExtendedInterruptVectors: Status %X\n", Status);
 
         if (PciIsSuiteVersion(VER_SUITE_DATACENTER))
             return TRUE;
@@ -210,7 +210,7 @@ PciOpenKey(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("PciOpenKey: Status %X for '%S'\n", Status, KeyName);
+        DPRINT("PciOpenKey: Status %X for '%S'\n", Status, KeyName);
     }
 
     return NT_SUCCESS(Status);
@@ -250,7 +250,7 @@ PciGetRegistryValue(
         ASSERT(!NT_SUCCESS(Status));
         if (Status != STATUS_BUFFER_TOO_SMALL)
         {
-            DPRINT1("PciGetRegistryValue: Status %X\n", Status);
+            DPRINT("PciGetRegistryValue: Status %X\n", Status);
             break;
         }
         ASSERT(NeededLength != 0);
@@ -908,7 +908,7 @@ PciGetBiosConfig(
     ZwClose(SubKeyHandle);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("PciGetBiosConfig: Status %X\n", Status);
+        DPRINT("PciGetBiosConfig: Status %X\n", Status);
         return Status;
     }
 

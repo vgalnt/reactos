@@ -45,7 +45,7 @@ PciGetDescriptionMessage(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("PciGetDescriptionMessage: Status %X\n", Status);
+        DPRINT("PciGetDescriptionMessage: Status %X\n", Status);
         return NULL;
     }
 
