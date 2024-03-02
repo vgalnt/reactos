@@ -65,9 +65,7 @@ USBH_CompleteIrp(IN PIRP Irp,
 {
     if (CompleteStatus != STATUS_SUCCESS)
     {
-        DPRINT1("USBH_CompleteIrp: Irp - %p, CompleteStatus - %X\n",
-                Irp,
-                CompleteStatus);
+        DPRINT("USBH_CompleteIrp: Irp - %p, CompleteStatus - %X\n", Irp, CompleteStatus);
     }
 
     Irp->IoStatus.Status = CompleteStatus;
