@@ -204,7 +204,7 @@ MiChargeCommitmentCantExpand(
     SIZE_T OldMmTotalCommittedPages;
     SIZE_T ExtendQuota;
 
-    DPRINT1("MiChargeCommitmentCantExpand: QuotaCharge %IX (%X)\n", QuotaCharge, IsParam2);
+    DPRINT("MiChargeCommitmentCantExpand: QuotaCharge %IX (%X)\n", QuotaCharge, IsParam2);
 
     ASSERT((SSIZE_T)QuotaCharge > 0);
     ASSERT((QuotaCharge < 0x100000) || (QuotaCharge < MmTotalCommitLimit));

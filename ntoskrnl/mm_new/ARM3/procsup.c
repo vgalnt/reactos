@@ -387,7 +387,7 @@ MmCleanProcessAddressSpace(
         //ASSERT(FALSE);//DbgBreakPoint();
     }
 
-    DPRINT1("MmCleanProcessAddressSpace: FIXME MiDeletePteRange(%p, %p, %p (%X))\n", Process, Pte, LastPte, (LastPte - Pte));
+    DPRINT("MmCleanProcessAddressSpace: FIXME MiDeletePteRange(%p, %p, %p (%X))\n", Process, Pte, LastPte, (LastPte - Pte));
 
     ASSERT(Process->Vm.MinimumWorkingSetSize >= 6); // MM_PROCESS_CREATE_CHARGE
     ASSERT(Process->Vm.WorkingSetExpansionLinks.Flink == MM_WS_NOT_LISTED);
@@ -550,7 +550,7 @@ MmDeleteProcessAddressSpace2(
 
         if (Pfn1->u3.e2.ReferenceCount && !Pfn1->u3.e1.WriteInProgress)
         {
-            DPRINT1("MmDeleteProcessAddressSpace2: FIXME. ReferenceCount %X, WriteInProgress %X\n", Pfn1->u3.e2.ReferenceCount, Pfn1->u3.e1.WriteInProgress);
+            DPRINT("MmDeleteProcessAddressSpace2: FIXME. ReferenceCount %X, WriteInProgress %X\n", Pfn1->u3.e2.ReferenceCount, Pfn1->u3.e1.WriteInProgress);
         }
         //ASSERT((Pfn1->u3.e2.ReferenceCount == 0) || (Pfn1->u3.e1.WriteInProgress));
 

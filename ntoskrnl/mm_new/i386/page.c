@@ -150,7 +150,7 @@ MmCreateProcessAddressSpace(
     KIRQL OldIrql;
     BOOLEAN IsFlushTb;
 
-    DPRINT1("MmCreateProcessAddressSpace: MinWs %X, Process %p (%X)\n", MinWs, Process, MmTotalCommittedPages);
+    DPRINT("MmCreateProcessAddressSpace: MinWs %X, Process %p (%X)\n", MinWs, Process, MmTotalCommittedPages);
 
     if (!MiChargeCommitment(4, NULL))
     {

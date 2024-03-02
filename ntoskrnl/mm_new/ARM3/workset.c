@@ -519,7 +519,7 @@ MiRemoveWsleFromFreeList(
     ULONG PreviosIdx;
     ULONG Idx;
 
-    DPRINT1("MiRemoveWsleFromFreeList: %X, %p, %p\n", WsIndex, Wsle, WsList);
+    DPRINT("MiRemoveWsleFromFreeList: %X, %p, %p\n", WsIndex, Wsle, WsList);
 
     if (WsIndex == WsList->FirstFree)
     {
@@ -1871,7 +1871,7 @@ MiAllowWorkingSetExpansion(
 {
     KIRQL OldIrql;
 
-    DPRINT1("MiAllowWorkingSetExpansion: %p\n", WorkSet);
+    DPRINT("MiAllowWorkingSetExpansion: %p\n", WorkSet);
 
     ASSERT(WorkSet->WorkingSetExpansionLinks.Flink == NULL);
     ASSERT(WorkSet->WorkingSetExpansionLinks.Blink == NULL);
@@ -2263,7 +2263,7 @@ MiInitializeWorkingSetList(
     ULONG WsleCount;
     ULONG ix;
 
-    DPRINT1("MiInitializeWorkingSetList: %p, %p, %p, %p\n", CurrentProcess, &CurrentProcess->Vm, CurrentProcess->Vm.VmWorkingSetList, MmWorkingSetList);
+    DPRINT("MiInitializeWorkingSetList: %p, %p, %p, %p\n", CurrentProcess, &CurrentProcess->Vm, CurrentProcess->Vm.VmWorkingSetList, MmWorkingSetList);
 
     CurrentWsle = FirstWsle = Add2Ptr(MmWorkingSetList, sizeof(MMWSL));
 
@@ -2346,7 +2346,7 @@ MiInitializeWorkingSetList(
     CurrentWsle->u1.Long = 0xFFFFFFF0;
 
     MmWorkingSetList->LastInitializedWsle = (WsleCount - 1);
-    DPRINT1("MiInitializeWorkingSetList: FirstFree %X, LastInitializedWsle %X\n", MmWorkingSetList->FirstFree, MmWorkingSetList->LastInitializedWsle);
+    DPRINT("MiInitializeWorkingSetList: FirstFree %X, LastInitializedWsle %X\n", MmWorkingSetList->FirstFree, MmWorkingSetList->LastInitializedWsle);
 }
 
 VOID
