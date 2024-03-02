@@ -1769,9 +1769,9 @@ PiFixupID(
         {
             *PtrChar = '_';
         }
-        else if (Char < ' ' || Char > 0x7Fu || Char == ',')
+        else if (Char < ' ' || Char > 0x7F || Char == ',')
         {
-            DPRINT("PiFixupID: Invalid character - %02X\n", *PtrChar);
+            DPRINT1("PiFixupID: Invalid character - %02X ('%C')\n", *PtrChar, *PtrChar);
 
             if (ServiceName)
             {
