@@ -2596,7 +2596,7 @@ IoRegisterDeviceInterface(
     /* 1st level: Presence of a Device Node */
     if (!DeviceNode)
     {
-        DPRINT1("IoRegisterDeviceInterface: PDO %p doesn't have a DeviceNode\n", PhysicalDeviceObject);
+        DPRINT("IoRegisterDeviceInterface: PDO %p doesn't have a DeviceNode\n", PhysicalDeviceObject);
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
