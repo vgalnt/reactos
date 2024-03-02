@@ -41,7 +41,7 @@ NtfsAcqLazyWrite(PVOID Context,
 {
     UNREFERENCED_PARAMETER(Context);
     UNREFERENCED_PARAMETER(Wait);
-    UNIMPLEMENTED;
+    UNIMPLEMENTED_ONCE;
     return FALSE;
 }
 

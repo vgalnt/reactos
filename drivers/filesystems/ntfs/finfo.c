@@ -429,7 +429,7 @@ NtfsQueryInformation(PNTFS_IRP_CONTEXT IrpContext)
     PDEVICE_OBJECT DeviceObject;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    DPRINT1("NtfsQueryInformation(%p)\n", IrpContext);
+    DPRINT("NtfsQueryInformation(%p)\n", IrpContext);
 
     Irp = IrpContext->Irp;
     Stack = IrpContext->Stack;
@@ -441,61 +441,37 @@ NtfsQueryInformation(PNTFS_IRP_CONTEXT IrpContext)
     SystemBuffer = Irp->AssociatedIrp.SystemBuffer;
     BufferLength = Stack->Parameters.QueryFile.Length;
 
-    if (!ExAcquireResourceSharedLite(&Fcb->MainResource,
-                                     BooleanFlagOn(IrpContext->Flags, IRPCONTEXT_CANWAIT)))
-    {
+    if (!ExAcquireResourceSharedLite(&Fcb->MainResource, BooleanFlagOn(IrpContext->Flags, IRPCONTEXT_CANWAIT)))
         return NtfsMarkIrpContextForQueue(IrpContext);
-    }
 
     switch (FileInformationClass)
     {
         case FileStandardInformation:
-            Status = NtfsGetStandardInformation(Fcb,
-                                                DeviceObject,
-                                                SystemBuffer,
-                                                &BufferLength);
+            Status = NtfsGetStandardInformation(Fcb, DeviceObject, SystemBuffer, &BufferLength);
             break;
 
         case FilePositionInformation:
-            Status = NtfsGetPositionInformation(FileObject,
-                                                SystemBuffer,
-                                                &BufferLength);
+            Status = NtfsGetPositionInformation(FileObject, SystemBuffer, &BufferLength);
             break;
 
         case FileBasicInformation:
-            Status = NtfsGetBasicInformation(FileObject,
-                                             Fcb,
-                                             DeviceObject,
-                                             SystemBuffer,
-                                             &BufferLength);
+            Status = NtfsGetBasicInformation(FileObject, Fcb, DeviceObject, SystemBuffer, &BufferLength);
             break;
 
         case FileNameInformation:
-            Status = NtfsGetNameInformation(FileObject,
-                                            Fcb,
-                                            DeviceObject,
-                                            SystemBuffer,
-                                            &BufferLength);
+            Status = NtfsGetNameInformation(FileObject, Fcb, DeviceObject, SystemBuffer, &BufferLength);
             break;
 
         case FileInternalInformation:
-            Status = NtfsGetInternalInformation(Fcb,
-                                                SystemBuffer,
-                                                &BufferLength);
+            Status = NtfsGetInternalInformation(Fcb, SystemBuffer, &BufferLength);
             break;
 
         case FileNetworkOpenInformation:
-            Status = NtfsGetNetworkOpenInformation(Fcb,
-                                                   DeviceObject->DeviceExtension,
-                                                   SystemBuffer,
-                                                   &BufferLength);
+            Status = NtfsGetNetworkOpenInformation(Fcb, DeviceObject->DeviceExtension, SystemBuffer, &BufferLength);
             break;
 
         case FileStreamInformation:
-            Status = NtfsGetSteamInformation(Fcb,
-                                             DeviceObject->DeviceExtension,
-                                             SystemBuffer,
-                                             &BufferLength);
+            Status = NtfsGetSteamInformation(Fcb, DeviceObject->DeviceExtension, SystemBuffer, &BufferLength);
             break;
 
         case FileAlternateNameInformation:
@@ -512,8 +488,7 @@ NtfsQueryInformation(PNTFS_IRP_CONTEXT IrpContext)
     ExReleaseResourceLite(&Fcb->MainResource);
 
     if (NT_SUCCESS(Status))
-        Irp->IoStatus.Information =
-            Stack->Parameters.QueryFile.Length - BufferLength;
+        Irp->IoStatus.Information = Stack->Parameters.QueryFile.Length - BufferLength;
     else
         Irp->IoStatus.Information = 0;
 

@@ -62,7 +62,7 @@ NtfsHasFileSystem(PDEVICE_OBJECT DeviceToMount)
                                  TRUE);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("NtfsDeviceIoControl() failed (Status %lx)\n", Status);
+        DPRINT("NtfsDeviceIoControl() failed (Status %lx)\n", Status);
         return Status;
     }
 
