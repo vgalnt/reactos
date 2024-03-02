@@ -781,7 +781,7 @@ PiQueryInterfaceFdo(
         return PipPassIrp(DeviceObject, Irp);
     }
 
-    DPRINT1("PiQueryInterfaceFdo: Status %p\n", Status);
+    DPRINT("PiQueryInterfaceFdo: Status %p\n", Status);
 
     if (Status == STATUS_NOT_SUPPORTED)
         return PipPassIrp(DeviceObject, Irp);
@@ -2727,7 +2727,7 @@ PipIsIsolationDisabled(VOID)
     ZwClose(Handle);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("PipIsIsolationDisabled: Status %X\n", Status);
+        DPRINT("PipIsIsolationDisabled: Status %X\n", Status);
         return FALSE;
     }
 
@@ -2846,7 +2846,7 @@ PiNeedDeferISABridge(
     Status = PipGetRegistryValue(Handle, L"DeferBridge", &ValueInfo);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("PiNeedDeferISABridge: Status %p\n", Status);
+        DPRINT("PiNeedDeferISABridge: Status %p\n", Status);
     }
 
     if (NT_SUCCESS(Status) &&
