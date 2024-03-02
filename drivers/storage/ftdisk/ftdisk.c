@@ -1130,7 +1130,7 @@ FtpGetGptAttributes(
         return STATUS_INVALID_PARAMETER;
     }
 
-    DPRINT1("FtpGetGptAttributes: HACK!!! FIXME for GPT partitions\n");
+    DPRINT("FtpGetGptAttributes: HACK!!! FIXME for GPT partitions\n");
 
     //LogicalDiskInfo = FindLogicalDiskInformation(...);
     //if (!LogicalDiskInfo)
