@@ -1590,7 +1590,7 @@ HalpQueryPartitionType(
     Status = IoGetDeviceObjectPointer(PartitionName, FILE_READ_ATTRIBUTES, &FileObject, &DeviceObject);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("HalpQueryPartitionType: Status %X\n", Status);
+        DPRINT("HalpQueryPartitionType: Status %X\n", Status);
         return Status;
     }
 
@@ -1632,7 +1632,7 @@ HalpQueryPartitionType(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("HalpQueryPartitionType: Status %X\n", Status);
+        DPRINT("HalpQueryPartitionType: Status %X\n", Status);
 
         if (DriveLayoutInfo)
             return Status;
