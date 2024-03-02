@@ -9529,7 +9529,7 @@ ParseAndGetNameSpaceObject(
     }
     else
     {
-        DPRINT1("ParseAndGetNameSpaceObject: object '%s' not found\n", Name);
+        DPRINT("ParseAndGetNameSpaceObject: object '%s' not found\n", Name);
     }
 
 Exit:

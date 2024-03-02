@@ -6860,7 +6860,7 @@ ACPIDetectCouldExtensionBeInRelation(
     if (Param4 &&
         (!DeviceExtension->DeviceID || !(DeviceExtension->Flags & 0x0000200000000000)))
     {
-        DPRINT1("ACPIDetectCouldExtensionBeInRelation: STATUS_OBJECT_NAME_NOT_FOUND\n");
+        DPRINT("ACPIDetectCouldExtensionBeInRelation: STATUS_OBJECT_NAME_NOT_FOUND\n");
         return STATUS_OBJECT_NAME_NOT_FOUND;
     }
 
@@ -13533,7 +13533,7 @@ ACPIThermalLoop(
 
     IsLocked = TRUE;
 
-    DPRINT1("ACPIThermalLoop: %X, %X\n", DeviceExtension->Thermal.Flags, InFlags);
+    DPRINT("ACPIThermalLoop: %X, %X\n", DeviceExtension->Thermal.Flags, InFlags);
 
     DeviceExtension->Thermal.Flags |= 0x80000000;
 
@@ -13774,7 +13774,7 @@ ACPIThermalWorker(
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT1("ACPIThermalWorker: %p, %X\n", DeviceExtension, Flags);
+    DPRINT("ACPIThermalWorker: %p, %X\n", DeviceExtension, Flags);
 
     Time = KeQueryInterruptTime();
 
@@ -13829,7 +13829,7 @@ ACPIThermalWorker(
                 if (!NT_SUCCESS(Status))
                     break;
 
-                DPRINT1("ACPIThermalWorker: (%I64X) Turn '%s' %s\n", Time, (ix < Info->ActiveCoolingLevel ? "off" : "on "), Data2.DataBuff);
+                DPRINT("ACPIThermalWorker: (%I64X) Turn '%s' %s\n", Time, (ix < Info->ActiveCoolingLevel ? "off" : "on "), Data2.DataBuff);
 
                 Status = AMLIGetNameSpaceObject(Data2.DataBuff, ScopeObject, &NsObject, 0);
                 AMLIFreeDataBuffs(&Data2, 1);
@@ -13866,19 +13866,19 @@ ACPIThermalWorker(
     ActiveCooling[9] = '9CA_';
 
     ACPIGet(DeviceExtension, '1CT_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.ThermalConstant1, NULL);
-    DPRINT1("ACPIThermalWorker: (%I64X) ThermalConstant1 %X\n", Time, Info->Header.ThermalConstant1);
+    DPRINT("ACPIThermalWorker: (%I64X) ThermalConstant1 %X\n", Time, Info->Header.ThermalConstant1);
 
     ACPIGet(DeviceExtension, '2CT_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.ThermalConstant2, NULL);
-    DPRINT1("ACPIThermalWorker: (%I64X) ThermalConstant2 X\n", Time, Info->Header.ThermalConstant2);
+    DPRINT("ACPIThermalWorker: (%I64X) ThermalConstant2 X\n", Time, Info->Header.ThermalConstant2);
 
     ACPIGet(DeviceExtension, 'VSP_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.PassiveTripPoint, NULL);
-    DPRINT1("ACPIThermalWorker: (%I64X) PassiveTripPoint %d.%dK\n", Time, Info->Header.PassiveTripPoint / 0xA);
+    DPRINT("ACPIThermalWorker: (%I64X) PassiveTripPoint %d.%dK\n", Time, Info->Header.PassiveTripPoint / 0xA);
 
     ACPIGet(DeviceExtension, 'TRC_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.CriticalTripPoint, NULL);
-    DPRINT1("ACPIThermalWorker: (%I64X) CriticalTripPoint %d.%dK\n", Time, Info->Header.CriticalTripPoint / 0xA);
+    DPRINT("ACPIThermalWorker: (%I64X) CriticalTripPoint %d.%dK\n", Time, Info->Header.CriticalTripPoint / 0xA);
 
     ACPIGet(DeviceExtension, 'PST_', 0x20040002, NULL, 0, NULL, 0, (PVOID *)&Info->Header.SamplingPeriod, NULL);
-    DPRINT1("ACPIThermalWorker: (%I64X) SamplingPeriod %X\n", Time, Info->Header.SamplingPeriod);
+    DPRINT("ACPIThermalWorker: (%I64X) SamplingPeriod %X\n", Time, Info->Header.SamplingPeriod);
 
     for (ix = 0; ix < 0xA; ix++)
     {
@@ -13895,8 +13895,8 @@ ACPIThermalWorker(
         if (!NT_SUCCESS(Status))
             break;
 
-        DPRINT1("ACPIThermalWorker: (%I64X) Active Cooling Level %x = %d.%dK\n",
-                Time, ix, (Info->Header.ActiveTripPoint[ix] / 0xA), (Info->Header.ActiveTripPoint[ix] % 0xA));
+        DPRINT("ACPIThermalWorker: (%I64X) Active Cooling Level %x = %d.%dK\n",
+               Time, ix, (Info->Header.ActiveTripPoint[ix] / 0xA), (Info->Header.ActiveTripPoint[ix] % 0xA));
     }
 
     Info->Header.ActiveTripPointCount = ix;

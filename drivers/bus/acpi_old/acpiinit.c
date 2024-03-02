@@ -1642,7 +1642,7 @@ NotifyHandler(
 
     ASSERT(EventType == 2);//EVTYPE_NOTIFY
 
-    DPRINT1("ACPINotifyHandler: Notify on %p value %X, object type %X\n", NsObject, Notify, NsObject->ObjData.DataType);
+    DPRINT("ACPINotifyHandler: Notify on %p value %X, object type %X\n", NsObject, Notify, NsObject->ObjData.DataType);
 
     switch (Notify)
     {
