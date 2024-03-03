@@ -3131,6 +3131,24 @@ Exit:
 
 NTSTATUS
 __cdecl
+AcquireGL(
+    _In_ PAMLI_CONTEXT AmliContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+__cdecl
+ReleaseGL(
+    _In_ PAMLI_CONTEXT AmliContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+__cdecl
 AccFieldUnit(
     _In_ PAMLI_CONTEXT AmliContext,
     _In_ PAMLI_AFU_CONTEXT AfuContext,
@@ -3164,71 +3182,58 @@ AccFieldUnit(
             ASSERT(FALSE);
         }
 
-        AfuContext->FrameHeader.Flags++;
-
-        if (NeedGlobalLock(FieldUnitObj))
-        {
-            DPRINT1("AccFieldUnit: FIXME\n");
-            ASSERT(FALSE);
-        }
+        goto Stage1;
     }
     else if (Stage == 1)
     {
+Stage1:
         AfuContext->FrameHeader.Flags++;
 
         if (NeedGlobalLock(FieldUnitObj))
         {
-            DPRINT1("AccFieldUnit: FIXME\n");
-            ASSERT(FALSE);
+            InStatus = AcquireGL(AmliContext);
+            if (InStatus != STATUS_SUCCESS)
+            {
+                DPRINT1("AccFieldUnit: %X, %X\n", (AfuContext->FrameHeader.Flags & 0xF), InStatus);
+                goto Exit;
+            }
         }
+
+        goto Stage2;
     }
     else if (Stage == 2)
     {
-        ;
+Stage2:
+        AfuContext->FrameHeader.Flags++;
+
+        if (FieldUnitObj->FieldDesc.FieldFlags & 0x80000000)
+            AfuContext->FrameHeader.Flags |= 0x20000;
+
+        DataResult = AfuContext->DataResult;
+        DataObj = AfuContext->DataObj;
+
+        if (AfuContext->FrameHeader.Flags & 0x10000)
+            InStatus = ReadField(AmliContext, DataObj, &FieldUnitObj->FieldDesc, DataResult);
+        else
+            InStatus = WriteField(AmliContext, DataObj, &FieldUnitObj->FieldDesc, DataResult);
+
+        if (InStatus != 0x8004 && AfuContext == AmliContext->LocalHeap.HeapEnd)
+            goto Stage3;
     }
     else if (Stage == 3)
     {
-        goto Exit1;
+Stage3:
+        if (AfuContext->FrameHeader.Flags & 0x20000)
+            ReleaseGL(AmliContext);
+
+        PopFrame(AmliContext);
     }
-    else
-    {
-        goto Exit;
-    }
-
-    AfuContext->FrameHeader.Flags++;
-
-    if (FieldUnitObj->FieldDesc.FieldFlags & 0x80000000)
-        AfuContext->FrameHeader.Flags |= 0x20000;
-
-    DataResult = AfuContext->DataResult;
-    DataObj = AfuContext->DataObj;
-
-    if (AfuContext->FrameHeader.Flags & 0x10000)
-    {
-        InStatus = ReadField(AmliContext, DataObj, &FieldUnitObj->FieldDesc, DataResult);
-    }
-    else
-    {
-        InStatus = WriteField(AmliContext, DataObj, &FieldUnitObj->FieldDesc, DataResult);
-    }
-
-    if (InStatus == 0x8004 || AfuContext != AmliContext->LocalHeap.HeapEnd)
-        goto Exit;
-
-Exit1:
-
-    if (AfuContext->FrameHeader.Flags & 0x20000)
-    {
-        DPRINT1("AccFieldUnit: FIXME\n");
-        ASSERT(FALSE);
-    }
-
-    PopFrame(AmliContext);
 
 Exit:
 
     giIndent--;
 
+    DPRINT("AccFieldUnit: ret %X\n", InStatus);
     return InStatus;
 }
 
