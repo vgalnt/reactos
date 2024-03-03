@@ -4479,8 +4479,27 @@ Exit:
 }
 NTSTATUS __cdecl Mutex(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    DPRINT("Mutex: %X, %X, %X\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = CreateNameSpaceObject(AmliContext->HeapCurrent,
+                                   TermContext->DataArgs->DataBuff,
+                                   AmliContext->Scope,
+                                   AmliContext->Owner,
+                                   &TermContext->NsObject,
+                                   0);
+
+    if (Status == STATUS_SUCCESS)
+        Status = InitMutex(AmliContext->HeapCurrent, TermContext->NsObject, (ULONG)TermContext->DataArgs[1].DataValue);
+
+    giIndent--;
+
+    DPRINT("Mutex: (%X) Status %X\n", TermContext->NsObject, Status);
+
+    return Status;
 }
 NTSTATUS __cdecl Name(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {

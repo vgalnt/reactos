@@ -919,4 +919,12 @@ AMLIEvalPkgDataElement(
     _In_ PAMLI_OBJECT_DATA DataResult
 );
 
+NTSTATUS
+__cdecl
+InitMutex(
+    _In_ PAMLI_HEAP Heap,
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ ULONG Level
+);
+
 /* EOF */
