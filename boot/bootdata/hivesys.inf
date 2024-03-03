@@ -2138,6 +2138,9 @@ HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","Tag",0x00010001,00000013
 HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","DisplayName",0x00000000,"USB2 Enabled Hub"
 HKLM,"SYSTEM\CurrentControlSet\Services\usbhub","Description",0x00000000,"USB HUB Driver"
 
+HKLM,"SYSTEM\CurrentControlSet\Control\UsbFlags",,0x00000012
+HKLM,"SYSTEM\CurrentControlSet\Control\UsbFlags","IgnoreHWSerNum04710302",0x00000001,01
+
 ; USB storage driver
 HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","ErrorControl",0x00010001,0x00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\usbstor","Group",0x00000000,"Base"
