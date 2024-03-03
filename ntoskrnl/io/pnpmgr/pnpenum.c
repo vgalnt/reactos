@@ -698,7 +698,7 @@ PipEnumerateCompleted(
 
         if (DeviceExt->ExtensionFlags & DOE_DELETE_PENDING)
         {
-            DPRINT("PipEnumerateCompleted: FIXME dump\n");
+            DPRINT1("PipEnumerateCompleted: FIXME dump\n");
             ASSERT(FALSE);
 
             KeBugCheckEx(PNP_DETECTED_FATAL_ERROR,
@@ -715,7 +715,7 @@ PipEnumerateCompleted(
 
             if (ChildDeviceNode->DockInfo.DockStatus == DOCK_EJECTIRP_COMPLETED)
             {
-                DPRINT("PipEnumerateCompleted: FIXME PpProfileCancelTransitioningDock\n");
+                DPRINT1("PipEnumerateCompleted: FIXME PpProfileCancelTransitioningDock\n");
                 ASSERT(FALSE);
             }
 
@@ -1581,7 +1581,7 @@ PiCriticalQueryRegistryValueCallback(
         return STATUS_SUCCESS;
     }
 
-    DPRINT("PiCriticalQueryRegistryValueCallback: FIXME ...\n");
+    DPRINT1("PiCriticalQueryRegistryValueCallback: FIXME ...\n");
     ASSERT(FALSE);
 
     return STATUS_SUCCESS;
@@ -1614,6 +1614,7 @@ PiCriticalCopyCriticalDeviceProperties(
 
     if (!KeyHandle || !CriticalHandle)
     {
+        DPRINT1("PiCriticalCopyCriticalDeviceProperties: %p, %p\n", KeyHandle, CriticalHandle);
         ASSERT(FALSE);
         return STATUS_INVALID_PARAMETER;
     }
@@ -2565,7 +2566,7 @@ PiProcessNewDeviceNode(
 
         if (DupeDeviceObject == DeviceObject)
         {
-            DPRINT("PiProcessNewDeviceNode: DupeDeviceObject\n");
+            DPRINT1("PiProcessNewDeviceNode: DupeDeviceObject\n");
             ASSERT(FALSE);
             ObDereferenceObject(DupeDeviceObject);
             break;
@@ -2573,7 +2574,7 @@ PiProcessNewDeviceNode(
 
         if (!GloballyUnique)
         {
-            DPRINT("PiProcessNewDeviceNode: DupeDeviceObject\n");
+            DPRINT1("PiProcessNewDeviceNode: DupeDeviceObject\n");
             ASSERT(FALSE);
             KeBugCheckEx(PNP_DETECTED_FATAL_ERROR,
                          1,
@@ -2585,7 +2586,7 @@ PiProcessNewDeviceNode(
         GloballyUnique = FALSE;
         PipSetDevNodeProblem(DeviceNode, CM_PROB_DUPLICATE_DEVICE);
 
-        DPRINT("PiProcessNewDeviceNode: CM_PROB_DUPLICATE_DEVICE!\n");
+        DPRINT1("PiProcessNewDeviceNode: CM_PROB_DUPLICATE_DEVICE!\n");
         ASSERT(FALSE);
     }
 
@@ -3473,7 +3474,7 @@ PipCallDriverAddDeviceQueryRoutine(
                 PipSetDevNodeProblem(QueryContext->DeviceNode, CM_PROB_DISABLED_SERVICE);
             }
 
-            DPRINT("PipCallDriverAddDeviceQueryRoutine: Service is disabled or not at right time to load it\n");
+            DPRINT1("PipCallDriverAddDeviceQueryRoutine: Service is disabled or not at right time to load it\n");
             ASSERT(FALSE);
 
             Status = STATUS_UNSUCCESSFUL;
@@ -3491,7 +3492,8 @@ PipCallDriverAddDeviceQueryRoutine(
 
             if (!NT_SUCCESS(Status))
             {
-                ASSERT(FALSE);
+                DPRINT1("PipCallDriverAddDeviceQueryRoutine: IopLoadDriver('%wZ') Status %X\n", &ServiceName, Status);
+                //ASSERT(FALSE);
 
                 if (Status == STATUS_FAILED_DRIVER_ENTRY)
                 {
@@ -3513,7 +3515,7 @@ PipCallDriverAddDeviceQueryRoutine(
         }
         else
         {
-            DPRINT("PipCallDriverAddDeviceQueryRoutine: Status %X\n", Status);
+            DPRINT1("PipCallDriverAddDeviceQueryRoutine: Status %X\n", Status);
             ASSERT(FALSE);
 
             if (Status != STATUS_INSUFFICIENT_RESOURCES)
@@ -3526,7 +3528,7 @@ PipCallDriverAddDeviceQueryRoutine(
 
         if (!NT_SUCCESS(Status))
         {
-            DPRINT("PipCallDriverAddDeviceQueryRoutine: Status %X\n", Status);
+            DPRINT1("PipCallDriverAddDeviceQueryRoutine: Status %X\n", Status);
             ASSERT(FALSE);
 
             if (/*(PiUserModeRunning == FALSE) && */ 
@@ -3551,7 +3553,7 @@ PipCallDriverAddDeviceQueryRoutine(
 
         if (!NT_SUCCESS(Status))
         {
-            DPRINT("PipCallDriverAddDeviceQueryRoutine: Status %X\n", Status);
+            DPRINT1("PipCallDriverAddDeviceQueryRoutine: Status %X\n", Status);
             ASSERT(FALSE);
 
             if (Status != STATUS_DRIVER_BLOCKED &&
@@ -3579,6 +3581,7 @@ PipCallDriverAddDeviceQueryRoutine(
 
         if (QueryContext->DeviceNode->Flags & (DNF_HAS_PROBLEM | DNF_HAS_PRIVATE_PROBLEM))
         {
+            DPRINT1("PipCallDriverAddDeviceQueryRoutine: No DriverObject. Status %X\n", Status);
             ASSERT(FALSE);
             goto Exit;
         }
@@ -3621,6 +3624,7 @@ PipCallDriverAddDeviceQueryRoutine(
                 break;
 
             default:
+                DPRINT1("PipCallDriverAddDeviceQueryRoutine: Status %X\n", Status);
                 ASSERT(FALSE);
                 Problem = CM_PROB_FAILED_ADD;
                 break;
@@ -3788,7 +3792,7 @@ PipCallDriverAddDevice(
             {
                 PKEY_VALUE_FULL_INFORMATION keyinfo = NULL;
 
-                DPRINT("SAFEBOOT: skipping '%wZ'\n", &ClassGuidString);
+                DPRINT1("SAFEBOOT: skipping '%wZ'\n", &ClassGuidString);
                 ASSERT(FALSE); // IoDbgBreakPointEx();
 
                 Status = IopGetRegistryValue(KeyHandle, L"DeviceDesc", &keyinfo);
@@ -4330,8 +4334,6 @@ PiCollapseEnumRequests(
     DPRINT("PiCollapseEnumRequests: FIXME. Request - %p, RequestType - %X\n",
            Request, Request->RequestType);
 
-    //ASSERT(FALSE);
-
     return FALSE;
 }
 
@@ -4449,7 +4451,6 @@ PipProcessDevNodeTree(
                     if (ProcessOnlyIntermediateStates)
                     {
                         DPRINT("[%p] ProcessOnlyIntermediateStates\n", CurrentNode);
-                        //ASSERT(FALSE); // IoDbgBreakPointEx();
                         goto NodeManager;
                     }
 
@@ -4462,7 +4463,6 @@ PipProcessDevNodeTree(
                     if ((ProcessFailedDevices || ReenumerationType) && !ResNode)
                     {
                         DPRINT1("[%p] ReenumerationType %X ResNode %X\n", CurrentNode, ReenumerationType, ResNode);
-                        //ASSERT(FALSE); // IoDbgBreakPointEx();
                         goto NodeManager;
                     }
 
@@ -4492,7 +4492,6 @@ PipProcessDevNodeTree(
                     if (!NT_SUCCESS(Status))
                     {
                         DPRINT("[%p] DeviceNodeInitialized. Status %X\n", CurrentNode, Status);
-                        //ASSERT(FALSE); // IoDbgBreakPointEx();
                     }
                     else
                     {
@@ -4537,7 +4536,6 @@ PipProcessDevNodeTree(
                     }
 
                     DPRINT1("[%p] StartCompletion State %X, Status %X\n", CurrentNode, CurrentNode->State, Status);
-                    //ASSERT(FALSE); // IoDbgBreakPointEx();
 
                     Status = STATUS_PNP_RESTART_ENUMERATION;
                     if (CurrentNode->State != DeviceNodeStartCompletion)
@@ -4990,8 +4988,7 @@ NTAPI
 PiProcessAddBootDevices(
     _In_ PPIP_ENUM_REQUEST Request)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // IoDbgBreakPointEx();
+    UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -5081,8 +5078,7 @@ NTAPI
 PiProcessRequeryDeviceState(
     _In_ PPIP_ENUM_REQUEST Request)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // IoDbgBreakPointEx();
+    UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -5180,8 +5176,7 @@ NTAPI
 PiProcessShutdownPnpDevices(
     _In_ PDEVICE_NODE DeviceNode)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // IoDbgBreakPointEx();
+    UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -5279,7 +5274,7 @@ PiRestartDevice(
     switch (DeviceNode->State)
     {
         case DeviceNodeStartPending:
-            DPRINT("PiRestartDevice: DeviceNodeStartPending. STATUS_SUCCESS\n");
+            DPRINT1("PiRestartDevice: DeviceNodeStartPending. STATUS_SUCCESS\n");
             ASSERT(FALSE); // IoDbgBreakPointEx();
             return STATUS_SUCCESS;
 
@@ -5360,7 +5355,7 @@ PiRestartDevice(
             return STATUS_UNSUCCESSFUL;
 
         default:
-            DPRINT("PiRestartDevice: Unknown State %X. STATUS_UNSUCCESSFUL\n", DeviceNode->State);
+            DPRINT1("PiRestartDevice: Unknown State %X. STATUS_UNSUCCESSFUL\n", DeviceNode->State);
             ASSERT(FALSE); // IoDbgBreakPointEx();
             return STATUS_UNSUCCESSFUL;
     }
@@ -5412,9 +5407,7 @@ PipEnumerationWorker(
                                     RequestLink);
 
         if (IsListEmpty(&IopPnpEnumerationRequestList))
-        {
             break;
-        }
 
         RemoveHeadList(&IopPnpEnumerationRequestList);
 
@@ -5479,12 +5472,12 @@ Start:
                     goto Start;
 
                 case PipEnumGetSetDeviceStatus:
-                    DPRINT("PipEnumerationWorker: PipEnumGetSetDeviceStatus\n");
+                    DPRINT1("PipEnumerationWorker: PipEnumGetSetDeviceStatus\n");
                     ASSERT(FALSE);
                     break;
 
                 case PipEnumInvalidateRelationsInList:
-                    DPRINT("PipEnumerationWorker: PipEnumInvalidateRelationsInList\n");
+                    DPRINT1("PipEnumerationWorker: PipEnumInvalidateRelationsInList\n");
                     ASSERT(FALSE);
                     break;
 
@@ -5494,7 +5487,7 @@ Start:
                     break;
 
                 case PipEnumHaltDevice:
-                    DPRINT("PipEnumerationWorker: PipEnumHaltDevice\n");
+                    DPRINT1("PipEnumerationWorker: PipEnumHaltDevice\n");
                     ASSERT(FALSE);
                     break;
 
@@ -5518,6 +5511,7 @@ RestartDevice:
                     Status = PiProcessResourceRequirementsChanged(Request);
                     if (!NT_SUCCESS(Status))
                     {
+                        DPRINT1("PipEnumerationWorker: Status %X\n", Status);
                         ASSERT(FALSE);
                         IsAssignResources = TRUE;
                         Status = STATUS_SUCCESS;
@@ -5527,7 +5521,7 @@ RestartDevice:
                     break;
 
                 case PipEnumSetProblem:
-                    DPRINT("PipEnumerationWorker: PipEnumSetProblem\n");
+                    DPRINT1("PipEnumerationWorker: PipEnumSetProblem\n");
                     ASSERT(FALSE);
                     break;
 
@@ -5543,6 +5537,7 @@ RestartDevice:
                     break;
 
                 default:
+                    DPRINT1("PipEnumerationWorker: unknown RequestType %X\n", Request->RequestType);
                     ASSERT(FALSE);
                     break;
             }
@@ -5550,19 +5545,13 @@ RestartDevice:
 NextRequest:
 
             if (Request->CompletionStatus)
-            {
                 *Request->CompletionStatus = Status;
-            }
 
             if (Request->CompletionEvent)
-            {
                 KeSetEvent(Request->CompletionEvent, IO_NO_INCREMENT, FALSE);
-            }
 
             if (IsDereferenceObject)
-            {
                 ObDereferenceObject(Request->DeviceObject);
-            }
 
             ExFreePoolWithTag(Request, TAG_IO);
         }
@@ -5586,6 +5575,7 @@ NextRequest:
         }
         else
         {
+            DPRINT1("PipEnumerationWorker: Error! (%X)\n", IsListEmpty(&IopPnpEnumerationRequestList));
             ASSERT(FALSE);
         }
     }
@@ -5745,7 +5735,9 @@ IoInvalidateDeviceRelations(
         !DeviceNode ||
         DeviceNode->Flags & DNF_LEGACY_RESOURCE_DEVICENODE)
     {
-        ASSERT(FALSE);KeBugCheckEx(PNP_DETECTED_FATAL_ERROR, 0x2, (ULONG_PTR)DeviceObject, 0x0, 0x0);
+        DPRINT1("IoInvalidateDeviceRelations: %p, %X\n", DeviceObject, Type);
+        ASSERT(FALSE);
+        KeBugCheckEx(PNP_DETECTED_FATAL_ERROR, 0x2, (ULONG_PTR)DeviceObject, 0x0, 0x0);
     }
 
     switch (Type)
@@ -5780,7 +5772,7 @@ IoInvalidateDeviceRelations(
         }
         default:
         {
-            DPRINT("IoInvalidateDeviceRelations: [%p] Type %X not supported\n", DeviceObject, Type);
+            DPRINT1("IoInvalidateDeviceRelations: [%p] Type %X not supported\n", DeviceObject, Type);
             break;
         }
 
