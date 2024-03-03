@@ -3545,8 +3545,37 @@ NTSTATUS __cdecl Acquire(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT
 }
 NTSTATUS __cdecl Alias(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    NTSTATUS Status;
+
+    DPRINT("Alias: %X, %X, %X\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    ASSERT(TermContext->DataArgs[0].DataType == 2);//OBJTYPE_STRDATA
+    ASSERT(TermContext->DataArgs[1].DataType == 2);
+
+    Status = GetNameSpaceObject(TermContext->DataArgs[0].DataBuff, AmliContext->Scope, &NsObject, 0x80000000);
+    if (Status == STATUS_SUCCESS)
+    {
+        Status = CreateNameSpaceObject(AmliContext->HeapCurrent,
+                                       TermContext->DataArgs[1].DataBuff,
+                                       AmliContext->Scope,
+                                       AmliContext->Owner,
+                                       &TermContext->NsObject,
+                                       0);
+        if (Status == STATUS_SUCCESS)
+        {
+            TermContext->NsObject->ObjData.DataType = 0x80;
+            TermContext->NsObject->ObjData.DataValue = NsObject;
+        }
+    }
+
+    giIndent--;
+
+    DPRINT("Alias: (%X) Status %X \n", TermContext->NsObject, Status);
+
+    return Status;
 }
 NTSTATUS __cdecl BankField(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
