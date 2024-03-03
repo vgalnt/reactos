@@ -4374,6 +4374,37 @@ Exit:
 
 NTSTATUS
 NTAPI
+USBH_RegQueryDeviceIgnoreHWSerNumFlag(IN USHORT Vendor,
+                                      IN USHORT Product,
+                                      OUT BOOLEAN* OutIgnoringHwSerial)
+{
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    WCHAR FullName[0x100];
+    WCHAR StartName[] = L"IgnoreHWSerNum%04x%04x";
+
+    PAGED_CODE();
+
+    *OutIgnoringHwSerial = 0;
+
+    swprintf(FullName, StartName, Vendor, Product);
+
+    QueryTable[0].Name = FullName;
+    QueryTable[0].QueryRoutine = USBH_GetConfigValue;
+    QueryTable[0].Flags = 4;
+    QueryTable[0].EntryContext = OutIgnoringHwSerial;
+    QueryTable[0].DefaultType = 0;
+    QueryTable[0].DefaultData = 0;
+    QueryTable[0].DefaultLength = 0;
+
+    QueryTable[1].QueryRoutine = NULL;
+    QueryTable[1].Flags = 0;
+    QueryTable[1].Name = NULL;
+
+    return RtlQueryRegistryValues(2, L"usbflags", QueryTable, NULL, NULL);
+}
+
+NTSTATUS
+NTAPI
 USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
                   IN USHORT Port,
                   IN USB_PORT_STATUS UsbPortStatus,
@@ -4392,17 +4423,11 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
     NTSTATUS Status;
     UNICODE_STRING DestinationString;
 
-    DPRINT("USBH_CreateDevice: Port - %x, UsbPortStatus - %lX\n",
-           Port,
-           UsbPortStatus.AsUshort16);
+    DPRINT1("USBH_CreateDevice: %X, %X\n", Port, UsbPortStatus.AsUshort16);
 
     do
     {
-        RtlStringCbPrintfW(CharDeviceName,
-                           sizeof(CharDeviceName),
-                           L"\\Device\\USBPDO-%d",
-                           PdoNumber);
-
+        RtlStringCbPrintfW(CharDeviceName, sizeof(CharDeviceName), L"\\Device\\USBPDO-%d", PdoNumber);
         RtlInitUnicodeString(&DeviceName, CharDeviceName);
 
         Status = IoCreateDevice(HubExtension->Common.SelfDevice->DriverObject,
@@ -4419,6 +4444,7 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
 
     if (!NT_SUCCESS(Status))
     {
+        DPRINT1("USBH_CreateDevice: %X, %X exit %X\n", Port, UsbPortStatus.AsUshort16, Status);
         ASSERT(Port > 0);
         HubExtension->PortData[Port-1].DeviceObject = DeviceObject;
         return Status;
@@ -4458,17 +4484,10 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
     IsHsDevice = UsbPortStatus.Usb20PortStatus.HighSpeedDeviceAttached;
     IsLsDevice = UsbPortStatus.Usb20PortStatus.LowSpeedDeviceAttached;
 
-    if (IsLsDevice == 0)
-    {
-        if (IsHsDevice)
-        {
-            PortExtension->PortPdoFlags = USBHUB_PDO_FLAG_PORT_HIGH_SPEED;
-        }
-    }
-    else
-    {
+    if (IsLsDevice)
         PortExtension->PortPdoFlags = USBHUB_PDO_FLAG_PORT_LOW_SPEED;
-    }
+    else if (IsHsDevice)
+        PortExtension->PortPdoFlags = USBHUB_PDO_FLAG_PORT_HIGH_SPEED;
 
     /* Initialize PortExtension->InstanceID */
     RtlInitUnicodeString(&DestinationString, (PCWSTR)&PortExtension->InstanceID);
@@ -4484,11 +4503,7 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
         goto ErrorExit;
     }
 
-    Status = USBD_CreateDeviceEx(HubExtension,
-                                 &PortExtension->DeviceHandle,
-                                 UsbPortStatus,
-                                 Port);
-
+    Status = USBD_CreateDeviceEx(HubExtension, &PortExtension->DeviceHandle, UsbPortStatus, Port);
     if (!NT_SUCCESS(Status))
     {
         DPRINT1("USBH_CreateDevice: USBD_CreateDeviceEx() failed - %lX\n", Status);
@@ -4496,7 +4511,6 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
     }
 
     Status = USBH_SyncResetPort(HubExtension, Port);
-
     if (!NT_SUCCESS(Status))
     {
         DPRINT1("USBH_CreateDevice: USBH_SyncResetPort() failed - %lX\n", Status);
@@ -4504,9 +4518,7 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
     }
 
     if (IsWait)
-    {
         USBH_Wait(50);
-    }
 
     Status = USBD_InitializeDeviceEx(HubExtension,
                                      PortExtension->DeviceHandle,
@@ -4522,20 +4534,15 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
         goto ErrorExit;
     }
 
-    DPRINT1("USBH_RegQueryDeviceIgnoreHWSerNumFlag UNIMPLEMENTED. FIXME\n");
-    //Status = USBH_RegQueryDeviceIgnoreHWSerNumFlag(PortExtension->DeviceDescriptor.idVendor,
-    //                                               PortExtension->DeviceDescriptor.idProduct,
-    //                                               &IgnoringHwSerial);
+    Status = USBH_RegQueryDeviceIgnoreHWSerNumFlag(PortExtension->DeviceDescriptor.idVendor,
+                                                   PortExtension->DeviceDescriptor.idProduct,
+                                                   &IgnoringHwSerial);
 
-    if (TRUE)//Status == STATUS_OBJECT_NAME_NOT_FOUND)
-    {
+    if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
         IgnoringHwSerial = FALSE;
-    }
 
     if (IgnoringHwSerial)
-    {
         PortExtension->IgnoringHwSerial = TRUE;
-    }
 
     if (PortExtension->DeviceDescriptor.iSerialNumber &&
        !PortExtension->IgnoringHwSerial)
@@ -4568,8 +4575,7 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
             }
         }
 
-        InterlockedExchangePointer((PVOID)&PortExtension->SerialNumber,
-                                   SerialNumberBuffer);
+        InterlockedExchangePointer((PVOID)&PortExtension->SerialNumber, SerialNumberBuffer);
     }
 
     Status = USBH_ProcessDeviceInformation(PortExtension);
@@ -4577,34 +4583,26 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
     USBH_PdoSetCapabilities(PortExtension);
 
     if (NT_SUCCESS(Status))
-    {
         goto Exit;
-    }
 
 ErrorExit:
 
     PortExtension->PortPdoFlags |= USBHUB_PDO_FLAG_INIT_PORT_FAILED;
 
-    DeviceHandle = InterlockedExchangePointer(&PortExtension->DeviceHandle,
-                                              NULL);
+    DeviceHandle = InterlockedExchangePointer(&PortExtension->DeviceHandle, NULL);
 
     if (DeviceHandle)
-    {
         USBD_RemoveDeviceEx(HubExtension, DeviceHandle, 0);
-    }
 
-    SerialNumberBuffer = InterlockedExchangePointer((PVOID)&PortExtension->SerialNumber,
-                                                     NULL);
-
+    SerialNumberBuffer = InterlockedExchangePointer((PVOID)&PortExtension->SerialNumber, NULL);
     if (SerialNumberBuffer)
-    {
         ExFreePoolWithTag(SerialNumberBuffer, USB_HUB_TAG);
-    }
 
 Exit:
 
     ASSERT(Port > 0);
     HubExtension->PortData[Port-1].DeviceObject = DeviceObject;
+    DPRINT1("USBH_CreateDevice: %X, %X exit %X\n", Port, UsbPortStatus.AsUshort16, Status);
     return Status;
 }
 
