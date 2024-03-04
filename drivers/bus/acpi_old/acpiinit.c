@@ -1681,19 +1681,6 @@ NotifyHandler(
 }
 
 NTSTATUS
-__cdecl
-GlobalLockEventHandler(
-    _In_ int Param1,
-    _In_ int Param2,
-    _In_ int Param3,
-    _In_ int Param4,
-    _In_ int Param5)
-{
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS
 NTAPI
 ACPIBuildDeviceRequest(
     _In_ PDEVICE_EXTENSION DeviceExtension,

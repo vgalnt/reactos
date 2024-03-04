@@ -113,10 +113,23 @@ typedef struct _AMLI_HEAP
 
 typedef struct _AMLI_CONTEXT_DATA
 {
-    PVOID Data1;
-    PVOID Data2;
-    PVOID Data3;
-    PVOID Data4;
+    union
+    {
+        struct
+        {
+            PVOID Data1;
+            PVOID Data2;
+            PVOID Data3;
+            PVOID Data4;
+        };
+        struct
+        {
+            PVOID Callback;
+            USHORT LockData;
+            USHORT Depth;
+            LIST_ENTRY Link;
+        };
+    };
 } AMLI_CONTEXT_DATA, *PAMLI_CONTEXT_DATA;
 
 typedef struct _AMLI_CONTEXT

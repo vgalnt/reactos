@@ -3131,6 +3131,55 @@ Exit:
 
 NTSTATUS
 __cdecl
+ACPIAsyncAcquireGlobalLock(
+    _In_ PAMLI_CONTEXT_DATA OwnerContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+__cdecl
+ACPIReleaseGlobalLock(
+    _In_ PAMLI_CONTEXT_DATA ContextData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+__cdecl
+GlobalLockEventHandler(
+    _In_ ULONG EventType,
+    _In_ ULONG TypeLock,
+    _In_ PVOID Context,
+    _In_ PVOID Callback,
+    _In_ PAMLI_CONTEXT_DATA ContextData)
+{
+    DPRINT("GlobalLockEventHandler: %X\n", TypeLock);
+
+    ASSERT(EventType == 5);//EVTYPE_ACQREL_GLOBALLOCK
+
+    if (TypeLock == 0)
+    {
+        ContextData->Callback = Callback;
+        ContextData->LockData = 2;
+
+        return ACPIAsyncAcquireGlobalLock(ContextData);
+    }
+
+    if (TypeLock == 1)
+        return ACPIReleaseGlobalLock(ContextData);
+
+    DPRINT1("GlobalLockEventHandler: STATUS_INVALID_PARAMETER (%X)\n", TypeLock);
+
+    DbgBreakPoint();
+
+    return STATUS_INVALID_PARAMETER;
+}
+
+NTSTATUS
+__cdecl
 AcquireGL(
     _In_ PAMLI_CONTEXT AmliContext)
 {
