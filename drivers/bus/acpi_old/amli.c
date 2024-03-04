@@ -3302,8 +3302,24 @@ __cdecl
 ReleaseGL(
     _In_ PAMLI_CONTEXT AmliContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS (__cdecl* Handler)(ULONG, ULONG, PVOID, PVOID, PVOID);
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("ReleaseGL: %X\n", AmliContext);
+
+    giIndent++;
+
+    if (ghGlobalLock.Handler)
+    {
+        Handler = ghGlobalLock.Handler;
+        Status = Handler(5, 1, ghGlobalLock.Context, NULL, &AmliContext->ContextData);
+    }
+
+    giIndent--;
+
+    DPRINT("ReleaseGL: %X\n", Status);
+
+    return Status;
 }
 
 NTSTATUS
