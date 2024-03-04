@@ -3134,8 +3134,39 @@ __cdecl
 AcquireGL(
     _In_ PAMLI_CONTEXT AmliContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS (__cdecl* Handler)(ULONG, ULONG, PVOID, PVOID, PVOID);
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("AcquireGL: %X\n", AmliContext);
+
+    giIndent++;
+
+    if (ghGlobalLock.Handler)
+    {
+        ASSERT(!(AmliContext->Flags & 8));//CTXTF_READY
+
+        Handler = ghGlobalLock.Handler;
+        Status = Handler(5, 0, ghGlobalLock.Context, RestartCtxtCallback, &AmliContext->ContextData);
+
+        DPRINT("AcquireGL: Status %X\n", Status);
+
+        if (Status == STATUS_PENDING)
+        {
+            Status = 0x8004;//AMLISTA_PENDING
+        }
+        else if (Status != STATUS_SUCCESS)
+        {
+            Status = STATUS_ACPI_ACQUIRE_GLOBAL_LOCK;
+            //LogError(Status);
+            DPRINT1("AcquireGL: failed to acquire global lock");
+        }
+    }
+
+    giIndent--;
+
+    DPRINT("AcquireGL: %X\n", Status);
+
+    return Status;
 }
 
 NTSTATUS
