@@ -3217,13 +3217,53 @@ ACPIAsyncAcquireGlobalLock(
     return STATUS_PENDING;
 }
 
+VOID
+NTAPI
+ACPIReleaseHardwareGlobalLock(VOID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 __cdecl
 ACPIReleaseGlobalLock(
     _In_ PAMLI_CONTEXT_DATA ContextData)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_CONTEXT_DATA OwnerContext;
+
+    OwnerContext = AcpiInformation->GlobalLockOwnerContext;
+
+    if (ContextData != OwnerContext)
+    {
+        DPRINT1("ACPIReleaseGlobalLock: Not owner, can't release! Owner is %X Caller context is %X\n", OwnerContext, ContextData);
+        return STATUS_ACPI_MUTEX_NOT_OWNER;
+    }
+
+    AcpiInformation->GlobalLockOwnerDepth--;
+
+    if (AcpiInformation->GlobalLockOwnerDepth)
+    {
+        DPRINT1("ACPIReleaseGlobalLock: Recursively owned by context %X, depth remaining %X\n",
+                AcpiInformation->GlobalLockOwnerContext, AcpiInformation->GlobalLockOwnerDepth);
+
+        return STATUS_SUCCESS;
+    }
+
+    AcpiInformation->GlobalLockOwnerContext = NULL;
+
+    ACPIReleaseHardwareGlobalLock();
+
+    DPRINT("ACPIReleaseGlobalLock: Lock released by context %X\n", ContextData);
+
+    if (IsListEmpty(&AcpiInformation->GlobalLockQueue))
+        return STATUS_SUCCESS;
+
+    if (ACPIAcquireHardwareGlobalLock(AcpiInformation->GlobalLock))
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
