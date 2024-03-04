@@ -3130,6 +3130,29 @@ Exit:
     return Status;
 }
 
+BOOLEAN
+NTAPI
+ACPIAcquireHardwareGlobalLock(
+    _In_ PULONG GlobalLock)
+{
+    ULONG Exchange;
+    ULONG Comparand;
+
+    if (AcpiInformation->ACPIOnly)
+        return TRUE;
+
+    Exchange = *GlobalLock;
+
+    do
+    {
+        Comparand = Exchange;
+        Exchange = InterlockedCompareExchange((PLONG)GlobalLock, (Exchange | (((Exchange & 2) >> 1) | 2)), Comparand);
+    }
+    while (Exchange != Comparand);
+
+    return (!(Exchange & 2));
+}
+
 NTSTATUS
 __cdecl
 ACPIAsyncAcquireGlobalLock(
