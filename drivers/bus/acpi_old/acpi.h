@@ -1366,6 +1366,14 @@ READ_PM1_STATUS(
     VOID
 );
 
+VOID
+NTAPI
+WRITE_PM1_CONTROL(
+    _In_ USHORT Value,
+    _In_ BOOLEAN Param2,
+    _In_ UCHAR Flags
+);
+
 USHORT
 NTAPI
 ACPIReadGpeStatusRegister(

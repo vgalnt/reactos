@@ -3221,7 +3221,24 @@ VOID
 NTAPI
 ACPIReleaseHardwareGlobalLock(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG Exchange;
+    ULONG Comparand;
+
+    if (AcpiInformation->ACPIOnly)
+        return;
+
+    Exchange = *AcpiInformation->GlobalLock;
+    do
+    {
+        ASSERT((Exchange & 2) != 0);//ACPI_LOCK_OWNED
+
+        Comparand = Exchange;
+        Exchange = InterlockedCompareExchange((PLONG)AcpiInformation->GlobalLock, (Exchange & ~3), Comparand);
+    }
+    while (Exchange != Comparand);
+
+    if (Exchange & 1)
+        WRITE_PM1_CONTROL(4, FALSE, 3);
 }
 
 NTSTATUS
