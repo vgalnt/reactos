@@ -503,6 +503,7 @@ USHORT PciOpRegionDisallowedRanges[4][2] =
 
 extern KSPIN_LOCK AcpiDeviceTreeLock;
 extern PPM_DISPATCH_TABLE PmHalDispatchTable;
+extern PACPI_INFORMATION AcpiInformation;
 
 /* STRING FUNCTIONS *********************************************************/
 
@@ -3134,8 +3135,63 @@ __cdecl
 ACPIAsyncAcquireGlobalLock(
     _In_ PAMLI_CONTEXT_DATA OwnerContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_CONTEXT_DATA Context;
+    PLIST_ENTRY Entry;
+    KIRQL Irql;
+
+    DPRINT("ACPIAsyncAcquireGlobalLock: Entered with context %X\n", OwnerContext);
+
+    if (OwnerContext == AcpiInformation->GlobalLockOwnerContext)
+    {
+        AcpiInformation->GlobalLockOwnerDepth++;
+
+        DPRINT("ACPIAsyncAcquireGlobalLock: Recursive acquire by owner %X, new depth %X\n",
+               OwnerContext, AcpiInformation->GlobalLockOwnerDepth);
+
+        return STATUS_SUCCESS;
+    }
+
+    KeAcquireSpinLock(&AcpiInformation->GlobalLockQueueLock, &Irql);
+
+    if (IsListEmpty(&AcpiInformation->GlobalLockQueue) &&
+        ACPIAcquireHardwareGlobalLock(AcpiInformation->GlobalLock))
+    {
+        AcpiInformation->GlobalLockOwnerContext = OwnerContext;
+        AcpiInformation->GlobalLockOwnerDepth = 1;
+
+        KeReleaseSpinLock(&AcpiInformation->GlobalLockQueueLock, Irql);
+
+        DPRINT("ACPIAsyncAcquireGlobalLock: Got lock immediately (%X)\n", OwnerContext);
+
+        return STATUS_SUCCESS;
+    }
+
+    for (Entry = AcpiInformation->GlobalLockQueue.Flink;
+         Entry != &AcpiInformation->GlobalLockQueue;
+         Entry = Entry->Flink)
+    {
+        Context = CONTAINING_RECORD(Entry, AMLI_CONTEXT_DATA, Link);
+
+        if (Context == OwnerContext)
+        {
+            DPRINT("ACPIAsyncAcquireGlobalLock: Waiting for lock <again> (%X, %X)\n", OwnerContext, OwnerContext->Depth);
+
+            Context->Depth++;
+
+            KeReleaseSpinLock(&AcpiInformation->GlobalLockQueueLock, Irql);
+            return STATUS_PENDING;
+        }
+    }
+
+    OwnerContext->Depth = 1;
+
+    InsertTailList(&AcpiInformation->GlobalLockQueue, &OwnerContext->Link);
+
+    DPRINT("ACPIAsyncAcquireGlobalLock: Waiting for lock (%X)\n", OwnerContext);
+
+    KeReleaseSpinLock(&AcpiInformation->GlobalLockQueueLock, Irql);
+
+    return STATUS_PENDING;
 }
 
 NTSTATUS
