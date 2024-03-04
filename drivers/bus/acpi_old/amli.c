@@ -3772,6 +3772,16 @@ ProcessEvalObj(
     return InStatus;
 }
 
+NTSTATUS
+__cdecl
+SleepQueueRequest(
+    _In_ PAMLI_CONTEXT AmliContext,
+    _In_ ULONG SleepTime)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 /* TERM HANDLERS ************************************************************/
 
 #if 1
@@ -5187,8 +5197,67 @@ NTSTATUS __cdecl Scope(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT T
 }
 NTSTATUS __cdecl SleepStall(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    DPRINT("SleepStall: %p, %X, %p\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = ValidateArgTypes(TermContext->DataArgs, "I");
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT("SleepStall: %p, %X, %p, Status %X\n", AmliContext, AmliContext->Op, TermContext, Status);
+        goto Exit;
+    }
+
+    if (TermContext->AmliTerm->Opcode == 0x225B)
+    {
+        DPRINT("SleepStall: MS %d(d)\n", TermContext->DataArgs->DataValue);
+
+        giIndent++;
+
+        if ((ULONG)TermContext->DataArgs->DataValue > 0xFFFF)
+        {
+            DPRINT1("SleepStall: sleep value is greater than a word value (%X)", TermContext->DataArgs->DataValue);
+            Status = STATUS_ACPI_INVALID_DATA;
+            //LogError(Status);
+        }
+        else if ((ULONG)TermContext->DataArgs->DataValue)
+        {
+            Status = SleepQueueRequest(AmliContext, (ULONG)TermContext->DataArgs->DataValue);
+            if (Status == STATUS_SUCCESS)
+                Status = 0x8004;
+        }
+
+        giIndent--;
+
+        DPRINT("SleepStall: Status %X\n", Status);
+
+        goto Exit;
+    }
+
+    if ((ULONG)TermContext->DataArgs->DataValue > 0xFF)
+    {
+        DPRINT1("SleepStall: value is greater than a byte value (%X)", TermContext->DataArgs->DataValue);
+        Status = STATUS_ACPI_INVALID_DATA;
+        //LogError(Status);
+        goto Exit;
+    }
+
+    DPRINT("SleepStall: US %d(d)\n", TermContext->DataArgs->DataValue);
+
+    giIndent++;
+    KeStallExecutionProcessor((ULONG)TermContext->DataArgs->DataValue);
+    giIndent--;
+
+    DPRINT("SleepStall: 0\n");
+ 
+Exit:
+
+    giIndent--;
+
+    DPRINT("SleepStall: Status %X\n", Status);
+    return Status;
 }
 NTSTATUS __cdecl Store(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
