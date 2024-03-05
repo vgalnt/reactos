@@ -5278,8 +5278,141 @@ NTSTATUS __cdecl RefOf(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT T
 }
 NTSTATUS __cdecl ReleaseResetSignalUnload(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    NTSTATUS Status;
+
+    DPRINT("ReleaseResetSignalUnload: %p, %X, %p\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = ValidateArgTypes(TermContext->DataArgs, "O");
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("ReleaseResetSignalUnload: (%p, %X, %p) Status %X\n", AmliContext, AmliContext->Op, TermContext, Status);
+        goto Exit;
+    }
+
+    TermContext->NsObject = TermContext->DataArgs->Alias;
+
+    switch (TermContext->AmliTerm->Opcode)
+    {
+        case 0x245B:
+        {
+            DPRINT("ReleaseResetSignalUnload: '%s'\n", GetObjectPath(TermContext->NsObject));
+
+            giIndent++;
+
+            NsObject = TermContext->NsObject;
+
+            if (NsObject->ObjData.DataType == 7)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else
+            {
+                DPRINT1("ReleaseResetSignalUnload: object is not event type ('%s' - '%s')",
+                        GetObjectPath(TermContext->NsObject), GetObjectTypeName(TermContext->NsObject->ObjData.DataType));
+
+                Status = STATUS_ACPI_INVALID_OBJTYPE;
+                //LogError(Status);
+            }
+
+            giIndent--;
+
+            DPRINT("ReleaseResetSignalUnload: %X\n", Status);
+            break;
+        }
+        case 0x265B:
+        {
+            DPRINT("ReleaseResetSignalUnload: '%s')\n", GetObjectPath(TermContext->NsObject));
+
+            giIndent++;
+
+            if (TermContext->NsObject->ObjData.DataType == 7)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else
+            {
+                DPRINT1("ReleaseResetSignalUnload: object is not event type ('%s' - '%s')",
+                        GetObjectPath(TermContext->NsObject), GetObjectTypeName(TermContext->NsObject->ObjData.DataType));
+
+                Status = STATUS_ACPI_INVALID_OBJTYPE;
+                //LogError(Status);
+            }
+
+            giIndent--;
+
+            DPRINT("ReleaseResetSignalUnload: %x\n", Status);
+            break;
+        }
+        case 0x275B:
+        {
+            DPRINT("ReleaseResetSignalUnload: '%s')\n", GetObjectPath(TermContext->NsObject));
+
+            giIndent++;
+
+            if (TermContext->NsObject->ObjData.DataType == 9)
+            {
+                Status = ReleaseASLMutex(AmliContext, TermContext->NsObject->ObjData.DataBuff);
+            }
+            else
+            {
+                DPRINT1("ReleaseResetSignalUnload: object is not mutex type ('%s' - '%s')",
+                        GetObjectPath(TermContext->NsObject), GetObjectTypeName(TermContext->NsObject->ObjData.DataType));
+
+                Status = STATUS_ACPI_INVALID_OBJTYPE;
+                //LogError(Status);
+            }
+
+            if (TermContext->NsObject->ObjData.Flags & 2)
+            {
+                Status = ReleaseGL(AmliContext);
+                if (Status != STATUS_SUCCESS)
+                {
+                    DPRINT1("ReleaseResetSignalUnload: failed to release global lock (%X)", Status);
+                    Status = STATUS_ACPI_ASSERT_FAILED;
+                    //LogError(Status);
+                }
+            }
+
+            giIndent--;
+
+            DPRINT("ReleaseResetSignalUnload: %X\n", Status);
+            break;
+        }
+        case 0x2A5B:
+        {
+            DPRINT("ReleaseResetSignalUnload: '%s'\n", GetObjectPath(TermContext->NsObject));
+
+            giIndent++;
+
+            if (TermContext->NsObject->ObjData.DataType == 0xF)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else
+            {
+                DPRINT1("ReleaseResetSignalUnload: object is not DDBHandle ('%s' - '%s')",
+                        GetObjectPath(TermContext->NsObject), GetObjectTypeName(TermContext->NsObject->ObjData.DataType));
+
+                Status = STATUS_ACPI_INVALID_OBJTYPE;
+                //LogError(Status);
+            }
+
+            giIndent--;
+
+            DPRINT("ReleaseResetSignalUnload: %X\n", Status);
+            break;
+        }
+    }
+
+Exit:
+
+    giIndent--;
+
+    DPRINT("ReleaseResetSignalUnload: %X\n", Status);
+    return Status;
 }
 NTSTATUS __cdecl Return(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {

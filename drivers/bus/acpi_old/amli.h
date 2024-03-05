@@ -957,4 +957,11 @@ ParseAcquire(
     _In_ NTSTATUS InStatus
 );
 
+NTSTATUS
+__cdecl
+ReleaseASLMutex(
+    _In_ PAMLI_CONTEXT AmliContext,
+    _In_ PAMLI_MUTEX_OBJECT AmliMutex
+);
+
 /* EOF */
