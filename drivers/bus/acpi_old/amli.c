@@ -2479,11 +2479,53 @@ NTSTATUS
 __cdecl
 PreserveWriteObj(
     _In_ PAMLI_CONTEXT AmliContext,
-    _In_ PAMLI_PRESERVE_WRITE_CONTEXT PrWriteContext,
+    _In_ PAMLI_PRESERVE_WRITE_CONTEXT Context,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_FIELD_DESCRIPTOR FieldDesc;
+    ULONG Stage;
+
+    if (InStatus)
+        Stage = 2;
+    else
+        Stage = (Context->FrameHeader.Flags & 0xF);
+ 
+    DPRINT("PreserveWriteObj: %X, %p, %p, %X\n", Stage, AmliContext, Context, InStatus);
+
+    giIndent++;
+
+    ASSERT(Context->FrameHeader.Signature == 'ORWP');//SIG_PRESERVEWROBJ
+
+    FieldDesc = Context->DataObj->DataBuff;
+
+    if (Stage == 0)
+    {
+        Context->FrameHeader.Flags++;
+
+        InStatus = PushAccFieldObj(AmliContext, ReadFieldObj, Context->DataObj, FieldDesc, (PUCHAR)&Context->PrevData, 4);
+        goto Exit;
+    }
+
+    if (Stage == 1)
+    {
+        Context->FrameHeader.Flags++;
+
+        Context->Data |= (Context->PrevData & Context->Mask);
+
+        InStatus = PushAccFieldObj(AmliContext, WriteFieldObj, Context->DataObj, FieldDesc, (PUCHAR)&Context->Data, 4);
+        goto Exit;
+    }
+
+    if (Stage == 2)
+        PopFrame(AmliContext);
+
+Exit:
+
+    giIndent--;
+
+    DPRINT("PreserveWriteObj: InStatus %X\n", InStatus);
+
+    return InStatus;
 }
 
 NTSTATUS
