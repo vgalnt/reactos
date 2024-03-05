@@ -949,4 +949,12 @@ InitMutex(
     _In_ ULONG Level
 );
 
+NTSTATUS
+__cdecl
+ParseAcquire(
+    _In_ PAMLI_CONTEXT AmliContext,
+    _In_ PAML_ACQUIRE AmliAcquire,
+    _In_ NTSTATUS InStatus
+);
+
 /* EOF */

@@ -3869,8 +3869,51 @@ SleepQueueRequest(
 #if 1
 NTSTATUS __cdecl Acquire(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    PAML_ACQUIRE AmliAcquire;
+    NTSTATUS Status;
+
+    DPRINT("Acquire: %p, %X, %p\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = ValidateArgTypes(TermContext->DataArgs, "OI");
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("Acquire: (%p, %X, %p) Status %X\n", AmliContext, AmliContext->Op, TermContext, Status);
+        goto Exit;
+    }
+
+    NsObject = TermContext->DataArgs->Alias;
+    TermContext->NsObject = NsObject;
+
+    if (NsObject->ObjData.DataType != 9)
+    {
+        DPRINT1("Acquire: object is not mutex type ('%s' - '%s')", GetObjectPath(TermContext->NsObject), GetObjectTypeName(TermContext->NsObject->ObjData.DataType));
+        Status = STATUS_ACPI_INVALID_OBJTYPE;
+        //LogError(Status);
+        goto Exit;
+    }
+
+    Status = PushFrame(AmliContext, 'FQCA', sizeof(*AmliAcquire), ParseAcquire, (PVOID *)&AmliAcquire);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("Acquire: (%p, %X, %p) Status %X\n", AmliContext, AmliContext->Op, TermContext, Status);
+        goto Exit;
+    }
+
+    AmliAcquire->AmliMutex = TermContext->NsObject->ObjData.DataBuff;
+    AmliAcquire->FrameHeader.Flags = (((TermContext->NsObject->ObjData.Flags & 2) | 8) << 15);
+    AmliAcquire->Timeout = (USHORT)(ULONG)TermContext->DataArgs[1].DataValue;
+    AmliAcquire->DataResult = TermContext->DataResult;
+
+Exit:
+
+    giIndent--;
+
+    DPRINT("Acquire: Status %X\n", Status);
+
+    return Status;
 }
 NTSTATUS __cdecl Alias(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
