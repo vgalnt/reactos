@@ -2274,10 +2274,7 @@ AccessBaseField(
         }
 
         if (IsReadBeforeWrite)
-        {
-            DPRINT1("AccessBaseField: FIXME\n");
-            ASSERT(FALSE);
-        }
+            *OutData |= ReadSystemMem(Addr, AccSize, ~DataMask);
 
         WriteSystemMem(Addr, AccSize, *OutData, AccMask);
 
