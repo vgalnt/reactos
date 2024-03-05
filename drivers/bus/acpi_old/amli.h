@@ -545,6 +545,15 @@ typedef struct _AMLI_PASSIVE_HOOK
     WORK_QUEUE_ITEM WorkQueueItem;
 } AMLI_PASSIVE_HOOK, *PAMLI_PASSIVE_HOOK;
 
+typedef struct _AMLI_PRESERVE_WRITE_CONTEXT
+{
+    AMLI_FRAME_HEADER FrameHeader;
+    PAMLI_OBJECT_DATA DataObj;
+    ULONG Data;
+    ULONG Mask;
+    ULONG PrevData;
+} AMLI_PRESERVE_WRITE_CONTEXT, *PAMLI_PRESERVE_WRITE_CONTEXT;
+
 /* FUNCTIONS ****************************************************************/
 
 #if 1

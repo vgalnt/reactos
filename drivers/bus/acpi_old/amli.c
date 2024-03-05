@@ -2477,6 +2477,47 @@ WriteBuffField(
 
 NTSTATUS
 __cdecl
+PreserveWriteObj(
+    _In_ PAMLI_CONTEXT AmliContext,
+    _In_ PAMLI_PRESERVE_WRITE_CONTEXT PrWriteContext,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+__cdecl
+PushPreserveWriteObj(
+    _In_ PAMLI_CONTEXT AmliContext,
+    _In_ PAMLI_OBJECT_DATA DataObj,
+    _In_ ULONG Data,
+    _In_ ULONG PreserveMask)
+{
+    PAMLI_PRESERVE_WRITE_CONTEXT Context;
+    NTSTATUS Status;
+
+    DPRINT("PushPreserveWriteObj: %p, %p, %X, %X\n", AmliContext, DataObj, Data, PreserveMask);
+
+    giIndent++;
+
+    Status = PushFrame(AmliContext, 'ORWP', sizeof(*Context), PreserveWriteObj, (PVOID *)&Context);
+    if (Status == STATUS_SUCCESS)
+    {
+        Context->DataObj = DataObj;
+        Context->Data = Data;
+        Context->Mask = PreserveMask;
+    }
+
+    giIndent--;
+
+    DPRINT("PushPreserveWriteObj: Status %X\n", Status);
+
+    return Status;
+}
+
+NTSTATUS
+__cdecl
 AccessFieldData(
     _In_ PAMLI_CONTEXT AmliContext,
     _In_ PAMLI_OBJECT_DATA DataObj,
@@ -2554,8 +2595,7 @@ AccessFieldData(
 
     if (!(FieldDesc->FieldFlags & 0x60) && (AccMask & PreserveMask))
     {
-        DPRINT1("AccessFieldData: FIXME\n");
-        ASSERT(FALSE);
+        Status = PushPreserveWriteObj(AmliContext, &IndexFieldObj->DataObj->ObjData, *OutData, PreserveMask);
         goto Exit;
     }
 
