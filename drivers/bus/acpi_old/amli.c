@@ -2002,7 +2002,35 @@ QueueContext(
     _In_ USHORT Timeout,
     _Inout_ PAMLI_LIST* OutList)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    LARGE_INTEGER DueTime;
+
+    DPRINT("QueueContext: %p, %d(d)\n", AmliContext, Timeout);
+
+    giIndent++;
+
+    AcquireMutex(&gReadyQueue.Mutex);
+
+    ASSERT(AmliContext->QueueLists == NULL);
+    ASSERT(OutList != NULL);
+    ASSERT(!(AmliContext->Flags & 0xF));//(CTXTF_TIMER_PENDING | CTXTF_TIMER_DISPATCH | CTXTF_TIMEOUT | CTXTF_READY)
+
+    ListInsertTail(&AmliContext->QueueList, OutList);
+
+    AmliContext->QueueLists = OutList;
+
+    if (Timeout != 0xFFFF)
+    {
+        AmliContext->Flags |= 1;
+
+        DueTime.QuadPart = (-10000 * Timeout);
+        KeSetTimer(&AmliContext->Timer, DueTime, &AmliContext->Dpc);
+    }
+
+    ReleaseMutex(&gReadyQueue.Mutex);
+
+    giIndent--;
+
+    DPRINT("QueueContext!\n");
 }
 
 PAMLI_CONTEXT
