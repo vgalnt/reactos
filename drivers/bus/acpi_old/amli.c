@@ -5223,8 +5223,15 @@ Exit:
 }
 NTSTATUS __cdecl RefOf(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    DPRINT("RefOf: %p, %X, %p\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+    MoveObjData(TermContext->DataResult, TermContext->DataArgs);
+    giIndent--;
+
+    DPRINT("RefOf: STATUS_SUCCESS (%X)\n", TermContext->DataResult->DataValue);
+
+    return STATUS_SUCCESS;
 }
 NTSTATUS __cdecl ReleaseResetSignalUnload(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
