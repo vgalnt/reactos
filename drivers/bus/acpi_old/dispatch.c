@@ -4155,8 +4155,58 @@ ACPIAmliBuildObjectPathname(
     _In_ PAMLI_NAME_SPACE_OBJECT PathNsObject,
     _Out_ PCHAR* OutInstanceID)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_NAME_SPACE_OBJECT ParentNsObject;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    PCHAR InstanceID;
+    ULONG Count;
+    ULONG ix;
+    ULONG jx;
+
+    DPRINT("ACPIAmliBuildObjectPathname: %p\n", PathNsObject);
+
+    ASSERT(PathNsObject);
+
+    ParentNsObject = PathNsObject->Parent;
+
+    for (Count = 0; ParentNsObject; Count++)
+        ParentNsObject = ParentNsObject->Parent;
+
+    InstanceID = ExAllocatePoolWithTag(NonPagedPool, ((Count * 5) + 1), 'SpcA');
+    if (!InstanceID)
+    {
+        DPRINT1("ACPIAmliBuildObjectPathname: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    InstanceID[Count * 5] = 0;
+
+    ix = Count;
+
+    for (NsObject = PathNsObject; ; NsObject = ParentNsObject)
+    {
+        ParentNsObject = NsObject->Parent;
+        if (!ParentNsObject)
+            break;
+
+        ix--;
+
+        *(ULONG *)&InstanceID[(ix * 5)] = NsObject->NameSeg;
+
+        for (jx = 0; jx < 4; jx++)
+        {
+            if (InstanceID[(ix * 5) + jx] == 0)
+                InstanceID[(ix * 5) + jx] = '*';
+        }
+
+        InstanceID[(ix * 5) + 4] = '.';
+    }
+
+    if (Count)
+        InstanceID[(Count * 5) - 1] = 0;
+
+    *OutInstanceID = InstanceID;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
