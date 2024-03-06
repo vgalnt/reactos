@@ -3229,8 +3229,8 @@ ACPIGet(
 
         if ((Flags & 0x800) && !IsFlag8000000 && (DeviceExtension->Flags & 0x0200000000000000))
         {
-            DPRINT1("ACPIGet: FIXME\n");
-            ASSERT(FALSE);
+            ASSERT(DeviceExtension->Dock.CorrospondingAcpiDevice);
+            NsObject = DeviceExtension->Dock.CorrospondingAcpiDevice->AcpiObject;
         }
     }
     else if ((Flags & 0x1F0000) == 0x80000)
