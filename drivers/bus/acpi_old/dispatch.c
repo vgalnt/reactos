@@ -4116,8 +4116,37 @@ NTAPI
 ACPIDockFindCorrespondingDock(
     _In_ PDEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PDEVICE_EXTENSION DockExtension;
+    ACPI_EXT_LIST_ENUM_DATA ExtList;
+
+    DPRINT("ACPIDockFindCorrespondingDock: %p\n", DeviceExtension);
+
+    ExtList.List = &RootDeviceExtension->ChildDeviceList;
+    ExtList.SpinLock = &AcpiDeviceTreeLock;
+    ExtList.Offset = FIELD_OFFSET(DEVICE_EXTENSION, SiblingDeviceList);
+    ExtList.ExtListEnum2 = 2;
+
+    DockExtension = ACPIExtListStartEnum(&ExtList);
+
+    while (ACPIExtListTestElement(&ExtList, 1))
+    {
+        if (!DockExtension)
+        {
+            ACPIExtListExitEnumEarly(&ExtList);
+            break;
+        }
+
+        if ((DockExtension->Flags & 0x0200000000000000) &&
+            DockExtension->Dock.CorrospondingAcpiDevice == DeviceExtension)
+        {
+            ACPIExtListExitEnumEarly(&ExtList);
+            break;
+        }
+
+        DockExtension = ACPIExtListEnumNext(&ExtList);
+    }
+
+    return DockExtension;
 }
 
 NTSTATUS

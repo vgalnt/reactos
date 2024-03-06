@@ -393,6 +393,30 @@ typedef struct _PDO_DEVICE_EXTENSION
     WORK_QUEUE_CONTEXT WorkContext;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
+typedef enum
+{
+    PDS_UPDATE_DEFAULT = 0x1,
+    PDS_UPDATE_ON_REMOVE = 0x2,
+    PDS_UPDATE_ON_INTERFACE = 0x3,
+    PDS_UPDATE_ON_EJECT = 0x4,
+} PROFILE_DEPARTURE_STYLE;
+
+typedef enum
+{
+    IS_UNKNOWN = 0x0,
+    IS_ISOLATED = 0x1,
+    IS_ISOLATION_DROPPED = 0x2,
+} ISOLATION_STATE;
+
+typedef struct _DOCK_EXTENSION
+{
+    EXTENSION_WORKER WorkQueue;
+    struct _DEVICE_EXTENSION* CorrospondingAcpiDevice;
+    PROFILE_DEPARTURE_STYLE ProfileDepartureStyle;
+    ULONG InterfaceReferenceCount;
+    ISOLATION_STATE IsolationState;
+} DOCK_EXTENSION, *PDOCK_EXTENSION;
+
 typedef struct _DEVICE_EXTENSION
 {
     union
@@ -477,6 +501,7 @@ typedef struct _DEVICE_EXTENSION
         PROCESSOR_DEVICE_EXTENSION Processor;
         MODULE_DEVICE_EXTENSION Module;
         THERMAL_EXTENSION Thermal;
+        DOCK_EXTENSION Dock;
     };
     ACPI_DEVICE_STATE DeviceState;
     ACPI_DEVICE_STATE PreviousState;
