@@ -1422,6 +1422,14 @@ OSPowerFindPowerInfo(
     _In_ PAMLI_NAME_SPACE_OBJECT NsObject
 );
 
+NTSTATUS
+NTAPI
+ACPIBuildDeviceExtension(
+    _In_ PAMLI_NAME_SPACE_OBJECT AcpiObject,
+    _In_ PDEVICE_EXTENSION ParentDeviceExtension,
+    _Out_ PDEVICE_EXTENSION* OutDeviceExtension
+);
+
 /* dispatch.c */
 NTSTATUS
 NTAPI

@@ -4151,12 +4151,92 @@ ACPIDockFindCorrespondingDock(
 
 NTSTATUS
 NTAPI
-ACPIBuildDockExtension(
-    _In_ PAMLI_NAME_SPACE_OBJECT AcpiObject,
-    _In_ PDEVICE_EXTENSION rootDeviceExtension)
+ACPIAmliBuildObjectPathname(
+    _In_ PAMLI_NAME_SPACE_OBJECT PathNsObject,
+    _Out_ PCHAR* OutInstanceID)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ACPIBuildDockExtension(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ PDEVICE_EXTENSION ParentDeviceExtension)
+{
+    PDEVICE_EXTENSION DockExtension = NULL;
+    PCHAR InstanceID = NULL;
+    PCHAR DeviceID;
+    ULONG Size;
+    NTSTATUS Status;
+
+    Status = ACPIBuildDeviceExtension(NULL, ParentDeviceExtension, &DockExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIBuildDockExtension: Status %X\n", Status);
+        return Status;
+    }
+
+    if (!DockExtension)
+    {
+        DPRINT1("ACPIBuildDockExtension: Status %X\n", Status);
+        return Status;
+    }
+
+    Size = sizeof("ACPI\\DockDevice");
+
+    DeviceID = ExAllocatePoolWithTag(NonPagedPool, Size, 'SpcA');
+    if (!DeviceID)
+    {
+        DPRINT1("ACPIBuildDockExtension: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+    RtlCopyMemory(DeviceID, "ACPI\\DockDevice", Size);
+
+    DockExtension->DeviceID = DeviceID;
+
+    Status = ACPIAmliBuildObjectPathname(NsObject, &InstanceID);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIBuildDockExtension: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    DockExtension->InstanceID = InstanceID;
+
+    DockExtension->Dock.CorrospondingAcpiDevice = NsObject->Context;
+    DockExtension->Dock.ProfileDepartureStyle = 4;
+    DockExtension->Dock.IsolationState = 0;
+
+    ACPIInternalUpdateFlags(DockExtension, 0x0209E00000020008, FALSE);
+
+    DPRINT("ACPIBuildDockExtension: Status %X\n", Status);
+
+    return Status;
+
+ErrorExit:
+
+    DPRINT1("ACPIBuildDockExtension: Status %X\n", Status);
+
+    if (InstanceID)
+    {
+        ACPIInternalUpdateFlags(DockExtension, 0x0000A00000000000, TRUE);
+        ExFreePoolWithTag(InstanceID, 0);
+        DockExtension->InstanceID = 0;
+    }
+
+    if (DockExtension)
+    {
+        ACPIInternalUpdateFlags(DockExtension, 0x0000A00000000000, TRUE);
+        ExFreePoolWithTag(DockExtension, 0);
+        DockExtension->Address = 0;
+    }
+
+    ACPIInternalUpdateFlags(DockExtension, 0x0002000000000000, TRUE);
+
+    return Status;
 }
 
 VOID
