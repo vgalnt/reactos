@@ -9738,7 +9738,7 @@ ACPISystemPowerUpdateWakeCapabilitiesForPDOs(
         goto Finish;
     }
 
-    if (DeviceWakeState)
+    if (DeviceWakeState != PowerDeviceUnspecified)
     {
         DeviceWakeLevel = DeviceWakeState;
         WakeLevel = DeviceWakeState;
@@ -9746,11 +9746,6 @@ ACPISystemPowerUpdateWakeCapabilitiesForPDOs(
         *OutDeviceWakeBit = (1 << DeviceWakeState);
 
         IsFound = TRUE;
-    }
-    else
-    {
-        DPRINT1("ACPISystemPowerUpdateWakeCapabilitiesForPDOs: FIXME\n");
-        ASSERT(FALSE);
     }
 
     Status = ACPISystemPowerGetSxD(DeviceExtension, SystemWakeLevel, &DeviceWakeState);
