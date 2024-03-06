@@ -13345,6 +13345,16 @@ ACPICMButtonNotify(
 
 VOID
 NTAPI
+ACPICMLidPowerStateCallBack(
+    _In_ PVOID CallbackContext,
+    _In_ PVOID Argument1,
+    _In_ PVOID Argument2)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 ACPICMButtonStartWorker(
     _In_ PVOID Context)
 {
@@ -13360,9 +13370,7 @@ ACPICMButtonStartWorker(
     DPRINT("ACPICMButtonStartWorker: %p\n", Context);
 
     AttachedTo = DeviceObject->AttachedDevice;
-
     DeviceExtension = ACPIInternalGetDeviceExtension(AttachedTo);
-
     Irp = DeviceObject->CurrentIrp;
 
     Status = Irp->IoStatus.Status;
@@ -13374,7 +13382,9 @@ ACPICMButtonStartWorker(
 
     if (DeviceExtension->Button.Capabilities & 4)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        ACPIInternalRegisterPowerCallBack(DeviceExtension, ACPICMLidPowerStateCallBack);
+        ACPICMLidPowerStateCallBack(DeviceExtension, NULL, NULL);
+        ACPISetDeviceWorker(DeviceExtension, 0);
     }
     else
     {

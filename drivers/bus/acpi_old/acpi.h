@@ -1775,6 +1775,13 @@ PnpIoResourceListToCmResourceList(
     _Out_ PCM_RESOURCE_LIST* OutCmResource
 );
 
+NTSTATUS
+NTAPI
+ACPIInternalRegisterPowerCallBack(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PCALLBACK_FUNCTION CallbackFunction
+);
+
 /* registry.c */
 VOID
 NTAPI
