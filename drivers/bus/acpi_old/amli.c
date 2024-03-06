@@ -4089,8 +4089,27 @@ NTSTATUS __cdecl CondRefOf(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTE
 }
 NTSTATUS __cdecl CreateBitField(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_BUFF_FIELD_OBJECT Field;
+    NTSTATUS Status;
+
+    DPRINT("CreateBitField: %p, %X, %p\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = CreateXField(AmliContext, TermContext, (TermContext->DataArgs + 2), &Field);
+    if (Status == STATUS_SUCCESS)
+    {
+        Field->FieldDesc.ByteOffset = ((ULONG)TermContext->DataArgs[1].DataValue >> 3);
+        Field->FieldDesc.StartBitPos = (ULONG)((ULONG_PTR)TermContext->DataArgs[1].DataValue - (Field->FieldDesc.ByteOffset * 8));
+        Field->FieldDesc.NumBits = 1;
+        Field->FieldDesc.FieldFlags = 1;
+    }
+
+    giIndent--;
+
+    DPRINT("CreateBitField: (%p) %X\n", TermContext->NsObject, Status);
+
+    return Status;
 }
 NTSTATUS __cdecl CreateByteField(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
