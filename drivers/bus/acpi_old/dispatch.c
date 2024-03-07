@@ -11717,8 +11717,8 @@ PnpBiosResourcesToNtResources(
     ULONG Increment;
     ULONG Index = 0;
     ULONG MaxIndex = 0;
-    ULONG ListSize;
     ULONG Size;
+    ULONG Count;
     ULONG ix = 0;
     ULONG jx = 0;
     UCHAR TagName;
@@ -11962,78 +11962,69 @@ PnpBiosResourcesToNtResources(
 
         PnpiClearAllocatedMemory(ResourceListArray, ResourceListArraySize);
         *OutIoResource = NULL;
-
         return Status;
     }
 
-    ListSize = sizeof(IO_RESOURCE_DESCRIPTOR);
+    Size = sizeof(IO_RESOURCE_DESCRIPTOR);
 
-    if (*ResourceListArray)
-        Size = (*ResourceListArray)->Count;
+    if (ResourceListArray[0])
+        Count = ResourceListArray[0]->Count;
     else
-        Size = 0;
-
-    Index = 1;
+        Count = 0;
 
     for (Index = 1; Index <= MaxIndex; Index++)
     {
         if (!(ResourceListArray[Index]))
         {
             DPRINT1("PnpBiosResourcesToNtResources: Bad List at Array[%X]\n", Index);
-
             PnpiClearAllocatedMemory(ResourceListArray, ResourceListArraySize);
             *OutIoResource = NULL;
-
             return STATUS_UNSUCCESSFUL;
         }
 
         if (ResourceListArray[Index]->Count)
         {
-            DPRINT("PnpBiosResourcesToNtResources: Index %X, ListSize %X\n", Index, ListSize);
-            ListSize += (sizeof(IO_RESOURCE_LIST) + ((ResourceListArray[Index]->Count + Size - 1) * sizeof(IO_RESOURCE_DESCRIPTOR)));
+            DPRINT("PnpBiosResourcesToNtResources: Index %X, Size %X\n", Index, Size);
+            Size += (sizeof(IO_RESOURCE_LIST) + ((ResourceListArray[Index]->Count + Count - 1) * sizeof(IO_RESOURCE_DESCRIPTOR)));
         }
     }
 
     if (!MaxIndex)
     {
-        if (!(*ResourceListArray) || (!(*ResourceListArray)->Count))
+        if (!ResourceListArray[0] || !ResourceListArray[0]->Count)
         {
             DPRINT1("PnpBiosResourcesToNtResources: No Resources to Report\n");
-
             PnpiClearAllocatedMemory(ResourceListArray, ResourceListArraySize);
             *OutIoResource = NULL;
-
             return STATUS_UNSUCCESSFUL;
         }
 
-        ListSize += (((*ResourceListArray)->Count - 1) + sizeof(IO_RESOURCE_LIST) * sizeof(IO_RESOURCE_DESCRIPTOR));
+        Size += (sizeof(IO_RESOURCE_LIST) + ((ResourceListArray[0]->Count - 1) * sizeof(IO_RESOURCE_DESCRIPTOR)));
     }
 
-    if (ListSize < sizeof(IO_RESOURCE_REQUIREMENTS_LIST))
+    if (Size < sizeof(IO_RESOURCE_REQUIREMENTS_LIST))
     {
         DPRINT1("PnpBiosResourcesToNtResources: Resources smaller than a List\n");
-
         PnpiClearAllocatedMemory(ResourceListArray, ResourceListArraySize);
         *OutIoResource = NULL;
-
         return STATUS_UNSUCCESSFUL;
     }
 
-    *OutIoResource = ExAllocatePoolWithTag(PagedPool, ListSize, 'RpcA');
+    *OutIoResource = ExAllocatePoolWithTag(PagedPool, Size, 'RpcA');
 
-    DPRINT("PnpBiosResourceToNtResources: %p, %X\n", *OutIoResource, ListSize);
+    DPRINT("PnpBiosResourceToNtResources: %p, %X\n", *OutIoResource, Size);
 
     if (!(*OutIoResource))
     {
         DPRINT1("PnpBiosResourceToNtResources: Could not allocate memory for ResourceRequirementList\n");
-        Status = STATUS_INSUFFICIENT_RESOURCES;
-        goto Finish;
+        PnpiClearAllocatedMemory(ResourceListArray, ResourceListArraySize);
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
-    RtlZeroMemory(*OutIoResource, ListSize);
+    RtlZeroMemory(*OutIoResource, Size);
 
     (*OutIoResource)->InterfaceType = 0xF;
     (*OutIoResource)->BusNumber = 0;
-    (*OutIoResource)->ListSize = ListSize;
+    (*OutIoResource)->ListSize = Size;
 
     IoList = (*OutIoResource)->List;
 
@@ -12042,36 +12033,34 @@ PnpBiosResourcesToNtResources(
         if (!(ResourceListArray[Index]->Count))
             continue;
 
-        ListSize = (sizeof(IO_RESOURCE_LIST) + (ResourceListArray[Index]->Count - 1) * sizeof(IO_RESOURCE_DESCRIPTOR));
-        (ResourceListArray[Index])->Count += Size;
+        Size = (sizeof(IO_RESOURCE_LIST) + ((ResourceListArray[Index]->Count - 1) * sizeof(IO_RESOURCE_DESCRIPTOR)));
+        ResourceListArray[Index]->Count += Count;
 
-        DPRINT1("PnpBiosResourcesToNtResources: [%X] %p, %X, %X\n", Index, IoList, ListSize, ResourceListArray[Index]->Count);
-        RtlCopyMemory(IoList, ResourceListArray[Index], ListSize);
+        DPRINT("PnpBiosResourcesToNtResources: [%X] %p, %X, %X\n", Index, IoList, Size, ResourceListArray[Index]->Count);
+        RtlCopyMemory(IoList, ResourceListArray[Index], Size);
 
-        IoList = Add2Ptr(IoList, ListSize);
+        IoList = Add2Ptr(IoList, Size);
 
-        if (Size)
+        if (Count)
         {
-            RtlCopyMemory(IoList, (*ResourceListArray)->Descriptors, (Size * sizeof(IO_RESOURCE_DESCRIPTOR)));
-            IoList = Add2Ptr(IoList, (Size * sizeof(IO_RESOURCE_DESCRIPTOR)));
+            RtlCopyMemory(IoList, ResourceListArray[0]->Descriptors, (Count * sizeof(IO_RESOURCE_DESCRIPTOR)));
+            IoList = Add2Ptr(IoList, (Count * sizeof(IO_RESOURCE_DESCRIPTOR)));
         }
 
-        ((*OutIoResource)->AlternativeLists)++;
+        (*OutIoResource)->AlternativeLists++;
     }
 
     if (!MaxIndex)
     {
-        ASSERT(Size != 0);
-        RtlCopyMemory(IoList, *ResourceListArray, (sizeof(IO_RESOURCE_LIST) + ((Size - 1) * sizeof(IO_RESOURCE_DESCRIPTOR))));
+        ASSERT(Count != 0);
+        RtlCopyMemory(IoList, ResourceListArray[0], (sizeof(IO_RESOURCE_LIST) + ((Count - 1) * sizeof(IO_RESOURCE_DESCRIPTOR))));
 
-        ((*OutIoResource)->AlternativeLists)++;
+        (*OutIoResource)->AlternativeLists++;
     }
-
-Finish:
 
     PnpiClearAllocatedMemory(ResourceListArray, ResourceListArraySize);
 
-    return Status;
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
