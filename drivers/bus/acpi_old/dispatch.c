@@ -15256,8 +15256,11 @@ ACPIInterruptServiceRoutine(
     _In_ PVOID ServiceContext)
 {
     PACPI_PM_DISPATCH_TABLE HalAcpiDispatchTable = (PVOID)PmHalDispatchTable;
+    PDEVICE_EXTENSION DeviceExtension = ServiceContext;
     ULONG Pm1Status;
     ULONG StatusBits;
+    ULONG OldValue;
+    ULONG Value;
 
     Pm1Status = ACPIIoReadPm1Status();
 
@@ -15281,11 +15284,34 @@ ACPIInterruptServiceRoutine(
         Pm1Status &= ~StatusBits;
     }
 
-    if (Pm1Status)
+    if (!Pm1Status)
+        return (StatusBits != 0);
+
+    if (!(Pm1Status & (~DeviceExtension->Fdo.Pm1Status)))
+        Pm1Status |= 0x10000;
+
+    if (Pm1Status & 0x10000)
     {
         DPRINT1("ACPIInterruptServiceRoutine: FIXME. Pm1Status %X\n", Pm1Status);
-        ASSERT(FALSE);
+        UNIMPLEMENTED_DBGBREAK();
     }
+
+    CLEAR_PM1_STATUS_BITS(Pm1Status);
+
+    Pm1Status |= 0x80000000;
+
+    Value = DeviceExtension->Fdo.Pm1Status;
+    do
+    {
+        OldValue = Value;
+        Value = InterlockedCompareExchange((PLONG)&DeviceExtension->Fdo.Pm1Status, (OldValue | Pm1Status), OldValue);
+    }
+    while (OldValue != Value);
+
+    StatusBits |= (Pm1Status & ~Value);
+
+    if (StatusBits & 0x80000000)
+        KeInsertQueueDpc(&DeviceExtension->Fdo.InterruptDpc, NULL, NULL);
 
     return (StatusBits != 0);
 }
