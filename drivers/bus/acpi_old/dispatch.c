@@ -13350,7 +13350,24 @@ ACPICMLidPowerStateCallBack(
     _In_ PVOID Argument1,
     _In_ PVOID Argument2)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_EXTENSION DeviceExtension = CallbackContext;
+    SYSTEM_POWER_POLICY OutputBuffer;
+    NTSTATUS Status;
+
+    if (Argument1)
+        return;
+
+    Status = ZwPowerInformation(SystemPowerPolicyCurrent, NULL, 0, &OutputBuffer, sizeof(OutputBuffer));
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPICMLidPowerStateCallBack: Failed ZwPowerInformation %X\n", Status);
+        return;
+    }
+
+    if (OutputBuffer.LidClose.Action != 0 && OutputBuffer.LidClose.Action != 1)
+        ACPIInternalUpdateFlags(DeviceExtension, 0x1000000000000000, TRUE);
+    else
+        ACPIInternalUpdateFlags(DeviceExtension, 0x1000000000000000, FALSE);
 }
 
 VOID
