@@ -13524,8 +13524,8 @@ ACPICMSleepButtonStart(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+    return ACPICMButtonStart(DeviceObject, Irp, 0x80000002);
 }
 
 /* Thermal Device FUNCTIOS **************************************************/
