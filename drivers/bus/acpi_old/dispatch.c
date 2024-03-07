@@ -14174,10 +14174,28 @@ ACPICMLidSetPower(
 VOID
 NTAPI
 ACPICMLidWorker(
-    _In_ struct _DEVICE_EXTENSION* DeviceExtension,
+    _In_ PDEVICE_EXTENSION DeviceExtension,
     _In_ ULONG Param2)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG LidState;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    Status = ACPIGet(DeviceExtension, 'DIL_', 0x20040002, NULL, 0, NULL, NULL, (PVOID *)&LidState, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1(" ACPICMLidWorker: Status %X\n", Status);
+        return;
+    }
+
+    LidState = (LidState ? 1 : 0);
+
+    KeAcquireSpinLock(&DeviceExtension->Button.SpinLock, &Irql);
+    DeviceExtension->Button.LidState = (CHAR)LidState;
+    KeReleaseSpinLock(&DeviceExtension->Button.SpinLock, Irql);
+
+    if (Param2 & 1)
+        ACPIButtonEvent(DeviceExtension->DeviceObject, (LidState ? 0x80000000 : 4), 0);
 }
 
 /* Dock Pdo FUNCTIOS ********************************************************/
