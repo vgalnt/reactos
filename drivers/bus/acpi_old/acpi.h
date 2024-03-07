@@ -1440,6 +1440,12 @@ WRITE_PM1_CONTROL(
     _In_ UCHAR Flags
 );
 
+VOID
+NTAPI
+WRITE_PM1_ENABLE(
+    _In_ USHORT Value
+);
+
 USHORT
 NTAPI
 ACPIReadGpeStatusRegister(

@@ -15213,13 +15213,75 @@ RtlUnpackPartialDesc(
 
 VOID
 NTAPI
+ACPIEnablePMInterruptOnly(VOID)
+{
+    WRITE_PM1_ENABLE(AcpiInformation->pm1_en_bits);
+}
+
+VOID
+NTAPI
 ACPIInterruptServiceRoutineDPC(
     _In_ PKDPC Dpc,
     _In_ PVOID DeferredContext,
     _In_ PVOID SystemArgument1,
     _In_ PVOID SystemArgument2)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_EXTENSION DeviceExtension = DeferredContext;
+    LONG Pm1Status;
+    LONG Comparand;
+    LONG Exchange;
+    ULONG Event;
+
+    while (TRUE)
+    {
+        Comparand = DeviceExtension->Fdo.Pm1Status;
+        do
+        {
+            Pm1Status = Comparand;
+
+            if (Comparand & 0x7FFFFFFF)
+            {
+                Exchange = 0x80000000;
+            }
+            else
+            {
+                ACPIEnablePMInterruptOnly();
+                Exchange = 0;
+            }
+
+            Comparand = InterlockedCompareExchange((PLONG)&DeviceExtension->Fdo.Pm1Status, Exchange, Comparand);
+        }
+        while (Pm1Status != Comparand);
+
+        if (!Exchange)
+            break;
+
+        Event = 0;
+
+        if (Pm1Status & 0x100)
+            Event = 1;
+
+        if (Pm1Status & 0x200)
+            Event |= 2;
+
+        if (Event)
+        {
+            if (Pm1Status & 0x8000)
+              Event = 0x80000000;
+
+            ACPIButtonEvent(FixedButtonDeviceObject, Event, 0);
+        }
+
+        if (Pm1Status & 0x20)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (Pm1Status & 0x10000)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
 }
 
 ULONG
