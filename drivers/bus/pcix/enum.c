@@ -1843,7 +1843,7 @@ NTAPI
 PcipGetFunctionLimits(
     _In_ PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
     PPCI_PDO_EXTENSION PdoExtension;
     PPCI_CONFIGURATOR Configurator;
     PPCI_COMMON_HEADER PciData;
@@ -1959,21 +1959,17 @@ PcipGetFunctionLimits(
     /* ...and then store the current resources being used */
     Configurator->SaveCurrentSettings(Context);
 
-    /* Loop all the limit descriptors backwards */
-    IoDescriptor = &PdoExtension->Resources->Limit[PCI_TYPE0_ADDRESSES + 1];
+    CmDescriptor = &PdoExtension->Resources->Current[0];
+
     while (TRUE)
     {
-        /* Keep going until a non-null descriptor is found */
-        IoDescriptor--;
-        if (IoDescriptor->Type != CmResourceTypeNull)
+        CmDescriptor -= 2;
+
+        if (CmDescriptor->ShareDisposition)
             break;
 
-        /* This is a null descriptor, is it the last one? */
-        if (IoDescriptor == &PdoExtension->Resources->Limit[PCI_TYPE0_ADDRESSES + 1])
+        if ((ULONG_PTR)CmDescriptor == (ULONG_PTR)PdoExtension->Resources)
         {
-            /* This means the descriptor is NULL, which means discovery failed */
-            DPRINT1("PcipGetFunctionLimits: PCI Resources fail!\n");
-
             /* No resources will be assigned for the device */
             ExFreePoolWithTag(PdoExtension->Resources, 'BicP');
             PdoExtension->Resources = NULL;
