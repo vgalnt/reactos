@@ -48,10 +48,45 @@ Cardbus_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
 
 VOID
 NTAPI
-Cardbus_MassageHeaderForLimitsDetermination(IN PPCI_CONFIGURATOR_CONTEXT Context)
+Cardbus_MassageHeaderForLimitsDetermination(
+    _In_ PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    UNREFERENCED_PARAMETER(Context);
-    UNIMPLEMENTED_DBGBREAK();
+    PPCI_COMMON_HEADER PciData;
+    PPCI_COMMON_HEADER Current;
+    ULONG DefaultBase;
+    ULONG ix;
+
+    DPRINT("Cardbus_MassageHeaderForLimitsDetermination: %p\n", Context);
+
+    PciData = Context->PciData;
+    Current = Context->Current;
+
+    PciData->u.type2.SocketRegistersBaseAddress = 0xFFFFFFFF;
+
+    for (ix = 0; ix <= 4; ix++)
+    {
+        PciData->u.type2.Range[ix].Limit = 0xFFFFFFFF;
+        PciData->u.type2.Range[ix].Base  = 0xFFFFFFFF;
+    }
+
+    Context->SecondaryStatus = Context->Current->u.type2.SecondaryStatus;
+
+    Context->Current->u.type2.SecondaryStatus = 0;
+    Context->PciData->u.type2.SecondaryStatus = 0;
+
+    if (Context->PdoExtension->OnDebugPath)
+        return;
+
+    DefaultBase = 0xFFFFF000;
+
+    for (ix = 0; ix <= 4; ix++)
+    {
+        Current->u.type2.Range[ix].Limit = 0;
+        Current->u.type2.Range[ix].Base = DefaultBase;
+
+        if (ix == 2)
+            DefaultBase = 0xFFFFFFFC;
+    }
 }
 
 VOID
