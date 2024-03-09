@@ -91,10 +91,10 @@ Cardbus_MassageHeaderForLimitsDetermination(
 
 VOID
 NTAPI
-Cardbus_RestoreCurrent(IN PPCI_CONFIGURATOR_CONTEXT Context)
+Cardbus_RestoreCurrent(
+    _In_ PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    UNREFERENCED_PARAMETER(Context);
-    UNIMPLEMENTED_DBGBREAK();
+    Context->Current->u.type2.SecondaryStatus = Context->SecondaryStatus;
 }
 
 VOID
