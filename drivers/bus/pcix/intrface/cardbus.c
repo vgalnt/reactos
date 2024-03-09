@@ -40,10 +40,74 @@ Cardbus_SaveCurrentSettings(IN PPCI_CONFIGURATOR_CONTEXT Context)
 
 VOID
 NTAPI
-Cardbus_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
+Cardbus_SaveLimits(
+    _In_ PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    UNREFERENCED_PARAMETER(Context);
-    UNIMPLEMENTED_DBGBREAK();
+    PPCI_FUNCTION_RESOURCES Resources;
+    PPCI_COMMON_HEADER PciData;
+    ULONG Align;
+    ULONG Base;
+    ULONG Limit;
+    ULONG ix;
+    USHORT IDs[4];
+    BOOLEAN DbgChk64Bit;
+
+    DPRINT("Cardbus_SaveLimits: %p\n", Context);
+
+    Resources = Context->PdoExtension->Resources;
+    PciData = Context->PciData;
+
+    DbgChk64Bit = PciCreateIoDescriptorFromBarLimit(Resources->Limit, &PciData->u.type2.SocketRegistersBaseAddress, FALSE);
+    ASSERT(!DbgChk64Bit);
+
+    for (ix = 0; ix < 4; ix++)
+    {
+        if (ix >= 2)
+        {
+            if (!(PciData->u.type2.Range[ix].Base & 0x3))
+            {
+                ASSERT((PciData->u.type2.Range[ix].Limit & 0x3) == 0x0);
+
+                PciData->u.type2.Range[ix].Base &= ~0xFFFF0000;
+                PciData->u.type2.Range[ix].Limit &= ~0xFFFF0000;
+            }
+
+            Resources->Limit[ix + 1].Type = 1;
+            Resources->Limit[ix + 1].Flags = 0xA1;
+
+            Align = 3;
+        }
+        else
+        {
+            Resources->Limit[ix + 1].Type = 3;
+            Resources->Limit[ix + 1].Flags = 0;
+
+            Align = 0xFFF;
+        }
+
+        Base = (PciData->u.type2.Range[ix].Base & ~Align);
+        Limit = (PciData->u.type2.Range[ix].Limit | Align);
+
+        if (Base && Base < Limit)
+        {
+            Resources->Limit[ix + 1].u.Generic.MinimumAddress.QuadPart = 0;
+            Resources->Limit[ix + 1].u.Generic.MaximumAddress.QuadPart = Limit;
+            Resources->Limit[ix + 1].u.Generic.Length = 0;
+            Resources->Limit[ix + 1].u.Generic.Alignment = (Align + 1);
+        }
+        else
+        {
+            Resources->Limit[ix + 1].Type = CmResourceTypeNull;
+        }
+    }
+
+    PciReadDeviceConfig(Context->PdoExtension, IDs, 0x40, 8);
+
+    Context->PdoExtension->SubsystemVendorId = IDs[0];
+    Context->PdoExtension->SubsystemId = IDs[1];
+
+    ASSERT(Context->PdoExtension->Resources->Limit[1].u.Generic.Length == 0);
+    Context->PdoExtension->Resources->Limit[1].u.Generic.Length = 0x1000;
 }
 
 VOID
