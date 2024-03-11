@@ -773,6 +773,17 @@ PciPrivateResourceInitialize(
     IoDescriptor->u.DevicePrivate.Data[1] = Data1;
 }
 
+VOID
+NTAPI
+PciBuildGraduatedWindow(
+    _In_ PIO_RESOURCE_DESCRIPTOR InIoDesc,
+    _In_ ULONG Length,
+    _In_ ULONG WindowCount,
+    _Out_ PIO_RESOURCE_DESCRIPTOR OutDescriptor)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 PciBuildRequirementsList(
@@ -955,8 +966,19 @@ PciBuildRequirementsList(
                 }
                 else if (PciDeviceType == PciTypeCardbusBridge)
                 {
-                    DPRINT1("PciBuildRequirementsList: FIXME\n");
-                    ASSERT(FALSE);
+                    if (IoDescriptor->Type == CmResourceTypeMemory)
+                    {
+                        PciBuildGraduatedWindow(IoDescriptor, 0x4000000, 7, NewIoDescriptor);
+                        NewIoDescriptor = &NewIoDescriptor[7];
+                        PciPrivateResourceInitialize(NewIoDescriptor, 1, ix);
+                        NewIoDescriptor++;
+                        continue;
+                    }
+                    else
+                    {
+                        Length = 0x100;
+                        Alignment = 0x100;
+                    }
                 }
             }
 
