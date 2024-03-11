@@ -781,7 +781,38 @@ PciBuildGraduatedWindow(
     _In_ ULONG WindowCount,
     _Out_ PIO_RESOURCE_DESCRIPTOR OutDescriptor)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIO_RESOURCE_DESCRIPTOR CurrentIoDesc;
+    ULONG Window;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("PciBuildGraduatedWindow: %p, %X, %X\n", InIoDesc, Length, WindowCount);
+
+    ASSERT(InIoDesc->Type == CmResourceTypePort || InIoDesc->Type == CmResourceTypeMemory);
+
+    CurrentIoDesc = OutDescriptor;
+
+    if (WindowCount)
+    {
+        for (ix = 0; ix < WindowCount; ix++)
+        {
+            RtlCopyMemory(CurrentIoDesc, InIoDesc, sizeof(*CurrentIoDesc));
+
+            CurrentIoDesc->u.Generic.Length = Length;
+
+            if (ix != 0)
+                CurrentIoDesc->Option = 8;
+
+            CurrentIoDesc++;
+
+            Window = (Length >> 1);
+            ASSERT(Window > 1);
+
+            Length = Window;
+        }
+    }
+
+    ASSERT((ULONG)(CurrentIoDesc - OutDescriptor) == WindowCount);
 }
 
 NTSTATUS
