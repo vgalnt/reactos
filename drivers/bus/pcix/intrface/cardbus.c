@@ -32,10 +32,86 @@ PCI_INTERFACE PciCardbusPrivateInterface =
 
 VOID
 NTAPI
-Cardbus_SaveCurrentSettings(IN PPCI_CONFIGURATOR_CONTEXT Context)
+Cardbus_SaveCurrentSettings(
+    _In_ PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    UNREFERENCED_PARAMETER(Context);
-    UNIMPLEMENTED_DBGBREAK();
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDesc;
+    PIO_RESOURCE_DESCRIPTOR IoDesc;
+    PPCI_COMMON_HEADER Current;
+    ULONG Align;
+    ULONG Limit;
+    ULONG Base;
+    ULONG ix;
+
+    DPRINT("Cardbus_SaveCurrentSettings: %p\n", Context);
+
+    Current = Context->Current;
+
+    CmDesc = Context->PdoExtension->Resources->Current;
+    IoDesc = Context->PdoExtension->Resources->Limit;
+
+    for (ix = 0; ix < 6; ix++, CmDesc++, IoDesc++)
+    {
+        CmDesc->Type = IoDesc->Type;
+
+        if (CmDesc->Type == CmResourceTypeNull)
+            continue;
+
+        CmDesc->Flags = IoDesc->Flags;
+        CmDesc->ShareDisposition = IoDesc->ShareDisposition;
+
+        if (ix == 0)
+        {
+            Base = (Current->u.type2.SocketRegistersBaseAddress & ~(IoDesc->u.Generic.Length - 1));
+            CmDesc->u.Generic.Start.QuadPart = Base;
+
+            CmDesc->u.Generic.Length = IoDesc->u.Generic.Length;
+            continue;
+        }
+
+        if (ix == 5)
+            continue;
+
+        Base = Current->u.type2.Range[ix - 1].Base;
+        Limit = Current->u.type2.Range[ix - 1].Limit;
+
+        if (ix < 3)
+        {
+            Align = 0xFFF;
+        }
+        else
+        {
+            if (!(Current->u.type2.Range[ix].Base & 0x3))
+            {
+                Base &= ~0xFFFF0000;
+                Limit &= ~0xFFFF0000;
+            }
+
+            Align = 0x3;
+        }
+
+        Base &= ~Align;
+        Limit |= Align;
+
+        if (Base && (Base < Limit))
+        {
+            CmDesc->u.Generic.Start.QuadPart = Base;
+            CmDesc->u.Generic.Length = (Limit - Base + 1);
+        }
+        else
+        {
+            CmDesc->Type = CmResourceTypeNull;
+        }
+    }
+
+    Context->PdoExtension->Dependent.type2.IsaBitSet = FALSE;
+
+    if (Current->u.type2.BridgeControl & 0x304)
+        Context->PdoExtension->UpdateHardware = TRUE;
+
+    Context->PdoExtension->Dependent.type2.PrimaryBus = Current->u.type2.PrimaryBus;
+    Context->PdoExtension->Dependent.type2.SecondaryBus = Current->u.type2.SecondaryBus;
+    Context->PdoExtension->Dependent.type2.SubordinateBus = Current->u.type2.SubordinateBus;
 }
 
 VOID

@@ -224,7 +224,14 @@ typedef union _PCI_HEADER_TYPE_DEPENDENT
     } type1;
     struct
     {
-        UCHAR Spare[4];
+        UCHAR PrimaryBus;
+        UCHAR SecondaryBus;
+        UCHAR SubordinateBus;
+        UCHAR SubtractiveDecode:1;
+        UCHAR IsaBitSet:1;
+        UCHAR VgaBitSet:1;
+        UCHAR WeChangedBusNumbers:1;
+        UCHAR IsaBitRequired:1;
     } type2;
 } PCI_HEADER_TYPE_DEPENDENT, *PPCI_HEADER_TYPE_DEPENDENT;
 
