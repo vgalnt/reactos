@@ -53,6 +53,9 @@ ARBITER_ORDERING_LIST PciBridgeOrderingList =
     0x0002, 0x0002, PciBridgeOrderings
 };
 
+extern RTL_RANGE_LIST PciIsaBitExclusionList;
+extern RTL_RANGE_LIST PciVgaAndIsaBitExclusionList;
+
 /* FUNCTIONS ******************************************************************/
 
 NTSTATUS
@@ -231,8 +234,10 @@ ario_StartArbiter(
 
     if (PdoExtension->Dependent.type1.IsaBitSet)
     {
-        DPRINT1("ario_StartArbiter: FIXME\n");
-        ASSERT(FALSE);
+        if (PdoExtension->Dependent.type1.VgaBitSet)
+            RangeList = &PciVgaAndIsaBitExclusionList;
+        else
+            RangeList = &PciIsaBitExclusionList;
     }
 
     PartialDescriptors = CmResource->List[0].PartialResourceList.PartialDescriptors;
