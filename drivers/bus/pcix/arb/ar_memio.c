@@ -578,27 +578,128 @@ ario_IsAliasedRangeAvailable(
 
 BOOLEAN
 NTAPI
+ario_FindWindowWithIsaBit(
+    _In_ PARBITER_INSTANCE Arbiter,
+    _In_ PARBITER_ALLOCATION_STATE ArbState)
+{
+    ULONGLONG Minimum;
+    ULONGLONG Maximum;
+    ULONGLONG Start;
+    ULONGLONG Offset;
+    ULONG RangeFlags = 0;
+    ULONG Length;
+    ULONG Alignment;
+    NTSTATUS Status;
+    BOOLEAN Result = FALSE;
+
+    ASSERT((ArbState->Entry->PhysicalDeviceObject)->DriverObject == PciDriverObject);
+    ASSERT(PciClassifyDeviceType(((PPCI_PDO_EXTENSION) ArbState->Entry->PhysicalDeviceObject->DeviceExtension)) == PciTypePciBridge);
+    ASSERT(ArbState->CurrentAlternative->Descriptor->Flags & CM_RESOURCE_PORT_POSITIVE_DECODE);
+
+    ArbState->RangeAvailableAttributes |= 0x10;
+
+    Minimum = ArbState->CurrentMinimum;
+    Maximum = ArbState->CurrentMaximum;
+
+    Length = ArbState->CurrentAlternative->Length;
+    Alignment = ArbState->CurrentAlternative->Alignment;
+
+    ASSERT((Length % Alignment) == 0);
+    ASSERT((Minimum % Alignment) == 0);
+    ASSERT(((Maximum + 1) % Alignment) == 0);
+
+    if (ArbState->Flags & 8)
+        RangeFlags = 2;
+
+    if (ArbState->CurrentAlternative->Flags & 1)
+        RangeFlags |= 1;
+
+    if (Maximum < (Length + 1))
+        return FALSE;
+
+    Start = (Maximum - Length + 1);
+
+    while (TRUE)
+    {
+        if (Result)
+            break;
+
+        if (Start < Minimum)
+            break;
+
+        Offset = Start;
+
+        while (TRUE)
+        {
+            if (Offset >= (Start + Length - 1))
+                break;
+
+            if (Offset >= 0xFFFF)
+                break;
+
+            Status = RtlIsRangeAvailable(Arbiter->PossibleAllocation,
+                                         Offset,
+                                         (Offset + 0xFF),
+                                         RangeFlags,
+                                         ArbState->RangeAvailableAttributes,
+                                         Arbiter->ConflictCallbackContext,
+                                         Arbiter->ConflictCallback,
+                                         &Result);
+            ASSERT(NT_SUCCESS(Status));
+
+            if (!Result)
+                break;
+
+            Offset += 0x400;
+        }
+
+        if (Result)
+        {
+            ArbState->Start = Start;
+            ArbState->End = (Start + Length - 1);
+
+            ASSERT(ArbState->Start >= Minimum);
+            ASSERT(ArbState->End <= Maximum);
+
+            break;
+        }
+
+        if (Start < 0x1000)
+            break;
+
+        Start -= 0x1000;
+    }
+
+    return Result;
+}
+
+BOOLEAN
+NTAPI
 ario_FindSuitableRange(
     _In_ PARBITER_INSTANCE Arbiter,
     _Inout_ PARBITER_ALLOCATION_STATE ArbState)
 {
+    PPCI_FDO_EXTENSION ParentFdoExtension;
     PPCI_PDO_EXTENSION ParentPdoExtension;
     PPCI_PDO_EXTENSION PdoExtension;
+    PARBITER_LIST_ENTRY ArbEntry;
 
     PAGED_CODE();
     DPRINT("ario_FindSuitableRange: %p\n", Arbiter);
 
     ArbState->Flags &= ~8;
+    ArbEntry = ArbState->Entry;
 
     if (ArbState->WorkSpace & 8)
     {
-        ASSERT(ArbState->Entry->PhysicalDeviceObject->DriverObject == PciDriverObject);
+        ASSERT(ArbEntry->PhysicalDeviceObject->DriverObject == PciDriverObject);
 
-        PdoExtension = ArbState->Entry->PhysicalDeviceObject->DeviceExtension;
+        PdoExtension = ArbEntry->PhysicalDeviceObject->DeviceExtension;
+        ParentFdoExtension = PdoExtension->ParentFdoExtension;
 
-        if (PdoExtension->ParentFdoExtension != PdoExtension->ParentFdoExtension->BusRootFdoExtension)
+        if (ParentFdoExtension != ParentFdoExtension->BusRootFdoExtension)
         {
-            ParentPdoExtension = PdoExtension->ParentFdoExtension->PhysicalDeviceObject->DeviceExtension;
+            ParentPdoExtension = ParentFdoExtension->PhysicalDeviceObject->DeviceExtension;
             ASSERT(ParentPdoExtension);
         }
         else
@@ -607,37 +708,37 @@ ario_FindSuitableRange(
         }
 
         if (!ParentPdoExtension ||
-           (ParentPdoExtension->HeaderType == PCI_BRIDGE_TYPE && !ParentPdoExtension->MovedDevice))
+            (ParentPdoExtension->HeaderType == 1 && !ParentPdoExtension->MovedDevice))
         {
             if (ArbState->CurrentAlternative->Flags & 2)
                 ArbState->Flags |= 8;
         }
 
         if ((ArbState->WorkSpace & 4) && ArbState->CurrentMaximum <= 0xFFFF)
-        {
-            DPRINT1("ario_FindSuitableRange: FIXME\n");
-            ASSERT(FALSE);
-        }
+            return ario_FindWindowWithIsaBit(Arbiter, ArbState);
     }
 
-    if (ArbState->Entry->RequestSource == ArbiterRequestLegacyReported ||
-        ArbState->Entry->RequestSource == ArbiterRequestLegacyAssigned ||
-        ArbState->Entry->Flags & 1)
+    if (ArbEntry->RequestSource == ArbiterRequestLegacyReported ||
+        ArbEntry->RequestSource == ArbiterRequestLegacyAssigned ||
+        (ArbEntry->Flags & 1))
     {
         ArbState->RangeAvailableAttributes |= 1;
     }
 
-    if (ArbState->CurrentAlternative->Descriptor->Flags & CM_RESOURCE_PORT_POSITIVE_DECODE)
+    if (ArbState->CurrentAlternative->Descriptor->Flags & 0x20)
         ArbState->RangeAvailableAttributes |= 0x10;
 
-    while (ArbState->CurrentMaximum >= ArbState->CurrentMinimum)
+    while (TRUE)
     {
+        if (ArbState->CurrentMaximum < ArbState->CurrentMinimum)
+            break;
+
         if (!ArbFindSuitableRange(Arbiter, ArbState))
             break;
 
         if (!ArbState->CurrentAlternative->Length)
         {
-            ArbState->Entry->Result = 2;
+            ArbEntry->Result = 2;
             return TRUE;
         }
 
@@ -648,7 +749,6 @@ ario_FindSuitableRange(
             break;
 
         ArbState->CurrentMaximum = (ArbState->Start - 1);
-        continue;
     }
 
     return FALSE;
