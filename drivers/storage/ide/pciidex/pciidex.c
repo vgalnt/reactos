@@ -444,6 +444,15 @@ DispatchWmi(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+NTSTATUS
+NTAPI
+EnablePCIBusMastering(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 /* POWER FUNCTIONS **********************************************************/
 
 NTSTATUS
@@ -533,16 +542,246 @@ NoSupportIrp(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+NTSTATUS
+NTAPI
+ControllerStartDeviceCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeIssueSetPowerState(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ POWER_STATE_TYPE PowerType,
+    _In_ POWER_STATE State,
+    _In_ BOOLEAN IsWait)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+AnalyzeResourceList(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PCM_RESOURCE_LIST InCmResource)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeInitControllerProperties(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeCreateSyncChildAccess(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeCreateTimingTable(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 /* FDO PNP FUNCTIONS ********************************************************/
 
 NTSTATUS
 NTAPI
 ControllerStartDevice(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor;
+    PCM_FULL_RESOURCE_DESCRIPTOR FullList;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PCM_RESOURCE_LIST CmResources;
+    POWER_STATE State;
+    KEVENT Event;
+    ULONG ix;
+    ULONG jx;
+    ULONG kx;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ControllerStartDevice: %p, %p\n", Fdo, Irp);
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    CmResources = (IoGetCurrentIrpStackLocation(Irp))->Parameters.StartDevice.AllocatedResourcesTranslated;
+    if (!CmResources)
+    {
+        DPRINT1("ControllerStartDevice: Starting with no resource\n");
+    }
+
+    if (FdoExtension->NativeMode[0] && FdoExtension->NativeMode[1])
+    {
+        if (FdoExtension->PciNativeIdeInterface)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+
+    KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    IoSetCompletionRoutine(Irp, ControllerStartDeviceCompletionRoutine, &Event, TRUE, TRUE, TRUE);
+
+    Status = IoCallDriver(FdoExtension->LowDevice, Irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = Irp->IoStatus.Status;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+        goto Exit;
+    }
+
+    State.SystemState = PowerSystemWorking;
+    Status = PciIdeIssueSetPowerState(FdoExtension, SystemPowerState, State, TRUE);
+
+    if (Status == STATUS_INVALID_DEVICE_REQUEST)
+    {
+        FdoExtension->SystemPowerState = PowerSystemWorking;
+    }
+    else if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+        goto Exit;
+    }
+
+    State.DeviceState = PowerDeviceD0;
+    Status = PciIdeIssueSetPowerState(FdoExtension, DevicePowerState, State, TRUE);
+
+    if (Status == STATUS_INVALID_DEVICE_REQUEST)
+    {
+        FdoExtension->DevicePowerState = PowerDeviceD0;
+    }
+    else if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+        goto Exit;
+    }
+
+    if (!FdoExtension->NativeMode[0] || !FdoExtension->NativeMode[1])
+        EnablePCIBusMastering(FdoExtension);
+
+    KeInitializeSpinLock(&FdoExtension->SpinLock);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+        goto Exit;
+    }
+
+    Status = AnalyzeResourceList(FdoExtension, CmResources);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+        goto Exit;
+    }
+
+    PciIdeInitControllerProperties(FdoExtension);
+
+    if (FdoExtension->NativeMode[0] && FdoExtension->NativeMode[1])
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    Status = PciIdeCreateSyncChildAccess(FdoExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+        goto Exit;
+    }
+
+    Status = PciIdeCreateTimingTable(FdoExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+        goto Exit;
+    }
+
+    DPRINT("ControllerStartDevice: Starting device\n");
+
+    for (ix = 0; ix < 3; ix++)
+    {
+        if (ix == 0 || ix == 1)
+        {
+            DPRINT("ControllerStartDevice: PDO %d resources:\n", ix);
+            CmResources = FdoExtension->ChannelResources[ix];
+        }
+        else if (ix == 2)
+        {
+            DPRINT("ControllerStartDevice: Busmaster resources:\n");
+            CmResources = FdoExtension->BusMasterResources;
+        }
+
+        if (!CmResources)
+            continue;
+
+        FullList = &CmResources->List[0];
+
+        for (jx = 0; jx < CmResources->Count; jx++)
+        {
+            Descriptor = FullList->PartialResourceList.PartialDescriptors;
+
+            for (kx = 0; kx < FullList->PartialResourceList.Count; kx++)
+            {
+                switch (Descriptor[kx].Type)
+                {
+                    case 1:
+                        DPRINT("ControllerStartDevice: IO Port = 0x%x. Lenght = 0x%x\n", Descriptor[kx].u.Port.Start.LowPart, Descriptor[kx].u.Port.Length);
+                        break;
+
+                    case 3:
+                        DPRINT("ControllerStartDevice: Memory Port = 0x%x. Lenght = 0x%x\n", Descriptor[kx].u.Memory.Start.LowPart, Descriptor[kx].u.Memory.Length);
+                        break;
+
+                    case 2:
+                        DPRINT("ControllerStartDevice: Int Level = 0x%x. Int Vector = 0x%x\n", Descriptor[kx].u.Interrupt.Level, Descriptor[kx].u.Interrupt.Vector);
+                        break;
+
+                    default:
+                        DPRINT("ControllerStartDevice: Unknown resource\n");
+                        break;
+                }
+            }
+
+            FullList = (PCM_FULL_RESOURCE_DESCRIPTOR)&Descriptor[kx];
+        }
+    }
+
+Exit:
+
+    Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = Status;
+
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS

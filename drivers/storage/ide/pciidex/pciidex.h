@@ -24,15 +24,23 @@ typedef struct _FDO_DEVICE_EXTENSION
     PDEVICE_OBJECT LowPdo;
     PDRIVER_OBJECT DriverObject;
     PDEVICE_OBJECT SelfDevice;
+    SYSTEM_POWER_STATE SystemPowerState;
+    DEVICE_POWER_STATE DevicePowerState;
     PDRIVER_DISPATCH PassToNextDriver;
     PDRIVER_DISPATCH* FdoPnpDispatchTable;
     PDRIVER_DISPATCH* FdoPowerDispatchTable;
     PDRIVER_DISPATCH* FdoWmiDispatchTable;
     ULONG FdoIndex;
     UCHAR NativeMode[2];
+    ULONG ChannelResourceSize[2];
+    PCM_RESOURCE_LIST ChannelResources[2];
+    ULONG BusMasterResourcesSize;
+    PCM_RESOURCE_LIST BusMasterResources;
     PVOID MiniControllerExtension;
+    KSPIN_LOCK SpinLock;
     ULONG DeviceControlFlags;
     BUS_INTERFACE_STANDARD StdInterface;
+    PVOID PciNativeIdeInterface;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
 
 typedef struct _PDO_DEVICE_EXTENSION
@@ -41,6 +49,8 @@ typedef struct _PDO_DEVICE_EXTENSION
     ULONG LowPdo;
     PDRIVER_OBJECT DriverObject;
     PDEVICE_OBJECT SelfDevice;
+    SYSTEM_POWER_STATE SystemPowerState;
+    DEVICE_POWER_STATE DevicePowerState;
     PDRIVER_DISPATCH NoSupportIrp;
     PDRIVER_DISPATCH* PdoPnpDispatchTable;
     PDRIVER_DISPATCH* PdoPowerDispatchTable;
