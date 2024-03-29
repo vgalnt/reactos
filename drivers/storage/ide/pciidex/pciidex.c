@@ -457,8 +457,27 @@ NTAPI
 EnablePCIBusMastering(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCI_COMMON_CONFIG Buffer;
+    NTSTATUS Status;
+
+    DPRINT("EnablePCIBusMastering: %p\n", FdoExtension);
+
+    Status = PciIdeBusData(FdoExtension, &Buffer, 0, 0x40, TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("EnablePCIBusMastering: Status %X\n", Status);
+        return Status;
+    }
+
+    if (!(Buffer.ProgIf & 0x80))
+        return Status;
+
+    if (Buffer.Command & 4)
+        return Status;
+
+    Buffer.Command |= 4;
+
+    return PciIdeBusData(FdoExtension, &Buffer.Command, 4, 2, FALSE);
 }
 
 VOID
