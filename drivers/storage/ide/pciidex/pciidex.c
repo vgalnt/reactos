@@ -133,8 +133,20 @@ PciIdeBusData(
     _In_ ULONG Length,
     _In_ BOOLEAN IsGetOrSet)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ULONG Result;
+
+    if (IsGetOrSet)
+        Result = FdoExtension->StdInterface.GetBusData(FdoExtension->StdInterface.Context, 0, Buffer, Offset, Length);
+    else
+        Result = FdoExtension->StdInterface.SetBusData(FdoExtension->StdInterface.Context, 0, Buffer, Offset, Length);
+
+    if (Result != Length)
+    {
+        DPRINT1("PciIdeBusData: %p, %X, %X, %X, %X\n", FdoExtension, IsGetOrSet, Offset, Length, Result);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 VOID
