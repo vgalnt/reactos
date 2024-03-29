@@ -473,15 +473,125 @@ FdoContingentPowerCompletionRoutine(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+VOID
+NTAPI
+FdoSystemPowerUpCompletionRoutine(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ UCHAR MinorFunction,
+    _In_ POWER_STATE PowerState,
+    _In_ PVOID Context,
+    _In_ PIO_STATUS_BLOCK IoStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 FdoPowerCompletionRoutine(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp,
-    _In_ PVOID context)
+    _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIDE_SET_POWER_CONTEXT IdeContext = Context;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    POWER_STATE state;
+    BOOLEAN IsSystemWorkingState = FALSE;
+    BOOLEAN IsChangeDeviceState = TRUE;
+    NTSTATUS Status;
+
+    DPRINT("FdoPowerCompletionRoutine: %p, %p, %p\n", Fdo, Irp, Context);
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        if (IdeContext->Type)
+        {
+            ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[1]), 0, 1) == 1);
+        }
+        else
+        {
+            ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
+        }
+
+        goto Finish;
+    }
+
+    if (IdeContext->Type == SystemPowerState)
+    {
+        FdoExtension->SystemPowerState = IdeContext->State.SystemState;
+
+        if (IdeContext->State.SystemState == PowerSystemWorking)
+        {
+            ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
+
+            IsSystemWorkingState = TRUE;
+            state.SystemState = PowerSystemWorking;
+
+            Status = PoRequestPowerIrp(FdoExtension->SelfDevice, 2, state, FdoSystemPowerUpCompletionRoutine, Irp, 0);
+            ASSERT(Status == STATUS_PENDING);
+        }
+
+        DPRINT("FdoPowerCompletionRoutine: New Fdo system power state %X\n", FdoExtension->SystemPowerState);
+
+        PoSetPowerState(Fdo, IdeContext->Type, IdeContext->State);
+
+        if (!IsSystemWorkingState)
+        {
+            if (IdeContext->Type)
+            {
+                ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[1]), 0, 1) == 1);
+            }
+            else
+            {
+                ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
+            }
+        }
+
+        goto Finish;
+    }
+
+    if (IdeContext->Type == DevicePowerState)
+    {
+        if (FdoExtension->DevicePowerState == PowerDeviceD0)
+            IsChangeDeviceState = FALSE;
+
+        FdoExtension->DevicePowerState = IdeContext->State.DeviceState;
+
+        if (IdeContext->State.DeviceState == PowerDeviceD0)
+        {
+            EnablePCIBusMastering(FdoExtension);
+            IoInvalidateDeviceRelations(FdoExtension->LowPdo, 0);
+        }
+
+        DPRINT("FdoPowerCompletionRoutine: New Fdo device power state %X\n", FdoExtension->DevicePowerState);
+
+        if (IsChangeDeviceState)
+            PoSetPowerState(Fdo, IdeContext->Type, IdeContext->State);
+    }
+    else
+    {
+        DPRINT1("FdoPowerCompletionRoutine: %p, %p, %p, %X\n", Fdo, Irp, Context, IdeContext->Type);
+        PoSetPowerState(Fdo, IdeContext->Type, IdeContext->State);
+    }
+
+    if (IdeContext->Type)
+    {
+        ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[1]), 0, 1) == 1);
+    }
+    else
+    {
+        ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
+    }
+
+Finish:
+
+    if (IsSystemWorkingState)
+        return STATUS_MORE_PROCESSING_REQUIRED;
+
+    PoStartNextPowerIrp(Irp);
+
+    return Irp->IoStatus.Status;
 }
 
 /* POWER FUNCTIONS **********************************************************/
