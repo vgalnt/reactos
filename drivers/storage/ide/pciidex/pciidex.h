@@ -11,6 +11,12 @@
 
 /* STRUCTURES ***************************************************************/
 
+typedef struct _IDE_WAIT_CONTEXT
+{
+    KEVENT Event;
+    NTSTATUS Status;
+} IDE_WAIT_CONTEXT, *PIDE_WAIT_CONTEXT;
+
 typedef struct _PCIIDEX_DRIVER_EXTENSION
 {
     PCONTROLLER_PROPERTIES HwGetControllerProperties;
