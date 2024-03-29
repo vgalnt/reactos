@@ -812,7 +812,7 @@ PciIdeXInitialize(
 
     DPRINT("PciIdeXInitialize: %p, '%wZ', %p, %X\n", DriverObject, RegistryPath, HwGetControllerProperties, ExtensionSize);
 
-    Status = IoAllocateDriverObjectExtension(DriverObject, DriverObject, sizeof(*DriverExtension), (PVOID*)&DriverExtension);
+    Status = IoAllocateDriverObjectExtension(DriverObject, DriverEntry, sizeof(*DriverExtension), (PVOID*)&DriverExtension);
     if (!NT_SUCCESS(Status))
     {
         DPRINT1("PciIdeXInitialize: Status %X\n", Status);
