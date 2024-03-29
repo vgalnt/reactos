@@ -918,8 +918,19 @@ PciIdePowerCompletionRoutine(
     _In_ PIRP Irp,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIDE_WAIT_CONTEXT WaitContext = Context;
+
+    DPRINT("PciIdePowerCompletionRoutine: %p, %X, %X\n", DeviceObject, Irp, Context);
+
+    if (WaitContext)
+    {
+        WaitContext->Status = Irp->IoStatus.Status;
+        KeSetEvent(&WaitContext->Event, EVENT_INCREMENT, FALSE);
+    }
+
+    IoFreeIrp(Irp);
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 NTSTATUS
