@@ -11,6 +11,13 @@
 
 /* STRUCTURES ***************************************************************/
 
+typedef struct _IDE_SET_POWER_CONTEXT
+{
+    PIRP Irp;
+    POWER_STATE_TYPE Type;
+    POWER_STATE State;
+} IDE_SET_POWER_CONTEXT, *PIDE_SET_POWER_CONTEXT;
+
 typedef struct _IDE_WAIT_CONTEXT
 {
     KEVENT Event;
@@ -46,6 +53,8 @@ typedef struct _FDO_DEVICE_EXTENSION
     KSPIN_LOCK SpinLock;
     ULONG DeviceControlFlags;
     BUS_INTERFACE_STANDARD StdInterface;
+    IDE_SET_POWER_CONTEXT PowerContext[2];
+    LONG PowerContextLock[2];
     PVOID PciNativeIdeInterface;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
 

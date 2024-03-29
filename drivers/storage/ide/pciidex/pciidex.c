@@ -461,16 +461,188 @@ EnablePCIBusMastering(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+NTAPI
+FdoContingentPowerCompletionRoutine(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ UCHAR MinorFunction,
+    _In_ POWER_STATE PowerState,
+    _In_ PVOID Context,
+    _In_ PIO_STATUS_BLOCK IoStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+FdoPowerCompletionRoutine(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp,
+    _In_ PVOID context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 /* POWER FUNCTIONS **********************************************************/
 
 NTSTATUS
 NTAPI
 PciIdeSetFdoPowerState(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PIDE_SET_POWER_CONTEXT PowerContext;
+    PIO_STACK_LOCATION IoStack;
+    POWER_STATE state;
+    BOOLEAN SystemPowerContext = FALSE;
+    BOOLEAN DevicePowerContext = FALSE;
+    BOOLEAN IsOldState = FALSE;
+
+    DPRINT("PciIdeSetFdoPowerState: %p, %p\n", Fdo, Irp);
+
+    FdoExtension = Fdo->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.Power.Type)
+    {
+        ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[1]), 1, 0) == 0);
+        PowerContext = &FdoExtension->PowerContext[1];
+        DevicePowerContext = TRUE;
+    }
+    else
+    {
+        ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 1, 0) == 0);
+        PowerContext = FdoExtension->PowerContext;
+        SystemPowerContext = TRUE;
+    }
+
+    if (PowerContext)
+    {
+        PowerContext->Irp = Irp;
+        PowerContext->Type = IoStack->Parameters.Power.Type;
+        PowerContext->State = IoStack->Parameters.Power.State;
+
+        if (IoStack->Parameters.Power.Type == SystemPowerState)
+        {
+            if (FdoExtension->SystemPowerState != IoStack->Parameters.Power.State.SystemState)
+            {
+                if (IoStack->Parameters.Power.State.SystemState == PowerSystemShutdown &&
+                    IoStack->Parameters.Power.ShutdownType == PowerActionShutdownReset)
+                {
+                    IoMarkIrpPending(Irp);
+                    state.SystemState = 1;
+                    PoRequestPowerIrp(FdoExtension->SelfDevice, 2, state, FdoContingentPowerCompletionRoutine, PowerContext, 0);
+                    return STATUS_PENDING;
+                }
+                else if (FdoExtension->SystemPowerState == PowerSystemWorking)
+                {
+                    IoMarkIrpPending(Irp);
+                    state.SystemState = PowerSystemSleeping3;
+                    PoRequestPowerIrp(FdoExtension->SelfDevice, 2, state, FdoContingentPowerCompletionRoutine, PowerContext, 0);
+                    return STATUS_PENDING;
+                }
+            }
+            else
+            {
+                IsOldState = TRUE;
+            }
+        }
+        else if (IoStack->Parameters.Power.Type == DevicePowerState)
+        {
+            if (FdoExtension->DevicePowerState != IoStack->Parameters.Power.State.DeviceState)
+            {
+                if (FdoExtension->DevicePowerState == PowerDeviceD0)
+                    PoSetPowerState(Fdo, DevicePowerState, IoStack->Parameters.Power.State);
+            }
+            else
+            {
+                IsOldState = TRUE;
+            }
+        }
+        else
+        {
+            ASSERT(FALSE);
+
+            Irp->IoStatus.Information = 0;
+            Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
+
+            if (PowerContext)
+            {
+                if (SystemPowerContext)
+                {
+                    ASSERT(DevicePowerContext == FALSE);
+                    ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
+                }
+
+                if (DevicePowerContext)
+                {
+                    ASSERT(SystemPowerContext == FALSE);
+                    ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[1]), 0, 1) == 1);
+                }
+            }
+
+            PoStartNextPowerIrp(Irp);
+            IoCompleteRequest(Irp, 0);
+
+            return STATUS_NOT_IMPLEMENTED;
+        }
+
+
+        IoMarkIrpPending(Irp);
+        IoCopyCurrentIrpStackLocationToNext(Irp);
+
+        if (IsOldState)
+        {
+            if (SystemPowerContext)
+            {
+                ASSERT(DevicePowerContext == FALSE);
+                ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
+            }
+
+            if (DevicePowerContext)
+            {
+                ASSERT(SystemPowerContext == FALSE);
+                ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[1]), 0, 1) == 1);
+            }
+
+            PoStartNextPowerIrp(Irp);
+        }
+        else
+        {
+            IoSetCompletionRoutine(Irp, FdoPowerCompletionRoutine, PowerContext, TRUE, TRUE, TRUE);
+        }
+
+        PoCallDriver(FdoExtension->LowDevice, Irp);
+
+        return STATUS_PENDING;
+    }
+
+    ASSERT(PowerContext);
+
+    Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = STATUS_NO_MEMORY;
+
+    if (PowerContext)
+    {
+        if (SystemPowerContext)
+        {
+            ASSERT(DevicePowerContext == FALSE);
+            ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
+        }
+
+        if (DevicePowerContext)
+        {
+            ASSERT(SystemPowerContext == FALSE);
+            ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[1]), 0, 1) == 1);
+        }
+    }
+
+    PoStartNextPowerIrp(Irp);
+    IoCompleteRequest(Irp, 0);
+
+    return STATUS_NO_MEMORY;
 }
 
 NTSTATUS
