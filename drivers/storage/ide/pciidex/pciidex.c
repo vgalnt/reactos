@@ -124,6 +124,19 @@ PDRIVER_DISPATCH PdoWmiDispatchTable[] =
 
 /* PRIVATE FUNCTIONS ********************************************************/
 
+NTSTATUS
+NTAPI
+PciIdeBusData(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PVOID Buffer,
+    _In_ ULONG Offset,
+    _In_ ULONG Length,
+    _In_ BOOLEAN IsGetOrSet)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 PciIdeUnload(
@@ -244,7 +257,30 @@ NTAPI
 ControllerOpMode(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PCI_COMMON_CONFIG PciConfig;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ControllerOpMode: %p\n", FdoExtension);
+
+    FdoExtension->NativeMode[0] = 0;
+    FdoExtension->NativeMode[1] = 0;
+
+    Status = PciIdeBusData(FdoExtension, &PciConfig, 0, sizeof(PciConfig), 1);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerOpMode: Status %X\n", Status);
+        return;
+    }
+
+    if ((PciConfig.BaseClass == PCI_CLASS_MASS_STORAGE_CTLR && PciConfig.SubClass == PCI_SUBCLASS_MSC_RAID_CTLR) ||
+        ((PciConfig.ProgIf & 1) && (PciConfig.ProgIf & 4)))
+    {
+        FdoExtension->NativeMode[0] = 1;
+        FdoExtension->NativeMode[1] = 1;
+    }
+
+    ASSERT((FdoExtension->NativeMode[0] == FALSE) == (FdoExtension->NativeMode[1] == FALSE));
 }
 
 NTSTATUS
