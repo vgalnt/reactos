@@ -14,6 +14,7 @@
 /* GLOBALS ******************************************************************/
 
 ULONG PciIdeDebug = 0;
+ULONG ControllerNumber = 0;
 
 PDRIVER_DISPATCH FdoPnpDispatchTable[] =
 {
@@ -133,12 +134,130 @@ PciIdeUnload(
 
 NTSTATUS
 NTAPI
+PciIdeXGetDeviceParameter(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PWSTR ParameterName,
+    _In_ ULONG* OutParameter)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeGetBusStandardInterface(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+ControllerOpMode(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+PciIdeGetNativeModeInterface(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ControllerAddDevice(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PDEVICE_OBJECT LowerPdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCIIDEX_DRIVER_EXTENSION DriverObjectExtension;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PDEVICE_OBJECT Fdo;
+    UNICODE_STRING FdoName;
+    ULONG FdoIndex;
+    ULONG Size;
+    WCHAR NameBuffer[64];
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ControllerAddDevice: %p, %p\n", DriverObject, LowerPdo);
+
+    DriverObjectExtension = IoGetDriverObjectExtension(DriverObject, DriverEntry);
+    ASSERT(DriverObjectExtension);
+
+    FdoIndex = (InterlockedIncrement((PLONG)&ControllerNumber) - 1);
+    swprintf(NameBuffer, L"\\Device\\Ide\\PciIde%d", FdoIndex);
+
+    RtlInitUnicodeString(&FdoName, NameBuffer);
+    Size = (DriverObjectExtension->MiniControllerExtensionSize + sizeof(*FdoExtension));
+
+    Status = IoCreateDevice(DriverObject, Size, &FdoName, FILE_DEVICE_BUS_EXTENDER, FILE_DEVICE_SECURE_OPEN, FALSE, &Fdo);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerAddDevice: Status %X\n", Status);
+        return Status;
+    }
+    RtlZeroMemory(Fdo->DeviceExtension, Size);
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    FdoExtension->LowPdo = LowerPdo;
+    FdoExtension->SelfDevice = Fdo;
+    FdoExtension->DriverObject = DriverObject;
+    FdoExtension->MiniControllerExtension = &FdoExtension[1];
+    FdoExtension->DeviceControlFlags = 0;
+    FdoExtension->FdoIndex = FdoIndex;
+
+    FdoExtension->PassToNextDriver = PassDownToNextDriver;
+    FdoExtension->FdoPnpDispatchTable = FdoPnpDispatchTable;
+    FdoExtension->FdoPowerDispatchTable = FdoPowerDispatchTable;
+    FdoExtension->FdoWmiDispatchTable = FdoWmiDispatchTable;
+
+    Status = PciIdeXGetDeviceParameter(LowerPdo, L"DeviceControlFlags", &FdoExtension->DeviceControlFlags);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerAddDevice: Unable to get DeviceControlFlags from the registry\n");
+        Status = STATUS_SUCCESS;
+    }
+
+    FdoExtension->LowDevice = IoAttachDeviceToDeviceStack(Fdo, LowerPdo);
+    if (!FdoExtension->LowDevice)
+    {
+        DPRINT1("ControllerAddDevice: %p, %p\n", Fdo, LowerPdo);
+        IoDeleteDevice(Fdo);
+        return Status;
+    }
+
+    if (FdoExtension->LowDevice->AlignmentRequirement < 1)
+        Fdo->AlignmentRequirement = 1;
+    else
+        Fdo->AlignmentRequirement = FdoExtension->LowDevice->AlignmentRequirement;
+
+    Status = PciIdeGetBusStandardInterface(FdoExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerAddDevice: Status %X\n", Status);
+        IoDetachDevice(FdoExtension->LowDevice);
+        IoDeleteDevice(Fdo);
+        return Status;
+    }
+
+    ControllerOpMode(FdoExtension);
+
+    if (FdoExtension->NativeMode[0])
+    {
+        if (FdoExtension->NativeMode[1])
+            PciIdeGetNativeModeInterface(FdoExtension);
+    }
+
+    Fdo->Flags &= ~DO_DEVICE_INITIALIZING;
+
+    return Status;
 }
 
 NTSTATUS

@@ -5,6 +5,7 @@
 
 #include <ntifs.h>
 #include <ide.h>
+#include <stdio.h>
 
 /* STRUCTURES ***************************************************************/
 
@@ -22,8 +23,18 @@ typedef struct _COMMON_DEVICE_EXTENSION
 
 typedef struct _FDO_DEVICE_EXTENSION
 {
-    COMMON_DEVICE_EXTENSION Common;
-
+    PDEVICE_OBJECT LowDevice;
+    PDEVICE_OBJECT LowPdo;
+    PDRIVER_OBJECT DriverObject;
+    PDEVICE_OBJECT SelfDevice;
+    PDRIVER_DISPATCH PassToNextDriver;
+    PDRIVER_DISPATCH* FdoPnpDispatchTable;
+    PDRIVER_DISPATCH* FdoPowerDispatchTable;
+    PDRIVER_DISPATCH* FdoWmiDispatchTable;
+    ULONG FdoIndex;
+    UCHAR NativeMode[2];
+    PVOID MiniControllerExtension;
+    ULONG DeviceControlFlags;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
 
 typedef struct _PDO_DEVICE_EXTENSION
@@ -33,6 +44,13 @@ typedef struct _PDO_DEVICE_EXTENSION
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
 /* FUNCTIONS ****************************************************************/
+
+NTSTATUS
+NTAPI
+DriverEntry(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PUNICODE_STRING RegistryPath
+);
 
 NTSTATUS NTAPI StatusSuccessAndPassDownToNextDriver(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI PassDownToNextDriver(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
