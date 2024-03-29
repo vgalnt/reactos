@@ -501,7 +501,17 @@ FdoSystemPowerUpCompletionRoutine(
     _In_ PVOID Context,
     _In_ PIO_STATUS_BLOCK IoStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIRP Irp = Context;
+
+    PoStartNextPowerIrp(Irp);
+
+    if (!NT_SUCCESS(IoStatus->Status))
+    {
+        DPRINT1("FdoSystemPowerUpCompletionRoutine: %X\n", IoStatus->Status);
+        Irp->IoStatus.Status = IoStatus->Status;
+    }
+
+    IoCompleteRequest(Irp, 0);
 }
 
 NTSTATUS
