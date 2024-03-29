@@ -6,6 +6,8 @@
 #include <ntifs.h>
 #include <ide.h>
 #include <stdio.h>
+#include <initguid.h>
+#include <wdmguid.h>
 
 /* STRUCTURES ***************************************************************/
 
@@ -35,6 +37,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     UCHAR NativeMode[2];
     PVOID MiniControllerExtension;
     ULONG DeviceControlFlags;
+    BUS_INTERFACE_STANDARD StdInterface;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
 
 typedef struct _PDO_DEVICE_EXTENSION

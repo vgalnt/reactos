@@ -192,8 +192,51 @@ NTAPI
 PciIdeGetBusStandardInterface(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    IO_STATUS_BLOCK IoStatusBlock;
+    PIO_STACK_LOCATION IoStack;
+    KEVENT Event;
+    PIRP Irp;
+    NTSTATUS Status;
+
+    DPRINT("PciIdeGetBusStandardInterface: %p\n", FdoExtension);
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    Irp = IoBuildSynchronousFsdRequest(IRP_MJ_PNP, FdoExtension->LowDevice, NULL, 0, NULL, &Event, &IoStatusBlock);
+    if (!Irp)
+    {
+        DPRINT1("PciIdeGetBusStandardInterface: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+    IoStack->Parameters.QueryInterface.Size = sizeof(FdoExtension->StdInterface);
+    IoStack->Parameters.QueryInterface.Version = 1;
+    IoStack->Parameters.QueryInterface.InterfaceSpecificData = 0;
+    IoStack->Parameters.QueryInterface.Interface = (PINTERFACE)&FdoExtension->StdInterface;
+    IoStack->Parameters.QueryInterface.InterfaceType = &GUID_BUS_INTERFACE_STANDARD;
+
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+    Status = IoCallDriver(FdoExtension->LowDevice, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciIdeGetBusStandardInterface: Status %X\n", Status);
+        return Status;
+    }
+
+    if (Status == STATUS_PENDING)
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+    if (NT_SUCCESS(IoStatusBlock.Status))
+    {
+        ASSERT(FdoExtension->StdInterface.SetBusData);
+        ASSERT(FdoExtension->StdInterface.GetBusData);
+    }
+
+    return IoStatusBlock.Status;
 }
 
 VOID
