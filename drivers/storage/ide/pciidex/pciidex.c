@@ -549,8 +549,12 @@ ControllerStartDeviceCompletionRoutine(
     _In_ PIRP Irp,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PRKEVENT Event = Context;
+
+    DPRINT("ControllerStartDeviceCompletionRoutine: %p, %X, %X\n", DeviceObject, Irp, Context);
+
+    KeSetEvent(Event, IO_NO_INCREMENT, FALSE);
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 NTSTATUS
