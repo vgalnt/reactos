@@ -521,7 +521,26 @@ VOID
 NTAPI
 IdeCreateIdeDirectory(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    UNICODE_STRING DirectoryName = RTL_CONSTANT_STRING(L"\\Device\\Ide");
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE Handle;
+    PVOID Object;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    InitializeObjectAttributes(&ObjectAttributes,
+                               &DirectoryName,
+                               (OBJ_CASE_INSENSITIVE | OBJ_PERMANENT),
+                               NULL,
+                               NULL);
+
+    Status = ZwCreateDirectoryObject(&Handle, DIRECTORY_ALL_ACCESS, &ObjectAttributes);
+    if (NT_SUCCESS(Status))
+    {
+        ObReferenceObjectByHandle(Handle, 0x80, NULL, KernelMode, &Object, NULL);
+        ZwClose(Handle);
+    }
 }
 
 NTSTATUS
