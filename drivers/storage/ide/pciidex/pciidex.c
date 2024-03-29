@@ -122,6 +122,35 @@ PDRIVER_DISPATCH PdoWmiDispatchTable[] =
     NoSupportIrp
 };
 
+PCHAR PnpMinorNames[] =
+{
+    "IRP_MN_START_DEVICE",
+    "IRP_MN_QUERY_REMOVE_DEVICE",
+    "IRP_MN_REMOVE_DEVICE",
+    "IRP_MN_CANCEL_REMOVE_DEVICE",
+    "IRP_MN_STOP_DEVICE",
+    "IRP_MN_QUERY_STOP_DEVICE",
+    "IRP_MN_CANCEL_STOP_DEVICE",
+    "IRP_MN_QUERY_DEVICE_RELATIONS",
+    "IRP_MN_QUERY_INTERFACE",
+    "IRP_MN_QUERY_CAPABILITIES",
+    "IRP_MN_QUERY_RESOURCES",
+    "IRP_MN_QUERY_RESOURCE_REQUIREMENTS",
+    "IRP_MN_QUERY_DEVICE_TEXT",
+    "IRP_MN_FILTER_RESOURCE_REQUIREMENTS",
+    "an undefined PnP IRP",
+    "IRP_MN_READ_CONFIG",
+    "IRP_MN_WRITE_CONFIG",
+    "IRP_MN_EJECT",
+    "IRP_MN_SET_LOCK",
+    "IRP_MN_QUERY_ID",
+    "IRP_MN_QUERY_PNP_DEVICE_STATE",
+    "IRP_MN_QUERY_BUS_INFORMATION",
+    "IRP_MN_DEVICE_USAGE_NOTIFICATION",
+    "IRP_MN_SURPRISE_REMOVAL",
+    "IRP_MN_QUERY_LEGACY_BUS_INFORMATION"
+};
+
 /* PRIVATE FUNCTIONS ********************************************************/
 
 NTSTATUS
@@ -729,8 +758,44 @@ DispatchPnp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    UCHAR MinorFunction;
+    BOOLEAN IsFdo;
+
+    PAGED_CODE();
+    DPRINT("DispatchPnp: %p, %p\n", DeviceObject, Irp);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+    MinorFunction = (IoGetCurrentIrpStackLocation(Irp))->MinorFunction;
+
+    if (FdoExtension->LowDevice)
+    {
+        IsFdo = TRUE;
+        DPRINT("DispatchPnp: FDO %d got '%s'\n", FdoExtension->FdoIndex, PnpMinorNames[MinorFunction]);
+    }
+    else
+    {
+        IsFdo = FALSE;
+        PdoExtension = DeviceObject->DeviceExtension;
+        DPRINT("DispatchPnp: PDO %d got '%s'\n", PdoExtension->PdoIndex, PnpMinorNames[MinorFunction]);
+    }
+
+    if (MinorFunction <= IRP_MN_QUERY_LEGACY_BUS_INFORMATION)
+    {
+        if (IsFdo)
+            return FdoExtension->FdoPnpDispatchTable[MinorFunction](DeviceObject, Irp);
+        else
+            return PdoExtension->PdoPnpDispatchTable[MinorFunction](DeviceObject, Irp);
+    }
+
+    if (MinorFunction != 0xFF)
+        ASSERT(!"ATAPI: PnP Dispatch Table too small\\n");
+
+    if (IsFdo)
+        return FdoExtension->PassToNextDriver(DeviceObject, Irp);
+    else
+        return PdoExtension->NoSupportIrp(DeviceObject, Irp);
 }
 
 /* FUNCTIONS ****************************************************************/

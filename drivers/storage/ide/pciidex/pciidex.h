@@ -18,11 +18,6 @@ typedef struct _PCIIDEX_DRIVER_EXTENSION
     PCIIDE_UDMA_MODES_SUPPORTED HwUdmaModesSupported;
 } PCIIDEX_DRIVER_EXTENSION, *PPCIIDEX_DRIVER_EXTENSION;
 
-typedef struct _COMMON_DEVICE_EXTENSION
-{
-    BOOLEAN IsFDO;
-} COMMON_DEVICE_EXTENSION, *PCOMMON_DEVICE_EXTENSION;
-
 typedef struct _FDO_DEVICE_EXTENSION
 {
     PDEVICE_OBJECT LowDevice;
@@ -42,8 +37,16 @@ typedef struct _FDO_DEVICE_EXTENSION
 
 typedef struct _PDO_DEVICE_EXTENSION
 {
-    COMMON_DEVICE_EXTENSION Common;
-
+    ULONG LowDevice;
+    ULONG LowPdo;
+    PDRIVER_OBJECT DriverObject;
+    PDEVICE_OBJECT SelfDevice;
+    PDRIVER_DISPATCH NoSupportIrp;
+    PDRIVER_DISPATCH* PdoPnpDispatchTable;
+    PDRIVER_DISPATCH* PdoPowerDispatchTable;
+    PDRIVER_DISPATCH* PdoWmiDispatchTable;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    ULONG PdoIndex;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
 /* FUNCTIONS ****************************************************************/
