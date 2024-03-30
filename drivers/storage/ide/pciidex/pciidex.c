@@ -1742,13 +1742,18 @@ PciIdeXDebugPrint(
 NTSTATUS
 NTAPI
 PciIdeXGetBusData(
-    _In_ PVOID DeviceExtension,
-    _Out_writes_bytes_all_(BufferLength) PVOID Buffer,
+    _In_ PVOID MiniExtension,
+    _Out_ PVOID Buffer,
     _In_ ULONG ConfigDataOffset,
     _In_ ULONG BufferLength)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    DPRINT("PciIdeXGetBusData(%p %p %X %X)\n", MiniExtension, Buffer, ConfigDataOffset, BufferLength);
+
+    return PciIdeBusData((PFDO_DEVICE_EXTENSION)((ULONG_PTR)MiniExtension - sizeof(FDO_DEVICE_EXTENSION)),
+                         Buffer,
+                         ConfigDataOffset,
+                         BufferLength,
+                         TRUE);
 }
 
 NTSTATUS
