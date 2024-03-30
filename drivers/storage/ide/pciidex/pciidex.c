@@ -1240,8 +1240,22 @@ NTAPI
 PciIdeInitControllerProperties(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCIIDEX_DRIVER_EXTENSION DriverExtension;
+
+    PAGED_CODE();
+    DPRINT("PciIdeInitControllerProperties: %p\n", FdoExtension);
+
+    DriverExtension = IoGetDriverObjectExtension(FdoExtension->DriverObject, DriverEntry);
+    ASSERT(DriverExtension);
+
+    FdoExtension->ControllerProperties.Size = sizeof(FdoExtension->ControllerProperties);
+    FdoExtension->ControllerProperties.DefaultPIO = 0;
+
+    DriverExtension->HwGetControllerProperties(FdoExtension->MiniControllerExtension, &FdoExtension->ControllerProperties);
+
+    FdoExtension->EnableUDMA66 = 0;
+
+    return PciIdeXGetDeviceParameter(FdoExtension->LowPdo, L"EnableUDMA66", &FdoExtension->EnableUDMA66);
 }
 
 NTSTATUS

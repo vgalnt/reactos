@@ -54,10 +54,12 @@ typedef struct _FDO_DEVICE_EXTENSION
     PCM_RESOURCE_LIST BusMasterResources;
     ULONG BusMasterResType;
     PVOID TranslatedBusMasterBaseAddress;
+    IDE_CONTROLLER_PROPERTIES ControllerProperties;
     PVOID MiniControllerExtension;
     KSPIN_LOCK SpinLock;
     ULONG DeviceControlFlags;
     BUS_INTERFACE_STANDARD StdInterface;
+    ULONG EnableUDMA66;
     IDE_SET_POWER_CONTEXT PowerContext[2];
     LONG PowerContextLock[2];
     PVOID PciNativeIdeInterface;
