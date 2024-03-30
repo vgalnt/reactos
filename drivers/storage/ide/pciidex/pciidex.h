@@ -47,6 +47,8 @@ typedef struct _FDO_DEVICE_EXTENSION
     PDRIVER_DISPATCH* FdoPowerDispatchTable;
     PDRIVER_DISPATCH* FdoWmiDispatchTable;
     ULONG FdoIndex;
+    struct _PDO_DEVICE_EXTENSION* PdoExtension[2];
+    ULONG NumberOfChildrenPowerUp;
     UCHAR NativeMode[2];
     BOOLEAN IsCmdBlockResource[2];
     BOOLEAN IsCtrlBlockResource[2];
@@ -63,6 +65,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     KSPIN_LOCK SpinLock;
     ULONG DeviceControlFlags;
     BUS_INTERFACE_STANDARD StdInterface;
+    ULONG LastRescan;
     ULONG EnableUDMA66;
     PULONG TimingTable;
     ULONG TimingTableLength;
@@ -88,6 +91,8 @@ typedef struct _PDO_DEVICE_EXTENSION
     PDRIVER_DISPATCH* PdoWmiDispatchTable;
     PFDO_DEVICE_EXTENSION FdoExtension;
     ULONG PdoIndex;
+    KSPIN_LOCK SpinLock;
+    ULONG PdoState;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
 /* FUNCTIONS ****************************************************************/

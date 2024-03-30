@@ -15,6 +15,7 @@
 
 ULONG PciIdeDebug = 0;
 ULONG ControllerNumber = 0;
+ULONG ChannelNumber = 0;
 
 PDRIVER_DISPATCH FdoPnpDispatchTable[] =
 {
@@ -1744,14 +1745,175 @@ ControllerStopDevice(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+ULONG
+NTAPI
+PciIdeChannelEnabled(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ ULONG Channel)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+VOID
+NTAPI
+ChannelUpdatePdoState(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ ULONG OrState,
+    _In_ ULONG AndState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 ControllerQueryDeviceRelations(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCONFIGURATION_INFORMATION ConfigurationInformation;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PDEVICE_RELATIONS DeviceRelations;
+    PDEVICE_OBJECT Pdo;
+    LARGE_INTEGER TickCount;
+    UNICODE_STRING PdoName;
+    ULONG LastRescan;
+    ULONG TimePassed;
+    ULONG ChannelState;
+    ULONG Size;
+    ULONG ix;
+    WCHAR NameBuffer[256];
+    BOOLEAN IdDoRescan;
+    NTSTATUS Status = 0;
+
+    PAGED_CODE();
+    DPRINT("ControllerQueryDeviceRelations: %p, %p\n", Fdo, Irp);
+
+    ConfigurationInformation = IoGetConfigurationInformation();
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    if ((IoGetCurrentIrpStackLocation(Irp))->Parameters.QueryDeviceRelations.Type != 0)
+    {
+        DPRINT("ControllerQueryDeviceRelations: Unsupported device relation\n");
+        IoSkipCurrentIrpStackLocation(Irp);
+        return IoCallDriver(FdoExtension->LowDevice, Irp);
+    }
+
+    DPRINT("ControllerQueryDeviceRelations: bus relations\n");
+
+    Size = (sizeof(*DeviceRelations) + sizeof(PDEVICE_OBJECT));
+
+    DeviceRelations = ExAllocatePoolWithTag(PagedPool, Size, 'XedI');
+    if (!DeviceRelations)
+    {
+        DPRINT1("ControllerQueryDeviceRelations: Unable to allocate DeviceRelations structures\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+    RtlZeroMemory(DeviceRelations, Size);
+
+    KeQueryTickCount(&TickCount);
+    LastRescan = ((KeQueryTimeIncrement() * TickCount.QuadPart) / 10000000);
+    TimePassed = (LastRescan - FdoExtension->LastRescan);
+
+    DPRINT("ControllerQueryDeviceRelations: Last rescan was %d seconds ago.\n", TimePassed);
+
+    if (TimePassed >= 90 || FdoExtension->LastRescan == 0)
+        IdDoRescan = 1;
+    else
+        IdDoRescan = 0;
+
+    FdoExtension->LastRescan = LastRescan;
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        ChannelState = PciIdeChannelEnabled(FdoExtension, ix);
+
+        PdoExtension = FdoExtension->PdoExtension[ix];
+
+        if (PdoExtension)
+        {
+            if (ChannelState == ChannelDisabled)
+                ChannelUpdatePdoState(PdoExtension, 2, 0);
+
+            if (PdoExtension->PdoState & 2)
+            {
+                continue;
+            }
+
+            ASSERT(ChannelState != ChannelDisabled);
+
+            Pdo = PdoExtension->SelfDevice;
+        }
+        else
+        {
+          if (ChannelState != 1 && (ChannelState != 2 || !IdDoRescan))
+          {
+              continue;
+          }
+          if (!FdoExtension->NativeMode[ix])
+          {
+              if (ix)
+                  ConfigurationInformation->AtDiskSecondaryAddressClaimed = 1;
+              else
+                  ConfigurationInformation->AtDiskPrimaryAddressClaimed = 1;
+          }
+
+          swprintf(NameBuffer, L"\\Device\\Ide\\PciIde%dChannel%d-%x", FdoExtension->FdoIndex, ix, InterlockedIncrement((PLONG)&ChannelNumber) - 1);
+          RtlInitUnicodeString(&PdoName, NameBuffer);
+
+          Status = IoCreateDevice(FdoExtension->DriverObject, sizeof(PDO_DEVICE_EXTENSION), &PdoName, 4, 0x100, 0, &Pdo);
+          if (!NT_SUCCESS(Status))
+          {
+              continue;
+          }
+          RtlZeroMemory(Pdo->DeviceExtension, sizeof(PDO_DEVICE_EXTENSION));
+
+          PdoExtension = Pdo->DeviceExtension;
+          PdoExtension->SelfDevice = Pdo;
+          PdoExtension->DriverObject = FdoExtension->DriverObject;
+          PdoExtension->FdoExtension = FdoExtension;
+          PdoExtension->PdoIndex = ix;
+          PdoExtension->NoSupportIrp = NoSupportIrp;
+          PdoExtension->PdoPnpDispatchTable = PdoPnpDispatchTable;
+          PdoExtension->PdoPowerDispatchTable = PdoPowerDispatchTable;
+          PdoExtension->PdoWmiDispatchTable = PdoWmiDispatchTable;
+          KeInitializeSpinLock(&PdoExtension->SpinLock);
+          FdoExtension->PdoExtension[ix] = PdoExtension;
+          Pdo->Flags &= ~0x80;
+          //FdoExtension->IdeXFdo006C++;//?
+          InterlockedExchangeAdd((PLONG)&FdoExtension->NumberOfChildrenPowerUp, 1);
+          Pdo->AlignmentRequirement = FdoExtension->ControllerProperties.AlignmentRequirement;
+          if (Pdo->AlignmentRequirement < FdoExtension->LowDevice->AlignmentRequirement)
+              Pdo->AlignmentRequirement = FdoExtension->SelfDevice->AlignmentRequirement;
+          if (Pdo->AlignmentRequirement < 1)
+              Pdo->AlignmentRequirement = 1;
+        }
+
+        if (Pdo)
+        {
+            DeviceRelations->Objects[DeviceRelations->Count] = Pdo;
+            ObReferenceObjectByPointer(Pdo, 0, NULL, KernelMode);
+            DeviceRelations->Count++;
+        }
+    }
+
+Exit:
+
+    Irp->IoStatus.Information = (ULONG_PTR)DeviceRelations;
+    Irp->IoStatus.Status = Status;
+
+    if (!NT_SUCCESS(Status))
+    {
+        IoCompleteRequest(Irp, 0);
+        return Status;
+    }
+
+    IoSkipCurrentIrpStackLocation(Irp);
+
+    return IoCallDriver(FdoExtension->LowDevice, Irp);
 }
 
 NTSTATUS
