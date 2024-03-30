@@ -988,8 +988,251 @@ AnalyzeResourceList(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PCM_RESOURCE_LIST InCmResource)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_FULL_RESOURCE_DESCRIPTOR InFullDesc;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR InDesc;
+    PCM_RESOURCE_LIST PdoResources[2];
+    PCM_FULL_RESOURCE_DESCRIPTOR PdoFullDesc[2];
+    PCM_PARTIAL_RESOURCE_LIST PdoPartialList[2];
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR PdoDesc[2];
+    PVOID PdoResourcesEnd[2];
+    PCM_RESOURCE_LIST BmResources;
+    PCM_FULL_RESOURCE_DESCRIPTOR BmFullDesc;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR BmDesc;
+    PVOID BmResourcesEnd;
+    ULONG BusMaster;
+    ULONG CtrlIdx;
+    ULONG CmdIdx;
+    ULONG IntIdx;
+    ULONG Size;
+    ULONG ix;
+    ULONG jx;
+    ULONG kx;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("AnalyzeResourceList: %p, %p\n", FdoExtension, InCmResource);
+
+    if (!InCmResource)
+        return STATUS_SUCCESS;
+
+  #if DBG
+    DPRINT1("AnalyzeResourceList: Dump %p\n", InCmResource);
+    RosDumpCmResources(InCmResource, 0);
+  #endif
+
+    Size = (InCmResource->Count * sizeof(CM_RESOURCE_LIST));
+
+    BmResources = ExAllocatePoolWithTag(NonPagedPool, Size, 'XedI');
+    if (!BmResources)
+    {
+        DPRINT1("AnalyzeResourceList: STATUS_NO_MEMORY\n");
+        return STATUS_NO_MEMORY;
+    }
+    RtlZeroMemory(BmResources, Size);
+
+    Size += (2 * sizeof(CM_PARTIAL_RESOURCE_LIST));
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        PdoResources[ix] = ExAllocatePoolWithTag(NonPagedPool, Size, 'XedI');
+        if (!PdoResources[ix])
+        {
+            DPRINT1("AnalyzeResourceList: Unable to allocate resourceList for PDOs\n");
+
+            for (jx = 0; jx < ix; jx++)
+                ExFreePoolWithTag(PdoResources[jx], 'XedI');
+
+            ExFreePoolWithTag(BmResources, 'XedI');
+
+            return STATUS_NO_MEMORY;
+        }
+        RtlZeroMemory(PdoResources[ix], Size);
+    }
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        PdoResources[ix]->Count = 0;
+        PdoFullDesc[ix] = PdoResources[ix]->List;
+    }
+
+    IntIdx = 0;
+    CtrlIdx = 0;
+    CmdIdx = 0;
+
+    BusMaster = 0;
+    BmResources->Count = 0;
+
+    InFullDesc = InCmResource->List;
+    BmFullDesc = BmResources->List;
+
+    for (ix = 0; ix < InCmResource->Count; ix++)
+    {
+        BmFullDesc->InterfaceType = InFullDesc->InterfaceType;
+        BmFullDesc->BusNumber = InFullDesc->BusNumber;
+
+        BmFullDesc->PartialResourceList.Version = InFullDesc->PartialResourceList.Version;
+        BmFullDesc->PartialResourceList.Revision = InFullDesc->PartialResourceList.Revision;
+        BmFullDesc->PartialResourceList.Count = 0;
+
+        for (jx = 0; jx < 2; jx++)
+        {
+            PdoFullDesc[jx]->InterfaceType = InFullDesc->InterfaceType;
+            PdoFullDesc[jx]->BusNumber = InFullDesc->BusNumber;
+            PdoFullDesc[jx]->PartialResourceList.Version = InFullDesc->PartialResourceList.Version;
+            PdoFullDesc[jx]->PartialResourceList.Revision = InFullDesc->PartialResourceList.Revision;
+            PdoFullDesc[jx]->PartialResourceList.Count = 0;
+
+            PdoPartialList[jx] = &PdoFullDesc[jx]->PartialResourceList;
+            PdoDesc[jx] = PdoFullDesc[jx]->PartialResourceList.PartialDescriptors;
+        }
+
+        InDesc = InFullDesc->PartialResourceList.PartialDescriptors;
+        BmDesc = BmFullDesc->PartialResourceList.PartialDescriptors;
+
+        for (jx = 0; jx < InFullDesc->PartialResourceList.Count; jx++)
+        {
+            if (InDesc[ix].Type == 1 || InDesc[ix].Type == 3)
+            {
+                if (InDesc[jx].u.Generic.Length == 8 && CmdIdx < 2)
+                {
+                    RtlCopyMemory((PdoDesc[CmdIdx] + PdoPartialList[CmdIdx]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
+                    PdoPartialList[CmdIdx]->Count++;
+                    CmdIdx++;
+                }
+                else if (InDesc[jx].u.Generic.Length == 4 && CtrlIdx < 2)
+                {
+                    RtlCopyMemory((PdoDesc[CtrlIdx] + PdoPartialList[CmdIdx]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
+                    PdoPartialList[CtrlIdx]->Count++;
+                    CtrlIdx++;
+                }
+                else if (InDesc[jx].u.Generic.Length == 0x10 && BusMaster < 1)
+                {
+                    RtlCopyMemory(&BmDesc[BmFullDesc->PartialResourceList.Count], &InDesc[jx], sizeof(BmDesc[0]));
+                    BmFullDesc->PartialResourceList.Count++;
+                    BusMaster++;
+                }
+            }
+            else if (InDesc[jx].Type == 2 && IntIdx < 2)
+            {
+                RtlCopyMemory((PdoDesc[IntIdx] + PdoPartialList[IntIdx]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
+                PdoPartialList[IntIdx]->Count++;
+
+                if (!IntIdx && FdoExtension->NativeMode[1])
+                {
+                    RtlCopyMemory((PdoDesc[1] + PdoPartialList[1]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
+                    IntIdx = 1;
+                }
+
+                IntIdx++;
+            }
+            else if (InDesc[jx].Type == 5)
+            {
+                InDesc = Add2Ptr(InDesc, InDesc[jx].u.DeviceSpecificData.DataSize);
+            }
+        }
+
+        if (BmFullDesc->PartialResourceList.Count)
+        {
+            BmResources->Count++;
+            BmResourcesEnd = &BmDesc[BmFullDesc->PartialResourceList.Count];
+        }
+
+        for (kx = 0; kx < 2; kx++)
+        {
+            if (PdoPartialList[kx]->Count)
+            {
+                PdoResources[kx]->Count++;
+                PdoResourcesEnd[kx] = (PdoDesc[kx] + PdoPartialList[kx]->Count);
+            }
+        }
+
+        InFullDesc = (PCM_FULL_RESOURCE_DESCRIPTOR)&InDesc[jx];
+    }
+
+    Status = STATUS_SUCCESS;
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        if (FdoExtension->NativeMode[ix] && (ix >= CmdIdx || ix >= CtrlIdx || ix >= IntIdx))
+        {
+            CmdIdx = 0;
+            CtrlIdx = 0;
+            IntIdx = 0;
+
+            BusMaster = 0;
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    if (!FdoExtension->NativeMode[0] && !FdoExtension->NativeMode[1])
+    {
+        CmdIdx = 0;
+        CtrlIdx = 0;
+        IntIdx = 0;
+    }
+
+    if (BusMaster)
+    {
+        FdoExtension->BusMasterResourcesSize = ((ULONG_PTR)BmResourcesEnd - (ULONG_PTR)BmResources);
+        FdoExtension->BusMasterResources = BmResources;
+
+        if (BmResources->List[0].PartialResourceList.PartialDescriptors[0].Type == 1)
+        {
+            FdoExtension->TranslatedBusMasterBaseAddress = 
+                (PVOID)BmResources->List[0].PartialResourceList.PartialDescriptors[0].u.Port.Start.LowPart;
+
+            FdoExtension->BusMasterResType = 1;
+        }
+        else if (BmResources->List[0].PartialResourceList.PartialDescriptors[0].Type == 3)
+        {
+            FdoExtension->TranslatedBusMasterBaseAddress = 
+                MmMapIoSpace(BmResources->List[0].PartialResourceList.PartialDescriptors[0].u.Memory.Start, 0x10, 0);
+
+            ASSERT(FdoExtension->TranslatedBusMasterBaseAddress);
+            FdoExtension->BusMasterResType = 0;
+        }
+        else
+        {
+            FdoExtension->TranslatedBusMasterBaseAddress = NULL;
+            ASSERT(FALSE);
+        }
+    }
+    else
+    {
+        FdoExtension->TranslatedBusMasterBaseAddress = NULL;
+    }
+
+    if (!FdoExtension->TranslatedBusMasterBaseAddress)
+    {
+        ExFreePoolWithTag(BmResources, 'XedI');
+        FdoExtension->BusMasterResources = NULL;
+    }
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        if (ix < CmdIdx || ix < CtrlIdx || ix < IntIdx)
+        {
+            FdoExtension->ChannelResourceSize[ix] = ((ULONG_PTR)PdoResourcesEnd[ix] - (ULONG_PTR)PdoResources[ix]);
+
+            if (ix < CmdIdx)
+                FdoExtension->IsCmdBlockResource[ix] = TRUE;
+
+            if (ix < CtrlIdx)
+                FdoExtension->IsCtrlBlockResource[ix] = TRUE;
+
+            if (ix < IntIdx)
+                FdoExtension->IsIntResource[ix] = TRUE;
+        }
+        else
+        {
+            ExFreePoolWithTag(PdoResources[ix], 'XedI');
+            PdoResources[ix] = NULL;
+        }
+
+        FdoExtension->ChannelResources[ix] = PdoResources[ix];
+    }
+
+    return Status;
 }
 
 NTSTATUS

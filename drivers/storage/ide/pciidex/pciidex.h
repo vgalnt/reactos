@@ -45,10 +45,15 @@ typedef struct _FDO_DEVICE_EXTENSION
     PDRIVER_DISPATCH* FdoWmiDispatchTable;
     ULONG FdoIndex;
     UCHAR NativeMode[2];
+    BOOLEAN IsCmdBlockResource[2];
+    BOOLEAN IsCtrlBlockResource[2];
+    BOOLEAN IsIntResource[2];
     ULONG ChannelResourceSize[2];
     PCM_RESOURCE_LIST ChannelResources[2];
     ULONG BusMasterResourcesSize;
     PCM_RESOURCE_LIST BusMasterResources;
+    ULONG BusMasterResType;
+    PVOID TranslatedBusMasterBaseAddress;
     PVOID MiniControllerExtension;
     KSPIN_LOCK SpinLock;
     ULONG DeviceControlFlags;
@@ -75,6 +80,10 @@ typedef struct _PDO_DEVICE_EXTENSION
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
 /* FUNCTIONS ****************************************************************/
+
+#ifndef Add2Ptr
+  #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
+#endif
 
 NTSTATUS
 NTAPI
@@ -115,5 +124,12 @@ NTSTATUS NTAPI ChannelUsageNotification(_In_ PDEVICE_OBJECT DeviceObject, _In_ P
 NTSTATUS NTAPI PciIdeSetFdoPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI PciIdeSetPdoPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI PciIdeXQueryPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+
+VOID
+NTAPI
+RosDumpCmResources(
+    _In_ PCM_RESOURCE_LIST CmResource,
+    _In_ ULONG DebugLevel
+);
 
 #endif /* _PCIIDEX_PCH_ */
