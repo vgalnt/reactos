@@ -37,6 +37,9 @@ typedef struct _FDO_DEVICE_EXTENSION
     PDEVICE_OBJECT LowPdo;
     PDRIVER_OBJECT DriverObject;
     PDEVICE_OBJECT SelfDevice;
+    ULONG Paging;
+    ULONG Hibernation;
+    ULONG DumpFile;
     SYSTEM_POWER_STATE SystemPowerState;
     DEVICE_POWER_STATE DevicePowerState;
     PDRIVER_DISPATCH PassToNextDriver;
@@ -74,6 +77,9 @@ typedef struct _PDO_DEVICE_EXTENSION
     ULONG LowPdo;
     PDRIVER_OBJECT DriverObject;
     PDEVICE_OBJECT SelfDevice;
+    ULONG Paging;
+    ULONG Hibernation;
+    ULONG DumpFile;
     SYSTEM_POWER_STATE SystemPowerState;
     DEVICE_POWER_STATE DevicePowerState;
     PDRIVER_DISPATCH NoSupportIrp;
