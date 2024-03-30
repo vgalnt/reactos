@@ -251,13 +251,71 @@ PciIdeXGetDeviceParameter(
 
 NTSTATUS
 NTAPI
+PciIdeXRegQueryRoutine(
+    _In_ PWSTR ValueName,
+    _In_ ULONG ValueType,
+    _In_ PVOID ValueData,
+    _In_ ULONG ValueLength,
+    _In_ PVOID Context,
+    _In_ PVOID EntryContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PciIdeXGetDeviceParameterEx(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PWSTR ParameterName,
     _In_ PVOID* OutParameter)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    HANDLE DevInstRegKey;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PciIdeXGetDeviceParameterEx: %p, '%S'\n", DeviceObject, ParameterName);
+
+    *OutParameter = NULL;
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        Status = IoOpenDeviceRegistryKey(DeviceObject,
+                                         (PLUGPLAY_REGKEY_DRIVER | (!ix ? PLUGPLAY_REGKEY_CURRENT_HWPROFILE : 0)),
+                                         KEY_READ,
+                                         &DevInstRegKey);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciIdeXGetDeviceParameterEx: Status %X\n", Status);
+            continue;
+        }
+
+        RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+        QueryTable[0].Name = ParameterName;
+        QueryTable[0].QueryRoutine = PciIdeXRegQueryRoutine;
+        QueryTable[0].Flags = 0x14;
+        QueryTable[0].EntryContext = OutParameter;
+        QueryTable[0].DefaultType = 0;
+        QueryTable[0].DefaultData = NULL;
+        QueryTable[0].DefaultLength = 0;
+
+        Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE, DevInstRegKey, QueryTable, NULL, NULL);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("PciIdeXGetDeviceParameterEx: Status %X\n", Status);
+            *OutParameter = NULL;
+        }
+
+        ZwClose(DevInstRegKey);
+
+        if (NT_SUCCESS(Status))
+            break;
+    }
+
+    return Status;
 }
 
 NTSTATUS
