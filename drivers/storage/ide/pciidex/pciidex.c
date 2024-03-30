@@ -259,8 +259,28 @@ PciIdeXRegQueryRoutine(
     _In_ PVOID Context,
     _In_ PVOID EntryContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PVOID* OutValueData = EntryContext;
+
+    PAGED_CODE();
+    DPRINT("PciIdeXRegQueryRoutine: '%S', %X\n", ValueName, ValueType);
+
+    if (ValueType == 7)
+    {
+        *OutValueData = ExAllocatePoolWithTag(PagedPool, ValueLength, 'XedI');
+        if (*OutValueData)
+        {
+            RtlMoveMemory(*OutValueData, ValueData, ValueLength);
+            return STATUS_SUCCESS;
+        }
+    }
+    else if (ValueType == 4)
+    {
+        *OutValueData = *((PVOID *)ValueData);
+        return STATUS_SUCCESS;
+    }
+
+    DPRINT1("PciIdeXRegQueryRoutine: STATUS_UNSUCCESSFUL ('%S', %X)\n", ValueName, ValueType);
+    return STATUS_UNSUCCESSFUL;
 }
 
 NTSTATUS
