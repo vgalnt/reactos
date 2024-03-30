@@ -61,6 +61,8 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG DeviceControlFlags;
     BUS_INTERFACE_STANDARD StdInterface;
     ULONG EnableUDMA66;
+    PULONG TimingTable;
+    ULONG TimingTableLength;
     IDE_SET_POWER_CONTEXT PowerContext[2];
     LONG PowerContextLock[2];
     PVOID PciNativeIdeInterface;

@@ -251,6 +251,17 @@ PciIdeXGetDeviceParameter(
 
 NTSTATUS
 NTAPI
+PciIdeXGetDeviceParameterEx(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PWSTR ParameterName,
+    _In_ PVOID* OutParameter)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PciIdeGetBusStandardInterface(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
@@ -1316,8 +1327,141 @@ NTAPI
 PciIdeCreateTimingTable(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UNICODE_STRING TimingString;
+    PVOID RegTimingList = 0;
+    PULONG TimingTable = 0;
+    PCWSTR Current;
+    ULONG ix;
+    ULONG idx;
+    ULONG TimingTableLength = 0;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PciIdeCreateTimingTable: %p\n", FdoExtension);
+
+    Status = PciIdeXGetDeviceParameterEx(FdoExtension->LowPdo, L"TransferModeTiming", &RegTimingList);
+
+    if (!NT_SUCCESS(Status) || !RegTimingList)
+    {
+        DPRINT("PciIdeCreateTimingTable: Unsuccessful regop (%X), RegTimingList %p\n", Status, RegTimingList);
+
+        TimingTable = ExAllocatePoolWithTag(NonPagedPool, (18 * sizeof(ULONG)), 'XedI');
+        if (!TimingTable)
+        {
+            DPRINT1("PciIdeCreateTimingTable: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            TimingTableLength = 0;
+            goto Exit;
+        }
+
+        TimingTable[0] = 600;
+        TimingTable[1] = 383;
+        TimingTable[2] = 240;
+        TimingTable[3] = 180;
+        TimingTable[4] = 120;
+        TimingTable[5] = 960;
+        TimingTable[6] = 480;
+        TimingTable[7] = 240;
+        TimingTable[8] = 480;
+        TimingTable[9] = 150;
+        TimingTable[10] = 120;
+        TimingTable[11] = 120;
+        TimingTable[12] = 80;
+        TimingTable[13] = 60;
+        TimingTable[14] = 45;
+        TimingTable[15] = 30;
+        TimingTable[16] = 20;
+        TimingTable[17] = 15;
+
+        TimingTableLength = 18;
+
+        Status = 0;
+        goto Exit;
+    }
+
+    Current = RegTimingList;
+
+    if (Current[0])
+    {
+        for (ix = 0; ; ix++)
+        {
+            RtlInitUnicodeString(&TimingString, Current);
+            RtlUnicodeStringToInteger(&TimingString, 10, &TimingTableLength);
+
+            if (ix == 0)
+            {
+                if (TimingTableLength > 31)
+                {
+                    ASSERT(TimingTableLength <= 31);
+                    TimingTableLength = 31;
+                }
+
+                if (TimingTableLength < 18)
+                    TimingTableLength = 18;
+
+                TimingTable = ExAllocatePoolWithTag(NonPagedPool, (TimingTableLength * sizeof(ULONG)), 'XedI');
+                if (!TimingTable)
+                {
+                    DPRINT1("PciIdeCreateTimingTable: STATUS_INSUFFICIENT_RESOURCES\n");
+                    Status = STATUS_INSUFFICIENT_RESOURCES;
+                    break;
+                }
+
+                TimingTable[0] = 600;
+                TimingTable[1] = 383;
+                TimingTable[2] = 240;
+                TimingTable[3] = 180;
+                TimingTable[4] = 120;
+                TimingTable[5] = 960;
+                TimingTable[6] = 480;
+                TimingTable[7] = 240;
+                TimingTable[8] = 480;
+                TimingTable[9] = 150;
+                TimingTable[10] = 120;
+                TimingTable[11] = 120;
+                TimingTable[12] = 80;
+                TimingTable[13] = 60;
+                TimingTable[14] = 45;
+                TimingTable[15] = 30;
+                TimingTable[16] = 20;
+                TimingTable[17] = 15;
+
+                for (idx = 18; idx < TimingTableLength; idx++)
+                {
+                    TimingTable[idx] = TimingTable[17];
+                    idx++;
+                }
+            }
+            else
+            {
+                if (ix > TimingTableLength)
+                {
+                    DPRINT1("PciIdeCreateTimingTable: Timing table overflow\n");
+                    break;
+                }
+
+                if (TimingTableLength)
+                    TimingTable[ix - 1] = TimingTableLength;
+            }
+
+            if (!Current[(TimingString.Length / 2) + 1])
+                break;
+
+            Current += ((TimingString.Length / 2) + 1);
+        }
+    }
+
+    if (TimingTableLength < 18)
+        TimingTableLength = 18;
+
+    ExFreePool(RegTimingList);
+
+Exit:
+
+    FdoExtension->TimingTable = TimingTable;
+    FdoExtension->TimingTableLength = TimingTableLength;
+
+    return Status;
 }
 
 /* FDO PNP FUNCTIONS ********************************************************/
