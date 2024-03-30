@@ -2012,6 +2012,15 @@ ControllerSurpriseRemoveDevice(
 
 /* PDO PNP FUNCTIONS ********************************************************/
 
+PPDO_DEVICE_EXTENSION
+NTAPI
+ChannelGetPdoExtension(
+    _In_ PDEVICE_OBJECT Pdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 NTSTATUS
 NTAPI
 ChannelStartDevice(
@@ -2132,14 +2141,101 @@ ChannelFilterResourceRequirements(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+PWCHAR
+NTAPI
+ChannelBuildDeviceId(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PWCHAR
+NTAPI
+ChannelBuildHardwareId(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PWCHAR
+NTAPI
+ChannelBuildCompatibleId(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PWCHAR
+NTAPI
+ChannelBuildInstanceId(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 NTSTATUS
 NTAPI
 ChannelQueryId(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    ULONG IdType;
+    PWCHAR Id;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+
+    PAGED_CODE();
+    DPRINT("ChannelQueryId: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelQueryId: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    IdType = IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryId.IdType;
+
+    if (IdType == 0)
+    {
+        Id = ChannelBuildDeviceId(PdoExtension);
+    }
+    else if (IdType == 1)
+    {
+        Id = ChannelBuildHardwareId(PdoExtension);
+    }
+    else if (IdType == 2)
+    {
+        Id = ChannelBuildCompatibleId(PdoExtension);
+    }
+    else if (IdType == 3)
+    {
+        Id = ChannelBuildInstanceId(PdoExtension);
+    }
+    else
+    {
+        DPRINT("ChannelQueryId: QueryID type %X not supported\n", IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryId.IdType);
+        Status = STATUS_NOT_SUPPORTED;
+        goto Exit;
+    }
+
+    if (Id)
+    {
+        Irp->IoStatus.Information = (ULONG_PTR)Id;
+        Status = STATUS_SUCCESS;
+    }
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
