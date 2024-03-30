@@ -1263,7 +1263,25 @@ NTAPI
 PciIdeSyncAccessRequired(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG SyncAccess = 0;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PciIdeSyncAccessRequired: %p\n", FdoExtension);
+
+    Status = PciIdeXGetDeviceParameter(FdoExtension->LowPdo, L"SyncAccess", &SyncAccess);
+    if (NT_SUCCESS(Status))
+    {
+        return (SyncAccess != 0);
+    }
+
+    DPRINT("PciIdeSyncAccessRequired: Unable to get SyncAccess flag from the registry\n");
+
+    if (FdoExtension->ControllerProperties.PciIdeSyncAccessRequired)
+        return FdoExtension->ControllerProperties.PciIdeSyncAccessRequired(FdoExtension->MiniControllerExtension);
+
+    DPRINT("PciIdeSyncAccessRequired: assume sync access not required\n");
+
     return FALSE;
 }
 
