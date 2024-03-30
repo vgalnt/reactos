@@ -56,6 +56,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     PVOID TranslatedBusMasterBaseAddress;
     IDE_CONTROLLER_PROPERTIES ControllerProperties;
     PVOID MiniControllerExtension;
+    PCONTROLLER_OBJECT ControllerObject;
     KSPIN_LOCK SpinLock;
     ULONG DeviceControlFlags;
     BUS_INTERFACE_STANDARD StdInterface;

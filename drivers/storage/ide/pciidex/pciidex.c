@@ -1258,13 +1258,39 @@ PciIdeInitControllerProperties(
     return PciIdeXGetDeviceParameter(FdoExtension->LowPdo, L"EnableUDMA66", &FdoExtension->EnableUDMA66);
 }
 
+BOOLEAN
+NTAPI
+PciIdeSyncAccessRequired(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 NTSTATUS
 NTAPI
 PciIdeCreateSyncChildAccess(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PUCHAR Port;
+
+    PAGED_CODE();
+    DPRINT("PciIdeCreateSyncChildAccess: %p\n", FdoExtension);
+
+    Port = FdoExtension->TranslatedBusMasterBaseAddress;
+
+    if (!Port || !(READ_PORT_UCHAR(Port + 2) & 0x80))
+    {
+        if (!PciIdeSyncAccessRequired(FdoExtension))
+            return STATUS_SUCCESS;
+    }
+
+    DPRINT("PciIdeCreateSyncChildAccess: Serialize access to both channels\n");
+
+    FdoExtension->ControllerObject = IoCreateController(0);
+    ASSERT(FdoExtension->ControllerObject);
+
+    return (FdoExtension->ControllerObject ? STATUS_SUCCESS : STATUS_INSUFFICIENT_RESOURCES);
 }
 
 NTSTATUS
