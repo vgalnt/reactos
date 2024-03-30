@@ -160,6 +160,9 @@ PCHAR PowerMinorNames[] =
     "IRP_MN_QUERY_POWER"
 };
 
+PWCHAR OnMaskStr[2] = {L"MasterOnMask", L"SlaveOnMask"};
+PWCHAR OnConfigOffsetStr[2] = {L"MasterOnConfigOffset", L"SlaveOnConfigOffset"};
+
 /* PRIVATE FUNCTIONS ********************************************************/
 
 NTSTATUS
@@ -1751,8 +1754,50 @@ PciIdeChannelEnabled(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ ULONG Channel)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    ULONG Offset;
+    ULONG State;
+    ULONG Mask = 0;
+    UCHAR Buffer;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PciIdeChannelEnabled: %p, %X\n", FdoExtension, Channel);
+
+    // FIXME PciIdeXDebugFakeMissingChild
+
+    Status = PciIdeXGetDeviceParameter(FdoExtension->LowPdo, OnMaskStr[Channel], &Mask);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciIdeChannelEnabled: Unable to get OnMaskStr from the registry\n");
+        goto ErrorExit;
+    }
+
+    Offset = 0;
+
+    Status = PciIdeXGetDeviceParameter(FdoExtension->LowPdo, OnConfigOffsetStr[Channel], &Offset);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciIdeChannelEnabled: Unable to get OnConfigOffsetStr from the registry\n");
+        goto ErrorExit;
+    }
+
+    Status = PciIdeBusData(FdoExtension, &Buffer, Offset, 1, TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciIdeChannelEnabled: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    return ((Buffer & (UCHAR)Mask) != 0);
+
+ErrorExit:
+
+    if (FdoExtension->ControllerProperties.PciIdeChannelEnabled)
+        State = FdoExtension->ControllerProperties.PciIdeChannelEnabled(FdoExtension->MiniControllerExtension, Channel);
+    else
+        State = 2;
+
+    return State;
 }
 
 VOID
