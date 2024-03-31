@@ -2288,8 +2288,22 @@ NTAPI
 ChannelBuildCompatibleId(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PWCHAR Id;
+
+    PAGED_CODE();
+    DPRINT("ChannelBuildCompatibleId: %p\n", PdoExtension);
+
+    Id = ExAllocatePoolWithTag(PagedPool, 0x16, 'XedI');
+    if (!Id)
+    {
+        DPRINT1("ChannelBuildCompatibleId: Allocate id failed!\n");
+        return NULL;
+    }
+    RtlZeroMemory(Id, 0x16);
+
+    RtlCopyMemory(Id, ChannelCompatibleId, sizeof(ChannelCompatibleId));
+
+    return Id;
 }
 
 PWCHAR
