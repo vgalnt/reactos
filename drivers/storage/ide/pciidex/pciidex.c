@@ -2157,8 +2157,20 @@ NTAPI
 ChannelBuildDeviceId(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    WCHAR IdBuffer[] = L"PCIIDE\\IDEChannel";
+    ULONG IdLen;
+    PWCHAR Id;
+
+    PAGED_CODE();
+    DPRINT("ChannelBuildDeviceId: %p\n", PdoExtension);
+
+    IdLen = wcslen(IdBuffer);
+
+    Id = ExAllocatePoolWithTag(PagedPool, ((IdLen + 1) * 2), 'XedI');
+    if (Id)
+        wcscpy(Id, IdBuffer);
+
+    return Id;
 }
 
 PWCHAR
