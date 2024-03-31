@@ -2106,12 +2106,56 @@ PciIdeChannelQueryInterface(
 
 NTSTATUS
 NTAPI
-ChannelQueryCapabitilies(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+IdeGetDeviceCapabilities(
+    _In_ PDEVICE_OBJECT ControllerPdo,
+    _In_ PDEVICE_CAPABILITIES Capabilities)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ChannelQueryCapabitilies(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PDEVICE_CAPABILITIES Capabilities;
+    DEVICE_CAPABILITIES capabilities;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelQueryCapabitilies: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelQueryCapabitilies: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    Status = IdeGetDeviceCapabilities(PdoExtension->FdoExtension->LowPdo, &capabilities);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelQueryCapabitilies: Status %X\n", Status);
+        goto Exit;
+    }
+
+    Capabilities = IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceCapabilities.Capabilities;
+
+    RtlCopyMemory(Capabilities, &capabilities, sizeof(*Capabilities));
+
+    Capabilities->Address = PdoExtension->PdoIndex;
+    Capabilities->UniqueID = FALSE;
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
