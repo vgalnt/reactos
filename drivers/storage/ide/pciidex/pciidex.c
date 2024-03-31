@@ -2017,8 +2017,19 @@ NTAPI
 ChannelGetPdoExtension(
     _In_ PDEVICE_OBJECT Pdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    KIRQL Irql;
+
+    PdoExtension = Pdo->DeviceExtension;
+
+    KeAcquireSpinLock(&PdoExtension->SpinLock, &Irql);
+
+    if (PdoExtension->PdoState & 2 && PdoExtension->PdoState & 8)
+        PdoExtension = NULL;
+
+    KeReleaseSpinLock(&PdoExtension->SpinLock, Irql);
+
+    return PdoExtension;
 }
 
 NTSTATUS
