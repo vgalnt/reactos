@@ -2238,11 +2238,109 @@ ChannelQueryResourceRequirements(
 NTSTATUS
 NTAPI
 ChannelQueryText(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PMESSAGE_RESOURCE_ENTRY MessageEntry;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    DEVICE_TEXT_TYPE DeviceTextType;
+    ANSI_STRING MessageString;
+    UNICODE_STRING String;
+    PWCHAR DeviceText = NULL;
+    ULONG Size;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    PAGED_CODE();
+    DPRINT("ChannelQueryText: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelQueryText: STATUS_NO_SUCH_DEVICE\n");
+        Irp->IoStatus.Status = STATUS_NO_SUCH_DEVICE;
+        IoCompleteRequest(Irp, 0);
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    Irp->IoStatus.Information = 0;
+
+    DeviceTextType = IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryDeviceText.DeviceTextType;
+
+    if (DeviceTextType != DeviceTextDescription &&
+        DeviceTextType != DeviceTextLocationInformation)
+    {
+        DPRINT1("ChannelQueryText: %p, %p\n", Pdo, Irp);
+        goto Exit;
+    }
+
+    if (DeviceTextType == DeviceTextLocationInformation)
+    {
+        DeviceText = ExAllocatePoolWithTag(PagedPool, 0x64, 'XedI');
+        if (!DeviceText)
+        {
+            DPRINT1("ChannelQueryText: %p, %p\n", Pdo, Irp);
+            goto Exit;
+        }
+
+        swprintf(DeviceText, L"%ws Channel", (PdoExtension->PdoIndex ? L"Secondary" : L"Primary"));
+
+        RtlInitUnicodeString(&String, DeviceText);
+        String.Buffer[String.Length / 2] = 0;
+
+        goto Exit;
+    }
+
+    /* DeviceTextType == DeviceTextDescription */
+
+    Status = RtlFindMessage(PdoExtension->DriverObject->DriverStart, 0xB, 0, 1, &MessageEntry);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelQueryText: %p, %p\n", Pdo, Irp);
+        DeviceText = NULL;
+        goto Exit;
+    }
+
+    if (!(MessageEntry->Flags & 1))
+    {
+        RtlInitAnsiString(&MessageString, (PCHAR)MessageEntry->Text);
+        MessageString.Length -= 2;
+
+        RtlAnsiStringToUnicodeString(&String, &MessageString, TRUE);
+        DeviceText = String.Buffer;
+
+        goto Exit;
+    }
+
+    if (MessageEntry->Text[MessageEntry->Length - 8])
+        Size = (MessageEntry->Length - 8);
+    else
+        Size = (MessageEntry->Length - 0xA);
+
+    DeviceText = ExAllocatePoolWithTag(PagedPool, Size, 'XedI');
+    if (!DeviceText)
+    {
+        DPRINT1("ChannelQueryText: %p, %p\n", Pdo, Irp);
+        goto Exit;
+    }
+
+    Size -= 2;
+
+    RtlCopyMemory(DeviceText, MessageEntry->Text, Size);
+
+    DeviceText[Size / 2] = 0;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    Irp->IoStatus.Information = (ULONG_PTR)DeviceText;
+
+    if (!DeviceText)
+        Status = Irp->IoStatus.Status;
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS

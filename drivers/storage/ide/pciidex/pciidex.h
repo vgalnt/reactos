@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <initguid.h>
 #include <wdmguid.h>
+#include <ndk/rtlfuncs.h>
 
 /* STRUCTURES ***************************************************************/
 
