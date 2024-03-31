@@ -162,6 +162,8 @@ PCHAR PowerMinorNames[] =
 
 PWCHAR OnMaskStr[2] = {L"MasterOnMask", L"SlaveOnMask"};
 PWCHAR OnConfigOffsetStr[2] = {L"MasterOnConfigOffset", L"SlaveOnConfigOffset"};
+PWCHAR ChannelInternalCompatibleId[2] = {L"Primary_IDE_Channel", L"Secondary_IDE_Channel"};
+WCHAR ChannelCompatibleId[] = {L"*PNP0600"};
 
 /* PRIVATE FUNCTIONS ********************************************************/
 
@@ -2166,7 +2168,7 @@ ChannelBuildDeviceId(
 
     IdLen = wcslen(IdBuffer);
 
-    Id = ExAllocatePoolWithTag(PagedPool, ((IdLen + 1) * 2), 'XedI');
+    Id = ExAllocatePoolWithTag(PagedPool, ((IdLen + 1) * sizeof(WCHAR)), 'XedI');
     if (Id)
         wcscpy(Id, IdBuffer);
 
@@ -2178,8 +2180,107 @@ NTAPI
 ChannelBuildHardwareId(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    WCHAR DefaultIdBuffer[10];
+    WCHAR FullIdBuffer[10];
+    USHORT VendorDevice[2];
+    PWCHAR VendorId;
+    PWCHAR DeviceId;
+    PWCHAR Id;
+    ULONG InternalLen;
+    ULONG IdLen;
+    BOOLEAN IsPIIX = FALSE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelBuildHardwareId: %p\n", PdoExtension);
+
+    Status = PciIdeBusData(PdoExtension->FdoExtension, VendorDevice, 0, 4, 1);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelBuildHardwareId: Status %X\n", Status);
+        return NULL;
+    }
+
+    switch (VendorDevice[0])
+    {
+        case 0xE11:
+            VendorId = L"Compaq";
+            break;
+
+        case 0x1039:
+            VendorId = L"SiS";
+            break;
+
+        case 0x1095:
+            VendorId = L"CMD";
+            break;
+
+        case 0x10AD:
+            VendorId = L"WinBond";
+            break;
+
+        case 0x10B9:
+            VendorId = L"ALi";
+            break;
+
+        case 0x8086:
+            VendorId = L"Intel";
+
+            if (VendorDevice[1] == 0x1230)
+            {
+                DeviceId = L"PIIX";
+                IsPIIX = TRUE;
+            }
+            else if (VendorDevice[1] == 0x7010)
+            {
+                DeviceId = L"PIIX3";
+                IsPIIX = TRUE;
+            }
+            else if (VendorDevice[1] == 0x7111)
+            {
+                DeviceId = L"PIIX4";
+                IsPIIX = TRUE;
+            }
+            break;
+
+        default:
+            swprintf(DefaultIdBuffer, L"%04x", VendorDevice[0]);
+            VendorId = DefaultIdBuffer;
+            break;
+    }
+
+    if (!IsPIIX)
+    {
+        swprintf(FullIdBuffer, L"%04x", VendorDevice[1]);
+        DeviceId = FullIdBuffer;
+    }
+
+    Id = ExAllocatePoolWithTag(PagedPool, 0x212, 'XedI');
+    if (!Id)
+    {
+        DPRINT1("ChannelBuildHardwareId: Allocate id failed!\n");
+        return NULL;
+    }
+
+    swprintf(Id, L"%ws-%ws", VendorId, DeviceId);
+
+    IdLen = wcslen(Id);
+    Id[IdLen++] = 0;
+
+    InternalLen = wcslen(ChannelInternalCompatibleId[PdoExtension->PdoIndex]);
+
+    RtlCopyMemory(&Id[IdLen], ChannelInternalCompatibleId[PdoExtension->PdoIndex], (InternalLen * sizeof(WCHAR)));
+
+    IdLen += InternalLen;
+    Id[IdLen++] = 0;
+
+    RtlCopyMemory(&Id[IdLen], ChannelCompatibleId, sizeof(ChannelCompatibleId));
+
+    IdLen += 9;
+    Id[IdLen++] = 0;
+    Id[IdLen] = 0;
+
+    return Id;
 }
 
 PWCHAR
