@@ -2228,11 +2228,171 @@ ChannelQueryResources(
 NTSTATUS
 NTAPI
 ChannelQueryResourceRequirements(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources = NULL;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    ULONG State;
+    ULONG Count;
+    ULONG Size;
+    BOOLEAN IsChannelNotEmpty;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelQueryResourceRequirements: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelQueryResourceRequirements: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    FdoExtension = PdoExtension->FdoExtension;
+
+    if (FdoExtension->NativeMode[PdoExtension->PdoIndex])
+    {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    State = PciIdeChannelEnabled(FdoExtension, PdoExtension->PdoIndex);
+
+    if (State == 2)
+    {
+        IsChannelNotEmpty = (PdoExtension->IsChannelEmpty == 0);
+    }
+    else if (State == 0)
+    {
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    Size = (sizeof(IO_RESOURCE_REQUIREMENTS_LIST) + (2 * sizeof(IO_RESOURCE_DESCRIPTOR)));
+
+    IoResources = ExAllocatePoolWithTag(PagedPool, Size, 'XedI');
+    if (!IoResources)
+    {
+        DPRINT1("ChannelQueryResourceRequirements: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+    RtlZeroMemory(IoResources, Size);
+
+    Status = STATUS_SUCCESS;
+
+    IoResources->ListSize = Size;
+    IoResources->InterfaceType = 1;
+    IoResources->BusNumber = 0;
+    IoResources->SlotNumber = 0;
+    IoResources->AlternativeLists = 1;
+
+    IoResources->List[0].Version = 1;
+    IoResources->List[0].Revision = 1;
+    IoResources->List[0].Count = 0;
+
+    if (!PdoExtension->PdoIndex)
+    {
+        if (!FdoExtension->IsCmdBlockResource[0])
+        {
+            Count = IoResources->List[0].Count;
+            IoResources->List[0].Descriptors[Count].Option = 1;
+            IoResources->List[0].Descriptors[Count].Type = 1;
+            IoResources->List[0].Descriptors[Count].ShareDisposition = 1;
+            IoResources->List[0].Descriptors[Count].Flags = 0x11;
+            IoResources->List[0].Descriptors[Count].u.Port.Length = 8;
+            IoResources->List[0].Descriptors[Count].u.Port.Alignment = 1;
+            IoResources->List[0].Descriptors[Count].u.Port.MinimumAddress.QuadPart = 0x1F0;
+            IoResources->List[0].Descriptors[Count].u.Port.MaximumAddress.QuadPart = 0x1F7;
+            IoResources->List[0].Count++;
+        }
+
+        if (!FdoExtension->IsCtrlBlockResource[0])
+        {
+            Count = IoResources->List[0].Count;
+            IoResources->List[0].Descriptors[Count].Option = 1;
+            IoResources->List[0].Descriptors[Count].Type = 1;
+            IoResources->List[0].Descriptors[Count].ShareDisposition = 1;
+            IoResources->List[0].Descriptors[Count].Flags = 0x11;
+            IoResources->List[0].Descriptors[Count].u.Port.Length = 1;
+            IoResources->List[0].Descriptors[Count].u.Port.Alignment = 1;
+            IoResources->List[0].Descriptors[Count].u.Port.MinimumAddress.QuadPart = 0x3F6;
+            IoResources->List[0].Descriptors[Count].u.Port.MaximumAddress.QuadPart = 0x3F6;
+            IoResources->List[0].Count++;
+        }
+
+        if (!FdoExtension->IsIntResource[0] && IsChannelNotEmpty)
+        {
+            Count = IoResources->List[0].Count;
+            IoResources->List[0].Descriptors[Count].Option = 1;
+            IoResources->List[0].Descriptors[Count].Type = 2;
+            IoResources->List[0].Descriptors[Count].ShareDisposition = 1;
+            IoResources->List[0].Descriptors[Count].Flags = 1;
+            IoResources->List[0].Descriptors[Count].u.Interrupt.MinimumVector = 0xE;
+            IoResources->List[0].Descriptors[Count].u.Interrupt.MaximumVector = 0xE;
+            IoResources->List[0].Count++;
+        }
+    }
+    else
+    {
+        if (!FdoExtension->IsCmdBlockResource[1])
+        {
+            Count = IoResources->List[0].Count;
+            IoResources->List[0].Descriptors[Count].Option = 1;
+            IoResources->List[0].Descriptors[Count].Type = 1;
+            IoResources->List[0].Descriptors[Count].ShareDisposition = 1;
+            IoResources->List[0].Descriptors[Count].Flags = 0x11;
+            IoResources->List[0].Descriptors[Count].u.Port.Length = 8;
+            IoResources->List[0].Descriptors[Count].u.Port.Alignment = 1;
+            IoResources->List[0].Descriptors[Count].u.Port.MinimumAddress.QuadPart = 0x170;
+            IoResources->List[0].Descriptors[Count].u.Port.MaximumAddress.QuadPart = 0x177;
+            IoResources->List[0].Count++;
+        }
+
+        if (!FdoExtension->IsCtrlBlockResource[1])
+        {
+            Count = IoResources->List[0].Count;
+            IoResources->List[0].Descriptors[Count].Option = 1;
+            IoResources->List[0].Descriptors[Count].Type = 1;
+            IoResources->List[0].Descriptors[Count].ShareDisposition = 1;
+            IoResources->List[0].Descriptors[Count].Flags = 0x11;
+            IoResources->List[0].Descriptors[Count].u.Port.Length = 1;
+            IoResources->List[0].Descriptors[Count].u.Port.Alignment = 1;
+            IoResources->List[0].Descriptors[Count].u.Port.MinimumAddress.QuadPart = 0x376;
+            IoResources->List[0].Descriptors[Count].u.Port.MaximumAddress.QuadPart = 0x376;
+            IoResources->List[0].Count++;
+        }
+
+        if (!FdoExtension->IsIntResource[1] && IsChannelNotEmpty)
+        {
+            Count = IoResources->List[0].Count;
+            IoResources->List[0].Descriptors[Count].Option = 1;
+            IoResources->List[0].Descriptors[Count].Type = 2;
+            IoResources->List[0].Descriptors[Count].ShareDisposition = 1;
+            IoResources->List[0].Descriptors[Count].Flags = 1;
+            IoResources->List[0].Descriptors[Count].u.Interrupt.MinimumVector = 0xF;
+            IoResources->List[0].Descriptors[Count].u.Interrupt.MaximumVector = 0xF;
+            IoResources->List[0].Count++;
+        }
+    }
+
+    if (!IoResources->List[0].Count)
+    {
+        ExFreePoolWithTag(IoResources, 'XedI');
+        IoResources = NULL;
+    }
+
+Exit:
+
+    Irp->IoStatus.Information = (ULONG_PTR)IoResources;
+    Irp->IoStatus.Status = Status;
+
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS

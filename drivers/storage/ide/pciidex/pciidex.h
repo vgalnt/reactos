@@ -94,6 +94,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     ULONG PdoIndex;
     KSPIN_LOCK SpinLock;
     ULONG PdoState;
+    BOOLEAN IsChannelEmpty;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
 /* FUNCTIONS ****************************************************************/
