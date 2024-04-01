@@ -288,12 +288,26 @@ IdeCreateIdeDirectory(VOID)
     }
 }
 
+BOOLEAN
+NTAPI
+IdePortOkToDetectLegacy(
+    _In_ PDRIVER_OBJECT DriverObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 VOID
 NTAPI
 IdePortDetectLegacyController(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PUNICODE_STRING RegistryPath)
 {
+    DPRINT("IdePortDetectLegacyController: %p, %p\n", DriverObject, RegistryPath);
+
+    if (!IdePortOkToDetectLegacy(DriverObject))
+        return;
+
     UNIMPLEMENTED_DBGBREAK();
 }
 
