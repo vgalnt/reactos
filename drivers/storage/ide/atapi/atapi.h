@@ -5,6 +5,7 @@
 
 #include <ntifs.h>
 #include <ide.h>
+#include <stdio.h>
 
 /* STRUCTURES ***************************************************************/
 
@@ -12,6 +13,11 @@ typedef struct _ATAPI_DRIVER_EXTENSION
 {
     UNICODE_STRING RegistryPath;
 } ATAPI_DRIVER_EXTENSION, *PATAPI_DRIVER_EXTENSION;
+
+typedef struct _ATA_DEVICE_EXTENSION
+{
+    PVOID CurrentSrb;
+} ATA_DEVICE_EXTENSION, *PATA_DEVICE_EXTENSION;
 
 typedef struct _FDO_DEVICE_EXTENSION
 {
@@ -24,6 +30,13 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG DumpFile;
     SYSTEM_POWER_STATE SystemPowerState;
     DEVICE_POWER_STATE DevicePowerState;
+    PDRIVER_DISPATCH PassDownToNextDriver;
+    PDRIVER_DISPATCH* FdoPnpDispatchTable;
+    PDRIVER_DISPATCH* FdoPowerDispatchTable;
+    PDRIVER_DISPATCH* FdoWmiDispatchTable;
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    ULONG FdoIndex;
+    ATA_DEVICE_EXTENSION AtaExt;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
 
 /* FUNCTIONS ****************************************************************/
@@ -48,5 +61,8 @@ NTSTATUS NTAPI ChannelQueryId(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI ChannelQueryPnPDeviceState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI ChannelUsageNotification(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI ChannelSurpriseRemoveDevice(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+
+NTSTATUS NTAPI IdePortSetFdoPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI ChannelQueryPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 
 #endif /* _PCIIDEX_PCH_ */

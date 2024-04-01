@@ -15,6 +15,9 @@
 
 /* GLOBALS ******************************************************************/
 
+//ATAPI_FDO_LIST IdeGlobalFdoList = {-1, {NULL, NULL}, 0};
+ULONG FdoIndex = 0;
+
 PDRIVER_DISPATCH FdoPnpDispatchTable[] =
 {
     ChannelStartDevice,
@@ -44,6 +47,14 @@ PDRIVER_DISPATCH FdoPnpDispatchTable[] =
     IdePortPassDownToNextDriver
 };
 
+PDRIVER_DISPATCH FdoPowerDispatchTable[] =
+{
+    IdePortPassDownToNextDriver,
+    IdePortPassDownToNextDriver,
+    IdePortSetFdoPowerState,
+    ChannelQueryPowerState
+};
+
 /* PRIVATE FUNCTIONS ********************************************************/
 
 VOID
@@ -61,8 +72,61 @@ ChannelAddChannel(
     _In_ PDEVICE_OBJECT LowerPdo,
     _Out_ PFDO_DEVICE_EXTENSION* OutFdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    UNICODE_STRING FdoName;
+    WCHAR NameBuffer[0x40];
+    PDEVICE_OBJECT Fdo;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelAddChannel: %p, %p\n", DriverObject, LowerPdo);
+
+    swprintf(NameBuffer, L"\\Device\\Ide\\IdePort%d", FdoIndex);
+    RtlInitUnicodeString(&FdoName, NameBuffer);
+
+    Status = IoCreateDevice(DriverObject, sizeof(*FdoExtension), &FdoName, 4, 0x100, 0, &Fdo);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelAddChannel: Status %X\n", Status);
+        return Status;
+    }
+
+    FdoExtension = Fdo->DeviceExtension;
+    RtlZeroMemory(FdoExtension, sizeof(*FdoExtension));
+
+    FdoExtension->HwDeviceExtension = &FdoExtension->AtaExt;
+    FdoExtension->LowPdo = LowerPdo;
+    FdoExtension->DriverObject = DriverObject;
+    FdoExtension->SelfDevice = Fdo;
+    FdoExtension->PassDownToNextDriver = IdePortPassDownToNextDriver;
+    FdoExtension->FdoPnpDispatchTable = FdoPnpDispatchTable;
+    FdoExtension->FdoPowerDispatchTable = FdoPowerDispatchTable;
+    //FdoExtension->FdoWmiDispatchTable = FdoWmiDispatchTable;
+
+    FdoExtension->LowDevice = IoAttachDeviceToDeviceStack(Fdo, LowerPdo);
+    if (!FdoExtension->LowDevice)
+    {
+        DPRINT1("ChannelAddChannel: STATUS_UNSUCCESSFUL\n");
+        IoDeleteDevice(Fdo);
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (FdoExtension->LowDevice->AlignmentRequirement < 1)
+        Fdo->AlignmentRequirement = 1;
+    else
+        Fdo->AlignmentRequirement = FdoExtension->LowDevice->AlignmentRequirement;
+
+    FdoExtension->FdoIndex = FdoIndex++;
+
+    *OutFdoExtension = FdoExtension;
+
+    //IdeAddToFdoList(&IdeGlobalFdoList, FdoExtension);
+
+    Fdo->Flags &= ~DO_DEVICE_INITIALIZING;
+
+    DPRINT("ChannelAddChannel: DeviceObject %p returnd status %X from Addevice\n", LowerPdo, Status);
+
+    return Status;
 }
 
 NTSTATUS
@@ -97,6 +161,28 @@ IdePortDispatch(
 }
 
 /* POWER FUNCTIONS **********************************************************/
+
+/* FDO POWER FUNCTIONS ******************************************************/
+
+NTSTATUS
+NTAPI
+IdePortSetFdoPowerState(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ChannelQueryPowerState(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
 
 NTSTATUS
 NTAPI
