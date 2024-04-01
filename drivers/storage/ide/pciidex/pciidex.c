@@ -2231,11 +2231,137 @@ Exit:
 NTSTATUS
 NTAPI
 ChannelQueryResources(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PCM_RESOURCE_LIST CmResource = NULL;
+    ULONG Channel;
+    ULONG Count;
+    ULONG Size;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelQueryResources: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelQueryResources: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    FdoExtension = PdoExtension->FdoExtension;
+    Channel = PdoExtension->PdoIndex;
+
+    if (FdoExtension->NativeMode[Channel] || !PciIdeChannelEnabled(FdoExtension, Channel))
+    {
+        CmResource = NULL;
+        Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    Size = (sizeof(CM_RESOURCE_LIST) + (2 * sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR)));
+
+    CmResource = ExAllocatePoolWithTag(PagedPool, Size, 'XedI');
+    if (!CmResource)
+    {
+        DPRINT1("ChannelQueryResources: STATUS_NO_MEMORY\n");
+        Status = STATUS_NO_MEMORY;
+        goto Exit;
+    }
+    RtlZeroMemory(CmResource, Size);
+
+    CmResource->Count = 1;
+    Status = STATUS_SUCCESS;
+
+    CmResource->List[0].PartialResourceList.Count = 0;
+    CmResource->List[0].InterfaceType = 1;
+    CmResource->List[0].BusNumber = 0;
+
+    if (!PdoExtension->PdoIndex)
+    {
+        if (!FdoExtension->IsCmdBlockResource[0])
+        {
+            Count = CmResource->List[0].PartialResourceList.Count;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 0x11;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].u.Port.Start.QuadPart = 0x1F0;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count++].u.Port.Length = 8;
+        }
+
+        if (!FdoExtension->IsCtrlBlockResource[0])
+        {
+            Count = CmResource->List[0].PartialResourceList.Count;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 0x11;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].u.Port.Start.QuadPart = 0x3F6;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count++].u.Port.Length = 1;
+        }
+
+        if (!FdoExtension->IsIntResource[0])
+        {
+            Count = CmResource->List[0].PartialResourceList.Count;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 2;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].u.Interrupt.Level = 0xE;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].u.Interrupt.Vector = 0xE;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count++].u.Interrupt.Affinity = 1;
+        }
+    }
+    else
+    {
+        if (!FdoExtension->IsCmdBlockResource[1])
+        {
+            Count = CmResource->List[0].PartialResourceList.Count;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 0x11;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].u.Port.Start.QuadPart = 0x170;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count++].u.Port.Length = 8;
+        }
+
+        if (!FdoExtension->IsCtrlBlockResource[1])
+        {
+            Count = CmResource->List[0].PartialResourceList.Count;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 0x11;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].u.Port.Start.QuadPart = 0x376;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count++].u.Port.Length = 1;
+        }
+
+        if (!FdoExtension->IsIntResource[1])
+        {
+            Count = CmResource->List[0].PartialResourceList.Count;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 2;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 1;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].u.Interrupt.Level = 0xF;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count].u.Interrupt.Vector = 0xF;
+            CmResource->List[0].PartialResourceList.PartialDescriptors[Count++].u.Interrupt.Affinity = 1;
+        }
+    }
+
+    if (!CmResource->List[0].PartialResourceList.Count)
+    {
+        ExFreePoolWithTag(CmResource, 'XedI');
+        CmResource = NULL;
+    }
+
+Exit:
+
+    Irp->IoStatus.Information = (ULONG_PTR)CmResource;
+    Irp->IoStatus.Status = Status;
+
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
