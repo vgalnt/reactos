@@ -56,12 +56,23 @@ IdePortUnload(
 
 NTSTATUS
 NTAPI
+ChannelAddChannel(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PDEVICE_OBJECT LowerPdo,
+    _Out_ PFDO_DEVICE_EXTENSION* OutFdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ChannelAddDevice(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PDEVICE_OBJECT LowerPdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION dummy;
+    return ChannelAddChannel(DriverObject, LowerPdo, &dummy);
 }
 
 VOID

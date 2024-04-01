@@ -13,6 +13,19 @@ typedef struct _ATAPI_DRIVER_EXTENSION
     UNICODE_STRING RegistryPath;
 } ATAPI_DRIVER_EXTENSION, *PATAPI_DRIVER_EXTENSION;
 
+typedef struct _FDO_DEVICE_EXTENSION
+{
+    PDEVICE_OBJECT LowDevice;
+    PDEVICE_OBJECT LowPdo;
+    PDRIVER_OBJECT DriverObject;
+    PDEVICE_OBJECT SelfDevice;
+    ULONG Paging;
+    ULONG Hibernation;
+    ULONG DumpFile;
+    SYSTEM_POWER_STATE SystemPowerState;
+    DEVICE_POWER_STATE DevicePowerState;
+} FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
+
 /* FUNCTIONS ****************************************************************/
 
 NTSTATUS
