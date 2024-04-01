@@ -293,7 +293,41 @@ NTAPI
 IdePortOkToDetectLegacy(
     _In_ PDRIVER_OBJECT DriverObject)
 {
+    UNICODE_STRING ObjectName = RTL_CONSTANT_STRING(L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\Pnp");
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE KeyHandle;
+    ULONG Value;
+    NTSTATUS Status;
+
+    DPRINT("IdePortOkToDetectLegacy: %p\n", DriverObject);
+
+    InitializeObjectAttributes(&ObjectAttributes, &ObjectName, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    if (NT_SUCCESS(Status))
+    {
+        RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+        Value = 0;
+
+        QueryTable[0].Name = L"DisableFirmwareMapper";
+        QueryTable[0].EntryContext = &Value;
+        QueryTable[0].DefaultData = &Value;
+        QueryTable[0].QueryRoutine = NULL;
+        QueryTable[0].Flags = 0x34;
+        QueryTable[0].DefaultType = 4;
+        QueryTable[0].DefaultLength = 4;
+
+        RtlQueryRegistryValues(RTL_REGISTRY_HANDLE, KeyHandle, QueryTable, NULL, NULL);
+        ZwClose(KeyHandle);
+
+        if (Value)
+            return FALSE;
+    }
+
     UNIMPLEMENTED_DBGBREAK();
+
     return FALSE;
 }
 
