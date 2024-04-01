@@ -238,11 +238,26 @@ IdePortStatusSuccessAndPassDownToNextDriver(
 NTSTATUS
 NTAPI
 IdePortPassDownToNextDriver(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+
+    PAGED_CODE();
+    DPRINT("IdePortPassDownToNextDriver: %p, %p\n", Fdo, Irp);
+
+    FdoExtension = Fdo->DeviceExtension;
+    ASSERT(FdoExtension->LowDevice);
+
+    if ((IoGetCurrentIrpStackLocation(Irp))->MajorFunction == IRP_MJ_POWER)
+    {
+        PoStartNextPowerIrp(Irp);
+        IoSkipCurrentIrpStackLocation(Irp);
+        return PoCallDriver(FdoExtension->LowDevice, Irp);
+    }
+
+    IoSkipCurrentIrpStackLocation(Irp);
+    return IoCallDriver(FdoExtension->LowDevice, Irp);
 }
 
 NTSTATUS
