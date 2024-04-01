@@ -14,6 +14,18 @@ typedef struct _ATAPI_DRIVER_EXTENSION
     UNICODE_STRING RegistryPath;
 } ATAPI_DRIVER_EXTENSION, *PATAPI_DRIVER_EXTENSION;
 
+typedef struct _IDE_RESOURCE_DATA
+{
+    ULONG TypeResForCmdBlock;
+    ULONG TypeResForCtrlBlock;
+    ULONG CmdBlockBase;
+    ULONG CtrlBlockBase;
+    ULONG IntResFlags;
+    ULONG Vector;
+    BOOLEAN PrimaryClaimed;
+    BOOLEAN SecondaryClaimed;
+} IDE_RESOURCE_DATA, *PIDE_RESOURCE_DATA;
+
 typedef struct _ATA_DEVICE_EXTENSION
 {
     PVOID CurrentSrb;
@@ -34,6 +46,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     PDRIVER_DISPATCH* FdoPnpDispatchTable;
     PDRIVER_DISPATCH* FdoPowerDispatchTable;
     PDRIVER_DISPATCH* FdoWmiDispatchTable;
+    IDE_RESOURCE_DATA ResourceData;
     PATA_DEVICE_EXTENSION HwDeviceExtension;
     ULONG FdoIndex;
     ATA_DEVICE_EXTENSION AtaExt;
