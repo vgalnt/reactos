@@ -1979,11 +1979,41 @@ Exit:
 NTSTATUS
 NTAPI
 ControllerQueryInterface(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    ULONG Dummy;
+    NTSTATUS Status;
+  
+    PAGED_CODE();
+    DPRINT("ControllerQueryInterface: %p, %p\n", Fdo, Irp);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    FdoExtension = Fdo->DeviceExtension;
+    Status = Irp->IoStatus.Status;
+
+    if (IsEqualGUID(&GUID_TRANSLATOR_INTERFACE_STANDARD, IoStack->Parameters.QueryInterface.InterfaceType))
+    {
+        if (IoStack->Parameters.QueryInterface.Size >= sizeof(TRANSLATOR_INTERFACE) &&
+            IoStack->Parameters.QueryInterface.InterfaceSpecificData == ULongToPtr(2) &&
+            !FdoExtension->NativeMode[0] && !FdoExtension->NativeMode[1])
+        {
+            Status = HalGetInterruptTranslator(5,
+                                               0,
+                                               0xFFFFFFFF,
+                                               IoStack->Parameters.QueryInterface.Size,
+                                               IoStack->Parameters.QueryInterface.Version,
+                                               (PVOID)IoStack->Parameters.QueryInterface.Interface,
+                                               &Dummy);
+        }
+    }
+
+    IoSkipCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Status = Status;
+
+    return IoCallDriver(FdoExtension->LowDevice, Irp);
 }
 
 NTSTATUS
