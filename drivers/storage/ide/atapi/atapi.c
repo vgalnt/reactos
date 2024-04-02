@@ -274,13 +274,60 @@ IdePortNoSupportIrp(
 
 NTSTATUS
 NTAPI
+IdePortGenericCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 IdePortSyncSendIrp(
     _In_ PDEVICE_OBJECT LowDevice,
     _In_ PIO_STACK_LOCATION IoStack,
     _Out_ PIO_STATUS_BLOCK OutIoStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    KEVENT Event;
+    PIRP Irp;
+    NTSTATUS Status;
+
+    ASSERT(LowDevice);
+    ASSERT(IoStack);
+
+    DPRINT("IdePortSyncSendIrp: %p, %p, %p\n", LowDevice, IoStack, OutIoStatus);
+    Irp = IoAllocateIrp(LowDevice->StackSize, FALSE);
+    if (!Irp)
+    {
+        DPRINT1("IdePortSyncSendIrp: Unable to get allocate an irp");
+        return STATUS_NO_MEMORY;
+    }
+    RtlMoveMemory(IoGetNextIrpStackLocation(Irp), IoStack, sizeof(*IoStack));
+
+    if (OutIoStatus)
+        Irp->IoStatus.Status = OutIoStatus->Status;
+    else
+        Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+    IoSetCompletionRoutine(Irp, IdePortGenericCompletionRoutine, &Event, TRUE, TRUE, TRUE);
+
+    if (IoCallDriver(LowDevice, Irp) == STATUS_PENDING)
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+    Status = Irp->IoStatus.Status;
+
+    if (OutIoStatus)
+    {
+        OutIoStatus->Status = Status;
+        OutIoStatus->Information = Irp->IoStatus.Information;
+    }
+
+    IoFreeIrp(Irp);
+
+    return Status;
 }
 
 NTSTATUS
