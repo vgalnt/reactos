@@ -2109,12 +2109,134 @@ ChannelQueryDeviceRelations(
 
 NTSTATUS
 NTAPI
-PciIdeChannelQueryInterface(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+BmQueryInterface(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _Out_ PVOID OutInterface)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeQuerySyncAccessInterface(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _Out_ PVOID OutInterface)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeChannelTransferModeSelect(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PPCIIDE_TRANSFER_MODE_SELECT XferMode)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeChannelTransferModeInterface(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _Out_ PVOID OutInterface)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeChannelInterruptInterface(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _Out_ PVOID OutInterface)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+PciIdeChannelRequestProperResources(
+    _In_ PDEVICE_OBJECT PhysicalDeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+PciIdeChannelQueryInterface(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    UNICODE_STRING GuidString;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PciIdeChannelQueryInterface: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("PciIdeChannelQueryInterface: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Status = Irp->IoStatus.Status;
+
+    if (IsEqualGUID(&GUID_PCIIDE_BUSMASTER_INTERFACE, IoStack->Parameters.QueryInterface.InterfaceType) &&
+        IoStack->Parameters.QueryInterface.Size >= sizeof(PCIIDE_BUS_MASTER_INTERFACE))
+    {
+        Status = BmQueryInterface(PdoExtension, IoStack->Parameters.QueryInterface.Interface);
+    }
+    else if (IsEqualGUID(&GUID_PCIIDE_SYNC_ACCESS_INTERFACE, IoStack->Parameters.QueryInterface.InterfaceType) &&
+             IoStack->Parameters.QueryInterface.Size >= sizeof(IDE_SYNC_ACCESS_INTERFACE))
+    {
+        Status = PciIdeQuerySyncAccessInterface(PdoExtension, IoStack->Parameters.QueryInterface.Interface);
+    }
+    else if (IsEqualGUID(&GUID_PCIIDE_XFER_MODE_INTERFACE, IoStack->Parameters.QueryInterface.InterfaceType) &&
+             IoStack->Parameters.QueryInterface.Size >= sizeof(IDE_TRANSFER_MODE_INTERFACE))
+    {
+        Status = PciIdeChannelTransferModeInterface(PdoExtension, IoStack->Parameters.QueryInterface.Interface);
+    }
+    else if (IsEqualGUID(&GUID_PCIIDE_INTERRUPT_INTERFACE, IoStack->Parameters.QueryInterface.InterfaceType) &&
+             IoStack->Parameters.QueryInterface.Size >= sizeof(PCIIDE_INTERRUPT_INTERFACE))
+    {
+        Status = PciIdeChannelInterruptInterface(PdoExtension, IoStack->Parameters.QueryInterface.Interface);
+    }
+    else if (IsEqualGUID(&GUID_PCIIDE_REQUEST_PROPER_RESOURCES, IoStack->Parameters.QueryInterface.InterfaceType) &&
+             IoStack->Parameters.QueryInterface.Size >= sizeof(PCIIDE_PROPER_RESOURCES))
+    {
+        ((PPCIIDE_PROPER_RESOURCES)IoStack->Parameters.QueryInterface.Interface)->ChannelRequestProperResources =
+            PciIdeChannelRequestProperResources;
+
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        Status = RtlStringFromGUID(IoStack->Parameters.QueryInterface.InterfaceType, &GuidString);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciIdeChannelQueryInterface: RtlStringFromGUID() failed\n", &GuidString);
+        }
+
+        DPRINT1("PciIdeChannelQueryInterface: unsupported '%wZ'\n", Pdo,  &GuidString);
+
+        RtlFreeUnicodeString(&GuidString);
+    }
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS

@@ -12,6 +12,12 @@
 
 /* STRUCTURES ***************************************************************/
 
+DEFINE_GUID(GUID_PCIIDE_BUSMASTER_INTERFACE,      0x681190EA, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
+DEFINE_GUID(GUID_PCIIDE_SYNC_ACCESS_INTERFACE,    0x681190EB, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
+DEFINE_GUID(GUID_PCIIDE_XFER_MODE_INTERFACE,      0x681190EC, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
+DEFINE_GUID(GUID_PCIIDE_REQUEST_PROPER_RESOURCES, 0x681190ED, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
+DEFINE_GUID(GUID_PCIIDE_INTERRUPT_INTERFACE,      0x681190EE, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
+
 typedef struct _IDE_SET_POWER_CONTEXT
 {
     PIRP Irp;
@@ -31,6 +37,57 @@ typedef struct _PCIIDEX_DRIVER_EXTENSION
     ULONG MiniControllerExtensionSize;
     PCIIDE_UDMA_MODES_SUPPORTED HwUdmaModesSupported;
 } PCIIDEX_DRIVER_EXTENSION, *PPCIIDEX_DRIVER_EXTENSION;
+
+typedef struct _IDE_TRANSFER_MODE_INTERFACE
+{
+    ULONG IsTransferModeSelect;
+    PVOID MiniControllerExtension;
+    PVOID TransferModeSelect;
+    PVOID PciIdeUseDma;
+    PVOID Context;
+    PVOID TransferModeTimingTable;
+    ULONG TableLength;
+    PVOID PciIdeUdmaModesSupported;
+
+} IDE_TRANSFER_MODE_INTERFACE, *PIDE_TRANSFER_MODE_INTERFACE;
+
+typedef struct _PCIIDE_INTERRUPT_INTERFACE
+{
+    PVOID InterruptControl;
+    PVOID Context;
+} PCIIDE_INTERRUPT_INTERFACE, *PPCIIDE_INTERRUPT_INTERFACE;
+
+typedef struct _IDE_SYNC_ACCESS_INTERFACE
+{
+    PVOID AllocateAccessToken;
+    PVOID FreeAccessToken;
+    PVOID Context;
+} IDE_SYNC_ACCESS_INTERFACE, *PIDE_SYNC_ACCESS_INTERFACE;
+
+typedef struct _PCIIDE_BUS_MASTER_INTERFACE
+{
+    ULONG Size;
+    ULONG SupportedTransferMode[2];
+    ULONG MaximumPhysicalSize;
+    PVOID Context;
+    PVOID BmSetup;
+    PVOID BmArm;
+    PVOID BmDisarm;
+    PVOID BmFlush;
+    PVOID BmStatus;
+    PVOID BmTimingSetup;
+    BOOLEAN IgnoreActiveBitForAtaDevice;
+    BOOLEAN AlwaysClearBusMasterInterrupt;
+    ULONG ContextSize;
+    PVOID BmSetupOnePage;
+    PVOID BmCrashDumpInitialize;
+    PVOID BmFlushAdapterBuffers;
+} PCIIDE_BUS_MASTER_INTERFACE, *PPCIIDE_BUS_MASTER_INTERFACE;
+
+typedef struct _PCIIDE_PROPER_RESOURCES
+{
+    PVOID ChannelRequestProperResources;
+} PCIIDE_PROPER_RESOURCES, *PPCIIDE_PROPER_RESOURCES;
 
 typedef struct _FDO_DEVICE_EXTENSION
 {

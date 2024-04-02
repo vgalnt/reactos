@@ -10,6 +10,7 @@ add_library(pciidex MODULE
     pciidex.rc
     ${CMAKE_CURRENT_BINARY_DIR}/pciidex.def)
 
+target_link_libraries(pciidex wdmguid memcmp)
 add_pch(pciidex pciidex.h SOURCE)
 set_module_type(pciidex kernelmodedriver)
 add_importlibs(pciidex ntoskrnl hal)
