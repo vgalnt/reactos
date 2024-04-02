@@ -2143,8 +2143,20 @@ PciIdeChannelTransferModeInterface(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _Out_ PVOID OutInterface)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    IDE_TRANSFER_MODE_INTERFACE* Interface = OutInterface;
+
+    DPRINT("PciIdeChannelTransferModeInterface: %p\n", PdoExtension);
+
+    Interface->TransferModeSelect = PciIdeChannelTransferModeSelect;
+    Interface->TransferModeTimingTable = PdoExtension->FdoExtension->TimingTable;
+    Interface->TableLength = PdoExtension->FdoExtension->TimingTableLength;
+    Interface->Context = PdoExtension;
+    Interface->MiniControllerExtension = PdoExtension->FdoExtension->MiniControllerExtension;
+    Interface->PciIdeUdmaModesSupported = PdoExtension->FdoExtension->ControllerProperties.PciIdeUdmaModesSupported;
+    Interface->PciIdeUseDma = PdoExtension->FdoExtension->ControllerProperties.PciIdeUseDma;
+    Interface->IsTransferModeSelect = (PdoExtension->FdoExtension->ControllerProperties.PciIdeTransferModeSelect != NULL);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
