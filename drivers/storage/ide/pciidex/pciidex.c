@@ -2238,9 +2238,10 @@ PciIdeChannelQueryInterface(
             DPRINT1("PciIdeChannelQueryInterface: RtlStringFromGUID() failed\n", &GuidString);
         }
 
-        DPRINT1("PciIdeChannelQueryInterface: unsupported '%wZ'\n", Pdo,  &GuidString);
+        DPRINT1("PciIdeChannelQueryInterface: unsupported '%wZ'\n", Pdo, &GuidString);
 
         RtlFreeUnicodeString(&GuidString);
+        Status = Irp->IoStatus.Status;
     }
 
 Exit:
