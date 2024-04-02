@@ -2780,11 +2780,101 @@ Exit:
 NTSTATUS
 NTAPI
 ChannelFilterResourceRequirements(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResource = NULL;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIO_RESOURCE_LIST OldList;
+    PIO_RESOURCE_DESCRIPTOR OldDesc;
+    PIO_RESOURCE_LIST NewList;
+    PIO_RESOURCE_DESCRIPTOR NewDesc;
+    ULONG OldIdx;
+    ULONG NewIdx;
+    ULONG ix;
+    NTSTATUS Status = STATUS_NOT_SUPPORTED;
+
+    PAGED_CODE();
+    DPRINT("ChannelFilterResourceRequirements: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelFilterResourceRequirements: PdoExtension is NULL\n");
+        goto Exit;
+    }
+
+    if (!PdoExtension->IsChannelEmpty)
+    {
+        DPRINT1("ChannelFilterResourceRequirements: Channel not empty\n");
+        goto Exit;
+    }
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        DPRINT("ChannelFilterResourceRequirements: Irp->IoStatus.Status %X\n", Irp->IoStatus.Status);
+        IoResource = IoGetCurrentIrpStackLocation(Irp)->Parameters.FilterResourceRequirements.IoResourceRequirementList;
+    }
+    else
+    {
+        IoResource = (PIO_RESOURCE_REQUIREMENTS_LIST)Irp->IoStatus.Information;
+    }
+
+    if (!IoResource)
+    {
+        DPRINT1("ChannelFilterResourceRequirements: IoResource is NULL\n");
+        goto Exit;
+    }
+
+    if (!IoResource->AlternativeLists)
+    {
+        DPRINT1("ChannelFilterResourceRequirements: AlternativeLists is 0\n");
+        goto Exit;
+    }
+
+    NewList = OldList = IoResource->List;
+
+    for (ix = 0; ix < IoResource->AlternativeLists; ix++)
+    {
+        RtlMoveMemory(NewList, OldList, FIELD_OFFSET(IO_RESOURCE_LIST, Descriptors));
+
+        OldDesc = OldList->Descriptors;
+        NewDesc = NewList->Descriptors;
+
+        for (NewIdx = OldIdx = 0; OldIdx < OldList->Count; OldIdx++)
+        {
+            if (OldDesc[OldIdx].Type == 2)
+            {
+                DPRINT("ChannelFilterResourceRequirements: STATUS_SUCCESS\n");
+                Status = STATUS_SUCCESS;
+            }
+            else
+            {
+                NewDesc[NewIdx] = OldDesc[OldIdx];
+                NewIdx++;
+            }
+        }
+
+        OldList = (PIO_RESOURCE_LIST)&OldDesc[OldList->Count];
+
+        NewList->Count = NewIdx;
+        NewList = (PIO_RESOURCE_LIST)&NewDesc[NewList->Count];
+    }
+
+    if (Status != STATUS_NOT_SUPPORTED)
+    {
+        Irp->IoStatus.Status = Status;
+        Irp->IoStatus.Information = (ULONG_PTR)IoResource;
+        IoCompleteRequest(Irp, 0);
+        return Status;
+    }
+
+Exit:
+
+    DPRINT("ChannelFilterResourceRequirements: STATUS_NOT_SUPPORTED\n");
+    Status = Irp->IoStatus.Status;
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 PWCHAR
