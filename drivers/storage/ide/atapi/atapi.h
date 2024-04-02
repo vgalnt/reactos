@@ -6,8 +6,16 @@
 #include <ntifs.h>
 #include <ide.h>
 #include <stdio.h>
+#include <initguid.h>
+#include <wdmguid.h>
 
 /* STRUCTURES ***************************************************************/
+
+DEFINE_GUID(GUID_PCIIDE_BUSMASTER_INTERFACE,      0x681190EA, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
+DEFINE_GUID(GUID_PCIIDE_SYNC_ACCESS_INTERFACE,    0x681190EB, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
+DEFINE_GUID(GUID_PCIIDE_XFER_MODE_INTERFACE,      0x681190EC, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
+DEFINE_GUID(GUID_PCIIDE_REQUEST_PROPER_RESOURCES, 0x681190ED, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
+DEFINE_GUID(GUID_PCIIDE_INTERRUPT_INTERFACE,      0x681190EE, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
 
 typedef struct _ATAPI_DRIVER_EXTENSION
 {
@@ -25,6 +33,18 @@ typedef struct _IDE_RESOURCE_DATA
     BOOLEAN PrimaryClaimed;
     BOOLEAN SecondaryClaimed;
 } IDE_RESOURCE_DATA, *PIDE_RESOURCE_DATA;
+
+typedef struct _IDE_TRANSFER_MODE_INTERFACE
+{
+    ULONG IsTransferModeSelect;
+    PVOID MiniControllerExtension;
+    PVOID TransferModeSelect;
+    PVOID PciIdeUseDma;
+    PVOID Context;
+    PVOID TransferModeTimingTable;
+    ULONG TableLength;
+    PVOID PciIdeUdmaModesSupported;
+} IDE_TRANSFER_MODE_INTERFACE, *PIDE_TRANSFER_MODE_INTERFACE;
 
 typedef struct _ATA_DEVICE_EXTENSION
 {
@@ -77,5 +97,12 @@ NTSTATUS NTAPI ChannelSurpriseRemoveDevice(_In_ PDEVICE_OBJECT DeviceObject, _In
 
 NTSTATUS NTAPI IdePortSetFdoPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI ChannelQueryPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+
+VOID
+NTAPI
+RosDumpIoResources(
+    _In_ PIO_RESOURCE_REQUIREMENTS_LIST IoResource,
+    _In_ ULONG DebugLevel
+);
 
 #endif /* _PCIIDEX_PCH_ */

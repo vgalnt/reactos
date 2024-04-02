@@ -274,6 +274,17 @@ IdePortNoSupportIrp(
 
 NTSTATUS
 NTAPI
+IdePortSyncSendIrp(
+    _In_ PDEVICE_OBJECT LowDevice,
+    _In_ PIO_STACK_LOCATION IoStack,
+    _Out_ PIO_STATUS_BLOCK OutIoStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ChannelStartDevice(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
@@ -315,11 +326,186 @@ ChannelQueryDeviceRelations(
 NTSTATUS
 NTAPI
 ChannelFilterResourceRequirements(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_RESOURCE_DESCRIPTOR CommandPortDescriptor;
+    PIO_RESOURCE_DESCRIPTOR ControlPortDescriptor;
+    PIO_RESOURCE_DESCRIPTOR InterruptDescriptor;
+    PIO_RESOURCE_DESCRIPTOR FirstDescriptor;
+    PIO_RESOURCE_DESCRIPTOR NewDescriptor;
+    PIO_RESOURCE_DESCRIPTOR CurrentDescriptor;
+    PIO_RESOURCE_REQUIREMENTS_LIST NewIoResources;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    PIO_RESOURCE_LIST NewIoList;
+    PIO_RESOURCE_LIST IoList;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    IDE_TRANSFER_MODE_INTERFACE Iface;
+    IO_STACK_LOCATION ioStack;
+    ULONG Length;
+    ULONG Size;
+    ULONG ix;
+    ULONG jx;
+    ULONG kx;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    DPRINT("AtaFdoFilterResourceRequirements: %p, %p\n",
+           Fdo, IoStack->Parameters.FilterResourceRequirements.IoResourceRequirementList);
+
+    RosDumpIoResources(IoStack->Parameters.FilterResourceRequirements.IoResourceRequirementList, 0);
+
+    RtlZeroMemory(&ioStack, sizeof(ioStack));
+
+    ioStack.MajorFunction = IRP_MJ_PNP;
+    ioStack.MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+    ioStack.Parameters.QueryInterface.Size = sizeof(Iface);
+    ioStack.Parameters.QueryInterface.Version = 1;
+    ioStack.Parameters.QueryInterface.InterfaceType = &GUID_PCIIDE_XFER_MODE_INTERFACE;
+    ioStack.Parameters.QueryInterface.Interface = (PINTERFACE)&Iface;
+    ioStack.Parameters.QueryInterface.InterfaceSpecificData = NULL;
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    Status = IdePortSyncSendIrp(FdoExtension->LowDevice, &ioStack, NULL);
+    if (NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        DPRINT1("AtaFdoFilterResourceRequirements: Irp->IoStatus.Status %X\n", Irp->IoStatus.Status);
+        IoResources = IoStack->Parameters.FilterResourceRequirements.IoResourceRequirementList;
+    }
+    else
+    {
+        ASSERT(Irp->IoStatus.Information);
+        IoResources = (PIO_RESOURCE_REQUIREMENTS_LIST)Irp->IoStatus.Information;
+    }
+
+    if (!IoResources)
+    {
+        DPRINT("AtaFdoFilterResourceRequirements: IoResources is NULL\n");
+        goto Exit;
+    }
+
+    if (!IoResources->AlternativeLists)
+    {
+        DPRINT("AtaFdoFilterResourceRequirements: IoResources->AlternativeLists is 0\n");
+        goto Exit;
+    }
+
+    Size = (IoResources->ListSize + (IoResources->AlternativeLists * sizeof(IO_RESOURCE_DESCRIPTOR)));
+
+    NewIoResources = ExAllocatePoolWithTag(PagedPool, Size, 'PedI');
+    if (!NewIoResources)
+    {
+        DPRINT1("AtaFdoFilterResourceRequirements: Allocate failed\n");
+        goto Exit;
+    }
+    RtlCopyMemory(NewIoResources, IoResources, sizeof(IO_RESOURCE_REQUIREMENTS_LIST));
+
+    NewIoResources->ListSize = Size;
+
+    IoList = IoResources->List;
+    NewIoList = NewIoResources->List;
+
+    for (ix = 0; ix < IoResources->AlternativeLists; ix++)
+    {
+        InterruptDescriptor = 0;
+        CommandPortDescriptor = 0;
+        ControlPortDescriptor = 0;
+
+        FirstDescriptor = IoList->Descriptors;
+
+        for (jx = 0; jx < IoList->Count; jx++)
+        {
+            if (IoList->Descriptors[jx].Type == 1)
+            {
+                Length = IoList->Descriptors[jx].u.Port.Length;
+
+                if (Length == 8 && !CommandPortDescriptor)
+                {
+                    CommandPortDescriptor = &IoList->Descriptors[jx];
+                }
+                else if ((Length == 1 || Length == 2 || Length == 4) && !ControlPortDescriptor)
+                {
+                    ControlPortDescriptor = &IoList->Descriptors[jx];
+                }
+                else if (Length >= 0x10 && !CommandPortDescriptor && !ControlPortDescriptor)
+                {
+                    CommandPortDescriptor = ControlPortDescriptor = &IoList->Descriptors[jx];
+                }
+            }
+            else if (IoList->Descriptors[jx].Type == 2 && !InterruptDescriptor)
+            {
+                InterruptDescriptor = &IoList->Descriptors[jx];
+            }
+        }
+
+        RtlCopyMemory(NewIoList, IoList, sizeof(IO_RESOURCE_LIST));
+
+        if (CommandPortDescriptor && 
+            (CommandPortDescriptor->u.Port.MaximumAddress.QuadPart - CommandPortDescriptor->u.Port.MinimumAddress.QuadPart) == 7 &&
+            !ControlPortDescriptor)
+        {
+            NewDescriptor = NewIoList->Descriptors;
+            CurrentDescriptor = FirstDescriptor;
+
+            for (jx = 0; jx < NewIoList->Count; jx++)
+            {
+                RtlCopyMemory(NewDescriptor, CurrentDescriptor, sizeof(IO_RESOURCE_DESCRIPTOR));
+
+                NewDescriptor++;
+
+                if (CurrentDescriptor == CommandPortDescriptor)
+                {
+                    RtlCopyMemory(NewDescriptor, CurrentDescriptor, sizeof(IO_RESOURCE_DESCRIPTOR));
+
+                    NewDescriptor->u.Port.Length = 1;
+                    NewDescriptor->u.Port.Alignment = 1;
+                    NewDescriptor->u.Port.MaximumAddress.QuadPart = (CommandPortDescriptor->u.Port.MinimumAddress.QuadPart + 0x206);//518
+                    NewDescriptor++;
+                }
+
+                CurrentDescriptor++;
+            }
+
+            NewIoList->Count++;
+        }
+        else
+        {
+            NewDescriptor = NewIoList->Descriptors;
+            CurrentDescriptor = FirstDescriptor;
+
+            for (kx = 0; kx < NewIoList->Count; kx++)
+            {
+                RtlCopyMemory(NewDescriptor, CurrentDescriptor, sizeof(IO_RESOURCE_DESCRIPTOR));
+
+                NewDescriptor++;
+                CurrentDescriptor++;
+            }
+        }
+
+        IoList = (PIO_RESOURCE_LIST)&FirstDescriptor[IoList->Count];
+    }
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+    else
+        ExFreePool((PVOID)Irp->IoStatus.Information);
+
+    Irp->IoStatus.Information = (ULONG_PTR)NewIoResources;
+
+Exit:
+
+    return IdePortPassDownToNextDriver(Fdo, Irp);
 }
 
 NTSTATUS
