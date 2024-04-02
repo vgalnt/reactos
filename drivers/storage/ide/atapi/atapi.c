@@ -279,8 +279,13 @@ IdePortGenericCompletionRoutine(
     _In_ PIRP Irp,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PRKEVENT Event = Context;
+
+    DPRINT("IdePortGenericCompletionRoutine: %p\n", Context);
+
+    KeSetEvent(Event, EVENT_INCREMENT, FALSE);
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 NTSTATUS
