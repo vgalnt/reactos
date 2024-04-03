@@ -529,12 +529,35 @@ ControllerAddDevice(
 
 NTSTATUS
 NTAPI
-PciIdeInternalDeviceIoControl(
-    _In_ PDEVICE_OBJECT DeviceObject,
+ChannelInternalDeviceIoControl(
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeInternalDeviceIoControl(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    PFDO_DEVICE_EXTENSION FdoExtension;
+
+    PAGED_CODE();
+    DPRINT("PciIdeInternalDeviceIoControl: %p, %p\n", DeviceObject, Irp);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+
+    if (FdoExtension->LowDevice)
+    {
+        Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+        IoCompleteRequest(Irp, 0);
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    return ChannelInternalDeviceIoControl(DeviceObject, Irp);
 }
 
 NTSTATUS
