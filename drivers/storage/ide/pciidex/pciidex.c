@@ -533,8 +533,52 @@ ChannelInternalDeviceIoControl(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PCM_RESOURCE_LIST CmResources;
+    PIO_STACK_LOCATION IoStack;
+    ULONG IoCtl;
+    ULONG Size;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelInternalDeviceIoControl: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelInternalDeviceIoControl: STATUS_NO_SUCH_DEVICE %p\n", Pdo);
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    IoCtl = IoStack->Parameters.DeviceIoControl.IoControlCode;
+
+    if (IoCtl != 0x41414)
+    {
+        DPRINT1("ChannelInternalDeviceIoControl: Channel PDO got Unknown IoControlCode %X\n", IoCtl);
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    FdoExtension = PdoExtension->FdoExtension;
+    Size = FdoExtension->ChannelResourceSize[PdoExtension->PdoIndex];
+
+    CmResources = Irp->AssociatedIrp.SystemBuffer;
+    ASSERT(CmResources);
+
+    RtlCopyMemory(CmResources, FdoExtension->ChannelResources[PdoExtension->PdoIndex], Size);
+
+    Irp->IoStatus.Information = Size;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS

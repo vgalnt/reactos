@@ -207,4 +207,10 @@ RosDumpCmResources(
     _In_ ULONG DebugLevel
 );
 
+PPDO_DEVICE_EXTENSION
+NTAPI
+ChannelGetPdoExtension(
+    _In_ PDEVICE_OBJECT Pdo
+);
+
 #endif /* _PCIIDEX_PCH_ */
