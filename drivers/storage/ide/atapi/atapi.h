@@ -69,10 +69,15 @@ typedef struct _FDO_DEVICE_EXTENSION
     IDE_RESOURCE_DATA ResourceData;
     PATA_DEVICE_EXTENSION HwDeviceExtension;
     ULONG FdoIndex;
+    ULONG FdoState; 
     ATA_DEVICE_EXTENSION AtaExt;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
 
 /* FUNCTIONS ****************************************************************/
+
+#ifndef Add2Ptr
+  #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
+#endif
 
 NTSTATUS
 NTAPI
@@ -102,6 +107,13 @@ VOID
 NTAPI
 RosDumpIoResources(
     _In_ PIO_RESOURCE_REQUIREMENTS_LIST IoResource,
+    _In_ ULONG DebugLevel
+);
+
+VOID
+NTAPI
+RosDumpCmResources(
+    _In_ PCM_RESOURCE_LIST CmResource,
     _In_ ULONG DebugLevel
 );
 

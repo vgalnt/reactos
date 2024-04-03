@@ -274,6 +274,17 @@ IdePortNoSupportIrp(
 
 NTSTATUS
 NTAPI
+ChannelStartDeviceCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 IdePortGenericCompletionRoutine(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp,
@@ -337,12 +348,195 @@ IdePortSyncSendIrp(
 
 NTSTATUS
 NTAPI
-ChannelStartDevice(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+ChannelStartChannel(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PCM_RESOURCE_LIST CmResources)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ChannelStartDevice(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
+{
+    PCM_RESOURCE_LIST CmResources;
+    PCM_FULL_RESOURCE_DESCRIPTOR CmList;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PCM_RESOURCE_LIST NewCmResources;
+    PCM_FULL_RESOURCE_DESCRIPTOR NewCmList;
+    PCM_RESOURCE_LIST ParentCmResources;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    PIRP irp;
+    IO_STATUS_BLOCK IoStatusBlock;
+    KEVENT Event;
+    ULONG PartialSize;
+    ULONG Size1 = 0;
+    ULONG Size2;
+    ULONG size;
+    ULONG ix;
+    ULONG jx;
+    NTSTATUS Status;
+
+    DPRINT("ChannelStartDevice: %p, %p\n", Fdo, Irp);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    FdoExtension = Fdo->DeviceExtension;
+    ASSERT(!(FdoExtension->FdoState & 2));//FDOS_STARTED
+
+    CmResources = IoStack->Parameters.StartDevice.AllocatedResourcesTranslated;
+    if (CmResources)
+    {
+      #if DBG
+        DPRINT1("ChannelStartDevice: %p, %p\n", Fdo, CmResources);
+        RosDumpCmResources(CmResources, 0);
+      #endif
+
+        CmList = CmResources->List;
+
+        for (ix = 0; ix < CmResources->Count; ix = (jx + 1))
+        {
+            CmDescriptor = CmList->PartialResourceList.PartialDescriptors;
+            PartialSize = 0;
+
+            for (jx = 0; jx < CmList->PartialResourceList.Count; jx++)
+            {
+                PartialSize += sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR);
+
+                if (CmDescriptor[jx].Type == 5)
+                    PartialSize += CmDescriptor[jx].u.DeviceSpecificData.DataSize;
+            }
+
+            Size1 += PartialSize + FIELD_OFFSET(CM_FULL_RESOURCE_DESCRIPTOR, PartialResourceList.PartialDescriptors);
+
+            CmList = Add2Ptr(CmList, Size1);
+        }
+
+        Size1 += FIELD_OFFSET(CM_RESOURCE_LIST, List);
+    }
+
+    size = (sizeof(CM_RESOURCE_LIST) + (2 * sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR)));
+
+    ParentCmResources = ExAllocatePoolWithTag(PagedPool, size, 'PedI');
+    if (!ParentCmResources)
+    {
+        DPRINT1("ChannelStartDevice: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+    RtlZeroMemory(ParentCmResources, size);
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+    irp = IoBuildDeviceIoControlRequest(0x41414,
+                                        FdoExtension->LowDevice,
+                                        ParentCmResources,
+                                        size,
+                                        ParentCmResources,
+                                        size,
+                                        TRUE,
+                                        &Event,
+                                        &IoStatusBlock);
+    if (!irp)
+    {
+        DPRINT1("ChannelStartDevice: Unable to allocate Irp to bind with busmaster parent\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        ExFreePoolWithTag(ParentCmResources, 'PedI');
+        goto Exit;
+    }
+
+    Status = IoCallDriver(FdoExtension->LowDevice, irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = IoStatusBlock.Status;
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelStartDevice: %p, %p\n", Fdo, ParentCmResources);
+        RosDumpCmResources(ParentCmResources, 0);
+        Size2 = IoStatusBlock.Information;
+    }
+    else
+    {
+        DPRINT("ChannelStartDevice: Status %X\n", Status);
+        Size2 = 0;
+    }
+
+    if (Size1 + Size2)
+        NewCmResources = ExAllocatePoolWithTag(NonPagedPool, (Size1 + Size2), 'PedI');
+    else
+        NewCmResources = NULL;
+
+    if (!NewCmResources)
+    {
+        DPRINT1("ChannelStartDevice: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        ExFreePoolWithTag(ParentCmResources, 'PedI');
+        goto Exit;
+    }
+
+    NewCmResources->Count = 0;
+
+    if (Size1)
+    {
+        RtlCopyMemory(NewCmResources->List, CmResources->List, (Size1 - FIELD_OFFSET(CM_RESOURCE_LIST, List)));
+        NewCmList = Add2Ptr(NewCmResources->List, (Size1 - FIELD_OFFSET(CM_RESOURCE_LIST, List)));
+        NewCmResources->Count = CmResources->Count;
+    }
+    else
+    {
+        NewCmList = NewCmResources->List;
+    }
+
+    if (Size2)
+    {
+        RtlCopyMemory(NewCmList, ParentCmResources->List, (Size2 - FIELD_OFFSET(CM_RESOURCE_LIST, List)));
+        NewCmList = Add2Ptr(NewCmList, (Size2 - FIELD_OFFSET(CM_RESOURCE_LIST, List)));
+        NewCmResources->Count += ParentCmResources->Count;
+    }
+
+    KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    IoSetCompletionRoutine(Irp, ChannelStartDeviceCompletionRoutine, &Event, TRUE, TRUE, TRUE);
+
+    Status = IoCallDriver(FdoExtension->LowDevice, Irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = Irp->IoStatus.Status;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelStartDevice: Status %X\n", Status);
+        ExFreePoolWithTag(NewCmResources, 'PedI');
+        ExFreePoolWithTag(ParentCmResources, 'PedI');
+        goto Exit;
+    }
+
+    Status = ChannelStartChannel(FdoExtension, NewCmResources);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelStartDevice: Status %X\n", Status);
+        ExFreePoolWithTag(NewCmResources, 'PedI');
+    }
+
+    ExFreePoolWithTag(ParentCmResources, 'PedI');
+
+Exit:
+
+    Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = Status;
+
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
