@@ -2146,12 +2146,118 @@ ChannelGetPdoExtension(
 
 NTSTATUS
 NTAPI
-ChannelStartDevice(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+BusMasterInitialize(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeXSaveDeviceParameter(
+    _In_ PVOID MiniExtension,
+    _In_ PWSTR ValueName,
+    _In_ ULONG ValueData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ChannelStartDevice(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PVOID MiniExtension;
+    USHORT Parameter;
+    USHORT VendorId;
+    USHORT DeviceId;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelStartDevice: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelStartDevice: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Exit;
+    }
+
+    FdoExtension = PdoExtension->FdoExtension;
+
+    if (!FdoExtension->NativeMode[PdoExtension->PdoIndex] &&
+        PciIdeChannelEnabled(FdoExtension, PdoExtension->PdoIndex) == 2)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    PdoExtension->DmaDetectionLevel = 1;
+    PciIdeXGetDeviceParameter(PdoExtension->SelfDevice, L"DmaDetectionLevel", &PdoExtension->DmaDetectionLevel);
+
+    Status = BusMasterInitialize(PdoExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelStartDevice: Status %X\n", Status);
+        goto Exit;
+    }
+
+    if (PdoExtension->BusMasterBase)
+        PdoExtension->BmStatus = READ_PORT_UCHAR((PUCHAR)(PdoExtension->BusMasterBase + 2));
+
+    ChannelUpdatePdoState(PdoExtension, 1, 0xE);
+
+    MiniExtension = PdoExtension->FdoExtension->MiniControllerExtension;
+
+    VendorId = 0;
+    DeviceId = 0;
+
+    PciIdeXGetBusData(MiniExtension, &VendorId, 0, 2);
+    PciIdeXGetBusData(MiniExtension, &DeviceId, 2, 2);
+
+    if (VendorId == 0x8086)
+    {
+        Parameter = 0;
+        PciIdeXGetBusData(MiniExtension, &Parameter, 0x40, 2);
+        PciIdeXSaveDeviceParameter(MiniExtension, L"Old IDETIM0", Parameter);
+
+        Parameter = 0;
+        PciIdeXGetBusData(MiniExtension, &Parameter, 0x42, 2);
+        PciIdeXSaveDeviceParameter(MiniExtension, L"Old IDETIM1", Parameter);
+
+        if (DeviceId != 0x1230)
+        {
+            Parameter = 0;
+            PciIdeXGetBusData(MiniExtension, &Parameter, 0x44, 1);
+            PciIdeXSaveDeviceParameter(MiniExtension, L"Old SIDETIM", Parameter);
+        }
+
+        if (DeviceId == 0x7111)
+        {
+            Parameter = 0;
+            PciIdeXGetBusData(MiniExtension, &Parameter, 0x48, 1);
+            PciIdeXSaveDeviceParameter(MiniExtension, L"Old SDMACTL", Parameter);
+
+            Parameter = 0;
+            PciIdeXGetBusData(MiniExtension, &Parameter, 0x4A, 1);
+            PciIdeXSaveDeviceParameter(MiniExtension, L"Old SDMATIM0", Parameter);
+
+            Parameter = 0;
+            PciIdeXGetBusData(MiniExtension, &Parameter, 0x4B, 1);
+            PciIdeXSaveDeviceParameter(MiniExtension, L"Old SDMATIM1", Parameter);
+        }
+    }
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 NTSTATUS
