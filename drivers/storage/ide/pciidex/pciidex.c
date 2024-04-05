@@ -1886,10 +1886,17 @@ VOID
 NTAPI
 ChannelUpdatePdoState(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
-    _In_ ULONG OrState,
-    _In_ ULONG AndState)
+    _In_ ULONG SetState,
+    _In_ ULONG ResetState)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    KIRQL Lock;
+
+    ASSERT(PdoExtension);
+
+    KeAcquireSpinLock(&PdoExtension->SpinLock, &Lock);
+    PdoExtension->PdoState |= SetState;
+    PdoExtension->PdoState &= ~ResetState;
+    KeReleaseSpinLock(&PdoExtension->SpinLock, Lock);
 }
 
 NTSTATUS
