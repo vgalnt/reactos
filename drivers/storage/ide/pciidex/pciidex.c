@@ -2282,8 +2282,31 @@ PciIdeXSaveDeviceParameter(
     _In_ PWSTR ValueName,
     _In_ ULONG ValueData)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    HANDLE DevInstRegKey;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PciIdeXSaveDeviceParameter: %p, '%S', %p\n", MiniExtension, ValueName, ValueData);
+
+    FdoExtension = (PFDO_DEVICE_EXTENSION)((ULONG_PTR)MiniExtension - sizeof(FDO_DEVICE_EXTENSION));
+
+    Status = IoOpenDeviceRegistryKey(FdoExtension->LowDevice, 2, KEY_WRITE, &DevInstRegKey);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PciIdeXSaveDeviceParameter: IoOpenDeviceRegistryKey() returns %X\n", Status);
+        return Status;
+    }
+
+    Status = RtlWriteRegistryValue(RTL_REGISTRY_HANDLE, DevInstRegKey, ValueName, REG_DWORD, &ValueData, 4);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("PciIdeXSaveDeviceParameter: RtlWriteRegistryValue() returns %X\n", Status);
+    }
+
+    ZwClose(DevInstRegKey);
+
+    return Status;
 }
 
 NTSTATUS
