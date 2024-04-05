@@ -2146,11 +2146,126 @@ ChannelGetPdoExtension(
 
 NTSTATUS
 NTAPI
-BusMasterInitialize(
+BusMasterUninitialize(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+BusMasterInitialize(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    DEVICE_DESCRIPTION DeviceDescription;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PDMA_ADAPTER DmaAdapter;
+    ULONG IgnoreBusMasterStatusZeroBits;
+    ULONG NumberOfMapRegisters;
+    BOOLEAN IsNoBmBase = FALSE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("BusMasterInitialize: %p\n", PdoExtension);
+
+    FdoExtension = PdoExtension->FdoExtension;
+
+    if (!FdoExtension->TranslatedBusMasterBaseAddress)
+    {
+        DPRINT1("BusMasterInitialize: STATUS_INSUFFICIENT_RESOURCES\n");
+        BusMasterUninitialize(PdoExtension);
+        IsNoBmBase = TRUE;
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    if (PdoExtension->PdoIndex == 0)
+    {
+        PdoExtension->BusMasterBase = (ULONG)FdoExtension->TranslatedBusMasterBaseAddress;
+    }
+    else if (PdoExtension->PdoIndex == 1)
+    {
+        PdoExtension->BusMasterBase = ((ULONG)FdoExtension->TranslatedBusMasterBaseAddress + 8);
+    }
+    else
+    {
+        ASSERT(FALSE);
+    }
+
+    if (READ_PORT_UCHAR((PUCHAR)(PdoExtension->BusMasterBase + 2)) & 0x18)
+    {
+        IgnoreBusMasterStatusZeroBits = 0;
+
+        Status = PciIdeXGetDeviceParameter(FdoExtension->LowPdo, L"IgnoreBusMasterStatusZeroBits", &IgnoreBusMasterStatusZeroBits);
+        if (!IgnoreBusMasterStatusZeroBits)
+        {
+            DPRINT1("BusMasterInitialize: bad busmaster status register value %X. Will never do busmastering ide\n");
+            PdoExtension->BusMasterBase = 0;
+            IsNoBmBase = TRUE;
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+    else
+    {
+        IsNoBmBase = FALSE;
+        Status = STATUS_SUCCESS;
+    }
+
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("BusMasterInitialize: Status %X\n", Status);
+        BusMasterUninitialize(PdoExtension);
+        goto Exit;
+    }
+
+    RtlZeroMemory(&DeviceDescription, sizeof(DeviceDescription));
+
+    DeviceDescription.Version = 0;
+    DeviceDescription.Master = 1;
+    DeviceDescription.ScatterGather = 1;
+    DeviceDescription.DemandMode = 0;
+    DeviceDescription.AutoInitialize = 0;
+    DeviceDescription.Dma32BitAddresses = 1;
+    DeviceDescription.IgnoreCount = 0;
+    DeviceDescription.BusNumber = FdoExtension->BusMasterResources->List[0].BusNumber;
+    DeviceDescription.InterfaceType = 5;
+    DeviceDescription.MaximumLength = 0x20000;
+
+    PdoExtension->DmaAdapter = DmaAdapter = IoGetDmaAdapter(FdoExtension->LowPdo, &DeviceDescription, &NumberOfMapRegisters);
+    PdoExtension->MaximumPhysicalPages = NumberOfMapRegisters;
+
+    if (!DmaAdapter)
+    {
+        DPRINT1("BusMasterInitialize: STATUS_INSUFFICIENT_RESOURCES\n");
+        BusMasterUninitialize(PdoExtension);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    PdoExtension->RegionDescriptors =
+        DmaAdapter->DmaOperations->AllocateCommonBuffer(DmaAdapter,
+                                                        (NumberOfMapRegisters * sizeof(PHYSICAL_REGION_DESCRIPTOR)),
+                                                        &PdoExtension->PhysicalRegionDescriptorTable,
+                                                        FALSE);
+    if (!PdoExtension->RegionDescriptors)
+    {
+        DPRINT1("BusMasterInitialize: STATUS_INSUFFICIENT_RESOURCES\n");
+        BusMasterUninitialize(PdoExtension);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    ASSERT(PdoExtension->PhysicalRegionDescriptorTable.QuadPart);
+
+    RtlZeroMemory(PdoExtension->RegionDescriptors, (NumberOfMapRegisters * sizeof(PHYSICAL_REGION_DESCRIPTOR)));
+
+Exit:
+
+    if (IsNoBmBase)
+        Status = STATUS_SUCCESS;
+
+    return Status;
 }
 
 NTSTATUS
