@@ -382,7 +382,41 @@ AtapiBuildIoAddress(
     _Out_ ULONG* OutMaxIdeDevice,
     _Out_ ULONG* OutMaxIdeTargetId)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("AtapiBuildIoAddress: %p, %p\n", CmdBlockBase, CtrlBlockBase);
+
+    if (BaseIoAddress1)
+    {
+        BaseIoAddress1->CmdBlockBase = CmdBlockBase;
+
+        BaseIoAddress1->Data = (PUSHORT)CmdBlockBase;
+        BaseIoAddress1->Error = (CmdBlockBase + 1);
+        BaseIoAddress1->SectorCount = (CmdBlockBase + 2);
+        BaseIoAddress1->LbaLow = (CmdBlockBase + 3);
+        BaseIoAddress1->LbaMid = (CmdBlockBase + 4);
+        BaseIoAddress1->LbaHigh = (CmdBlockBase + 5);
+        BaseIoAddress1->DeviceSelect = (CmdBlockBase + 6);
+        BaseIoAddress1->Status = (CmdBlockBase + 7);
+    }
+
+    if (BaseIoAddress2)
+    {
+        BaseIoAddress2->CtrlBlockBase = CtrlBlockBase;
+
+        BaseIoAddress2->AltStatus = CtrlBlockBase;
+        BaseIoAddress2->Control = (CtrlBlockBase + 1);
+    }
+
+    if (OutBaseIoAddress1Length)
+        *OutBaseIoAddress1Length = 8;
+
+    if (OutBaseIoAddress2Length)
+        *OutBaseIoAddress2Length = 1;
+
+    if (OutMaxIdeDevice)
+        *OutMaxIdeDevice = 2;
+
+    if (OutMaxIdeTargetId)
+        *OutMaxIdeTargetId = 2;
 }
 
 NTSTATUS
