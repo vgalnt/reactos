@@ -392,8 +392,187 @@ DigestResourceList(
     _In_ PCM_RESOURCE_LIST CmResources,
     _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR* OutInterruptDesc)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR FirstDescriptor;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PCM_FULL_RESOURCE_DESCRIPTOR CmList;
+    IDE_CMD_BLOCK_REGS BaseIoAddress1;
+    PHYSICAL_ADDRESS Start;
+    SIZE_T BaseIoAddress1Length;
+    ULONG Length;
+    ULONG ix;
+    ULONG jx;
+    UCHAR Type;
+    BOOLEAN IsFoundPrimary = FALSE;
+    BOOLEAN IsFoundSecond = FALSE;
+    BOOLEAN IsFoundCmdBlockBase = FALSE;
+    BOOLEAN IsFoundCtrlBlockBase = FALSE;
+    BOOLEAN IsFoundInterrupt = FALSE;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("DigestResourceList: %p\n", CmResources);
+
+    CmList = CmResources->List;
+
+    *OutInterruptDesc = NULL;
+
+    for (ix = 0; ix < CmResources->Count; ix++)
+    {
+        if (!NT_SUCCESS(Status))
+            break;
+
+        CmDescriptor = CmList->PartialResourceList.PartialDescriptors;
+
+        AtapiBuildIoAddress((PUCHAR)CmDescriptor[0].u.Port.Start.LowPart,
+                            NULL,
+                            &BaseIoAddress1,
+                            NULL,
+                            &BaseIoAddress1Length,
+                            NULL,
+                            NULL,
+                            NULL);
+
+        FirstDescriptor = CmDescriptor;
+
+        for (jx = 0; jx < CmList->PartialResourceList.Count; jx++)
+        {
+            if (!NT_SUCCESS(Status))
+                break;
+
+            Type = CmDescriptor[jx].Type;
+            Start = CmDescriptor[jx].u.Generic.Start;
+            Length = CmDescriptor[jx].u.Generic.Length;
+
+            if ((Type == 1 || Type == 3) && Length == BaseIoAddress1Length && !IsFoundCmdBlockBase)
+            {
+                if (Start.QuadPart == 0x1F0)
+                    IsFoundPrimary = TRUE;
+                else if (Start.QuadPart == 0x170)
+                    IsFoundSecond = TRUE;
+
+                if (Type == 1)
+                {
+                    ResourceData->CmdBlockBase = Start.LowPart;
+                    ResourceData->TypeResForCmdBlock = 1;
+                }
+                else if (Type == 3)
+                {
+                    ResourceData->CmdBlockBase = (ULONG)MmMapIoSpace(Start, BaseIoAddress1Length, MmNonCached);
+                    ResourceData->TypeResForCmdBlock = 0;
+                }
+                else
+                {
+                    ASSERT(FALSE);
+                    ResourceData->CmdBlockBase = 0;
+                }
+
+                if (ResourceData->CmdBlockBase)
+                    IsFoundCmdBlockBase = TRUE;
+                else
+                    Status = STATUS_INVALID_PARAMETER;
+            }
+            else if ((Type == 1 || Type == 3) && (Length == 1 || Length == 2 || Length == 4) && !IsFoundCtrlBlockBase)
+            {
+                if (Length == 4)
+                    Start.QuadPart += 2;
+
+                if (Type == 1)
+                {
+                    ResourceData->CtrlBlockBase = Start.LowPart;
+                    ResourceData->TypeResForCtrlBlock = 1;
+                }
+                else if (Type == 3)
+                {
+                    ResourceData->CtrlBlockBase = (ULONG)MmMapIoSpace(Start, 1, MmNonCached);
+                    ResourceData->TypeResForCtrlBlock = 0;
+                }
+                else
+                {
+                    DPRINT1("DigestResourceList: Type %X\n", Type);
+                    ASSERT(FALSE);
+                    ResourceData->CtrlBlockBase = 0;
+                }
+
+                if (ResourceData->CtrlBlockBase)
+                    IsFoundCtrlBlockBase = TRUE;
+                else
+                    Status = STATUS_INVALID_PARAMETER;
+            }
+            else if (Type == 2 && !IsFoundInterrupt)
+            {
+                IsFoundInterrupt = TRUE;
+
+                ResourceData->Vector = CmDescriptor[jx].u.Interrupt.Level;
+                ResourceData->IntResFlags = (CmDescriptor[jx].Flags & 1);
+
+                *OutInterruptDesc = &CmDescriptor[jx];
+            }
+            else if ((Type == 1 || Type == 3) && Length >= 0x10 && Length <= 0x20 && !IsFoundCmdBlockBase && !IsFoundCtrlBlockBase)
+            {
+                if (Type == 1)
+                {
+                    ResourceData->TypeResForCmdBlock = 1;
+                    ResourceData->CmdBlockBase = Start.LowPart;
+
+                    ResourceData->TypeResForCtrlBlock = 1;
+                    Start.QuadPart += (Length - 2);
+                    ResourceData->CtrlBlockBase = Start.LowPart;
+                }
+                else if (Type == 3)
+                {
+                    ResourceData->TypeResForCmdBlock = 0;
+                    ResourceData->CmdBlockBase = (ULONG)MmMapIoSpace(Start, BaseIoAddress1Length, MmNonCached);
+
+                    ResourceData->TypeResForCtrlBlock = 0;
+                    Start.QuadPart += (Length - 2);
+                    ResourceData->CtrlBlockBase = (ULONG)MmMapIoSpace(Start, 1, MmNonCached);
+                }
+                else
+                {
+                    DPRINT1("DigestResourceList: Type %X\n", Type);
+                    ASSERT(FALSE);
+
+                    ResourceData->CmdBlockBase = 0;
+                    ResourceData->CtrlBlockBase = 0;
+                }
+
+                if (ResourceData->CmdBlockBase)
+                    IsFoundCmdBlockBase = TRUE;
+                else
+                    Status = STATUS_INVALID_PARAMETER;
+
+                if (ResourceData->CtrlBlockBase)
+                    IsFoundCtrlBlockBase = TRUE;
+                else
+                    Status = STATUS_INVALID_PARAMETER;
+            }
+        }
+
+        CmList = (PCM_FULL_RESOURCE_DESCRIPTOR)&FirstDescriptor[CmList->PartialResourceList.Count];
+    }
+
+    if (IsFoundCmdBlockBase && IsFoundCtrlBlockBase && NT_SUCCESS(Status))
+    {
+        ResourceData->PrimaryClaimed = IsFoundPrimary;
+        ResourceData->SecondaryClaimed = IsFoundSecond;
+
+        return STATUS_SUCCESS;
+    }
+
+    DPRINT1("DigestResourceList: pnp manager gave me bad ressources!\n");
+
+    if (IsFoundCmdBlockBase && !ResourceData->TypeResForCmdBlock)
+    {
+        MmUnmapIoSpace((PVOID)ResourceData->CmdBlockBase, BaseIoAddress1Length);
+        ResourceData->CmdBlockBase = 0;
+    }
+
+    if (IsFoundCtrlBlockBase && !ResourceData->TypeResForCtrlBlock)
+    {
+        MmUnmapIoSpace((PVOID)ResourceData->CtrlBlockBase, 1);
+        ResourceData->CtrlBlockBase = 0;
+    }
+
+    return STATUS_INVALID_PARAMETER;
 }
 
 VOID
