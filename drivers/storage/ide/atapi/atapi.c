@@ -195,6 +195,18 @@ IdePortDispatch(
 
 NTSTATUS
 NTAPI
+IdePortIssueSetPowerState(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ POWER_STATE_TYPE PowerType,
+    _In_ POWER_STATE State,
+    _In_ BOOLEAN IsWait)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 IdePortSetFdoPowerState(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
@@ -348,14 +360,383 @@ IdePortSyncSendIrp(
     return Status;
 }
 
+BOOLEAN
+NTAPI
+IdePortInterrupt(
+    _In_ PKINTERRUPT Interrupt,
+    _In_ PVOID ServiceContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+AtapiBuildIoAddress(
+    _In_ PUCHAR CmdBlockBase,
+    _In_ PUCHAR CtrlBlockBase,
+    _Out_ IDE_CMD_BLOCK_REGS* BaseIoAddress1,
+    _Out_ IDE_CTRL_BLOCK_REGS* BaseIoAddress2,
+    _Out_ ULONG* OutBaseIoAddress1Length,
+    _Out_ ULONG* OutBaseIoAddress2Length,
+    _Out_ ULONG* OutMaxIdeDevice,
+    _Out_ ULONG* OutMaxIdeTargetId)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+DigestResourceList(
+    _In_ PIDE_RESOURCE_DATA ResourceData,
+    _In_ PCM_RESOURCE_LIST CmResources,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR* OutInterruptDesc)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+IdePortInitFdo(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+BOOLEAN
+NTAPI
+IdePreAllocEnumStructs(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+ChannelEnableInterrupt(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+ChannelCreateSymblicLinks(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 ChannelStartChannel(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PCM_RESOURCE_LIST CmResources)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS (NTAPI* IntControl)(PVOID Context, ULONG IsDisconnectOrReconnect);
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR InterruptDescriptor;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor;
+    PCONFIGURATION_INFORMATION ConfigInfo;
+    PCM_FULL_RESOURCE_DESCRIPTOR List;
+    PULONG TimingTable;
+    IO_STACK_LOCATION ioStack;
+    POWER_STATE State;
+    ULONG ix;
+    ULONG jx;
+    NTSTATUS Status;
+
+    DPRINT("ChannelStartChannel: %p\n", FdoExtension);
+
+  #if DBG
+    DPRINT1("ChannelStartChannel: %p\n", CmResources);
+    RosDumpCmResources(CmResources, 0);
+  #endif
+
+    List = CmResources->List;
+    for (ix = 0; ix < CmResources->Count; ix++)
+    {
+        for (jx = 0; jx < List->PartialResourceList.Count; jx++)
+        {
+            Descriptor = List->PartialResourceList.PartialDescriptors;
+
+            if (Descriptor[jx].Type == 1)
+            {
+                DPRINT("ChannelStartChannel: IO Port %I64X, Lenght %X\n",
+                       Descriptor[jx].u.Port.Start.QuadPart, Descriptor[jx].u.Port.Length);
+            }
+            else if (Descriptor[jx].Type == 2)
+            {
+                DPRINT("ChannelStartChannel: Int Level %X, Vector %X\n",
+                       Descriptor[jx].u.Interrupt.Level, Descriptor[jx].u.Interrupt.Vector);
+            }
+            else
+            {
+                DPRINT("ChannelStartChannel: Unknown resource\n");
+            }
+        }
+
+        List = (PCM_FULL_RESOURCE_DESCRIPTOR)&List->PartialResourceList.PartialDescriptors[jx];
+    }
+
+    Status = DigestResourceList(&FdoExtension->ResourceData, CmResources, &InterruptDescriptor);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelStartChannel: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    ConfigInfo = IoGetConfigurationInformation();
+
+    if (FdoExtension->ResourceData.PrimaryClaimed)
+    {
+        FdoExtension->HwDeviceExtension->IsPrimary = TRUE;
+        FdoExtension->HwDeviceExtension->IsSecondary = FALSE;
+        ConfigInfo->AtDiskPrimaryAddressClaimed = TRUE;
+    }
+
+    if (FdoExtension->ResourceData.SecondaryClaimed)
+    {
+        FdoExtension->HwDeviceExtension->IsPrimary = FALSE;
+        FdoExtension->HwDeviceExtension->IsSecondary = TRUE;
+        ConfigInfo->AtDiskSecondaryAddressClaimed = TRUE;
+    }
+
+    AtapiBuildIoAddress((PUCHAR)FdoExtension->ResourceData.CmdBlockBase,
+                        (PUCHAR)FdoExtension->ResourceData.CtrlBlockBase,
+                        &FdoExtension->HwDeviceExtension->CmdBlock,
+                        &FdoExtension->HwDeviceExtension->CtrlBlock,
+                        &FdoExtension->HwDeviceExtension->CmdBlockLength,
+                        &FdoExtension->HwDeviceExtension->CtrlBlockLength,
+                        &FdoExtension->HwDeviceExtension->MaxIdeDevice,
+                        &FdoExtension->HwDeviceExtension->MaxIdeTargetId);
+
+    //IdePortIsThisAPanasonicPCMCIACard(FdoExtension);
+    //IdePortIsThisAnATIController(FdoExtension);
+
+    State.SystemState = 1;
+    Status = IdePortIssueSetPowerState(FdoExtension, SystemPowerState, State, TRUE);
+
+    if (Status == STATUS_INVALID_DEVICE_REQUEST)
+    {
+        DPRINT1("ChannelStartChannel: STATUS_INVALID_DEVICE_REQUEST\n");
+        FdoExtension->SystemPowerState = 1;
+    }
+    else if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelStartChannel: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    State.DeviceState = 1;
+    Status = IdePortIssueSetPowerState(FdoExtension, DevicePowerState, State, TRUE);
+
+    if (Status == STATUS_INVALID_DEVICE_REQUEST)
+    {
+        DPRINT1("ChannelStartChannel: STATUS_INVALID_DEVICE_REQUEST\n");
+        FdoExtension->DevicePowerState = 1;
+    }
+    else if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelStartChannel: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    FdoExtension->HwDeviceExtension->IntResFlags = FdoExtension->ResourceData.IntResFlags;
+
+    RtlZeroMemory(&ioStack, sizeof(ioStack));
+
+    ioStack.MajorFunction = IRP_MJ_PNP;
+    ioStack.MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+    ioStack.Parameters.QueryInterface.InterfaceType = &GUID_PCIIDE_INTERRUPT_INTERFACE;
+    ioStack.Parameters.QueryInterface.Size = sizeof(PCIIDE_INTERRUPT_INTERFACE);
+    ioStack.Parameters.QueryInterface.Version = 1;
+    ioStack.Parameters.QueryInterface.Interface = (PINTERFACE)&FdoExtension->InterruptInterface;
+    ioStack.Parameters.QueryInterface.InterfaceSpecificData = NULL;
+
+    DPRINT("ChannelStartChannel: Querying interrupt interface for Fdoe %X\n", FdoExtension);
+
+    IdePortSyncSendIrp(FdoExtension->LowDevice, &ioStack, NULL);
+
+    if (InterruptDescriptor)
+    {
+        Status = IoConnectInterrupt(&FdoExtension->InterruptObject,                    // OUT PKINTERRUPT* InterruptObject
+                                    IdePortInterrupt,                                  // PKSERVICE_ROUTINE ServiceRoutine
+                                    FdoExtension->SelfDevice,                          // IN PVOID  ServiceContext,
+                                    NULL,                                              // PKSPIN_LOCK SpinLock OPTIONAL,
+                                    InterruptDescriptor->u.Interrupt.Vector,           // IN ULONG Vector,
+                                    InterruptDescriptor->u.Interrupt.Level,            // IN KIRQL Irql,
+                                    InterruptDescriptor->u.Interrupt.Level,            // IN KIRQL SynchronizeIrql,
+                                    (InterruptDescriptor->Flags & 1),                  // IN KINTERRUPT_MODE InterruptMode,
+                                    InterruptDescriptor->ShareDisposition == 3,        // IN BOOLEAN ShareVector,
+                                    InterruptDescriptor->u.Interrupt.Affinity,         // IN KAFFINITY ProcessorEnableMask,
+                                    FALSE);                                            // IN BOOLEAN FloatingSave
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ChannelStartChannel:  Can't connect interrupt %X\n", InterruptDescriptor->u.Interrupt.Vector);
+            FdoExtension->InterruptObject = NULL;
+            goto ErrorExit;
+        }
+
+        if (FdoExtension->InterruptInterface.InterruptControl)
+        {
+            DPRINT("ChannelStartChannel: %X fdoe %X Invoking disconnect\n", InterruptDescriptor->u.Interrupt.Vector, FdoExtension);
+
+            IntControl = FdoExtension->InterruptInterface.InterruptControl;
+            Status = IntControl(FdoExtension->InterruptInterface.Context, 1);
+            ASSERT(NT_SUCCESS(Status));
+        }
+
+        ChannelEnableInterrupt(FdoExtension);
+    }
+
+    RtlZeroMemory(&ioStack, sizeof(ioStack));
+    RtlZeroMemory(&FdoExtension->SyncAccessInterface, sizeof(FdoExtension->SyncAccessInterface));
+
+    ioStack.MajorFunction = IRP_MJ_PNP;
+    ioStack.MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+    ioStack.Parameters.QueryInterface.InterfaceType = &GUID_PCIIDE_SYNC_ACCESS_INTERFACE;
+    ioStack.Parameters.QueryInterface.Size = sizeof(IDE_SYNC_ACCESS_INTERFACE);
+    ioStack.Parameters.QueryInterface.Version = 1;
+    ioStack.Parameters.QueryInterface.Interface = (PINTERFACE)&FdoExtension->SyncAccessInterface;
+    ioStack.Parameters.QueryInterface.InterfaceSpecificData = NULL;
+
+    Status = IdePortSyncSendIrp(FdoExtension->LowDevice, &ioStack, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ChannelStartChannel: Status %X\n", Status);
+        FdoExtension->SyncAccessInterface.AllocateAccessToken = NULL;
+        FdoExtension->SyncAccessInterface.Context = NULL;
+    }
+
+    if (FdoExtension->FdoState & 4)
+    {
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        RtlZeroMemory(&ioStack, sizeof(ioStack));
+
+        ioStack.MajorFunction = IRP_MJ_PNP;
+        ioStack.MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+        ioStack.Parameters.QueryInterface.InterfaceType = &GUID_PCIIDE_BUSMASTER_INTERFACE;
+        ioStack.Parameters.QueryInterface.Size = sizeof(PCIIDE_BUS_MASTER_INTERFACE);
+        ioStack.Parameters.QueryInterface.Version = 1;
+        ioStack.Parameters.QueryInterface.Interface = (PINTERFACE)&FdoExtension->HwDeviceExtension->BusMasterInterface;
+        ioStack.Parameters.QueryInterface.InterfaceSpecificData = NULL;
+
+        Status = IdePortSyncSendIrp(FdoExtension->LowDevice, &ioStack, NULL);
+        DPRINT("ChannelStartChannel: Status %X\n", Status);
+
+        if (!NT_SUCCESS(Status))
+            FdoExtension->IsBmIfaceReceived = FALSE;
+        else
+            FdoExtension->IsBmIfaceReceived = TRUE;
+
+        if (!FdoExtension->DefaultTransferModeTimingTable)
+        {
+            TimingTable = ExAllocatePoolWithTag(NonPagedPool, (18 * sizeof(ULONG)), 'PedI');
+            if (!TimingTable)
+            {
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                DPRINT1("ChannelStartChannel: Status %X\n", Status);
+                goto ErrorExit;
+            }
+
+            TimingTable[0] = 600;
+            TimingTable[1] = 383;
+            TimingTable[2] = 240;
+            TimingTable[3] = 180;
+            TimingTable[4] = 120;
+            TimingTable[5] = 960;
+            TimingTable[6] = 480;
+            TimingTable[7] = 240;
+            TimingTable[8] = 480;
+            TimingTable[9] = 150;
+            TimingTable[10] = 120;
+            TimingTable[11] = 120;
+            TimingTable[12] = 80;
+            TimingTable[13] = 60;
+            TimingTable[14] = 45;
+            TimingTable[15] = 30;
+            TimingTable[16] = 20;
+            TimingTable[17] = 15;
+
+            FdoExtension->DefaultTransferModeTimingTable = TimingTable;
+            ASSERT(FdoExtension->DefaultTransferModeTimingTable);
+        }
+
+        RtlZeroMemory(&ioStack, sizeof(ioStack));
+        FdoExtension->ProperResources.ChannelRequestProperResources = NULL;
+
+        ioStack.MajorFunction = IRP_MJ_PNP;
+        ioStack.MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+        ioStack.Parameters.QueryInterface.InterfaceType = &GUID_PCIIDE_REQUEST_PROPER_RESOURCES;
+        ioStack.Parameters.QueryInterface.Size = sizeof(PCIIDE_PROPER_RESOURCES);
+        ioStack.Parameters.QueryInterface.Version = 1;
+        ioStack.Parameters.QueryInterface.Interface = (PINTERFACE)&FdoExtension->ProperResources;
+        ioStack.Parameters.QueryInterface.InterfaceSpecificData = NULL;
+
+        IdePortSyncSendIrp(FdoExtension->LowDevice, &ioStack, NULL);
+
+        Status = ChannelCreateSymblicLinks(FdoExtension);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ChannelStartChannel: Status %X\n", Status);
+            goto ErrorExit;
+        }
+
+        IdePortInitFdo(FdoExtension);
+
+        for (ix = 0; ix < 2; ix++)
+        {
+            if (!FdoExtension->ErrorLog[ix])
+                FdoExtension->ErrorLog[ix] = IoAllocateErrorLogEntry(FdoExtension->SelfDevice, 0x40);//FIXME
+        }
+
+        if (!IdePreAllocEnumStructs(FdoExtension))
+        {
+            DPRINT1("ChannelStartChannel: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto ErrorExit;
+        }
+
+        if (!FdoExtension->ReservedPages)
+        {
+            FdoExtension->ReservedPages = MmAllocateMappingAddress(PAGE_SIZE, 'PedI');
+            ASSERT(FdoExtension->ReservedPages);
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ChannelStartChannel: Status %X\n", Status);
+            goto ErrorExit;
+        }
+    }
+
+    FdoExtension->FdoState = ((FdoExtension->FdoState & ~4) | 2);
+
+    if (FdoExtension->ChannelResources)
+    {
+        ExFreePool(FdoExtension->ChannelResources);
+        FdoExtension->ChannelResources = NULL;
+    }
+
+    FdoExtension->ChannelResources = CmResources;
+
+    return Status;
+
+ErrorExit:
+
+    DPRINT1("ChannelStartChannel: FIXME ChannelRemoveChannel()! Status %X\n", Status);
+    ASSERT(FALSE);
+    return Status;
 }
 
 NTSTATUS

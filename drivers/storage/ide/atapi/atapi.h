@@ -34,6 +34,50 @@ typedef struct _IDE_RESOURCE_DATA
     BOOLEAN SecondaryClaimed;
 } IDE_RESOURCE_DATA, *PIDE_RESOURCE_DATA;
 
+typedef struct _IDE_CMD_BLOCK_REGS
+{
+    PUCHAR CmdBlockBase;
+    PUSHORT Data;
+    union
+    {
+        PUCHAR Error;           /* read */
+        PUCHAR Features;        /* write */
+    };
+    union
+    {
+        PUCHAR SectorCount;
+        PUCHAR InterruptReason; /* read ATAPI */
+    };
+    PUCHAR LbaLow;
+    union
+    {
+        PUCHAR LbaMid;          /* ATA LBA */
+        PUCHAR BytesLow;        /* ATAPI */
+    };
+    union
+    {
+        PUCHAR LbaHigh;         /* ATA LBA */
+        PUCHAR BytesHigh;       /* ATAPI */
+    };
+    PUCHAR DeviceSelect;
+    union
+    {
+        PUCHAR Status;          /* read */
+        PUCHAR Command;         /* write */
+    };
+} IDE_CMD_BLOCK_REGS, *PIDE_CMD_BLOCK_REGS;
+
+typedef struct _IDE_CTRL_BLOCK_REGS
+{
+    PUCHAR CtrlBlockBase;
+    union
+    {
+        PUCHAR AltStatus;       /* read */
+        PUCHAR DeviceControl;   /* write */
+    };
+    PUCHAR Control;
+} IDE_CTRL_BLOCK_REGS, *PIDE_CTRL_BLOCK_REGS;
+
 typedef struct _IDE_TRANSFER_MODE_INTERFACE
 {
     ULONG IsTransferModeSelect;
@@ -46,9 +90,59 @@ typedef struct _IDE_TRANSFER_MODE_INTERFACE
     PVOID PciIdeUdmaModesSupported;
 } IDE_TRANSFER_MODE_INTERFACE, *PIDE_TRANSFER_MODE_INTERFACE;
 
+typedef struct _PCIIDE_INTERRUPT_INTERFACE
+{
+    PVOID InterruptControl;
+    PVOID Context;
+} PCIIDE_INTERRUPT_INTERFACE, *PPCIIDE_INTERRUPT_INTERFACE;
+
+typedef struct _IDE_SYNC_ACCESS_INTERFACE
+{
+    PVOID AllocateAccessToken;
+    PVOID FreeAccessToken;
+    PVOID Context;
+} IDE_SYNC_ACCESS_INTERFACE, *PIDE_SYNC_ACCESS_INTERFACE;
+
+typedef struct _PCIIDE_BUS_MASTER_INTERFACE
+{
+    ULONG Size;
+    ULONG SupportedTransferMode[2];
+    ULONG MaximumPhysicalSize;
+    PVOID Context;
+    PVOID BmSetup;
+    PVOID BmArm;
+    PVOID BmDisarm;
+    PVOID BmFlush;
+    PVOID BmStatus;
+    PVOID BmTimingSetup;
+    BOOLEAN IgnoreActiveBitForAtaDevice;
+    BOOLEAN AlwaysClearBusMasterInterrupt;
+    ULONG ContextSize;
+    PVOID BmSetupOnePage;
+    PVOID BmCrashDumpInitialize;
+    PVOID BmFlushAdapterBuffers;
+} PCIIDE_BUS_MASTER_INTERFACE, *PPCIIDE_BUS_MASTER_INTERFACE;
+
+typedef struct _PCIIDE_PROPER_RESOURCES
+{
+    PVOID ChannelRequestProperResources; // VOID NTAPI* (PDEVICE_OBJECT)
+} PCIIDE_PROPER_RESOURCES, *PPCIIDE_PROPER_RESOURCES;
+
 typedef struct _ATA_DEVICE_EXTENSION
 {
     PVOID CurrentSrb;
+    IDE_CMD_BLOCK_REGS CmdBlock;
+    IDE_CTRL_BLOCK_REGS CtrlBlock;
+    ULONG CmdBlockLength;
+    ULONG CtrlBlockLength;
+    ULONG MaxIdeDevice;
+    ULONG IntResFlags;
+    ULONG MaxIdeTargetId;
+    BOOLEAN IsDscRestrictive;
+    BOOLEAN IsDriverMustPoll;
+    BOOLEAN IsPrimary;
+    BOOLEAN IsSecondary;
+    PCIIDE_BUS_MASTER_INTERFACE BusMasterInterface;
 } ATA_DEVICE_EXTENSION, *PATA_DEVICE_EXTENSION;
 
 typedef struct _FDO_DEVICE_EXTENSION
@@ -66,10 +160,19 @@ typedef struct _FDO_DEVICE_EXTENSION
     PDRIVER_DISPATCH* FdoPnpDispatchTable;
     PDRIVER_DISPATCH* FdoPowerDispatchTable;
     PDRIVER_DISPATCH* FdoWmiDispatchTable;
+    PCM_RESOURCE_LIST ChannelResources;
     IDE_RESOURCE_DATA ResourceData;
+    IDE_SYNC_ACCESS_INTERFACE SyncAccessInterface;
+    PCIIDE_PROPER_RESOURCES ProperResources;
     PATA_DEVICE_EXTENSION HwDeviceExtension;
+    BOOLEAN IsBmIfaceReceived;
     ULONG FdoIndex;
     ULONG FdoState; 
+    PKINTERRUPT InterruptObject;
+    PVOID DefaultTransferModeTimingTable;
+    PVOID ErrorLog[2];
+    PVOID ReservedPages;
+    PCIIDE_INTERRUPT_INTERFACE InterruptInterface;
     ATA_DEVICE_EXTENSION AtaExt;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
 
