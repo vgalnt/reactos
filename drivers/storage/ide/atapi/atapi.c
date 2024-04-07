@@ -195,14 +195,62 @@ IdePortDispatch(
 
 NTSTATUS
 NTAPI
+IdePortPowerCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 IdePortIssueSetPowerState(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ POWER_STATE_TYPE PowerType,
     _In_ POWER_STATE State,
     _In_ BOOLEAN IsWait)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+    IDE_WAIT_CONTEXT Context;
+    PIRP Irp;
+    NTSTATUS Status;
+
+    DPRINT("IdePortIssueSetPowerState: %p, %X, %X, %X\n", FdoExtension, PowerType, State.SystemState, IsWait);
+
+    if (IsWait)
+        KeInitializeEvent(&Context.Event, NotificationEvent, FALSE);
+
+    Irp = IoAllocateIrp(FdoExtension->SelfDevice->StackSize, FALSE);
+    if (!Irp)
+    {
+        DPRINT1("IdePortIssueSetPowerState: STATUS_NO_MEMORY\n");
+        return STATUS_NO_MEMORY;
+    }
+
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+
+    IoStack->MajorFunction = IRP_MJ_POWER;
+    IoStack->MinorFunction = IRP_MN_SET_POWER;
+
+    IoStack->Parameters.Power.SystemContext = 0;
+    IoStack->Parameters.Power.Type = PowerType;
+    IoStack->Parameters.Power.State = State;
+
+    IoSetCompletionRoutine(Irp, IdePortPowerCompletionRoutine, (IsWait ? &Context : NULL), TRUE, TRUE, TRUE);
+
+    Status = PoCallDriver(FdoExtension->SelfDevice, Irp);
+
+    if (IsWait)
+    {
+        KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, NULL);
+        Status = Context.Status;
+    }
+
+    return Status;
 }
 
 NTSTATUS

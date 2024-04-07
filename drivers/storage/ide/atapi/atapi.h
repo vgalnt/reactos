@@ -22,6 +22,12 @@ typedef struct _ATAPI_DRIVER_EXTENSION
     UNICODE_STRING RegistryPath;
 } ATAPI_DRIVER_EXTENSION, *PATAPI_DRIVER_EXTENSION;
 
+typedef struct _IDE_WAIT_CONTEXT
+{
+    KEVENT Event;
+    NTSTATUS Status;
+} IDE_WAIT_CONTEXT, *PIDE_WAIT_CONTEXT;
+
 typedef struct _IDE_RESOURCE_DATA
 {
     ULONG TypeResForCmdBlock;
