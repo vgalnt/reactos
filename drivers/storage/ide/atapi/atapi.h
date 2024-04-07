@@ -186,6 +186,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG FdoIndex;
     ULONG FdoState; 
     PKINTERRUPT InterruptObject;
+    UCHAR HackFlags;
     PVOID DefaultTransferModeTimingTable;
     ATAPI_SET_POWER_CONTEXT PowerContext[2];
     LONG PowerContextLock[2];
