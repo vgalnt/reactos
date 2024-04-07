@@ -84,6 +84,14 @@ PCHAR PnpMinorNames[] =
     "IRP_MN_QUERY_LEGACY_BUS_INFORMATION"
 };
 
+PCHAR PowerMinorNames[] =
+{
+    "IRP_MN_WAIT_WAKE",
+    "IRP_MN_POWER_SEQUENCE",
+    "IRP_MN_SET_POWER",
+    "IRP_MN_QUERY_POWER"
+};
+
 /* PRIVATE FUNCTIONS ********************************************************/
 
 VOID
@@ -279,8 +287,44 @@ IdePortDispatchPower(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    ULONG CmdBlockBase;
+    UCHAR MinorFunction;
+    BOOLEAN IsFdo;
+
+    DPRINT("IdePortDispatchPower: %p, %p\n", DeviceObject, Irp);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+    MinorFunction = (IoGetCurrentIrpStackLocation(Irp))->MinorFunction;
+
+    if (FdoExtension->LowDevice)
+    {
+        CmdBlockBase = FdoExtension->ResourceData.CmdBlockBase;
+        DPRINT("IdePortDispatchPower: FDO %d (%X) got %s\n", FdoExtension->FdoIndex, CmdBlockBase, PowerMinorNames[MinorFunction]);
+        IsFdo = TRUE;
+    }
+    else
+    {
+        DPRINT1("IdePortDispatchPower: FIXME\n");
+        ASSERT(FALSE);
+        IsFdo = FALSE;
+    }
+
+    if (MinorFunction <= IRP_MN_QUERY_LEGACY_BUS_INFORMATION)
+    {
+        if (IsFdo)
+            return FdoExtension->FdoPowerDispatchTable[MinorFunction](DeviceObject, Irp);
+        else
+            {ASSERT(FALSE);return 0;}
+    }
+
+    if (MinorFunction >= 4)
+        ASSERT(!"ATAPI: Power Dispatch Table too small\\n");
+
+    if (IsFdo)
+        return FdoExtension->PassDownToNextDriver(DeviceObject, Irp);
+    else
+        {ASSERT(FALSE);return 0;}
 }
 
 /* PNP FUNCTIONS ************************************************************/
