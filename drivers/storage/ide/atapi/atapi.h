@@ -28,6 +28,15 @@ typedef struct _IDE_WAIT_CONTEXT
     NTSTATUS Status;
 } IDE_WAIT_CONTEXT, *PIDE_WAIT_CONTEXT;
 
+typedef struct _ATAPI_SET_POWER_CONTEXT
+{
+    UCHAR Unknown1;
+    UCHAR Pad[3];
+    PIRP Irp;
+    POWER_STATE_TYPE Type;
+    POWER_STATE State;
+} ATAPI_SET_POWER_CONTEXT, *PATAPI_SET_POWER_CONTEXT;
+
 typedef struct _IDE_RESOURCE_DATA
 {
     ULONG TypeResForCmdBlock;
@@ -162,6 +171,8 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG DumpFile;
     SYSTEM_POWER_STATE SystemPowerState;
     DEVICE_POWER_STATE DevicePowerState;
+    PIRP PendingSystemPowerIrp;
+    PIRP PendingDevicePowerIrp;
     PDRIVER_DISPATCH PassDownToNextDriver;
     PDRIVER_DISPATCH* FdoPnpDispatchTable;
     PDRIVER_DISPATCH* FdoPowerDispatchTable;
@@ -176,6 +187,8 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG FdoState; 
     PKINTERRUPT InterruptObject;
     PVOID DefaultTransferModeTimingTable;
+    ATAPI_SET_POWER_CONTEXT PowerContext[2];
+    LONG PowerContextLock[2];
     PVOID ErrorLog[2];
     PVOID ReservedPages;
     PCIIDE_INTERRUPT_INTERFACE InterruptInterface;
