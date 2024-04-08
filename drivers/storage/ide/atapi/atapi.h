@@ -266,4 +266,12 @@ RosDumpCmResources(
     _In_ ULONG DebugLevel
 );
 
+NTSTATUS
+NTAPI
+FdoPowerCompletionRoutine(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp,
+    _In_ PVOID context
+);
+
 #endif /* _PCIIDEX_PCH_ */

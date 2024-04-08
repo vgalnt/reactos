@@ -292,7 +292,14 @@ ChannelRestoreTimingCompletionRoutine(
     _In_ NTSTATUS Status,
     _In_ PATAPI_SET_POWER_CONTEXT Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("ChannelRestoreTimingCompletionRoutine: %p, %X, %p\n", Fdo, Status, Context);
+
+    Context->IsTimingsRestored = TRUE;
+    Context->Irp->IoStatus.Status = Status;
+
+    FdoPowerCompletionRoutine(IoGetCurrentIrpStackLocation(Context->Irp)->DeviceObject, Context->Irp, Context);
+
+    IoCompleteRequest(Context->Irp, 0);
 }
 
 NTSTATUS
