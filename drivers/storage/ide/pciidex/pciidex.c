@@ -948,12 +948,105 @@ PciIdeSetFdoPowerState(
 
 NTSTATUS
 NTAPI
-PciIdeSetPdoPowerState(
-    _In_ PDEVICE_OBJECT DeviceObject,
+FdoChildReportPowerDown(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+FdoChildRequestPowerUp(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeSetPdoPowerState(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    DPRINT("PciIdeSetPdoPowerState: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("PciIdeSetPdoPowerState: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto ErrorExit;
+    }
+
+    Status = STATUS_SUCCESS;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.Power.Type == SystemPowerState)
+    {
+        if (PdoExtension->SystemPowerState != IoStack->Parameters.Power.State.SystemState)
+        {
+            PdoExtension->SystemPowerState = IoStack->Parameters.Power.State.SystemState;
+            DPRINT("PciIdeSetPdoPowerState: New Pdo %X system power state %X\n", PdoExtension->PdoIndex, IoStack->Parameters.Power.State.SystemState);
+        }
+
+        Irp->IoStatus.Information = IoStack->Parameters.Power.State.SystemState;
+    }
+    else if (IoStack->Parameters.Power.Type == DevicePowerState)
+    {
+        if (PdoExtension->DevicePowerState == IoStack->Parameters.Power.State.DeviceState)
+        {
+            Irp->IoStatus.Information = IoStack->Parameters.Power.State.SystemState;
+        }
+        else if (PdoExtension->DevicePowerState == 4)
+        {
+            IoMarkIrpPending(Irp);
+            Irp->IoStatus.Information = IoStack->Parameters.Power.State.DeviceState;
+
+            Status = FdoChildRequestPowerUp(PdoExtension->FdoExtension, PdoExtension, Irp);
+            ASSERT(NT_SUCCESS(Status));
+
+            return STATUS_PENDING;
+        }
+        else
+        {
+            if (PdoExtension->DevicePowerState == 1)
+                PoSetPowerState(Pdo, DevicePowerState, IoStack->Parameters.Power.State);
+
+            PdoExtension->DevicePowerState = IoStack->Parameters.Power.State.DeviceState;
+
+            DPRINT("PciIdeSetPdoPowerState: New Pdo %X device power state %X\n", PdoExtension->PdoIndex, PdoExtension->DevicePowerState);
+
+            if (PdoExtension->DevicePowerState == 4)
+                FdoChildReportPowerDown(PdoExtension->FdoExtension, PdoExtension);
+
+            Irp->IoStatus.Information = IoStack->Parameters.Power.State.SystemState;
+        }
+    }
+    else
+    {
+        DPRINT1("PciIdeSetPdoPowerState: STATUS_NOT_IMPLEMENTED\n");
+        ASSERT(FALSE);
+        Status = STATUS_NOT_IMPLEMENTED;
+    }
+
+ErrorExit:
+
+    Irp->IoStatus.Status = Status;
+
+    PoStartNextPowerIrp(Irp);
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
@@ -1361,7 +1454,7 @@ AnalyzeResourceList(
         else if (BmResources->List[0].PartialResourceList.PartialDescriptors[0].Type == 3)
         {
             FdoExtension->TranslatedBusMasterBaseAddress = 
-                MmMapIoSpace(BmResources->List[0].PartialResourceList.PartialDescriptors[0].u.Memory.Start, 0x10, 0);
+                MmMapIoSpace(BmResources->List[0].PartialResourceList.PartialDescriptors[0].u.Memory.Start, 0x10, MmNonCached);
 
             ASSERT(FdoExtension->TranslatedBusMasterBaseAddress);
             FdoExtension->BusMasterResType = 0;
