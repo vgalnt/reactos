@@ -1104,7 +1104,13 @@ NTAPI
 ChannelEnableInterrupt(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG ix;
+
+    for (ix = 0; ix < (FdoExtension->HwDeviceExtension->MaxIdeDevice / 2); ix++)
+    {
+        DPRINT("ChannelEnableInterrupt: DeviceControl %X\n", FdoExtension->HwDeviceExtension->CtrlBlock.DeviceControl);
+        WRITE_PORT_UCHAR(FdoExtension->HwDeviceExtension->CtrlBlock.DeviceControl, 0);
+    }
 }
 
 NTSTATUS
