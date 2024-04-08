@@ -302,8 +302,43 @@ ChannelRestoreTiming(
     _In_ PVOID CallBack,
     _In_ PATAPI_SET_POWER_CONTEXT Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    VOID (NTAPI* callBack)(PDEVICE_OBJECT, NTSTATUS, PATAPI_SET_POWER_CONTEXT) = CallBack;
+    PIDE_ACPI_TIMING_MODE_BLOCK TimingBlock;
+    PIDENTIFY_DATA identify[2];
+    ULONG ix;
+
+    DPRINT("ChannelRestoreTiming: %p, %X, %X\n", FdoExtension, FdoExtension->PdoCount1, identify);
+
+    if (FdoExtension->PdoCount1)
+    {
+        TimingBlock = &FdoExtension->TimingBlock;
+
+        if (TimingBlock->Drive[0].PioSpeed != 0xFFFFFFFF ||
+            FdoExtension->TimingBlock.Drive[1].PioSpeed != 0xFFFFFFFF)
+        {
+            for (ix = 0; ix < 2; ix++)
+            {
+                if (FdoExtension->HwDeviceExtension->DeviceFlags[ix] & 1)
+                {
+                    identify[ix] =  &FdoExtension->HwDeviceExtension->IdentifyData[ix];
+                }
+                else
+                {
+                    identify[ix] =  NULL;
+                }
+            }
+
+            DPRINT1("ChannelRestoreTiming: FIXME\n");
+            ASSERT(FALSE);
+        }
+
+        DPRINT1("ChannelRestoreTiming: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    callBack(FdoExtension->SelfDevice, STATUS_SUCCESS, Context);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -377,7 +412,8 @@ FdoPowerCompletionRoutine(
                 DPRINT1("FdoPowerCompletionRoutine: FIXME\n");
                 ASSERT(FALSE);
             }
-            if (Context->State.DeviceState == PowerDeviceD0 && !Context->Unknown1)
+
+            if (Context->State.DeviceState == PowerDeviceD0 && !Context->IsTimingsRestored)
             {
                 Status = ChannelRestoreTiming(FdoExtension, ChannelRestoreTimingCompletionRoutine, Context);
                 if (!NT_SUCCESS(Status))
@@ -473,7 +509,7 @@ IdePortSetFdoPowerState(
         goto ErrorExit;
     }
 
-    PowerContext->Unknown1 = 0;
+    PowerContext->IsTimingsRestored = FALSE;
     PowerContext->Irp = Irp;
     PowerContext->Type = IoStack->Parameters.Power.Type;
     PowerContext->State = IoStack->Parameters.Power.State;

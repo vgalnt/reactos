@@ -9,6 +9,27 @@
 #include <initguid.h>
 #include <wdmguid.h>
 
+/* ACPI EVAL ****************************************************************/
+
+/* 9.9.2.1.1 _GTM (Get Timing Mode) */
+
+#define IDE_ACPI_TIMING_MODE_FLAG_UDMA                 0x00000001
+#define IDE_ACPI_TIMING_MODE_FLAG_IORDY                0x00000002
+#define IDE_ACPI_TIMING_MODE_FLAG_UDMA2                0x00000004
+#define IDE_ACPI_TIMING_MODE_FLAG_IORDY2               0x00000008
+#define IDE_ACPI_TIMING_MODE_FLAG_INDEPENDENT_TIMINGS  0x00000010
+#define IDE_ACPI_TIMING_MODE_NOT_SUPPORTED             0xFFFFFFFF
+
+typedef struct _IDE_ACPI_TIMING_MODE_BLOCK
+{
+    struct
+    {
+        ULONG PioSpeed;
+        ULONG DmaSpeed;
+    } Drive[MAX_IDE_DEVICE];
+    ULONG ModeFlags;
+} IDE_ACPI_TIMING_MODE_BLOCK, *PIDE_ACPI_TIMING_MODE_BLOCK;
+
 /* STRUCTURES ***************************************************************/
 
 DEFINE_GUID(GUID_PCIIDE_BUSMASTER_INTERFACE,      0x681190EA, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
@@ -30,7 +51,7 @@ typedef struct _IDE_WAIT_CONTEXT
 
 typedef struct _ATAPI_SET_POWER_CONTEXT
 {
-    UCHAR Unknown1;
+    BOOLEAN IsTimingsRestored;
     UCHAR Pad[3];
     PIRP Irp;
     POWER_STATE_TYPE Type;
@@ -152,11 +173,13 @@ typedef struct _ATA_DEVICE_EXTENSION
     ULONG CtrlBlockLength;
     ULONG MaxIdeDevice;
     ULONG IntResFlags;
+    ULONG DeviceFlags[2];
     ULONG MaxIdeTargetId;
     BOOLEAN IsDscRestrictive;
     BOOLEAN IsDriverMustPoll;
     BOOLEAN IsPrimary;
     BOOLEAN IsSecondary;
+    IDENTIFY_DATA IdentifyData[2];
     PCIIDE_BUS_MASTER_INTERFACE BusMasterInterface;
 } ATA_DEVICE_EXTENSION, *PATA_DEVICE_EXTENSION;
 
@@ -186,7 +209,10 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG FdoIndex;
     ULONG FdoState; 
     PKINTERRUPT InterruptObject;
+    UCHAR PdoCount1;
+    UCHAR PdoCount2;
     UCHAR HackFlags;
+    IDE_ACPI_TIMING_MODE_BLOCK TimingBlock;
     PVOID DefaultTransferModeTimingTable;
     ATAPI_SET_POWER_CONTEXT PowerContext[2];
     LONG PowerContextLock[2];
