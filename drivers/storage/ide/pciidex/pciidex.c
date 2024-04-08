@@ -2602,12 +2602,36 @@ PciIdeChannelTransferModeInterface(
 
 NTSTATUS
 NTAPI
+PciIdeInterruptControl(
+    _In_ PPDO_DEVICE_EXTENSION Context,
+    _In_ BOOLEAN IsDisconnectOrReconnect)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PciIdeChannelInterruptInterface(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _Out_ PVOID OutInterface)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPCIIDE_INTERRUPT_INTERFACE InterruptIface = OutInterface;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+
+    DPRINT("PciIdeChannelInterruptInterface: %p\n", PdoExtension);
+
+    FdoExtension = PdoExtension->FdoExtension;
+
+    if (FdoExtension->NativeMode[0] && FdoExtension->NativeMode[1])
+    {
+        InterruptIface->Context = PdoExtension;
+        InterruptIface->InterruptControl = PciIdeInterruptControl;
+
+        DPRINT("PciIdeChannelInterruptInterface: returing interrupt interface for channel %X\n", PdoExtension->PdoIndex);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 VOID

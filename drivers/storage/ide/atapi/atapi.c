@@ -1122,7 +1122,7 @@ ChannelStartChannel(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PCM_RESOURCE_LIST CmResources)
 {
-    NTSTATUS (NTAPI* IntControl)(PVOID Context, ULONG IsDisconnectOrReconnect);
+    NTSTATUS (NTAPI* IntControl)(PVOID Context, BOOLEAN IsDisconnectOrReconnect);
     PCM_PARTIAL_RESOURCE_DESCRIPTOR InterruptDescriptor;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor;
     PCONFIGURATION_INFORMATION ConfigInfo;
@@ -1272,7 +1272,7 @@ ChannelStartChannel(
             DPRINT("ChannelStartChannel: %X fdoe %X Invoking disconnect\n", InterruptDescriptor->u.Interrupt.Vector, FdoExtension);
 
             IntControl = FdoExtension->InterruptInterface.InterruptControl;
-            Status = IntControl(FdoExtension->InterruptInterface.Context, 1);
+            Status = IntControl(FdoExtension->InterruptInterface.Context, TRUE);
             ASSERT(NT_SUCCESS(Status));
         }
 
