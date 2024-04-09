@@ -2550,13 +2550,150 @@ ChannelQueryDeviceRelations(
 
 NTSTATUS
 NTAPI
-BmQueryInterface(
+BmSetup(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
-    _Out_ PVOID OutInterface)
+    _In_ PVOID DataBuffer,
+    _In_ ULONG Length,
+    _In_ PMDL Mdl,
+    _In_ UCHAR DataInFlag,
+    _In_ PVOID Callback,
+    _In_ PVOID Context)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
 }
+
+NTSTATUS
+NTAPI
+BmArm(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+BmDisarm(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+BmFlush(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+ULONG
+NTAPI
+BmStatus(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+NTSTATUS
+NTAPI
+BmTimingSetup(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+BmSetupOnePage(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PVOID DataBuffer,
+    _In_ ULONG ByteCount,
+    _In_ PMDL Mdl,
+    _In_ UCHAR DataInFlag,
+    _In_ PVOID BaseAddress)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+BmCrashDumpInitialize(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+BmFlushAdapterBuffers(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PVOID DataBuffer,
+    _In_ ULONG ByteCount,
+    _In_ PMDL Mdl,
+    _In_ UCHAR DataInFlag)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+BmQueryInterface(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _Out_ PVOID OutInterface)
+{
+    PPCIIDE_BUS_MASTER_INTERFACE Interface = OutInterface;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+
+    PAGED_CODE();
+    DPRINT("BmQueryInterface: %p\n", PdoExtension);
+
+    if (!PdoExtension->BusMasterBase)
+    {
+        DPRINT1("BmQueryInterface: STATUS_NOT_IMPLEMENTED\n");
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    FdoExtension = PdoExtension->FdoExtension;
+
+    Interface->Size = sizeof(PCIIDE_BUS_MASTER_INTERFACE);
+    Interface->SupportedTransferMode[0] = FdoExtension->ControllerProperties.SupportedTransferMode[PdoExtension->PdoIndex][0];
+    Interface->SupportedTransferMode[1] = FdoExtension->ControllerProperties.SupportedTransferMode[PdoExtension->PdoIndex][1];
+    Interface->MaximumPhysicalSize = (PdoExtension->MaximumPhysicalPages * PAGE_SIZE);
+    Interface->Context = PdoExtension;
+    Interface->ContextSize = sizeof(*PdoExtension);
+    Interface->BmSetup = BmSetup;
+    Interface->BmArm = BmArm;
+    Interface->BmDisarm = BmDisarm;
+    Interface->BmFlush = BmFlush;
+    Interface->BmStatus = BmStatus;
+    Interface->BmTimingSetup = BmTimingSetup;
+    Interface->BmSetupOnePage = BmSetupOnePage;
+    Interface->BmCrashDumpInitialize = BmCrashDumpInitialize;
+    Interface->BmFlushAdapterBuffers = BmFlushAdapterBuffers;
+    Interface->IgnoreActiveBitForAtaDevice = FdoExtension->ControllerProperties.IgnoreActiveBitForAtaDevice;
+
+    if (FdoExtension->ControllerProperties.AlwaysClearBusMasterInterrupt ||
+        (FdoExtension->NativeMode[0] && FdoExtension->NativeMode[1]))
+    {
+        Interface->AlwaysClearBusMasterInterrupt = TRUE;
+    }
+    else
+    {
+        Interface->AlwaysClearBusMasterInterrupt = FALSE;
+    }
+
+    return STATUS_SUCCESS;
+}
+
 
 NTSTATUS
 NTAPI
