@@ -1118,8 +1118,42 @@ NTAPI
 ChannelCreateSymblicLinks(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UNICODE_STRING SymbolicLinkName;
+    UNICODE_STRING DeviceName;
+    WCHAR DeviceNameBuffer[64];
+    WCHAR ScsiNameBuffer[64];
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT("ChannelCreateSymblicLinks: %p\n", FdoExtension);
+
+    swprintf(DeviceNameBuffer, L"\\Device\\Ide\\IdePort%d", FdoExtension->FdoIndex);
+    RtlInitUnicodeString(&DeviceName, DeviceNameBuffer);
+
+    for (ix = 0; ix <= IoGetConfigurationInformation()->ScsiPortCount; ix++)
+    {
+        swprintf(ScsiNameBuffer, L"\\Device\\ScsiPort%d", ix);
+        RtlInitUnicodeString(&SymbolicLinkName, ScsiNameBuffer);
+
+        Status = IoCreateSymbolicLink(&SymbolicLinkName, &DeviceName);
+        if (NT_SUCCESS(Status))
+        {
+            swprintf(ScsiNameBuffer, L"\\DosDevices\\Scsi%d:", ix);
+            RtlInitUnicodeString(&SymbolicLinkName, ScsiNameBuffer);
+            IoCreateSymbolicLink(&SymbolicLinkName, &DeviceName);
+            break;
+        }
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        FdoExtension->SymlinkCreated = TRUE;
+        FdoExtension->ScsiPortCount = ix;
+
+        IoGetConfigurationInformation()->ScsiPortCount++;
+    }
+
+    return Status;
 }
 
 NTSTATUS

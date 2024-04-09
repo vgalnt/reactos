@@ -206,7 +206,9 @@ typedef struct _FDO_DEVICE_EXTENSION
     PCIIDE_PROPER_RESOURCES ProperResources;
     PATA_DEVICE_EXTENSION HwDeviceExtension;
     BOOLEAN IsBmIfaceReceived;
+    BOOLEAN SymlinkCreated;
     ULONG FdoIndex;
+    ULONG ScsiPortCount;
     ULONG FdoState; 
     PKINTERRUPT InterruptObject;
     UCHAR PdoCount1;
