@@ -8,6 +8,10 @@
 #include <stdio.h>
 #include <initguid.h>
 #include <wdmguid.h>
+#include <ndk/rtlfuncs.h>
+#include <srb.h>
+#include <acpiioct.h>
+#include <ntddscsi.h> 
 
 /* ACPI EVAL ****************************************************************/
 
@@ -183,6 +187,30 @@ typedef struct _ATA_DEVICE_EXTENSION
     PCIIDE_BUS_MASTER_INTERFACE BusMasterInterface;
 } ATA_DEVICE_EXTENSION, *PATA_DEVICE_EXTENSION;
 
+typedef struct _PDOX_SRB_DATA
+{
+    LIST_ENTRY Requests;
+    PSCSI_REQUEST_BLOCK CurrentSrb;
+    PVOID CompletedRequests;
+    ULONG RetryCount;
+    ULONG SequenceNumber;
+    PVOID Buffer;
+    PVOID CommandLog;
+    ULONG CommandLogCount;
+    ULONG Flags;
+} PDOX_SRB_DATA, *PPDOX_SRB_DATA;
+
+typedef struct _ATAPI_INTERRUPT_DATA
+{
+    ULONG Flags;
+    PPDOX_SRB_DATA CompletedRequests;
+    UCHAR ErrorEntry[20];//FIXME
+    struct _PDO_DEVICE_EXTENSION* CompletedAbort;
+    PHW_TIMER HwTimerCallBack;
+    LONG MiniportTimerValue;
+    struct _PDO_DEVICE_EXTENSION* PdoExtensionResetBus;
+} ATAPI_INTERRUPT_DATA, *PATAPI_INTERRUPT_DATA;
+
 typedef struct _FDO_DEVICE_EXTENSION
 {
     PDEVICE_OBJECT LowDevice;
@@ -209,20 +237,42 @@ typedef struct _FDO_DEVICE_EXTENSION
     BOOLEAN SymlinkCreated;
     ULONG FdoIndex;
     ULONG ScsiPortCount;
+    ULONG Flags;
     ULONG FdoState; 
+    LONG TimeOutValue;
+    UCHAR MaxPdoCount;
     PKINTERRUPT InterruptObject;
+    KSPIN_LOCK SpinLock;
+    KSPIN_LOCK PdoArrayLock;
     UCHAR PdoCount1;
     UCHAR PdoCount2;
     UCHAR HackFlags;
+    ULONG PcmciaIdeHasSlaveDevice;
+    ATAPI_INTERRUPT_DATA InterruptData;
+    IO_SCSI_CAPABILITIES IoScsicapabilities;
+    KTIMER Timer;
+    KDPC Dpc;
+    IDE_ACPI_TIMING_MODE_BLOCK TimingBlock0;
     IDE_ACPI_TIMING_MODE_BLOCK TimingBlock;
     PVOID DefaultTransferModeTimingTable;
+    ULONG DmaDetectionLevel;
+    ULONG DeviceParameter[4];
     ATAPI_SET_POWER_CONTEXT PowerContext[2];
     LONG PowerContextLock[2];
     PVOID ErrorLog[2];
     PVOID ReservedPages;
     PCIIDE_INTERRUPT_INTERFACE InterruptInterface;
+    ULONG ResetErrorCountersOnSuccess;
     ATA_DEVICE_EXTENSION AtaExt;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
+
+typedef struct _PDO_DEVICE_EXTENSION
+{
+    PDEVICE_OBJECT LowDevice;
+    PDEVICE_OBJECT LowPdo;
+    PDRIVER_OBJECT DriverObject;
+    PDEVICE_OBJECT SelfDevice;
+} PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
 /* FUNCTIONS ****************************************************************/
 

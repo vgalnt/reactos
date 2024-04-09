@@ -92,6 +92,18 @@ PCHAR PowerMinorNames[] =
     "IRP_MN_QUERY_POWER"
 };
 
+PWCHAR UserDeviceString[] =
+{
+    L"UserMasterDeviceType",
+    L"UserSlaveDeviceType",
+    L"UserMasterDeviceType2",
+    L"UserSlaveDeviceType2",
+    L"UserMasterDeviceTimingModeAllowed",
+    L"UserSlaveDeviceTimingModeAllowed",
+    L"UserMasterDeviceTimingModeAllowed2",
+    L"UserSlaveDeviceTimingModeAllowed2"
+};
+
 /* PRIVATE FUNCTIONS ********************************************************/
 
 VOID
@@ -1084,10 +1096,121 @@ DigestResourceList(
 
 VOID
 NTAPI
+IdePortCompletionDpc(
+    _In_ PKDPC Dpc,
+    _In_ PVOID DeferredContext,
+    _In_ PVOID SystemArgument1,
+    _In_ PVOID SystemArgument2)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdePortTickHandler(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdeMiniPortTimerDpc(
+    _In_ PKDPC Dpc,
+    _In_ PVOID DeferredContext,
+    _In_ PVOID SystemArgument1,
+    _In_ PVOID SystemArgument2)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+IdePortGetDeviceParameter(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PWCHAR Name,
+    _In_ ULONG* OutParameter)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
 IdePortInitFdo(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG ix;
+
+    DPRINT("IdePortInitFdo: %p\n", FdoExtension);
+
+    FdoExtension->HwDeviceExtension = &FdoExtension->AtaExt;
+    FdoExtension->SelfDevice->Flags |= 0x10;
+    FdoExtension->MaxPdoCount = 8;
+    FdoExtension->TimeOutValue = -1;
+
+    KeInitializeSpinLock(&FdoExtension->SpinLock);
+    KeInitializeSpinLock(&FdoExtension->PdoArrayLock);
+
+    KeInitializeDpc(&FdoExtension->SelfDevice->Dpc, IdePortCompletionDpc, FdoExtension->SelfDevice);
+    IoInitializeTimer(FdoExtension->SelfDevice, IdePortTickHandler, NULL);
+    KeInitializeTimer(&FdoExtension->Timer);
+    KeInitializeDpc(&FdoExtension->Dpc, IdeMiniPortTimerDpc, FdoExtension->SelfDevice);
+    IoStartTimer(FdoExtension->SelfDevice);
+
+    FdoExtension->Flags |= 0x1000;
+
+    if (FdoExtension->InterruptData.Flags & 0x40)
+    {
+        DPRINT("IdePortInitFdo: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    FdoExtension->IoScsicapabilities.Length = 0x18;
+
+    if (FdoExtension->IsBmIfaceReceived)
+    {
+        if (FdoExtension->HwDeviceExtension->BusMasterInterface.MaximumPhysicalSize >= 0x20000)
+            FdoExtension->IoScsicapabilities.MaximumTransferLength = 0x20000;
+        else
+            FdoExtension->IoScsicapabilities.MaximumTransferLength = FdoExtension->HwDeviceExtension->BusMasterInterface.MaximumPhysicalSize;
+    }
+    else
+    {
+        FdoExtension->IoScsicapabilities.MaximumTransferLength = 0x20000;
+    }
+
+    FdoExtension->IoScsicapabilities.TaggedQueuing = 0;
+    FdoExtension->IoScsicapabilities.AdapterScansDown = 0;
+    FdoExtension->IoScsicapabilities.AlignmentMask = FdoExtension->SelfDevice->AlignmentRequirement;
+    FdoExtension->IoScsicapabilities.MaximumPhysicalPages = BYTES_TO_PAGES(FdoExtension->IoScsicapabilities.MaximumTransferLength);
+
+    if (FdoExtension->ResourceData.CmdBlockBase)
+    {
+        DPRINT("IdePortInitFdo: Translated IO Base address %x\n", FdoExtension->ResourceData.CmdBlockBase);
+    }
+
+    for (ix = 0; ix < 4; ix++)
+    {
+        FdoExtension->DeviceParameter[ix] = 0;
+        IdePortGetDeviceParameter(FdoExtension, UserDeviceString[ix], &FdoExtension->DeviceParameter[ix]);
+    }
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        FdoExtension->TimingBlock0.Drive[ix].PioSpeed = 0xFFFFFFFF;
+        FdoExtension->TimingBlock0.Drive[ix].DmaSpeed = 0xFFFFFFFF;
+    }
+
+    FdoExtension->DmaDetectionLevel = 1;
+    IdePortGetDeviceParameter(FdoExtension, L"DmaDetectionLevel", &FdoExtension->DmaDetectionLevel);
+
+    DPRINT("IdePortInitFdo: FIXME ChannelQueryPcmciaParent()\n");
+    FdoExtension->PcmciaIdeHasSlaveDevice = 1;
+
+    FdoExtension->ResetErrorCountersOnSuccess = 0;
+    IdePortGetDeviceParameter(FdoExtension, L"ResetErrorCountersOnSuccess", &FdoExtension->ResetErrorCountersOnSuccess);
 }
 
 BOOLEAN
