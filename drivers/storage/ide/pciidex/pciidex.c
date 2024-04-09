@@ -2560,12 +2560,57 @@ BmQueryInterface(
 
 NTSTATUS
 NTAPI
+PciIdeAllocateAccessToken(
+    _In_ PVOID Token,
+    _In_ PDRIVER_CONTROL ExecutionRoutine,
+    _In_ PVOID Context)
+{
+    //PPDO_DEVICE_EXTENSION PdoExtension = Token
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PciIdeFreeAccessToken(
+    _In_ PVOID Token)
+{
+    //PPDO_DEVICE_EXTENSION PdoExtension = Token
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PciIdeQuerySyncAccessInterface(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _Out_ PVOID OutInterface)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIDE_SYNC_ACCESS_INTERFACE Interface = OutInterface;
+
+    PAGED_CODE();
+    DPRINT("PciIdeQuerySyncAccessInterface: %p\n", PdoExtension);
+
+    if (!Interface)
+    {
+        DPRINT1("PciIdeQuerySyncAccessInterface: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (PdoExtension->FdoExtension->ControllerObject)
+    {
+        Interface->AllocateAccessToken = PciIdeAllocateAccessToken;
+        Interface->FreeAccessToken = PciIdeFreeAccessToken;
+        Interface->Context = PdoExtension;
+    }
+    else
+    {
+        Interface->AllocateAccessToken = NULL;
+        Interface->FreeAccessToken = NULL;
+        Interface->Context = NULL;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
