@@ -1252,7 +1252,106 @@ NTAPI
 IdePreAllocEnumStructs(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PATAPI_PRE_ALLOC_ENUM_STRUCT enumStruct;
+
+    PAGED_CODE();
+    DPRINT("IdePreAllocEnumStructs: %p\n", FdoExtension);
+
+    ASSERT(InterlockedCompareExchange(&(FdoExtension->EnumStructLock), 1, 0) == 0);
+
+    if (FdoExtension->PreAllocEnumStruct)
+    {
+        ASSERT(InterlockedCompareExchange(&(FdoExtension->EnumStructLock), 0, 1) == 1);
+        return TRUE;
+    }
+
+    enumStruct = ExAllocatePoolWithTag(NonPagedPool, sizeof(*enumStruct), 'PedI');
+    if (!enumStruct)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        ASSERT(InterlockedCompareExchange(&(FdoExtension->EnumStructLock), 0, 1) == 1);
+        ASSERT(FdoExtension->EnumStructLock == 0);
+    }
+    RtlZeroMemory(enumStruct, sizeof(*enumStruct));
+
+    enumStruct->AtaPassThrContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(*enumStruct->AtaPassThrContext), 'PedI');
+    if (!enumStruct->AtaPassThrContext)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        goto ErrorExit;
+    }
+
+    ASSERT(enumStruct->EnumWorkItemContext == NULL);
+
+    enumStruct->EnumWorkItemContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(*enumStruct->EnumWorkItemContext), 'PedI');
+    if (!enumStruct->EnumWorkItemContext)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        goto ErrorExit;
+    }
+
+    enumStruct->EnumWorkItemContext->WorkItem = IoAllocateWorkItem(FdoExtension->SelfDevice);
+    if (!enumStruct->EnumWorkItemContext->WorkItem)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        goto ErrorExit;
+    }
+
+    //enumStruct->Unknown = ExAllocatePoolWithTag(..);
+
+    enumStruct->SenseInfoBuffer = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, sizeof(*enumStruct->SenseInfoBuffer), 'PedI');
+    if (!enumStruct->SenseInfoBuffer)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        goto ErrorExit;
+    }
+
+    enumStruct->Srb = ExAllocatePoolWithTag(NonPagedPool, sizeof(*enumStruct->Srb), 'PedI');
+    if (!enumStruct->Srb)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        goto ErrorExit;
+    }
+
+    enumStruct->Irp = IoAllocateIrp(1, FALSE);
+    if (!enumStruct->Irp)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        goto ErrorExit;
+    }
+
+    enumStruct->DataBuffer = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, 0x234, 'PedI'); // ?
+    if (!enumStruct->DataBuffer)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        enumStruct->DataBufferSize = 0;
+        goto ErrorExit;
+    }
+    else
+    {
+        enumStruct->DataBufferSize = 0x234;
+    }
+
+    enumStruct->Mdl = IoAllocateMdl(enumStruct->DataBuffer, enumStruct->DataBufferSize, FALSE, FALSE, NULL);
+    if (!enumStruct->Mdl)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        goto ErrorExit;
+    }
+    MmBuildMdlForNonPagedPool(enumStruct->Mdl);
+
+    FdoExtension->PreAllocEnumStruct = enumStruct;
+    ASSERT(InterlockedCompareExchange(&(FdoExtension->EnumStructLock), 0, 1) == 1);
+    return TRUE;
+
+ErrorExit:
+
+    DPRINT1("IdePreAllocEnumStructs: FIXME IdeFreeEnumStructs\n");
+    ASSERT(FALSE);
+
+    FdoExtension->PreAllocEnumStruct = NULL;
+    ASSERT(InterlockedCompareExchange(&(FdoExtension->EnumStructLock), 0, 1) == 1);
+
     return FALSE;
 }
 

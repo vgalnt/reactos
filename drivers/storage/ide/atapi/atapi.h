@@ -12,6 +12,9 @@
 #include <srb.h>
 #include <acpiioct.h>
 #include <ntddscsi.h> 
+#include <ntddstor.h> 
+#include <ntdddisk.h> 
+#include <scsi.h> 
 
 /* ACPI EVAL ****************************************************************/
 
@@ -168,6 +171,37 @@ typedef struct _PCIIDE_PROPER_RESOURCES
     PVOID ChannelRequestProperResources; // VOID NTAPI* (PDEVICE_OBJECT)
 } PCIIDE_PROPER_RESOURCES, *PPCIIDE_PROPER_RESOURCES;
 
+typedef struct _ATAPI_ENUM_WORKITEM_CONTEXT
+{
+    PIO_WORKITEM WorkItem;
+    PIRP Irp;
+} ATAPI_ENUM_WORKITEM_CONTEXT, *PATAPI_ENUM_WORKITEM_CONTEXT;
+
+typedef struct _ATA_PASS_THROUGH_CONTEXT
+{
+    PDEVICE_OBJECT DeviceObject;
+    PVOID CallBack;
+    PVOID CallBackContext;
+    PSCSI_REQUEST_BLOCK Srb;
+    PVOID SenseInfoBuffer;
+    BOOLEAN MustSucceed;
+    UCHAR Pad[3];
+    PVOID AtaPassThr;
+} ATA_PASS_THROUGH_CONTEXT, *PATA_PASS_THROUGH_CONTEXT;
+
+typedef struct _ATAPI_PRE_ALLOC_ENUM_STRUCT
+{
+    PIRP Irp;
+    PSCSI_REQUEST_BLOCK Srb;
+    PSENSE_DATA SenseInfoBuffer;
+    PMDL Mdl;
+    PVOID DataBuffer;
+    ULONG DataBufferSize;
+    PVOID Unknown;
+    PATAPI_ENUM_WORKITEM_CONTEXT EnumWorkItemContext;
+    PATA_PASS_THROUGH_CONTEXT AtaPassThrContext;
+} ATAPI_PRE_ALLOC_ENUM_STRUCT, *PATAPI_PRE_ALLOC_ENUM_STRUCT;
+
 typedef struct _ATA_DEVICE_EXTENSION
 {
     PVOID CurrentSrb;
@@ -259,6 +293,8 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG DeviceParameter[4];
     ATAPI_SET_POWER_CONTEXT PowerContext[2];
     LONG PowerContextLock[2];
+    LONG EnumStructLock;
+    PATAPI_PRE_ALLOC_ENUM_STRUCT PreAllocEnumStruct;
     PVOID ErrorLog[2];
     PVOID ReservedPages;
     PCIIDE_INTERRUPT_INTERFACE InterruptInterface;
