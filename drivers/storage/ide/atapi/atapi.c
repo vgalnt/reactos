@@ -2132,11 +2132,20 @@ ChannelQueryId(
 NTSTATUS
 NTAPI
 ChannelQueryPnPDeviceState(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension = Fdo->DeviceExtension;
+
+    DPRINT("ChannelQueryPnPDeviceState: QUERY_DEVICE_STATE for FDOE %p\n", FdoExtension);
+
+    if (FdoExtension->Paging)
+        Irp->IoStatus.Information |= 0x20;
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    IoSkipCurrentIrpStackLocation(Irp);
+
+    return IoCallDriver(FdoExtension->LowDevice, Irp);
 }
 
 NTSTATUS
