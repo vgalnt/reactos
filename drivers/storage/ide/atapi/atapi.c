@@ -1132,8 +1132,42 @@ IdePortGetDeviceParameter(
     _In_ PWCHAR Name,
     _In_ ULONG* OutParameter)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    HANDLE DevInstRegKey;
+    ULONG OldParameter;
+
+    PAGED_CODE();
+    DPRINT("IdePortGetDeviceParameter: %p, '%S'\n", FdoExtension, Name);
+
+    Status = IoOpenDeviceRegistryKey(FdoExtension->LowPdo, PLUGPLAY_REGKEY_DRIVER, KEY_READ, &DevInstRegKey);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdePortGetDeviceParameter: Status %X\n", Status);
+        return Status;
+    }
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    OldParameter = *OutParameter;
+
+    QueryTable[0].Name = Name;
+    QueryTable[0].DefaultType = 4;
+    QueryTable[0].DefaultLength = 4;
+    QueryTable[0].Flags = 0x24;
+    QueryTable[0].EntryContext = OutParameter;
+    QueryTable[0].DefaultData = &OldParameter;
+
+    Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE, DevInstRegKey, QueryTable, NULL, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdePortGetDeviceParameter: Status %X\n", Status);
+        *OutParameter = OldParameter;
+    }
+
+    ZwClose(DevInstRegKey);
+
+    return Status;
 }
 
 VOID
