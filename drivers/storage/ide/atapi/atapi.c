@@ -1924,14 +1924,58 @@ ChannelStopDevice(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+NTAPI
+ChannelQueryBusRelation(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 ChannelQueryDeviceRelations(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PATAPI_ENUM_WORKITEM_CONTEXT WorkerContext;
+
+    DPRINT("ChannelQueryDeviceRelations: %p, %p\n", Fdo, Irp);
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    if (!(FdoExtension->FdoState & 2))
+    {
+        Irp->IoStatus.Status = STATUS_DEVICE_NOT_READY;
+        IoCompleteRequest(Irp, 0);
+        return Irp->IoStatus.Status;
+    }
+
+    if (IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryDeviceRelations.Type != 0)
+    {
+        DPRINT("ChannelQueryDeviceRelations: Unsupported device relation\n");
+        IoSkipCurrentIrpStackLocation(Irp);
+        return IoCallDriver(FdoExtension->LowDevice, Irp);
+    }
+
+    DPRINT("ChannelQueryDeviceRelations: bus relations\n");
+
+    ASSERT(FdoExtension->PreAllocEnumStruct);
+    WorkerContext = FdoExtension->PreAllocEnumStruct->EnumWorkItemContext;
+
+    ASSERT(WorkerContext);
+    ASSERT(WorkerContext->WorkItem);
+
+    WorkerContext->Irp = Irp;
+
+    Irp->IoStatus.Status = STATUS_PENDING;
+    IoMarkIrpPending(Irp);
+
+    IoQueueWorkItem(WorkerContext->WorkItem, ChannelQueryBusRelation, DelayedWorkQueue, WorkerContext);
+
+    return STATUS_PENDING;
 }
 
 NTSTATUS
