@@ -310,6 +310,17 @@ typedef struct _PDO_DEVICE_EXTENSION
     PDEVICE_OBJECT SelfDevice;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
+/* ACPI EVAL ****************************************************************/
+
+typedef struct _ACPI_EVAL_SIGNATURE
+{
+    union
+    {
+        CHAR Char[4];
+        ULONG AsULONG;
+    };
+} ACPI_EVAL_SIGNATURE, *PACPI_EVAL_SIGNATURE; 
+
 /* FUNCTIONS ****************************************************************/
 
 #ifndef Add2Ptr

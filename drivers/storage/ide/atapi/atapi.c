@@ -1924,13 +1924,80 @@ ChannelStopDevice(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+NTSTATUS
+NTAPI
+DeviceQueryACPISettings(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ ACPI_EVAL_SIGNATURE MethodSign,
+    _Out_ PACPI_EVAL_OUTPUT_BUFFER* OutQueryResult)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 DeviceQueryChannelTimingSettings(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PIDE_ACPI_TIMING_MODE_BLOCK TimingBlock)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PACPI_EVAL_OUTPUT_BUFFER QueryResult;
+    ACPI_EVAL_SIGNATURE Signature;
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT("DeviceQueryChannelTimingSettings: %p, %p\n", FdoExtension, TimingBlock);
+
+    Signature.AsULONG = 'MTG_';
+
+    Status = DeviceQueryACPISettings(FdoExtension, Signature, &QueryResult);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DeviceQueryChannelTimingSettings: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    if (QueryResult->Count != 1)
+    {
+        DPRINT1("DeviceQueryChannelTimingSettings: QueryResult->Count %X\n", QueryResult->Count);
+        ASSERT(QueryResult->Count == 1);
+        Status = STATUS_UNSUCCESSFUL;
+        goto ErrorExit;
+    }
+
+    if (QueryResult->Argument[0].Type != 2 ||
+        QueryResult->Argument[0].DataLength < sizeof(IDE_ACPI_TIMING_MODE_BLOCK))
+    {
+        DPRINT1("DeviceQueryChannelTimingSettings: Type %X\n", QueryResult->Argument[0].Type);
+        ASSERT(QueryResult->Argument[0].Type == 2);//ACPI_METHOD_ARGUMENT_BUFFER
+        Status = STATUS_UNSUCCESSFUL;
+        goto ErrorExit;
+    }
+
+    RtlCopyMemory(TimingBlock, &QueryResult->Argument[0].Argument, sizeof(*TimingBlock));
+
+    DPRINT("DeviceQueryChannelTimingSettings: _GTM Data:\n");
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        DPRINT("PIO Speed [%d] %X\n", ix, TimingBlock->Drive[ix].PioSpeed);
+        DPRINT("DMA Speed [%d] %X\n", ix, TimingBlock->Drive[ix].DmaSpeed);
+    }
+
+    DPRINT("Flags %X\n", TimingBlock->ModeFlags);
+
+    if (QueryResult)
+        ExFreePool(QueryResult);
+
+    return;
+
+ErrorExit:
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        TimingBlock->Drive[ix].PioSpeed = 0xFFFFFFFF;
+        TimingBlock->Drive[ix].DmaSpeed = 0xFFFFFFFF;
+    }
 }
 
 VOID
