@@ -1926,11 +1926,65 @@ ChannelStopDevice(
 
 VOID
 NTAPI
+DeviceQueryChannelTimingSettings(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIDE_ACPI_TIMING_MODE_BLOCK TimingBlock)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+ChannelQueryTransferModeInterface(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdePortScanBus(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+PDEVICE_RELATIONS
+NTAPI
+ChannelBuildDeviceRelationList(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+VOID
+NTAPI
 ChannelQueryBusRelation(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PATAPI_ENUM_WORKITEM_CONTEXT WorkerContext = Context;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PDEVICE_RELATIONS DeviceRelations;
+    PIRP Irp;
+
+    DPRINT("ChannelQueryBusRelation: %p, %p\n", Fdo, Context);
+
+    Irp = WorkerContext->Irp;
+    FdoExtension = IoGetCurrentIrpStackLocation(Irp)->DeviceObject->DeviceExtension;
+
+    DeviceQueryChannelTimingSettings(FdoExtension, &FdoExtension->TimingBlock);
+    ChannelQueryTransferModeInterface(FdoExtension);
+    IdePortScanBus(FdoExtension);
+
+    DeviceRelations = ChannelBuildDeviceRelationList(FdoExtension);
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    IoSkipCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = (ULONG_PTR)DeviceRelations;
+
+    IoCallDriver(FdoExtension->LowDevice, Irp);
 }
 
 NTSTATUS
