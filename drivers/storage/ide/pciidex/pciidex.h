@@ -164,11 +164,17 @@ typedef struct _PDO_DEVICE_EXTENSION
     KSPIN_LOCK SpinLock;
     ULONG PdoState;
     ULONG DmaDetectionLevel;
+    ULONG PnPDeviceState;
     ULONG BusMasterBase;
     PDMA_ADAPTER DmaAdapter;
     ULONG MaximumPhysicalPages;
     PPHYSICAL_REGION_DESCRIPTOR_TABLE RegionDescriptors;
     PHYSICAL_ADDRESS PhysicalRegionDescriptorTable;
+    PVOID MapRegisterBase;
+    PMDL Mdl;
+    UCHAR DataInFlag;
+    PVOID BmCallback;
+    PVOID BmCallbackContext;
     UCHAR BmStatus;
     BOOLEAN IsChannelEmpty;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;

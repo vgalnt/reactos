@@ -3763,13 +3763,33 @@ Exit:
 NTSTATUS
 NTAPI
 ChannelQueryPnPDeviceState(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
-}
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    NTSTATUS Status;
 
+    DPRINT("ChannelQueryPnPDeviceState: %p\n", Pdo);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelQueryPnPDeviceState: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        goto Exit;
+    }
+
+    Irp->IoStatus.Information |= PdoExtension->PnPDeviceState;
+    PdoExtension->PnPDeviceState &= ~0x14;
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
+}
 NTSTATUS
 NTAPI
 ChannelUsageNotification(
