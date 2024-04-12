@@ -2500,12 +2500,38 @@ IdePortDispatchPnp(
 
 NTSTATUS
 NTAPI
-IdePortDispatchDeviceControl(
-    _In_ PDEVICE_OBJECT DeviceObject,
+IdePortDeviceControl(
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceDeviceIoControl(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+IdePortDispatchDeviceControl(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    NTSTATUS Status;
+
+    if (((PFDO_DEVICE_EXTENSION)DeviceObject->DeviceExtension)->LowDevice)
+        Status = IdePortDeviceControl(DeviceObject, Irp);
+    else
+        Status = DeviceDeviceIoControl(DeviceObject, Irp);
+
+    return Status;
 }
 
 NTSTATUS
