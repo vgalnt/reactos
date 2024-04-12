@@ -217,6 +217,7 @@ typedef struct _ATA_DEVICE_EXTENSION
     BOOLEAN IsDriverMustPoll;
     BOOLEAN IsPrimary;
     BOOLEAN IsSecondary;
+    BOOLEAN IsTransferModeNotSelected;
     IDENTIFY_DATA IdentifyData[2];
     PCIIDE_BUS_MASTER_INTERFACE BusMasterInterface;
 } ATA_DEVICE_EXTENSION, *PATA_DEVICE_EXTENSION;
@@ -265,6 +266,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     PCM_RESOURCE_LIST ChannelResources;
     IDE_RESOURCE_DATA ResourceData;
     IDE_SYNC_ACCESS_INTERFACE SyncAccessInterface;
+    IDE_TRANSFER_MODE_INTERFACE TransferModeInterface;
     PCIIDE_PROPER_RESOURCES ProperResources;
     PATA_DEVICE_EXTENSION HwDeviceExtension;
     BOOLEAN IsBmIfaceReceived;

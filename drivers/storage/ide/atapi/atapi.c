@@ -2121,12 +2121,81 @@ ErrorExit:
     }
 }
 
+NTSTATUS
+NTAPI
+ChannelAcpiTransferModeSelect(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPCIIDE_TRANSFER_MODE_SELECT Xmode)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 ChannelQueryTransferModeInterface(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    IO_STACK_LOCATION ioStack;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelQueryTransferModeInterface: %p\n", FdoExtension);
+
+    RtlZeroMemory(&ioStack, sizeof(ioStack));
+
+    ioStack.MajorFunction = IRP_MJ_PNP;
+    ioStack.MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+    ioStack.Parameters.QueryInterface.InterfaceType = &GUID_PCIIDE_XFER_MODE_INTERFACE;
+    ioStack.Parameters.QueryInterface.Size = sizeof(FdoExtension->TransferModeInterface);
+    ioStack.Parameters.QueryInterface.Version = 1;
+
+    ioStack.Parameters.QueryInterface.Interface = (PINTERFACE)&FdoExtension->TransferModeInterface;
+    ioStack.Parameters.QueryInterface.InterfaceSpecificData = NULL;
+
+    Status = IdePortSyncSendIrp(FdoExtension->LowDevice, &ioStack, NULL);
+    if (NT_SUCCESS(Status))
+    {
+        if (FdoExtension->TransferModeInterface.IsTransferModeSelect != 1)
+        {
+            for (ix = 0; ix < 2; ix++)
+            {
+                if (FdoExtension->TimingBlock.Drive[ix].PioSpeed != 0xFFFFFFFF)
+                    Status = STATUS_UNSUCCESSFUL;
+            }
+        }
+
+        ASSERT(FdoExtension->TransferModeInterface.TransferModeTimingTable);
+    }
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        if (FdoExtension->TimingBlock.Drive[ix].PioSpeed != 0xFFFFFFFF)
+            Status = STATUS_UNSUCCESSFUL;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        FdoExtension->TransferModeInterface.Context = FdoExtension;
+        FdoExtension->TransferModeInterface.TransferModeSelect = ChannelAcpiTransferModeSelect;
+
+        FdoExtension->TransferModeInterface.IsTransferModeSelect = FdoExtension->TimingBlock.Drive[0].PioSpeed != 0xFFFFFFFF ||
+                                                                   FdoExtension->TimingBlock.Drive[1].PioSpeed != 0xFFFFFFFF;
+
+        if (!FdoExtension->TransferModeInterface.TransferModeTimingTable)
+        {
+            FdoExtension->TransferModeInterface.TransferModeTimingTable = FdoExtension->DefaultTransferModeTimingTable;
+            FdoExtension->TransferModeInterface.TableLength = 0x12;//(18)
+        }
+    }
+
+    if (!FdoExtension->TransferModeInterface.IsTransferModeSelect)
+        FdoExtension->HwDeviceExtension->IsTransferModeNotSelected = TRUE;
+
+    ASSERT(FdoExtension->TransferModeInterface.TransferModeSelect);
+    ASSERT(FdoExtension->TransferModeInterface.TransferModeTimingTable);
 }
 
 VOID
