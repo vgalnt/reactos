@@ -2504,8 +2504,98 @@ ChannelDeviceIoControl(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSTORAGE_PROPERTY_QUERY PropertyQuery;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    STORAGE_ADAPTER_DESCRIPTOR Adapter;
+    PIO_STACK_LOCATION IoStack;
+    ULONG Size;
+    NTSTATUS Status;
+
+    DPRINT("ChannelDeviceIoControl: %p, %p\n", Fdo, Irp);
+
+    FdoExtension = Fdo->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.DeviceIoControl.IoControlCode != IOCTL_STORAGE_QUERY_PROPERTY)
+    {
+        if (IoStack->DeviceObject == Fdo)
+        {
+            IoSkipCurrentIrpStackLocation(Irp);
+            return IoCallDriver(FdoExtension->LowDevice, Irp);
+        }
+
+        Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
+        goto Exit;
+    }
+
+    PropertyQuery = Irp->AssociatedIrp.SystemBuffer;
+
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength < sizeof(STORAGE_PROPERTY_QUERY))
+    {
+        DPRINT1("ChannelDeviceIoControl: STATUS_INVALID_PARAMETER\n");
+        Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    if (PropertyQuery->PropertyId != StorageAdapterProperty)
+    {
+        DPRINT1("ChannelDeviceIoControl: STATUS_NOT_IMPLEMENTED\n");
+        Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
+        goto Exit;
+    }
+
+    if (PropertyQuery->QueryType == PropertyExistsQuery)
+    {
+        DPRINT("ChannelDeviceIoControl: IOCTL_STORAGE_QUERY_PROPERTY PropertyExistsQuery\n");
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+        goto Exit;
+    }
+
+    if (PropertyQuery->QueryType == PropertyMaskQuery)
+    {
+        DPRINT1("ChannelDeviceIoControl: IOCTL_STORAGE_QUERY_PROPERTY PropertyMaskQuery\n");
+        Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
+        goto Exit;
+    }
+
+    if (PropertyQuery->QueryType != PropertyStandardQuery)
+    {
+        DPRINT1("ChannelDeviceIoControl: IOCTL_STORAGE_QUERY_PROPERTY unknown type\n");
+        Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
+        goto Exit;
+    }
+
+    DPRINT("ChannelDeviceIoControl: IOCTL_STORAGE_QUERY_PROPERTY PropertyStandardQuery\n");
+
+    Size = sizeof(Adapter);
+    RtlZeroMemory(&Adapter, Size);
+
+    Adapter.Version = Size;
+    Adapter.Size = Size;
+    Adapter.MaximumTransferLength = FdoExtension->IoScsicapabilities.MaximumTransferLength;
+    Adapter.MaximumPhysicalPages = FdoExtension->IoScsicapabilities.MaximumPhysicalPages;
+    Adapter.AlignmentMask = Fdo->AlignmentRequirement;
+    Adapter.AdapterUsesPio = TRUE;
+    Adapter.AdapterScansDown = FALSE;
+    Adapter.CommandQueueing = FALSE;
+    Adapter.AcceleratedTransfer = FALSE;
+    Adapter.BusType = 3;
+    Adapter.BusMajorVersion = 1;
+    Adapter.BusMinorVersion = 0;
+
+    if (Size > IoStack->Parameters.DeviceIoControl.OutputBufferLength)
+        Size = IoStack->Parameters.DeviceIoControl.OutputBufferLength;
+
+    RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, &Adapter, Size);
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = Size;
+
+Exit:
+
+    Status = Irp->IoStatus.Status;
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 NTSTATUS
