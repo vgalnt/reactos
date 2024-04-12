@@ -1926,13 +1926,128 @@ ChannelStopDevice(
 
 NTSTATUS
 NTAPI
+DeviceQueryACPISettingsCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 DeviceQueryACPISettings(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ ACPI_EVAL_SIGNATURE MethodSign,
     _Out_ PACPI_EVAL_OUTPUT_BUFFER* OutQueryResult)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_EVAL_OUTPUT_BUFFER QueryResult;
+    PACPI_EVAL_INPUT_BUFFER AcpiInput;
+    PIO_STACK_LOCATION IoStack;
+    PDEVICE_OBJECT LowDevice;
+    KEVENT Event;
+    PIRP Irp = NULL;
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT("DeviceQueryACPISettings: '%c%c%c%c'\n", MethodSign.Char[0], MethodSign.Char[1], MethodSign.Char[2], MethodSign.Char[3]);
+
+    LowDevice = IoGetAttachedDeviceReference(FdoExtension->SelfDevice);
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        DPRINT("DeviceQueryACPISettings: _GTM try %X\n", ix);
+
+        QueryResult = ExAllocatePoolWithTag(NonPagedPool, sizeof(*QueryResult), 'PedI');
+        if (!QueryResult)
+        {
+            DPRINT1("DeviceQueryACPISettings: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
+
+        KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+        Irp = IoAllocateIrp(LowDevice->StackSize, FALSE);
+        if (!Irp)
+        {
+            DPRINT1("DeviceQueryACPISettings: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
+
+        Irp->AssociatedIrp.SystemBuffer = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, sizeof(ACPI_EVAL_OUTPUT_BUFFER), 'PedI');
+        if (!Irp->AssociatedIrp.SystemBuffer)
+        {
+            DPRINT1("DeviceQueryACPISettings: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
+
+        IoStack = IoGetNextIrpStackLocation(Irp);
+        IoStack->MajorFunction = IRP_MJ_DEVICE_CONTROL;
+
+        IoStack->Parameters.DeviceIoControl.OutputBufferLength = sizeof(ACPI_EVAL_OUTPUT_BUFFER);
+        IoStack->Parameters.DeviceIoControl.InputBufferLength = sizeof(ACPI_EVAL_INPUT_BUFFER);
+        IoStack->Parameters.DeviceIoControl.IoControlCode = 0x32C000;
+
+        AcpiInput = Irp->AssociatedIrp.SystemBuffer;
+        AcpiInput->Signature = 'BieA';
+        AcpiInput->MethodNameAsUlong = MethodSign.AsULONG;
+
+        Irp->Flags = 0x50;
+        Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+        Irp->UserBuffer = QueryResult;
+
+        IoSetCompletionRoutine(Irp, DeviceQueryACPISettingsCompletionRoutine, &Event, TRUE, TRUE, TRUE);
+
+        Status = IoCallDriver(LowDevice, Irp);
+        if (Status == STATUS_PENDING)
+        {
+            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+            Status = Irp->IoStatus.Status;
+        }
+
+        if (NT_SUCCESS(Status) && QueryResult->Signature != 'BoeA')
+        {
+            ASSERT(QueryResult->Signature == ACPI_EVAL_OUTPUT_BUFFER_SIGNATURE);
+
+            if (QueryResult->Signature != 'BoeA')
+                Status = STATUS_UNSUCCESSFUL;
+        }
+
+        ExFreePoolWithTag(Irp->AssociatedIrp.SystemBuffer, 'PedI');
+        IoFreeIrp(Irp);
+        Irp = NULL;
+
+        if (!NT_SUCCESS(Status))
+        {
+            QueryResult->Length = sizeof(ACPI_EVAL_OUTPUT_BUFFER);
+            ExFreePoolWithTag(QueryResult, 'PedI');
+            QueryResult = NULL;
+
+            if (Status != STATUS_BUFFER_OVERFLOW)
+            {
+                DPRINT1("DeviceQueryACPISettings: Status %X\n", Status);
+                break;
+            }
+        }
+    }
+
+    ObDereferenceObject(LowDevice);
+
+    if (Irp)
+    {
+        if (Irp->AssociatedIrp.SystemBuffer)
+            ExFreePoolWithTag(Irp->AssociatedIrp.SystemBuffer, 'PedI');
+
+        IoFreeIrp(Irp);
+    }
+
+    *OutQueryResult = QueryResult;
+
+    return Status;
 }
 
 VOID
