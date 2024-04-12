@@ -1931,8 +1931,14 @@ DeviceQueryACPISettingsCompletionRoutine(
     _In_ PIRP Irp,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PKEVENT Event = Context;
+
+    if (!NT_ERROR(Irp->IoStatus.Status))
+        RtlCopyMemory(Irp->UserBuffer, Irp->AssociatedIrp.MasterIrp, Irp->IoStatus.Information);
+
+    KeSetEvent(Event, EVENT_INCREMENT, FALSE);
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 NTSTATUS
