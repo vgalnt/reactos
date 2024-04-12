@@ -2500,12 +2500,89 @@ IdePortDispatchPnp(
 
 NTSTATUS
 NTAPI
-IdePortDeviceControl(
+ChannelDeviceIoControl(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+IdePortDeviceControl(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
+{
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    ULONG ix;
+    NTSTATUS Status;
+
+    FdoExtension = Fdo->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+
+    DPRINT("IdePortDeviceControl: %p, %p, %X\n", Fdo, Irp, IoStack->Parameters.DeviceIoControl.IoControlCode);
+
+    if (IoStack->Parameters.DeviceIoControl.IoControlCode == IOCTL_SCSI_GET_INQUIRY_DATA)
+    {
+        DPRINT1("IdePortDeviceControl: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (IoStack->Parameters.DeviceIoControl.IoControlCode == IOCTL_SCSI_GET_CAPABILITIES)
+    {
+        if (IoStack->Parameters.Read.Length < sizeof(FdoExtension->IoScsicapabilities))
+        {
+            Status = STATUS_BUFFER_TOO_SMALL;
+        }
+        else
+        {
+            FdoExtension->IoScsicapabilities.AdapterUsesPio = FALSE;
+
+            for (ix = 0; ix < FdoExtension->HwDeviceExtension->MaxIdeDevice; ix++)
+            {
+                if (!(FdoExtension->HwDeviceExtension->DeviceFlags[ix] & 0x200))
+                    FdoExtension->IoScsicapabilities.AdapterUsesPio = TRUE;
+            }
+
+            RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer,
+                          &FdoExtension->IoScsicapabilities,
+                          sizeof(FdoExtension->IoScsicapabilities));
+
+            Irp->IoStatus.Information = sizeof(FdoExtension->IoScsicapabilities);
+            Status = STATUS_SUCCESS;
+        }
+    }
+    else if (IoStack->Parameters.DeviceIoControl.IoControlCode == IOCTL_SCSI_RESCAN_BUS)
+    {
+        IoInvalidateDeviceRelations(FdoExtension->LowPdo, 0);
+        Status = STATUS_SUCCESS;
+    }
+    else if (IoStack->Parameters.DeviceIoControl.IoControlCode == IOCTL_SCSI_PASS_THROUGH)
+    {
+        DPRINT1("IdePortDeviceControl: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (IoStack->Parameters.DeviceIoControl.IoControlCode == IOCTL_SCSI_MINIPORT)
+    {
+        DPRINT1("IdePortDeviceControl: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (IoStack->Parameters.DeviceIoControl.IoControlCode == IOCTL_SCSI_PASS_THROUGH_DIRECT)
+    {
+        DPRINT1("IdePortDeviceControl: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        return ChannelDeviceIoControl(Fdo, Irp);
+    }
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
