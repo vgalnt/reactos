@@ -207,6 +207,17 @@ IdePortStartIo(
 
 PPDO_DEVICE_EXTENSION
 NTAPI
+RefPdo(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ BOOLEAN IsForceRef,
+    _In_ PVOID TagLock)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PPDO_DEVICE_EXTENSION
+NTAPI
 RefLogicalUnitExtension(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ UCHAR PathId,
@@ -215,8 +226,32 @@ RefLogicalUnitExtension(
     _In_ BOOLEAN IsForceRef,
     _In_ PVOID TagLock)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PPDO_DEVICE_EXTENSION RetExtension = NULL;
+    PPDO_DEVICE_EXTENSION PdoExt;
+    KIRQL Irql;
+
+    DPRINT("RefLogicalUnitExtension: %p, (%X:%X:%X)\n", FdoExtension, PathId, TargetId, Lun);
+
+    if (TargetId >= FdoExtension->HwDeviceExtension->MaxIdeTargetId)
+        return NULL;
+
+    KeAcquireSpinLock(&FdoExtension->PdoArrayLock, &Irql);
+
+    PdoExt = FdoExtension->PdoArray[(TargetId + Lun) % 8];
+    while (PdoExt)
+    {
+        if (PdoExt->TargetId == TargetId && PdoExt->Lun == Lun && PdoExt->PathId == PathId)
+            break;
+
+        PdoExt = PdoExt->LinkPdoExt;
+    }
+
+    if (PdoExt)
+        RetExtension = RefPdo(PdoExt->SelfDevice, IsForceRef, TagLock);
+
+    KeReleaseSpinLock(&FdoExtension->PdoArrayLock, Irql);
+
+    return RetExtension;
 }
 
 /* SCSI FUNCTIONS ***********************************************************/

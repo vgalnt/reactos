@@ -304,6 +304,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     UCHAR PdoCount2;
     UCHAR HackFlags;
     ULONG PcmciaIdeHasSlaveDevice;
+    struct _PDO_DEVICE_EXTENSION* PdoArray[8];
     ATAPI_INTERRUPT_DATA InterruptData;
     IO_SCSI_CAPABILITIES IoScsicapabilities;
     KTIMER Timer;
@@ -333,6 +334,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     UCHAR PathId;
     UCHAR TargetId;
     UCHAR Lun;
+    struct _PDO_DEVICE_EXTENSION* LinkPdoExt;
     ULONG PdoState;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
