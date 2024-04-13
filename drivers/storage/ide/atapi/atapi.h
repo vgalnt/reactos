@@ -121,6 +121,19 @@ typedef struct _IDE_CTRL_BLOCK_REGS
     PUCHAR Control;
 } IDE_CTRL_BLOCK_REGS, *PIDE_CTRL_BLOCK_REGS;
 
+typedef union _ATA_SCSI_ADDRESS
+{
+    /* The ordering between Lun, TargetId, and PathId is important */
+    struct
+    {
+        UCHAR Lun;      // 0-8
+        UCHAR TargetId; // 0 - Master, 1 - Slave
+        UCHAR PathId;   // 0 - Primary, 1 - Secondary
+        UCHAR Reserved;
+    };
+    ULONG AsULONG;
+} ATA_SCSI_ADDRESS, *PATA_SCSI_ADDRESS;
+
 typedef struct _IDE_TRANSFER_MODE_INTERFACE
 {
     ULONG IsTransferModeSelect;
@@ -177,6 +190,13 @@ typedef struct _ATAPI_ENUM_WORKITEM_CONTEXT
     PIRP Irp;
 } ATAPI_ENUM_WORKITEM_CONTEXT, *PATAPI_ENUM_WORKITEM_CONTEXT;
 
+typedef struct _ATA_PASS_THROUGH
+{
+    IDEREGS IdeReg;
+    ULONG BufferSize;
+    UCHAR Buffer[1];
+} ATA_PASS_THROUGH, *PATA_PASS_THROUGH;
+
 typedef struct _ATA_PASS_THROUGH_CONTEXT
 {
     PDEVICE_OBJECT DeviceObject;
@@ -186,7 +206,7 @@ typedef struct _ATA_PASS_THROUGH_CONTEXT
     PVOID SenseInfoBuffer;
     BOOLEAN MustSucceed;
     UCHAR Pad[3];
-    PVOID AtaPassThr;
+    ATA_PASS_THROUGH AtaPassThr;
 } ATA_PASS_THROUGH_CONTEXT, *PATA_PASS_THROUGH_CONTEXT;
 
 typedef struct _ATAPI_PRE_ALLOC_ENUM_STRUCT
@@ -310,6 +330,10 @@ typedef struct _PDO_DEVICE_EXTENSION
     PDEVICE_OBJECT LowPdo;
     PDRIVER_OBJECT DriverObject;
     PDEVICE_OBJECT SelfDevice;
+    UCHAR PathId;
+    UCHAR TargetId;
+    UCHAR Lun;
+    ULONG PdoState;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
 /* ACPI EVAL ****************************************************************/

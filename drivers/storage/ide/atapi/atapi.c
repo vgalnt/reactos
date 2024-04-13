@@ -104,6 +104,14 @@ PWCHAR UserDeviceString[] =
     L"UserSlaveDeviceTimingModeAllowed2"
 };
 
+PWSTR TypeName[] =
+{
+    L"MasterDeviceType",
+    L"SlaveDeviceType",
+    L"MasterDeviceType2",
+    L"SlaveDeviceType2"
+};
+
 /* PRIVATE FUNCTIONS ********************************************************/
 
 VOID
@@ -195,6 +203,20 @@ IdePortStartIo(
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
+}
+
+PPDO_DEVICE_EXTENSION
+NTAPI
+RefLogicalUnitExtension(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ UCHAR PathId,
+    _In_ UCHAR TargetId,
+    _In_ UCHAR Lun,
+    _In_ BOOLEAN IsForceRef,
+    _In_ PVOID TagLock)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
 }
 
 /* SCSI FUNCTIONS ***********************************************************/
@@ -2198,12 +2220,172 @@ ChannelQueryTransferModeInterface(
     ASSERT(FdoExtension->TransferModeInterface.TransferModeTimingTable);
 }
 
+PPDO_DEVICE_EXTENSION
+NTAPI
+AllocatePdo(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ ATA_SCSI_ADDRESS ScsiAddress,
+    _In_ PVOID TagLock)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+NTSTATUS
+NTAPI
+IssueSyncAtaPassThroughSafe(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PATA_PASS_THROUGH AtaPassThr,
+    _In_ UCHAR IsDataIn,
+    _In_ UCHAR SrbFunctionType,
+    _In_ LONG TimeOutValue,
+    _In_ BOOLEAN MustSucceed)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+IdePortSaveDeviceParameter(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PWSTR ValueName,
+    _In_ ULONG ValueData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+ULONG
+NTAPI
+AtapiDetectDevice(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PIDENTIFY_DATA Identify,
+    _In_ BOOLEAN MustSucceed)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
 VOID
 NTAPI
 IdePortScanBus(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PVOID ImageSectionHandle;
+    ATA_SCSI_ADDRESS ScsiAddress;
+    ATA_PASS_THROUGH AtaPassThr;
+    IDENTIFY_DATA Identify[4];
+    ULONG DeviceType[4];
+    ULONG ix;
+    BOOLEAN IsEmptyChannelCheck;
+    BOOLEAN IsNewDevice;
+    NTSTATUS Status;
+
+    ImageSectionHandle = MmLockPagableDataSection(IdePortScanBus);
+
+    ASSERT("FdoExtension");
+    ASSERT("FdoExtension->PreAllocEnumStruct");
+
+    HwDeviceExtension = FdoExtension->HwDeviceExtension;
+
+    if (!FdoExtension->InterruptObject)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        goto Exit;
+    }
+
+    DPRINT("IdePortScanBus: scan bus %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    IsEmptyChannelCheck = TRUE;
+    ScsiAddress.AsULONG = 0;
+
+    for (ix = 0; ix < HwDeviceExtension->MaxIdeTargetId; ix++)
+    {
+        ScsiAddress.Lun = 0;
+        ScsiAddress.TargetId = ix;
+
+        PdoExtension = RefLogicalUnitExtension(FdoExtension,
+                                               ScsiAddress.PathId,
+                                               ScsiAddress.TargetId,
+                                               ScsiAddress.Lun,
+                                               TRUE,
+                                               IdePortScanBus);
+        if (PdoExtension)
+        {
+            if (PdoExtension->PdoState & 0x40)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            IsNewDevice = FALSE;
+        }
+        else
+        {
+            PdoExtension = AllocatePdo(FdoExtension, ScsiAddress, IdePortScanBus);
+            IsNewDevice = TRUE;
+        }
+
+        DPRINT("IdePortScanBus: IsNewDevice %X\n", IsNewDevice);
+
+        if (PdoExtension)
+        {
+            if (IsEmptyChannelCheck)
+            {
+                IsEmptyChannelCheck = FALSE;
+
+                RtlZeroMemory(&AtaPassThr, sizeof(AtaPassThr));
+                AtaPassThr.IdeReg.bReserved = 4;
+
+                Status = IssueSyncAtaPassThroughSafe(FdoExtension, PdoExtension, &AtaPassThr, 0, 0, 0x1E, TRUE);//30
+
+                DPRINT("IdePortScanBus: Empty Channel check for fdoe %p took 0 ms\n", FdoExtension);
+            }
+
+            DPRINT("IdePortScanBus: Status %X\n", Status);
+
+            if (NT_SUCCESS(Status))
+            {
+                DPRINT("IdePortScanBus: IdeDevicePresent %x detected no device %d\n", FdoExtension->ResourceData.CmdBlockBase, ix);
+
+                IdePortSaveDeviceParameter(FdoExtension, TypeName[PdoExtension->TargetId], 0);
+                DeviceType[ix] = 3;
+            }
+            else
+            {
+                DeviceType[ix] = AtapiDetectDevice(FdoExtension, PdoExtension, &Identify[ix], 1);
+
+                if (DeviceType[ix] == 3)
+                {
+                    DPRINT("IdePortScanBus: Didn't detect the device %X\n", ix);
+                }
+                else
+                {
+                    DPRINT("IdePortScanBus: Status %X\n", Status);
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+            }
+
+            DPRINT("IdePortScanBus: Status %X\n", Status);
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else
+        {
+            DPRINT("IdePortScanBus: IdePortScanBus() is unable to get pdo (%X,%X,%X)\n", ScsiAddress.PathId, ScsiAddress.TargetId, ScsiAddress.Lun);
+        }
+    }
+
     UNIMPLEMENTED_DBGBREAK();
+
+    DPRINT("IdePortScanBus: detect a change of device...re-initializing\n");
+
+Exit:
+
+    MmUnlockPagableImageSection(ImageSectionHandle);
 }
 
 PDEVICE_RELATIONS
