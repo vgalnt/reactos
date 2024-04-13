@@ -17,6 +17,7 @@
 
 //ATAPI_FDO_LIST IdeGlobalFdoList = {-1, {NULL, NULL}, 0};
 ULONG FdoIndex = 0;
+LONG PdoIndex = 0;
 
 PDRIVER_DISPATCH FdoPnpDispatchTable[] =
 {
@@ -203,6 +204,18 @@ IdePortStartIo(
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdeInterlockedIncrement(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PLONG Addend,
+    _In_ PVOID TagLock)
+{
+    DPRINT(">>>>>>>>>>>>>>>>>>>> Acquire PdoLock with tag = 0x%x\n", TagLock);
+    //FIXME
+    InterlockedIncrement(Addend);
 }
 
 PPDO_DEVICE_EXTENSION
@@ -2255,6 +2268,17 @@ ChannelQueryTransferModeInterface(
     ASSERT(FdoExtension->TransferModeInterface.TransferModeTimingTable);
 }
 
+PDEVICE_OBJECT
+NTAPI
+DeviceCreatePhysicalDeviceObject(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PUNICODE_STRING DeviceName)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 PPDO_DEVICE_EXTENSION
 NTAPI
 AllocatePdo(
@@ -2262,8 +2286,62 @@ AllocatePdo(
     _In_ ATA_SCSI_ADDRESS ScsiAddress,
     _In_ PVOID TagLock)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    UNICODE_STRING PdoName;
+    PDEVICE_OBJECT Pdo;
+    ULONG Idx;
+    WCHAR NameBuffer[64];
+    KIRQL Irql;
+
+    PAGED_CODE();
+    DPRINT("AllocatePdo: scan bus %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    swprintf(NameBuffer,
+             L"\\Device\\Ide\\IdeDeviceP%dT%dL%d-%x",
+             FdoExtension->FdoIndex,
+             ScsiAddress.TargetId,
+             ScsiAddress.Lun,
+             (InterlockedIncrement(&PdoIndex) - 1));
+
+    RtlInitUnicodeString(&PdoName, NameBuffer);
+
+    Pdo = DeviceCreatePhysicalDeviceObject(FdoExtension->DriverObject, FdoExtension, &PdoName);
+    if (!Pdo)
+    {
+        DPRINT1("AllocatePdo: Unable to create device object\n", NameBuffer);
+        return NULL;
+    }
+
+    PdoExtension = Pdo->DeviceExtension;
+    PdoExtension->TimeOut = -1;
+    PdoExtension->PdoFlags |= 0x8000;
+    PdoExtension->Pdo = Pdo;
+
+    PdoExtension->PathId = ScsiAddress.PathId;
+    PdoExtension->TargetId = ScsiAddress.TargetId;
+    PdoExtension->Lun = ScsiAddress.Lun;
+
+    KeInitializeSpinLock(&PdoExtension->PdoLock);
+    InitializeListHead(&PdoExtension->PdoxSrbData.Requests);
+    KeInitializeEvent(&PdoExtension->Event, NotificationEvent, FALSE);
+
+    Idx = ((ScsiAddress.Lun + ScsiAddress.TargetId) & 7);
+
+    KeAcquireSpinLock(&FdoExtension->PdoArrayLock, &Irql);
+
+    PdoExtension->LinkPdoExt = FdoExtension->PdoArray[Idx];
+    //IdeLogOpenCommandLog(..);
+    FdoExtension->PdoArray[Idx] = PdoExtension;
+
+    FdoExtension->PdoCount1++;
+    FdoExtension->PdoCount2++;
+
+    IdeInterlockedIncrement(PdoExtension, &PdoExtension->ReferenceCount, TagLock);
+
+    KeReleaseSpinLock(&FdoExtension->PdoArrayLock, Irql);
+
+    DPRINT("AllocatePdo: %p %X\n", PdoExtension, PdoExtension->TimeOut);
+    return PdoExtension;
 }
 
 NTSTATUS

@@ -331,10 +331,17 @@ typedef struct _PDO_DEVICE_EXTENSION
     PDEVICE_OBJECT LowPdo;
     PDRIVER_OBJECT DriverObject;
     PDEVICE_OBJECT SelfDevice;
+    KEVENT Event;
     UCHAR PathId;
     UCHAR TargetId;
     UCHAR Lun;
+    ULONG PdoFlags;
     struct _PDO_DEVICE_EXTENSION* LinkPdoExt;
+    LONG TimeOut;
+    PDOX_SRB_DATA PdoxSrbData;
+    KSPIN_LOCK PdoLock;
+    PDEVICE_OBJECT Pdo;
+    LONG ReferenceCount;
     ULONG PdoState;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
