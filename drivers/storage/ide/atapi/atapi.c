@@ -2443,6 +2443,33 @@ AllocatePdo(
     return PdoExtension;
 }
 
+VOID
+NTAPI
+SyncAtaPassThroughCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIDE_WAIT_CONTEXT WaitContext,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+IssueAsyncAtaPassThroughSafe(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PATA_PASS_THROUGH AtaPassThr,
+    _In_ BOOLEAN IsDataIn,
+    _In_ PVOID CallBack,
+    _In_ PVOID CallBackContext,
+    _In_ UCHAR SrbFunctionType,
+    _In_ LONG TimeOutValue,
+    _In_ BOOLEAN MustSucceed)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 IssueSyncAtaPassThroughSafe(
@@ -2454,8 +2481,55 @@ IssueSyncAtaPassThroughSafe(
     _In_ LONG TimeOutValue,
     _In_ BOOLEAN MustSucceed)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status = STATUS_INSUFFICIENT_RESOURCES;
+    IDE_WAIT_CONTEXT WaitContext;
+    ULONG ix;
+
+    DPRINT("IssueSyncAtaPassThroughSafe: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    if (MustSucceed)
+    {
+        ASSERT(InterlockedCompareExchange(&FdoExtension->EnumStructLock, 1, 0) == 0);
+    }
+
+    for (ix = 0; ix < 0xA; ix++)
+    {
+        KeInitializeEvent(&WaitContext.Event, NotificationEvent, FALSE);
+
+        Status = IssueAsyncAtaPassThroughSafe(FdoExtension,
+                                              PdoExtension,
+                                              AtaPassThr,
+                                              IsDataIn,
+                                              SyncAtaPassThroughCompletionRoutine,
+                                              &WaitContext,
+                                              SrbFunctionType,
+                                              TimeOutValue,
+                                              MustSucceed);
+        if (Status == STATUS_PENDING)
+        {
+            KeWaitForSingleObject(&WaitContext.Event,  Executive, KernelMode, FALSE, NULL);
+            Status = WaitContext.Status;
+        }
+
+        if (Status == STATUS_UNSUCCESSFUL)
+        {
+            DPRINT1("Retrying flushed request\n");
+        }
+
+        if (Status != STATUS_UNSUCCESSFUL && Status != STATUS_INSUFFICIENT_RESOURCES)
+            break;
+    }
+
+    if (MustSucceed)
+    {
+        ASSERT(InterlockedCompareExchange(&FdoExtension->EnumStructLock, 0, 1) == 1);
+    }
+
+    if (NT_SUCCESS(Status))
+        return WaitContext.Status;
+
+    DPRINT("IssueSyncAtaPassThroughSafe: ret Status %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
