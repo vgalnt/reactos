@@ -331,6 +331,13 @@ typedef struct _PDO_DEVICE_EXTENSION
     PDEVICE_OBJECT LowPdo;
     PDRIVER_OBJECT DriverObject;
     PDEVICE_OBJECT SelfDevice;
+    SYSTEM_POWER_STATE SystemPowerState;
+    DEVICE_POWER_STATE DevicePowerState;
+    PDRIVER_DISPATCH NoSupportIrp;
+    PDRIVER_DISPATCH* PdoPnpDispatchTable;
+    PDRIVER_DISPATCH* PdoPowerDispatchTable;
+    PDRIVER_DISPATCH* PdoWmiDispatchTable;
+    PFDO_DEVICE_EXTENSION FdoExtension;
     KEVENT Event;
     UCHAR PathId;
     UCHAR TargetId;
@@ -372,6 +379,7 @@ DriverEntry(
 NTSTATUS NTAPI IdePortStatusSuccessAndPassDownToNextDriver(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI IdePortPassDownToNextDriver(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI IdePortNoSupportIrp(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI IdePortAlwaysStatusSuccessIrp(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 
 NTSTATUS NTAPI ChannelStartDevice(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI ChannelRemoveDevice(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
@@ -385,6 +393,20 @@ NTSTATUS NTAPI ChannelSurpriseRemoveDevice(_In_ PDEVICE_OBJECT DeviceObject, _In
 
 NTSTATUS NTAPI IdePortSetFdoPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 NTSTATUS NTAPI ChannelQueryPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+
+NTSTATUS NTAPI DeviceStartDevice(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceQueryStopRemoveDevice(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceRemoveDevice(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceStopDevice(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceQueryDeviceRelations(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceQueryCapabilities(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceQueryText(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceQueryId(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceQueryPnPDeviceState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceUsageNotification(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+
+NTSTATUS NTAPI IdePortSetPdoPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
+NTSTATUS NTAPI DeviceQueryPowerState(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp);
 
 VOID
 NTAPI

@@ -48,12 +48,49 @@ PDRIVER_DISPATCH FdoPnpDispatchTable[] =
     IdePortPassDownToNextDriver
 };
 
+PDRIVER_DISPATCH PdoPnpDispatchTable[] =
+{
+    DeviceStartDevice,
+    DeviceQueryStopRemoveDevice,
+    DeviceRemoveDevice,
+    IdePortAlwaysStatusSuccessIrp,
+    DeviceStopDevice,
+    DeviceQueryStopRemoveDevice,
+    IdePortAlwaysStatusSuccessIrp,
+    DeviceQueryDeviceRelations,
+    IdePortNoSupportIrp,
+    DeviceQueryCapabilities,
+    IdePortNoSupportIrp,
+    IdePortNoSupportIrp,
+    DeviceQueryText,
+    IdePortNoSupportIrp,
+    IdePortNoSupportIrp,
+    IdePortNoSupportIrp,
+    IdePortNoSupportIrp,
+    IdePortNoSupportIrp,
+    IdePortNoSupportIrp,
+    DeviceQueryId,
+    DeviceQueryPnPDeviceState,
+    IdePortNoSupportIrp,
+    DeviceUsageNotification,
+    DeviceRemoveDevice,
+    IdePortNoSupportIrp
+};
+
 PDRIVER_DISPATCH FdoPowerDispatchTable[] =
 {
     IdePortPassDownToNextDriver,
     IdePortPassDownToNextDriver,
     IdePortSetFdoPowerState,
     ChannelQueryPowerState
+};
+
+PDRIVER_DISPATCH PdoPowerDispatchTable[] =
+{
+    IdePortNoSupportIrp,
+    IdePortNoSupportIrp,
+    IdePortSetPdoPowerState,
+    DeviceQueryPowerState
 };
 
 PCHAR PnpMinorNames[] =
@@ -280,6 +317,28 @@ IdePortDispatch(
 }
 
 /* POWER FUNCTIONS **********************************************************/
+
+/* PDO POWER FUNCTIONS ******************************************************/
+
+NTSTATUS
+NTAPI
+IdePortSetPdoPowerState(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceQueryPowerState(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
 
 /* FDO POWER FUNCTIONS ******************************************************/
 
@@ -830,6 +889,16 @@ IdePortPassDownToNextDriver(
 NTSTATUS
 NTAPI
 IdePortNoSupportIrp(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+IdePortAlwaysStatusSuccessIrp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
@@ -2275,8 +2344,38 @@ DeviceCreatePhysicalDeviceObject(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PUNICODE_STRING DeviceName)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PDEVICE_OBJECT Pdo = NULL;
+    NTSTATUS Status;
+
+    Status = IoCreateDevice(DriverObject, sizeof(PDO_DEVICE_EXTENSION), DeviceName, 0x2D, 0x100, 0, &Pdo);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("AllocatePdo: Status %X\n", Status);
+        return Pdo;
+    }
+
+    Pdo->Flags |= 0x4010;
+
+    Pdo->AlignmentRequirement = FdoExtension->SelfDevice->AlignmentRequirement;
+    if (Pdo->AlignmentRequirement < 1)
+        Pdo->AlignmentRequirement = 1;
+
+    PdoExtension = Pdo->DeviceExtension;
+    RtlZeroMemory(PdoExtension, sizeof(*PdoExtension));
+
+    PdoExtension->DriverObject = DriverObject;
+    PdoExtension->SelfDevice = Pdo;
+    PdoExtension->SystemPowerState = 1;
+    PdoExtension->DevicePowerState = 1;
+    PdoExtension->FdoExtension = FdoExtension;
+
+    PdoExtension->NoSupportIrp = IdePortNoSupportIrp;
+    PdoExtension->PdoPnpDispatchTable = PdoPnpDispatchTable;
+    PdoExtension->PdoPowerDispatchTable = PdoPowerDispatchTable;
+    //PdoExtension->PdoWmiDispatchTable = PdoWmiDispatchTable;
+
+    return Pdo;
 }
 
 PPDO_DEVICE_EXTENSION
@@ -2819,6 +2918,106 @@ ChannelSurpriseRemoveDevice(
 }
 
 /* PDO PNP FUNCTIONS ********************************************************/
+
+NTSTATUS
+NTAPI
+DeviceStartDevice(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceQueryStopRemoveDevice(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceRemoveDevice(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceStopDevice(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceQueryDeviceRelations(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceQueryCapabilities(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceQueryText(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceQueryId(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceQueryPnPDeviceState(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceUsageNotification(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
 
 NTSTATUS
 NTAPI
