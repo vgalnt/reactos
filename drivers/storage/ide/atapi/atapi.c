@@ -2455,6 +2455,17 @@ SyncAtaPassThroughCompletionRoutine(
 
 NTSTATUS
 NTAPI
+AtaPassThroughCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID InContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 IssueAsyncAtaPassThroughSafe(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
@@ -2466,8 +2477,180 @@ IssueAsyncAtaPassThroughSafe(
     _In_ LONG TimeOutValue,
     _In_ BOOLEAN MustSucceed)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PATAPI_PRE_ALLOC_ENUM_STRUCT EnumStruct;
+    PSENSE_DATA SenseInfoBuffer = NULL;
+    PATA_PASS_THROUGH_CONTEXT Context;
+    PSCSI_REQUEST_BLOCK Srb = NULL;
+    PIO_STACK_LOCATION IoStack;
+    PIRP Irp = NULL;
+    ULONG TotalBufferSize;
+
+    DPRINT("IssueAsyncAtaPassThroughSafe: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    if (MustSucceed)
+    {
+        EnumStruct = FdoExtension->PreAllocEnumStruct;
+
+        if (EnumStruct)
+        {
+            Context = EnumStruct->AtaPassThrContext;
+            ASSERT(Context);
+
+            SenseInfoBuffer = EnumStruct->SenseInfoBuffer;
+            ASSERT(SenseInfoBuffer);
+
+            Srb = EnumStruct->Srb;
+            ASSERT(Srb);
+
+            TotalBufferSize = (FIELD_OFFSET(ATA_PASS_THROUGH, Buffer) + AtaPassThr->BufferSize);
+
+            Irp = EnumStruct->Irp;
+            ASSERT(Irp);
+
+            IoInitializeIrp(Irp, IoSizeOfIrp(1), 1); 
+            Irp->MdlAddress = EnumStruct->Mdl;
+
+            ASSERT(EnumStruct->DataBufferSize >= TotalBufferSize);
+
+            RtlCopyMemory(EnumStruct->DataBuffer, AtaPassThr, TotalBufferSize);
+
+            goto Finish;
+        }
+        else
+        {
+            ASSERT(FdoExtension->PreAllocEnumStruct);
+            MustSucceed = FALSE;
+        }
+    }
+
+    Context = ExAllocatePoolWithTag(0, sizeof(*Context), 'PedI');
+    if (!Context)
+    {
+        DPRINT("IssueAsyncAtaPassThroughSafe: Can't allocate Context buffer\n");
+        UNIMPLEMENTED_DBGBREAK();
+        goto ErrorExit;
+    }
+
+    SenseInfoBuffer = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, sizeof(*SenseInfoBuffer), 'PedI');
+    if (!SenseInfoBuffer)
+    {
+        DPRINT("IssueAsyncAtaPassThroughSafe: Can't allocate request sense buffer\n");
+        UNIMPLEMENTED_DBGBREAK();
+        goto ErrorExit;
+    }
+
+    Srb = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Srb), 'PedI');
+    if (!Srb)
+    {
+        DPRINT( "IssueAsyncAtaPassThroughSafe: Can't SRB\n");
+        UNIMPLEMENTED_DBGBREAK();
+        goto ErrorExit;
+    }
+
+    Irp = IoAllocateIrp(PdoExtension->SelfDevice->StackSize, FALSE);
+    if (!Irp)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        goto ErrorExit;
+    }
+
+    TotalBufferSize = (FIELD_OFFSET(ATA_PASS_THROUGH, Buffer) + AtaPassThr->BufferSize);
+
+    Irp->MdlAddress = IoAllocateMdl(AtaPassThr, TotalBufferSize, FALSE, FALSE, NULL);
+    if (!Irp->MdlAddress)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        goto ErrorExit;
+    }
+
+    MmBuildMdlForNonPagedPool(Irp->MdlAddress);
+
+Finish:
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MajorFunction = IRP_MJ_SCSI;
+
+    RtlZeroMemory(Srb, sizeof(*Srb));
+
+    IoStack->Parameters.Scsi.Srb = Srb;
+    DPRINT("IssueAsyncAtaPassThroughSafe: %p, %p, %p\n", Irp, IoStack, IoStack->Parameters.Scsi.Srb);
+
+    Srb->PathId = PdoExtension->PathId;
+    Srb->TargetId = PdoExtension->TargetId;
+    Srb->Lun = PdoExtension->Lun;
+
+    if (SrbFunctionType)
+    {
+        Srb->QueueSortKey = 0xFFFFFFFF;
+        Srb->Function = 0xC7;
+    }
+    else
+    {
+        Srb->QueueSortKey = 0;
+        Srb->Function = 0xC8;
+    }
+
+    Srb->Length = sizeof(*Srb);
+
+    if (IsDataIn)
+        Srb->SrbFlags = 0;
+    else
+        Srb->SrbFlags = 0x80;
+
+    if (AtaPassThr->IdeReg.bReserved & 0x80)
+        Srb->SrbFlags |= 0x58;
+    else
+        Srb->SrbFlags |= 0x48;
+
+    Srb->NextSrb = NULL;
+    Srb->TimeOutValue = TimeOutValue;
+    Srb->SenseInfoBuffer = SenseInfoBuffer;
+    Srb->ScsiStatus = 0;
+    Srb->SrbStatus = 0;
+    Srb->OriginalRequest = Irp;
+    Srb->CdbLength = 6;
+    Srb->SenseInfoBufferLength = sizeof(*SenseInfoBuffer);
+    Srb->DataTransferLength = TotalBufferSize;
+    Srb->DataBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
+
+    IoSetCompletionRoutine(Irp, AtaPassThroughCompletionRoutine, Context, TRUE, TRUE, TRUE);
+
+    Context->DeviceObject = PdoExtension->SelfDevice;
+    Context->CallBack = CallBack;
+    Context->CallBackContext = CallBackContext;
+    Context->SenseInfoBuffer = SenseInfoBuffer;
+    Context->MustSucceed = MustSucceed;
+    Context->Srb = Srb;
+    Context->AtaPassThr = AtaPassThr;
+
+    IoCallDriver(PdoExtension->SelfDevice, Irp);
+    return STATUS_PENDING;
+
+ErrorExit:
+
+    DPRINT("IssueAsyncAtaPassThroughSafe: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+    //IdePortLogNoMemoryErrorFn(..);
+
+    ASSERT(MustSucceed == FALSE);
+
+    if (Context)
+        ExFreePoolWithTag(Context, 'PedI');
+
+    if (SenseInfoBuffer)
+        ExFreePoolWithTag(SenseInfoBuffer, 'PedI');
+
+    if (Srb)
+        ExFreePoolWithTag(Srb, 'PedI');
+
+    if (Irp)
+    {
+        if (Irp->MdlAddress)
+            IoFreeMdl(Irp->MdlAddress);
+
+        IoFreeIrp(Irp);
+    }
+
+    return STATUS_INSUFFICIENT_RESOURCES;
 }
 
 NTSTATUS
