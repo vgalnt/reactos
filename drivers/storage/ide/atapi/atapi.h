@@ -348,12 +348,14 @@ typedef struct _PDO_DEVICE_EXTENSION
     ULONG PdoFlags;
     struct _PDO_DEVICE_EXTENSION* LinkPdoExt;
     LONG TimeOut;
+    PIRP PendingRequest;
     PDOX_SRB_DATA PdoxSrbData;
     UCHAR ScsiDeviceType;
     KSPIN_LOCK PdoLock;
     PDEVICE_OBJECT Pdo;
     LONG ReferenceCount;
     ULONG PdoState;
+    LONG ItemsQueued;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
 /* ACPI EVAL ****************************************************************/

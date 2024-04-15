@@ -339,7 +339,27 @@ RefLogicalUnitExtension(
     return RetExtension;
 }
 
+VOID
+NTAPI
+UnrefLogicalUnitExtension(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PVOID TagLock)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 /* SCSI FUNCTIONS ***********************************************************/
+
+NTSTATUS
+NTAPI
+IdePortFlushLogicalUnit(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
 
 NTSTATUS
 NTAPI
@@ -349,8 +369,101 @@ IdePortInsertByKeyDeviceQueue(
     _In_ ULONG SortKey,
     _In_ BOOLEAN* OutResult)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_REQUEST_BLOCK Srb;
+    POWER_STATE State;
+    KIRQL Irql;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("IdePortInsertByKeyDeviceQueue: %p, %p, %X\n", PdoExtension, Irp, SortKey);
+
+    *OutResult = FALSE;
+
+    KeRaiseIrql(DISPATCH_LEVEL, &Irql);
+
+    if (PdoExtension->PdoFlags & 1)
+    {
+        DPRINT("IdePortInsertByKeyDeviceQueue:  Request put in frozen queue!\n");
+    }
+
+    *OutResult = KeInsertByKeyDeviceQueue(&PdoExtension->SelfDevice->DeviceQueue, &Irp->Tail.Overlay.DeviceQueueEntry, SortKey);
+    if (*OutResult)
+    {
+        InterlockedIncrement(&PdoExtension->ItemsQueued);
+        goto Exit;
+    }
+
+    Srb = IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb;
+
+    if (PdoExtension->PdoState & 0x20)
+    {
+        KeLowerIrql(Irql);
+        IdePortFlushLogicalUnit(PdoExtension->FdoExtension, PdoExtension);
+
+        Srb->SrbStatus = 0x16;
+        Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
+
+        UnrefLogicalUnitExtension(PdoExtension->FdoExtension, PdoExtension, Irp);
+        IoCompleteRequest(Irp, 0);
+
+        *OutResult = TRUE;
+
+        DPRINT("IdePortInsertByKeyDeviceQueue: STATUS_SUCCESS\n");
+        return STATUS_SUCCESS;
+    }
+
+    if (PdoExtension->PdoState & 0x1F00)
+    {
+        ASSERT(PdoExtension->PendingRequest == NULL);
+        PdoExtension->PendingRequest = Irp;
+
+        *OutResult = TRUE;
+
+        if (!(PdoExtension->PdoState & 0x1E00))
+        {
+            if (Srb->TimeOutValue < 0x1E) // 30
+                Srb->TimeOutValue = 0x1E;
+
+            State.DeviceState = PowerDeviceD0;
+
+            Status = PoRequestPowerIrp(PdoExtension->SelfDevice, 2, State, NULL, NULL, NULL);
+            ASSERT(NT_SUCCESS(Status));
+
+            DPRINT("IdePortInsertByKeyDeviceQueue: %X %X need to spin up device, requeue irp %p\n",
+                   PdoExtension->FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId, Irp);
+        }
+
+        goto Exit;
+    }
+
+    if (Srb->Function == 0xC7)
+        goto Exit;
+
+    if (PdoExtension->DevicePowerState == 1)
+        goto Exit;
+
+    if (PdoExtension->DevicePowerState != 4 && Srb->TimeOutValue < 0x1E)
+        Srb->TimeOutValue = 0x1E;
+
+    State.DeviceState = PowerDeviceD0;
+
+    Status = PoRequestPowerIrp(PdoExtension->SelfDevice, 2, State, NULL, NULL, NULL);
+    ASSERT(NT_SUCCESS(Status));
+    Status = STATUS_SUCCESS;
+
+    ASSERT(PdoExtension->PendingRequest == NULL);
+
+    PdoExtension->PendingRequest = Irp;
+
+    DPRINT("IdePortInsertByKeyDeviceQueue: %X %X need to spin up device, requeue irp %p\n",
+           PdoExtension->FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId, Irp);
+
+    *OutResult = TRUE;
+
+Exit:
+  
+    KeLowerIrql(Irql);
+    DPRINT("IdePortInsertByKeyDeviceQueue: ret Status %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
