@@ -257,13 +257,40 @@ IdeInterlockedIncrement(
 
 PPDO_DEVICE_EXTENSION
 NTAPI
-RefPdo(
+RefPdoWithSpinLockHeld(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ BOOLEAN IsForceRef,
     _In_ PVOID TagLock)
 {
     UNIMPLEMENTED_DBGBREAK();
     return NULL;
+}
+
+PPDO_DEVICE_EXTENSION
+NTAPI
+RefPdo(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ BOOLEAN IsForceRef,
+    _In_ PVOID TagLock)
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PPDO_DEVICE_EXTENSION pdoExtension2Return;
+    KIRQL Irql;
+
+    PdoExtension = Pdo->DeviceExtension;
+
+    KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+
+    pdoExtension2Return = RefPdoWithSpinLockHeld(Pdo, IsForceRef, TagLock);
+
+    if (pdoExtension2Return)
+    {
+        ASSERT("pdoExtension2Return == pdoExtension");
+    }
+
+    KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+    return pdoExtension2Return;
 }
 
 PPDO_DEVICE_EXTENSION
