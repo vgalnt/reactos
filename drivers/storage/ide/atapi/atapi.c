@@ -308,11 +308,204 @@ RefLogicalUnitExtension(
 
 NTSTATUS
 NTAPI
-IdePortDispatch(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+IdePortInsertByKeyDeviceQueue(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PIRP Irp,
+    _In_ ULONG SortKey,
+    _In_ BOOLEAN* OutResult)
 {
     UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+IdePortDispatch(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
+{
+    ULONG (NTAPI* PciIdeUseDma)(PVOID, PUCHAR, ULONG);
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION pdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    PCDB Cdb;
+    ULONG ix;
+    UCHAR cdb[16];
+    BOOLEAN IsInserted = FALSE;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    DPRINT("IdePortDispatch: %p, %p, %p\n", Fdo, Irp, FdoExtension->LowDevice);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Srb = IoStack->Parameters.Scsi.Srb;
+
+    if (!FdoExtension->LowDevice)
+    {
+        do
+        {
+            pdoExtension = (PVOID)FdoExtension; // if LowDevice is NULL then it PDO extension
+
+            Srb->PathId = pdoExtension->PathId;
+            Srb->TargetId = pdoExtension->TargetId;
+            Srb->Lun = pdoExtension->Lun;
+
+            if (Srb->Function == 0)
+            {
+                Cdb = (PVOID)Srb->Cdb;
+                Cdb->CDB6GENERIC.LogicalUnitNumber = pdoExtension->Lun;
+            }
+
+            Fdo = pdoExtension->FdoExtension->SelfDevice;
+            FdoExtension = Fdo->DeviceExtension;
+        }
+        while (!FdoExtension->LowDevice);
+    }
+
+    PdoExtension = RefLogicalUnitExtension(FdoExtension, Srb->PathId, Srb->TargetId, Srb->Lun, TRUE, Irp);
+    if (!PdoExtension)
+    {
+        DPRINT("IdePortDispatch: Bad logical unit address.\n");
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    IoStack->Parameters.Others.Argument4 = (PVOID)PdoExtension;
+
+    if (Srb->Function != 0xC9)
+    {
+        if (PdoExtension->ScsiDeviceType == 1 &&
+            (Srb->Cdb[0] == 0x19 || Srb->Cdb[0] == 0x1B || Srb->Cdb[0] == 0x2B ||
+             Srb->Cdb[0] == 0x01 || Srb->Cdb[0] == 0x11 || Srb->Cdb[0] == 0x10))
+        {
+            Srb->SrbExtension = ULongToPtr(4);
+        }
+        else if (PdoExtension->ScsiDeviceType == 5 && Srb->Cdb[0] == 0x2B)
+        {
+            Srb->SrbExtension = ULongToPtr(4);
+        }
+        else
+        {
+            Srb->SrbExtension = NULL;
+        }
+    }
+
+    if (!((ULONG_PTR)Srb->SrbExtension & 1) && Srb->Function != 0xC9)
+    {
+        if (Srb->SrbFlags & SRB_FLAGS_UNSPECIFIED_DIRECTION) //  (SRB_FLAGS_DATA_IN | SRB_FLAGS_DATA_OUT)
+        {
+            if (FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 2)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else
+            {
+                if (Srb->Cdb[0] != 0x28 && Srb->Cdb[0] != 0x2A)
+                {
+                    ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+                    Srb->SrbExtension = Or2Ptr(Srb->SrbExtension, 1);
+
+                    if (Srb->Cdb[0] == 0x25)
+                    {
+                        UNIMPLEMENTED_DBGBREAK();
+                    }
+                    else if (Srb->Cdb[0] == 0x1A)
+                    {
+                        UNIMPLEMENTED_DBGBREAK();
+                    }
+                    else if (Srb->Cdb[0] == 0x15)
+                    {
+                        UNIMPLEMENTED_DBGBREAK();
+                    }
+                }
+            }
+
+            ASSERT(FdoExtension->LowDevice);
+
+            if (Srb->CdbLength)
+                RtlCopyMemory(cdb, Srb->Cdb, Srb->CdbLength);
+
+            if (FdoExtension->TransferModeInterface.PciIdeUseDma)
+            {
+                PciIdeUseDma = FdoExtension->TransferModeInterface.PciIdeUseDma;
+                if (!PciIdeUseDma(FdoExtension->TransferModeInterface.MiniControllerExtension, Srb->Cdb, Srb->TargetId))
+                {
+                    ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+                    Srb->SrbExtension = Or2Ptr(Srb->SrbExtension, 1);
+                }
+            }
+
+            for (ix = 0; ix < Srb->CdbLength; ix++)
+            {
+                if (cdb[ix] != Srb->Cdb[ix])
+                {
+                    DPRINT("Miniport modified the Cdb\n");
+                    ASSERT(FALSE);
+                }
+            }
+
+            if (PdoExtension->DmaTimeouts >= 6 || PdoExtension->CrcErrors >= 6)
+            {
+                ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+                Srb->SrbExtension = Or2Ptr(Srb->SrbExtension, 1);
+            }
+        }
+        else
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+
+    if (Srb->Function == 0xC7 || Srb->Function == 0xC8 || Srb->Function == 0xC9 ||
+        Srb->Function == 0x00 || Srb->Function == 0x02)
+    {
+        if (PdoExtension->PdoState & 0x40)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if ((Srb->SrbFlags & SRB_FLAGS_NO_KEEP_AWAKE) && PdoExtension->DevicePowerState != 1)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        IoMarkIrpPending(Irp);
+
+        if (Srb->SrbFlags & SRB_FLAGS_BYPASS_FROZEN_QUEUE)
+        {
+            DPRINT("IdePortDispatch: Bypass frozen queue, IRP %lx\n", Irp);
+            IoStartPacket(Fdo, Irp, NULL, NULL);
+        }
+        else
+        {
+            KeRaiseIrql(DISPATCH_LEVEL, &Irql);
+
+            Status = IdePortInsertByKeyDeviceQueue(PdoExtension, Irp, Srb->QueueSortKey, &IsInserted);
+
+            if (!NT_SUCCESS(Status) || !IsInserted)
+            {
+                PdoExtension->PdoFlags &= ~2;
+                PdoExtension->RetriesDoRequest = 0;
+                IoStartPacket(Fdo, Irp, NULL, NULL);
+            }
+
+            KeLowerIrql(Irql);
+        }
+
+        DPRINT("IdePortDispatch: return STATUS_PENDING\n");
+        return STATUS_PENDING;
+    }
+    else if (Srb->Function == SRB_FUNCTION_SHUTDOWN || Srb->Function == SRB_FUNCTION_FLUSH)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    UNIMPLEMENTED_DBGBREAK();
+
     return STATUS_NOT_IMPLEMENTED;
 }
 

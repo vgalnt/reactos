@@ -339,13 +339,17 @@ typedef struct _PDO_DEVICE_EXTENSION
     PDRIVER_DISPATCH* PdoWmiDispatchTable;
     PFDO_DEVICE_EXTENSION FdoExtension;
     KEVENT Event;
+    LONG DmaTimeouts;
+    LONG CrcErrors;
     UCHAR PathId;
     UCHAR TargetId;
     UCHAR Lun;
+    UCHAR RetriesDoRequest;
     ULONG PdoFlags;
     struct _PDO_DEVICE_EXTENSION* LinkPdoExt;
     LONG TimeOut;
     PDOX_SRB_DATA PdoxSrbData;
+    UCHAR ScsiDeviceType;
     KSPIN_LOCK PdoLock;
     PDEVICE_OBJECT Pdo;
     LONG ReferenceCount;
@@ -367,6 +371,9 @@ typedef struct _ACPI_EVAL_SIGNATURE
 
 #ifndef Add2Ptr
   #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
+#endif
+#ifndef Or2Ptr
+  #define Or2Ptr(P,Or) ((PVOID)((ULONG_PTR)(P) | (Or)))
 #endif
 
 NTSTATUS
