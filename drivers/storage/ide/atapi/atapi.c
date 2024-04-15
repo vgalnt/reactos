@@ -262,8 +262,16 @@ RefPdoWithSpinLockHeld(
     _In_ BOOLEAN IsForceRef,
     _In_ PVOID TagLock)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+
+    PdoExtension = Pdo->DeviceExtension;
+
+    if ((PdoExtension->PdoState & 0x70) && !IsForceRef)
+        PdoExtension = NULL;
+    else
+        IdeInterlockedIncrement(PdoExtension, &PdoExtension->ReferenceCount, TagLock);
+
+    return PdoExtension;
 }
 
 PPDO_DEVICE_EXTENSION
