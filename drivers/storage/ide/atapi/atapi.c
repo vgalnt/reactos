@@ -236,11 +236,106 @@ ChannelAddDevice(
 
 VOID
 NTAPI
+IdePortAllocateAccessToken(
+    _In_ PDEVICE_OBJECT Fdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 IdePortStartIo(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    PPDOX_SRB_DATA SrbData;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Srb = IoStack->Parameters.Scsi.Srb;
+    FdoExtension = Fdo->DeviceExtension;
+
+    DPRINT("IdePortStartIo: Enter routine\n");
+
+    PdoExtension = IoStack->Parameters.Others.Argument4;
+
+    if (!(Srb->SrbFlags & 0x100000) && Srb->Function != 0xC7)
+    {
+        if (PdoExtension->IdleCounter)
+            *PdoExtension->IdleCounter = 0;
+    }
+
+    SrbData = &PdoExtension->PdoxSrbData;
+    if (!SrbData->SequenceNumber)
+        SrbData->SequenceNumber = FdoExtension->SequenceNumber++;
+
+    if (Srb->Function == 0x10)
+    {
+        ASSERT(PdoExtension->AbortSrb == NULL);
+        PdoExtension->AbortSrb = Srb;
+    }
+    else
+    {
+        ASSERT(SrbData->CurrentSrb == NULL);
+        SrbData->CurrentSrb = Srb;
+
+        if ((FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x200) &&
+            !((ULONG_PTR)Srb->SrbExtension & 1))
+        {
+            ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+            Srb->SrbExtension = Or2Ptr(Srb->SrbExtension, 2);
+        }
+        else
+        {
+            ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+            Srb->SrbExtension = And2Ptr(Srb->SrbExtension, ~2);
+        }
+    }
+
+    //IdeLogStartCommandLog(..);
+
+    if (!(Srb->SrbFlags & 0xC0))
+    {
+        IdePortAllocateAccessToken(Fdo);
+        return;
+    }
+
+    SrbData->Buffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
+
+    while ((ULONG_PTR)Srb->SrbExtension & 2)//SRB_USES_DMA(Srb)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (!Irp->MdlAddress)
+    {
+        IdePortAllocateAccessToken(Fdo);
+        return;
+    }
+
+    SrbData->Buffer = MmGetSystemAddressForMdlSafe(Irp->MdlAddress, HighPagePriority);
+
+    if (!SrbData->Buffer && FdoExtension->ReservedPages)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (!SrbData->Buffer)
+    {
+        DPRINT1("IdePortStartIo: SrbData->Buffer is NULL\n");
+        Srb->SrbStatus = 0x30;
+        Srb->InternalStatus = STATUS_INSUFFICIENT_RESOURCES;
+        //IdePortLogNoMemoryErrorFn(..);
+    }
+
+    Srb->DataBuffer = Add2Ptr(Srb->DataBuffer, ((ULONG_PTR)SrbData->Buffer - (ULONG_PTR)MmGetMdlVirtualAddress(Irp->MdlAddress)));
+
+    IdePortAllocateAccessToken(Fdo);
+
+    DPRINT("IdePortStartIo: %p, %p, %p, %X\n", Irp, Srb, Srb->DataBuffer, Srb->DataTransferLength);
 }
 
 VOID

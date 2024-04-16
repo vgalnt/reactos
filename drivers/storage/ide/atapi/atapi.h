@@ -298,6 +298,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     LONG TimeOutValue;
     UCHAR MaxPdoCount;
     PKINTERRUPT InterruptObject;
+    ULONG SequenceNumber;
     KSPIN_LOCK SpinLock;
     KSPIN_LOCK PdoArrayLock;
     UCHAR PdoCount1;
@@ -338,6 +339,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     PDRIVER_DISPATCH* PdoPowerDispatchTable;
     PDRIVER_DISPATCH* PdoWmiDispatchTable;
     PFDO_DEVICE_EXTENSION FdoExtension;
+    PULONG IdleCounter;
     KEVENT Event;
     LONG DmaTimeouts;
     LONG CrcErrors;
@@ -347,6 +349,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     UCHAR RetriesDoRequest;
     ULONG PdoFlags;
     struct _PDO_DEVICE_EXTENSION* LinkPdoExt;
+    PSCSI_REQUEST_BLOCK AbortSrb;
     LONG TimeOut;
     PIRP PendingRequest;
     PDOX_SRB_DATA PdoxSrbData;
@@ -376,6 +379,9 @@ typedef struct _ACPI_EVAL_SIGNATURE
 #endif
 #ifndef Or2Ptr
   #define Or2Ptr(P,Or) ((PVOID)((ULONG_PTR)(P) | (Or)))
+#endif
+#ifndef And2Ptr
+  #define And2Ptr(P,And) ((PVOID)((ULONG_PTR)(P) & (And)))
 #endif
 
 NTSTATUS
