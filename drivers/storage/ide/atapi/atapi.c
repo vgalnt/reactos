@@ -236,11 +236,108 @@ ChannelAddDevice(
 
 BOOLEAN
 NTAPI
-IdeStartIoSynchronized(
-   _In_ PVOID SynchronizeContext)
+AtapiStartIo(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
 {
     UNIMPLEMENTED_DBGBREAK();
     return FALSE;
+}
+
+BOOLEAN
+NTAPI
+IdeStartIoSynchronized(
+   _In_ PVOID SynchronizeContext)
+{
+    PDEVICE_OBJECT Fdo = SynchronizeContext;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    BOOLEAN IsReset;
+    BOOLEAN Result;
+
+    IoStack = Fdo->CurrentIrp->Tail.Overlay.CurrentStackLocation;
+    Srb = IoStack->Parameters.Scsi.Srb;
+
+    FdoExtension = Fdo->DeviceExtension;
+    PdoExtension = IoStack->Parameters.Others.Argument4;
+
+    DPRINT("IdeStartIoSynchronized: %p, %p (%X)\n", FdoExtension, PdoExtension, PdoExtension->TimeOut);
+
+    if (FdoExtension->InterruptData.Flags & 0x80)
+    {
+        DPRINT("IdeStartIoSynchronized: PD_RESET_HOLD set...request is held for later..\n");
+        FdoExtension->InterruptData.Flags |= 0x100;
+        return TRUE;
+    }
+
+    if ((Srb->Function == 0xC8 || Srb->Function == 0xC7) &&
+        (((PATA_PASS_THROUGH)Srb->DataBuffer)->IdeReg.bReserved & 1))
+    {
+        IsReset = TRUE;
+    }
+    else
+    {
+        IsReset = FALSE;
+    }
+
+    FdoExtension->Flags |= 1;
+    FdoExtension->TimeOutValue = Srb->TimeOutValue;
+
+    if (PdoExtension->TimeOut == -1)
+    {
+        PdoExtension->TimeOut = Srb->TimeOutValue;
+    }
+
+    if (Srb->SrbFlags & 0x10)
+    {
+        if (Srb->Function == 0x10)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        PdoExtension->PdoFlags &= ~4;
+        if (Srb->SrbFlags & 4)
+            FdoExtension->Flags &= ~0x1000;
+
+        PdoExtension->TimeOut = Srb->TimeOutValue;
+    }
+    else
+    {
+        if (Srb->SrbFlags & 4)
+            FdoExtension->Flags &= ~0x1000;
+
+        PdoExtension->PdoFlags |= 2;
+    }
+
+    Srb->SrbFlags |= 0x10000;
+
+    if (PdoExtension->PdoState & 0x40)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (Srb->SrbStatus == 0x30)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (IsReset)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        Result = AtapiStartIo(FdoExtension->HwDeviceExtension, Srb);
+    }
+
+    if (FdoExtension->InterruptData.Flags & 4)
+        KeInsertQueueDpc(&FdoExtension->SelfDevice->Dpc, NULL, NULL);
+
+    DPRINT("IdeStartIoSynchronized: Result %X, %p (%X)\n", Result, PdoExtension, PdoExtension->TimeOut);
+
+    return Result;
 }
 
 VOID
