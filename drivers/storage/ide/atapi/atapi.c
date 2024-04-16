@@ -236,10 +236,33 @@ ChannelAddDevice(
 
 VOID
 NTAPI
-IdePortAllocateAccessToken(
+CallIdeStartIoSynchronized(
     _In_ PDEVICE_OBJECT Fdo)
 {
     UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdePortAllocateAccessToken(
+    _In_ PDEVICE_OBJECT Fdo)
+{
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    VOID (NTAPI* AllocateAccessToken)(PVOID Token, PVOID Callback, PVOID Context);
+
+    DPRINT("IdePortAllocateAccessToken: Fdo %X\n", Fdo);
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    if (FdoExtension->SyncAccessInterface.AllocateAccessToken)
+    {
+        AllocateAccessToken = FdoExtension->SyncAccessInterface.AllocateAccessToken;
+        AllocateAccessToken(FdoExtension->SyncAccessInterface.Context, CallIdeStartIoSynchronized, Fdo);
+    }
+    else
+    {
+        CallIdeStartIoSynchronized(Fdo);
+    }
 }
 
 VOID
