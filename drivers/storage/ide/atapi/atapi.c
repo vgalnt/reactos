@@ -234,12 +234,28 @@ ChannelAddDevice(
     return ChannelAddChannel(DriverObject, LowerPdo, &dummy);
 }
 
+BOOLEAN
+NTAPI
+IdeStartIoSynchronized(
+   _In_ PVOID SynchronizeContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 VOID
 NTAPI
 CallIdeStartIoSynchronized(
     _In_ PDEVICE_OBJECT Fdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    KIRQL Irql;
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
+    KeSynchronizeExecution(FdoExtension->InterruptObject, IdeStartIoSynchronized, Fdo);
+    KeReleaseSpinLock(&FdoExtension->SpinLock, Irql);
 }
 
 VOID
