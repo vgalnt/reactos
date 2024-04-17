@@ -254,6 +254,17 @@ IdeHardReset(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+BOOLEAN
+NTAPI
+IdePortIdentifyDevice(
+    _In_ PIDE_CMD_BLOCK_REGS CmdBlock,
+    _In_ PIDE_CTRL_BLOCK_REGS CtrlBlock,
+    _In_ ULONG MaxIdeDevice)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 ULONG
 NTAPI
 IdePortChannelEmptyQuick(
@@ -264,8 +275,162 @@ IdePortChannelEmptyQuick(
     _In_ ULONG* OutWaitCount,
     _In_ ULONG* OutEmptyResult)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    ULONG EmptyQuickResult;
+    ULONG Device;
+    ULONG ix;
+    ULONG jx;
+    UCHAR status = 0xFF;
+    UCHAR GetStatus;
+    BOOLEAN NoIdentifyDevice = TRUE;
+
+    DPRINT("IdePortChannelEmptyQuick: %X, %X, %X, %X, %X\n", CmdBlock->CmdBlockBase, CtrlBlock->CtrlBlockBase, MaxIdeDevice, *OutWaitCount, *OutDevice);
+
+    if (*OutWaitCount)
+    {
+        (*OutWaitCount)--;
+
+        WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((*OutDevice & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+        jx = 0;
+        do
+        {
+            status = READ_PORT_UCHAR(CmdBlock->Status);
+            if (status == 0xFF)
+                break;
+
+            if (!(status & 0x80))
+                break;
+
+            KeStallExecutionProcessor(5);
+
+            jx++;
+        }
+        while (jx < 20);
+
+        DPRINT("IdePortChannelEmptyQuick: Status after first retry %X\n", status);
+
+        if (status == 0xFF)
+        {
+            (*OutDevice)++;
+            *OutWaitCount = 0;
+        }
+
+        if (*OutWaitCount && status & 0x80)
+            return 0xC000022D;
+    }
+
+    if (*OutEmptyResult || !(status & 0x80) || status == 0xFE)
+    {
+        if (status != 0xFF)
+        {
+            (*OutDevice)++;
+            NoIdentifyDevice = 0;
+        }
+    }
+    else if (status != 0xFF)
+    {
+        DPRINT("IdePortChannelEmptyQuick: channel looks busy %X. Try a reset\n", status);
+
+        WRITE_PORT_UCHAR(CtrlBlock->DeviceControl, 4);
+        KeStallExecutionProcessor(10);
+
+        WRITE_PORT_UCHAR(CtrlBlock->DeviceControl, 0);
+        WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((*OutDevice & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+        jx = 0;
+        do
+        {
+            status = READ_PORT_UCHAR(CmdBlock->Status);
+            if (status == 0xFF)
+                break;
+
+            if (!(status & 0x80))
+                break;
+
+            KeStallExecutionProcessor(5);
+
+            jx++;
+        }
+        while (jx < 20);
+
+        if ((status & 0x80) && status != 0xFF)
+        {
+            *OutWaitCount = 2;
+            *OutEmptyResult = 1;
+
+            return STATUS_RETRY;
+        }
+
+        if (status != 0xFF)
+        {
+            (*OutDevice)++;
+            NoIdentifyDevice = 0;
+        }
+    }
+
+    ix = Device = *OutDevice;
+    while (ix < MaxIdeDevice)
+    {
+        if (!NoIdentifyDevice)
+        {
+            EmptyQuickResult = IdePortIdentifyDevice(CmdBlock, CtrlBlock, MaxIdeDevice);
+            DPRINT("IdePortChannelEmptyQuick: EmptyQuickResult %X\n", EmptyQuickResult);
+            return (EmptyQuickResult != 0);
+        }
+
+        WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+        GetStatus = READ_PORT_UCHAR(CmdBlock->Status);
+
+        DPRINT("IdePortChannelEmptyQuick: status for device %X after GetStatus %X\n", Device, GetStatus);
+
+        if (GetStatus != 0xFF && GetStatus != 0xFE)
+        {
+            jx = 0;
+            do
+            {
+                status = READ_PORT_UCHAR(CmdBlock->Status);
+                if (status == 0xFF)
+                    break;
+
+                if (!(status & 0x80))
+                    break;
+
+                KeStallExecutionProcessor(5);
+
+                jx++;
+            }
+            while (jx < 20);
+
+            if ((status & 0xFE) != 0xFE)
+            {
+                if (status & 0x80)
+                {
+                    DPRINT("IdePortChannelEmptyQuick: Re-init the counts - device %X, status %X", Device, status);
+
+                    *OutDevice = Device;
+                    *OutWaitCount = 2;
+                    *OutEmptyResult = 0;
+
+                    return STATUS_RETRY;
+                }
+
+                if (status != 0xFF)
+                    NoIdentifyDevice = 0;
+            }
+        }
+
+        Device++;
+        ix = Device;
+    }
+
+    if (NoIdentifyDevice)
+        return 1;
+
+    EmptyQuickResult = IdePortIdentifyDevice(CmdBlock, CtrlBlock, MaxIdeDevice);
+
+    DPRINT("IdePortChannelEmptyQuick: EmptyQuickResult %X\n", EmptyQuickResult);
+
+    return (EmptyQuickResult != 0);
 }
 
 UCHAR
