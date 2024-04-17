@@ -45,6 +45,8 @@ DEFINE_GUID(GUID_PCIIDE_XFER_MODE_INTERFACE,      0x681190EC, 0xE4EA, 0x11D0, 0x
 DEFINE_GUID(GUID_PCIIDE_REQUEST_PROPER_RESOURCES, 0x681190ED, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
 DEFINE_GUID(GUID_PCIIDE_INTERRUPT_INTERFACE,      0x681190EE, 0xE4EA, 0x11D0, 0xAB, 0x82, 0x00, 0xA0, 0xC9, 0x06, 0x96, 0x2F);
 
+#define IDE_DRIVE_SELECT    0xA0 
+
 typedef struct _ATAPI_DRIVER_EXTENSION
 {
     UNICODE_STRING RegistryPath;
@@ -231,8 +233,14 @@ typedef struct _ATA_DEVICE_EXTENSION
     ULONG CtrlBlockLength;
     ULONG MaxIdeDevice;
     ULONG IntResFlags;
+    PUCHAR TransferDataBuffer;
+    ULONG TransferDataBytes;
     ULONG DeviceFlags[2];
     ULONG MaxIdeTargetId;
+    ULONG EmptyDevice;
+    ULONG EmptyWaitCount;
+    ULONG EmptyResult;
+    UCHAR ExpectingInterrupt;
     BOOLEAN IsDscRestrictive;
     BOOLEAN IsDriverMustPoll;
     BOOLEAN IsPrimary;

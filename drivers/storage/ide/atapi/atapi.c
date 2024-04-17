@@ -234,14 +234,218 @@ ChannelAddDevice(
     return ChannelAddChannel(DriverObject, LowerPdo, &dummy);
 }
 
+VOID
+NTAPI
+AtapiTaskRegisterSnapshot(
+    _In_ PIDE_CMD_BLOCK_REGS CmdBlock,
+    _In_ PIDEREGS IdeReg)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdeHardReset(
+    _In_ PIDE_CMD_BLOCK_REGS CmdBlock,
+    _In_ PIDE_CTRL_BLOCK_REGS CtrlBlock,
+    _In_ UCHAR Value,
+    _In_ BOOLEAN IsWaitOnBusy)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+ULONG
+NTAPI
+IdePortChannelEmptyQuick(
+    _In_ PIDE_CMD_BLOCK_REGS CmdBlock,
+    _In_ PIDE_CTRL_BLOCK_REGS CtrlBlock,
+    _In_ ULONG MaxIdeDevice,
+    _In_ ULONG* OutDevice,
+    _In_ ULONG* OutWaitCount,
+    _In_ ULONG* OutEmptyResult)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
 UCHAR
 NTAPI
 IdeSendPassThroughCommand(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PIDE_CTRL_BLOCK_REGS CtrlBlock;
+    PATA_PASS_THROUGH AtaPassThr;
+    PIDE_CMD_BLOCK_REGS CmdBlock;
+    ULONG EmptyQuickResult;
+    ULONG SectorCount;
+    ULONG ix;
+    ULONG jx;
+    UCHAR SectorNumber;
+    UCHAR SrbStatus;
+    UCHAR status;
+
+    CmdBlock = &HwDeviceExtension->CmdBlock;
+    CtrlBlock = &HwDeviceExtension->CtrlBlock;
+
+    AtaPassThr = Srb->DataBuffer;
+
+    AtaPassThr->IdeReg.bDriveHeadReg &= ~0xB0;
+    AtaPassThr->IdeReg.bDriveHeadReg |= (((Srb->TargetId & 0x1) << 4) | IDE_DRIVE_SELECT);
+
+    DPRINT("IdeSendPassThroughCommand: %p, %p\n", HwDeviceExtension, Srb);
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, AtaPassThr->IdeReg.bDriveHeadReg);
+
+    if (AtaPassThr->IdeReg.bReserved & 0x20)
+    {
+        SectorNumber = AtaPassThr->IdeReg.bSectorNumberReg;
+        SectorCount = AtaPassThr->IdeReg.bSectorCountReg;
+
+        if (SectorNumber)
+        {
+            if (SectorNumber > 30)
+                SectorNumber = 30;
+
+            status = READ_PORT_UCHAR(CmdBlock->Status);
+
+            for (jx = 0; jx < (SectorNumber * 10000); jx++)
+            {
+                status = READ_PORT_UCHAR(CmdBlock->Status);
+                if (!(status & 0x80))
+                    break;
+
+                KeStallExecutionProcessor(100);
+            }
+
+            if (jx == (SectorNumber * 10000))
+            {
+                DPRINT("IdeSendPassThroughCommand: WaitOnBusyUntil failed in '%s' line %u. status = %X\n", __FILE__, __LINE__, status);
+            }
+        }
+
+        if (!SectorCount)
+            SectorCount = 1;
+
+        for (ix = SectorCount; ix; ix--)
+        {
+            KeStallExecutionProcessor(100);
+            AtapiTaskRegisterSnapshot(CmdBlock, &AtaPassThr->IdeReg);
+        }
+
+        return 1;
+    }
+
+    if (AtaPassThr->IdeReg.bReserved & 4)
+    {
+        EmptyQuickResult = IdePortChannelEmptyQuick(CmdBlock, CtrlBlock, HwDeviceExtension->MaxIdeDevice,
+                                                    &HwDeviceExtension->EmptyDevice, 
+                                                    &HwDeviceExtension->EmptyWaitCount,
+                                                    &HwDeviceExtension->EmptyResult);
+        if (EmptyQuickResult)
+        {
+            return (EmptyQuickResult != STATUS_RETRY);
+        }
+
+        return 4;
+    }
+
+    if (AtaPassThr->IdeReg.bReserved & 8)
+    {
+        IdeHardReset(CmdBlock, CtrlBlock, 0, 1);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect,
+                         (AtaPassThr->IdeReg.bDriveHeadReg | (((Srb->TargetId & 0x1) << 4) | IDE_DRIVE_SELECT)));
+    }
+
+    status = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+    if (status & 0x80)
+    {
+        DPRINT("IdeSendPassThroughCommand: Returning BUSY status\n");
+        return 5;
+    }
+
+    if (AtaPassThr->IdeReg.bReserved & 0x40 &&
+        !(status & 0x40) &&
+        (status || !(HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x100000)))
+    {
+        DPRINT("IdeSendPassThroughCommand: DRDY not ready\n");
+        return 5;
+    }
+
+    if (AtaPassThr->IdeReg.bCommandReg == 8)
+    {
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Srb->TargetId & 0x1) << 4) | IDE_DRIVE_SELECT));
+        KeStallExecutionProcessor(500);
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 8);
+        KeStallExecutionProcessor(500);
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Srb->TargetId & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+        ix = 0;
+        jx = 0;
+        while (TRUE)
+        {
+            status = READ_PORT_UCHAR(CmdBlock->Status);
+            if (!(status & 0x80))
+                break;
+
+            KeStallExecutionProcessor(40);
+
+            jx++;
+            if (jx < 25000)
+                continue;
+
+            DPRINT("IdeSendPassThroughCommand: after 1 sec wait, device is still busy with %X status = %X\n", CmdBlock->CmdBlockBase, status);
+
+            ix++;
+            if (ix >= 0xA)
+            {
+                if (status & 0x80)
+                {
+                    DPRINT("IdeSendPassThroughCommand: WaitOnBusy failed in '%s' line %u. %X status = %X\n", __FILE__, __LINE__, CmdBlock->CmdBlockBase, status);
+                }
+
+                break;
+            }
+
+            jx = 0;
+        }
+
+        KeStallExecutionProcessor(500);
+
+        SrbStatus = 1;
+    }
+    else if ((HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x20000) &&
+             AtaPassThr->IdeReg.bCommandReg == 0xEC &&
+             !(AtaPassThr->IdeReg.bFeaturesReg & 0x10))
+    {
+        ASSERT(!(HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x10));//DFLAGS_REMOVABLE_DRIVE
+
+        DPRINT("IdeSendPassThroughCommand: Bypassing identify command\n");
+
+        RtlMoveMemory(AtaPassThr->Buffer, &HwDeviceExtension->IdentifyData[Srb->TargetId], AtaPassThr->BufferSize);
+
+        return 1;
+    }
+
+    SrbStatus = 0;
+
+    HwDeviceExtension->TransferDataBuffer = AtaPassThr->Buffer;
+    HwDeviceExtension->TransferDataBytes = AtaPassThr->BufferSize;
+
+    HwDeviceExtension->ExpectingInterrupt = 1;
+
+    WRITE_PORT_UCHAR(CmdBlock->Features, AtaPassThr->IdeReg.bFeaturesReg);
+    WRITE_PORT_UCHAR(CmdBlock->InterruptReason, AtaPassThr->IdeReg.bSectorCountReg);
+    WRITE_PORT_UCHAR(CmdBlock->LbaLow, AtaPassThr->IdeReg.bSectorNumberReg);
+    WRITE_PORT_UCHAR(CmdBlock->BytesLow, AtaPassThr->IdeReg.bCylLowReg);
+    WRITE_PORT_UCHAR(CmdBlock->BytesHigh, AtaPassThr->IdeReg.bCylHighReg);
+    WRITE_PORT_UCHAR(CmdBlock->Command, AtaPassThr->IdeReg.bCommandReg);
+
+    DPRINT("IdeSendPassThroughCommand: %X %X command = %X\n", CmdBlock->CmdBlockBase, Srb->TargetId, AtaPassThr->IdeReg.bCommandReg);
+
+    return SrbStatus;
 }
 
 VOID
