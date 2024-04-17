@@ -234,14 +234,112 @@ ChannelAddDevice(
     return ChannelAddChannel(DriverObject, LowerPdo, &dummy);
 }
 
+UCHAR
+NTAPI
+IdeSendPassThroughCommand(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+VOID
+__cdecl
+IdePortNotification(
+    _In_ ULONG NotificationType,
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    ...)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 BOOLEAN
 NTAPI
 AtapiStartIo(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    UCHAR SrbStatus;
+
+    DPRINT("AtapiStartIo: %p, %p\n", HwDeviceExtension, Srb);
+
+    // FIXME IdeDebugSimulateHardHang
+
+    if (Srb->Function == 0 ||    // SRB_FUNCTION_EXECUTE_SCSI
+        Srb->Function == 7 ||    // SRB_FUNCTION_SHUTDOWN
+        Srb->Function == 8 ||    // SRB_FUNCTION_FLUSH
+        Srb->Function == 0xC7 ||
+        Srb->Function == 0xC8 ||
+        Srb->Function == 0xC9)
+    {
+        if (HwDeviceExtension->CurrentSrb)
+        {
+            DPRINT("AtapiStartIo: Already have a request!\n");
+            Srb->SrbStatus = 5;
+            IdePortNotification(0, HwDeviceExtension, Srb);
+            return FALSE;
+        }
+
+        HwDeviceExtension->CurrentSrb = Srb;
+
+        if (Srb->Function == 0xC9)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else if (Srb->Function == 0xC8 || Srb->Function == 0xC7)
+        {
+            SrbStatus = IdeSendPassThroughCommand(HwDeviceExtension, Srb);
+        }
+        else if ((HwDeviceExtension->DeviceFlags[Srb->TargetId] & 3) == 3)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else if (Srb->Function == 8 || Srb->Function == 7)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else if (!(HwDeviceExtension->DeviceFlags[Srb->TargetId] & 1))
+        {
+            SrbStatus = 0xA;
+            DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
+        }
+        else
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+    else if (Srb->Function == 2) // SRB_FUNCTION_IO_CONTROL
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (Srb->Function == 0x10) // SRB_FUNCTION_ABORT_COMMAND
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (Srb->Function == 0x12) // SRB_FUNCTION_RESET_BUS
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        SrbStatus = 6;
+        DPRINT("AtapiStartIo: Srb %x complete with status %x\n", Srb, SrbStatus);
+    }
+
+    if (SrbStatus == 0)//SRB_STATUS_PENDING
+        return TRUE;
+
+    DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
+
+    HwDeviceExtension->CurrentSrb = NULL;
+
+    Srb->SrbStatus = SrbStatus;
+
+    IdePortNotification(0, HwDeviceExtension, Srb);
+    IdePortNotification(1, HwDeviceExtension, 0);
+
+    return TRUE;
 }
 
 BOOLEAN
