@@ -682,8 +682,16 @@ IdeGetSrbData(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+  
+    if (!Srb->OriginalRequest)
+        return NULL;
+
+    PdoExtension = IoGetCurrentIrpStackLocation(Srb->OriginalRequest)->Parameters.Others.Argument4;
+    if (!PdoExtension)
+        return NULL;
+
+    return &PdoExtension->PdoxSrbData;
 }
 
 VOID
