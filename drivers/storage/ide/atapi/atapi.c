@@ -676,6 +676,16 @@ IdeSendPassThroughCommand(
     return SrbStatus;
 }
 
+PPDOX_SRB_DATA
+NTAPI
+IdeGetSrbData(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 VOID
 __cdecl
 IdePortNotification(
@@ -683,7 +693,115 @@ IdePortNotification(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     ...)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension = NULL;
+    PSCSI_REQUEST_BLOCK Srb;
+    PPDOX_SRB_DATA SrbData;
+    UCHAR DataTransferLength;
+    va_list va;
+
+    va_start(va, HwDeviceExtension);
+
+    FdoExtension = CONTAINING_RECORD(HwDeviceExtension, FDO_DEVICE_EXTENSION, AtaExt);
+    DPRINT("IdePortNotification: %X\n", FdoExtension->InterruptData.CompletedRequests);
+
+    switch (NotificationType)
+    {
+        case 0:
+        {
+            Srb = va_arg(va, PSCSI_REQUEST_BLOCK);
+
+            ASSERT(Srb->SrbStatus != SRB_STATUS_PENDING);
+            ASSERT(Srb->SrbStatus != SRB_STATUS_SUCCESS ||
+                   Srb->ScsiStatus == SCSISTAT_GOOD ||
+                   Srb->Function != SRB_FUNCTION_EXECUTE_SCSI);
+
+            if (!(Srb->SrbFlags & 0x10000))
+            {
+                va_end(va);
+                return;
+            }
+
+            Srb->SrbFlags &= ~0x10000;
+
+            if (Srb->Function == 0x10)
+            {
+                PdoExtension->CompletedAbort = FdoExtension->InterruptData.CompletedAbort;
+
+                FdoExtension->InterruptData.CompletedAbort = 
+                    IoGetCurrentIrpStackLocation(Srb->OriginalRequest)->Parameters.Others.Argument4;
+            }
+            else
+            {
+                SrbData = IdeGetSrbData(FdoExtension, Srb);
+
+                ASSERT(SrbData);
+                ASSERT(SrbData->CurrentSrb != NULL && SrbData->CompletedRequests == NULL);
+
+                if (Srb->SrbStatus == 1)
+                {
+                    DataTransferLength = Srb->Cdb[0];
+
+                    if ((DataTransferLength == 0x28 || DataTransferLength == 0x2A))
+                        ASSERT(Srb->DataTransferLength);
+                }
+
+                ASSERT(FdoExtension->InterruptData.CompletedRequests == NULL);
+
+                SrbData->CompletedRequests = FdoExtension->InterruptData.CompletedRequests;
+                FdoExtension->InterruptData.CompletedRequests = SrbData;
+
+                UNIMPLEMENTED_ONCE;
+                //IdeLogSaveTaskFile(..);
+            }
+
+            break;
+        }
+        case 1:
+        {
+            FdoExtension->InterruptData.Flags |= 8;
+            break;
+        }
+        case 3:
+        {
+            Srb = va_arg(va, PSCSI_REQUEST_BLOCK);
+            if (Srb)
+                PdoExtension = IoGetCurrentIrpStackLocation(Srb->OriginalRequest)->Parameters.Others.Argument4;
+
+            ASSERT(FdoExtension->InterruptData.PdoExtensionResetBus == NULL);
+
+            FdoExtension->InterruptData.Flags |= 0x200;
+            FdoExtension->InterruptData.PdoExtensionResetBus = PdoExtension;
+            break;
+        }
+        case 6:
+        {
+            FdoExtension->InterruptData.Flags |= 0x10000;
+            FdoExtension->InterruptData.HwTimerCallBack = va_arg(va, PHW_TIMER);
+            FdoExtension->InterruptData.MiniportTimerValue = va_arg(va, ULONG);
+            break;
+        }
+        case 0xA:
+        {
+            FdoExtension->InterruptData.Flags |= 0x20000;
+            break;
+        }
+        case 0xB:
+        {
+            FdoExtension->InterruptData.Flags |= 0x40000;
+            break;
+        }
+        default:
+        {
+            DPRINT("IdePortNotification: Unknown NotificationType %X\n", NotificationType);
+            ASSERT(FALSE);
+            break;
+        }
+    }
+
+    va_end(va);
+
+    FdoExtension->InterruptData.Flags |= 4;
 }
 
 BOOLEAN

@@ -358,6 +358,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     ULONG PdoFlags;
     struct _PDO_DEVICE_EXTENSION* LinkPdoExt;
     PSCSI_REQUEST_BLOCK AbortSrb;
+    struct _PDO_DEVICE_EXTENSION* CompletedAbort;
     LONG TimeOut;
     PIRP PendingRequest;
     PDOX_SRB_DATA PdoxSrbData;
