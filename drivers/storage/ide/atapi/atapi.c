@@ -261,8 +261,71 @@ IdePortIdentifyDevice(
     _In_ PIDE_CTRL_BLOCK_REGS CtrlBlock,
     _In_ ULONG MaxIdeDevice)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    ULONG Device = 0;
+    ULONG ix = 4;
+    ULONG jx;
+    UCHAR status;
+    BOOLEAN Result = TRUE;
+
+    DPRINT("IdePortIdentifyDevice: %X, %X, %X\n", CmdBlock->CmdBlockBase, CtrlBlock->CtrlBlockBase, MaxIdeDevice);
+
+    while (TRUE)
+    {
+        WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+        WRITE_PORT_UCHAR(CmdBlock->BytesHigh, 0xAA);
+        WRITE_PORT_UCHAR(CmdBlock->BytesLow, 0x55);
+
+        if (READ_PORT_UCHAR(CmdBlock->LbaHigh) == 0xAA && READ_PORT_UCHAR(CmdBlock->LbaMid) == 0x55)
+        {
+            DPRINT("IdePortIdentifyDevice: Result = 0\n");
+            Result = FALSE;
+        }
+        else
+        {
+            status = READ_PORT_UCHAR(CmdBlock->Status);
+
+            DPRINT("IdePortIdentifyDevice: status read back from Master (%X)\n", status);
+
+            if (status & 0x80)
+            {
+                for (jx = 0; jx < 0xA; jx++)
+                {
+                    KeStallExecutionProcessor(1000);
+                    status = READ_PORT_UCHAR(CmdBlock->Status);
+
+                    DPRINT("IdePortIdentifyDevice: First access to status %X\n", status);
+
+                    if (!(status & 0x80))
+                        break;
+                }
+
+                ix--;
+                if (ix != 0 && !(status & 0x80))
+                    continue;
+            }
+
+            Device++;
+
+            WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+            WRITE_PORT_UCHAR(CmdBlock->BytesHigh, 0xAA);
+            WRITE_PORT_UCHAR(CmdBlock->BytesLow, 0x55);
+
+            if (READ_PORT_UCHAR(CmdBlock->LbaHigh) != 0xAA || READ_PORT_UCHAR(CmdBlock->LbaMid) != 0x55)
+            {
+                status = READ_PORT_UCHAR(CmdBlock->Status);
+                DPRINT("IdePortIdentifyDevice: status read back from Slave (%X)\n", status);
+            }
+            else
+            {
+                DPRINT("IdePortIdentifyDevice: Result = 0\n");
+                Result = FALSE;
+            }
+        }
+
+        Device++;
+        if (Device >= MaxIdeDevice || !Result)
+            return Result;
+    }
 }
 
 ULONG
