@@ -902,6 +902,15 @@ AtapiStartIo(
 
 BOOLEAN
 NTAPI
+IdeResetBusSynchronized(
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
 IdeStartIoSynchronized(
    _In_ PVOID SynchronizeContext)
 {
@@ -1234,6 +1243,18 @@ UnrefLogicalUnitExtension(
     _In_ PVOID TagLock)
 {
     UNIMPLEMENTED_DBGBREAK();
+}
+
+PPDO_DEVICE_EXTENSION
+NTAPI
+NextLogUnitExtension(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PATA_SCSI_ADDRESS ScsiAddress,
+    _In_ BOOLEAN IsForceRef,
+    _In_ PVOID TagLock)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
 }
 
 /* SCSI FUNCTIONS ***********************************************************/
@@ -2461,6 +2482,34 @@ DigestResourceList(
     return STATUS_INVALID_PARAMETER;
 }
 
+BOOLEAN
+NTAPI
+IdeGetInterruptState(
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+IdeProcessCompletedRequest(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDOX_SRB_DATA SrbData,
+    _Out_ BOOLEAN* OutIsStartNextIo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+IdeTranslateSrbStatus(
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 IdePortCompletionDpc(
@@ -2469,7 +2518,203 @@ IdePortCompletionDpc(
     _In_ PVOID SystemArgument1,
     _In_ PVOID SystemArgument2)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_OBJECT Fdo = DeferredContext;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PPDO_DEVICE_EXTENSION Pdox;
+    PVOID SynchronizeContext[2];
+    PPDOX_SRB_DATA SrbData;
+    PIRP Irp;
+    ATAPI_INTERRUPT_DATA InterruptData;
+    ATAPI_RESET_BUS_CONTEXT ResetContext;
+    ATA_SCSI_ADDRESS ScsiAddress;
+    LARGE_INTEGER DueTime;
+    POWER_STATE State;
+    BOOLEAN IsStartNextIo = FALSE;
+    BOOLEAN IsDeadmeat;
+    VOID (NTAPI* FreeAccessToken)(PVOID Context);
+    VOID (NTAPI* BmFlush)(PVOID Context);
+
+    DPRINT("IdePortCompletionDpc: %p\n", Fdo);
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    KeAcquireSpinLockAtDpcLevel(&FdoExtension->SpinLock);
+
+    SynchronizeContext[1] = &InterruptData;
+    SynchronizeContext[0] = FdoExtension;
+
+    if (!KeSynchronizeExecution(FdoExtension->InterruptObject, IdeGetInterruptState, SynchronizeContext))
+    {
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+    }
+
+    if (InterruptData.CompletedRequests)
+    {
+        SrbData = InterruptData.CompletedRequests;
+        ASSERT(SrbData->CurrentSrb);
+
+        if (SrbData->CurrentSrb->SrbFlags & 0xC0 &&
+            ((ULONG_PTR)SrbData->CurrentSrb->SrbExtension & 2))//SRB_USES_DMA(Srb)
+        {
+            BmFlush = FdoExtension->HwDeviceExtension->BusMasterInterface.BmFlush;
+            BmFlush(FdoExtension->HwDeviceExtension->BusMasterInterface.Context);
+        }
+    }
+
+    if (InterruptData.Flags & 0x20000)
+    {
+        ScsiAddress.AsULONG = 0;
+        IsDeadmeat = FALSE;
+
+        for (PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, 1, IdePortCompletionDpc);
+             PdoExtension;
+             PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, 1, IdePortCompletionDpc))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            IsDeadmeat = TRUE;
+        }
+
+        if (IsDeadmeat)
+        {
+            DPRINT1("The device marked deadmeat during enumeration\n");
+        }
+        else
+        {
+            IoInvalidateDeviceRelations(FdoExtension->LowPdo, 0);
+        }
+    }
+
+    if (InterruptData.Flags & 0x10000)
+    {
+        FdoExtension->TimerCallBack = InterruptData.HwTimerCallBack;
+
+        if (InterruptData.MiniportTimerValue)
+        {
+            DueTime.QuadPart = (-10 * InterruptData.MiniportTimerValue);
+            KeSetTimer(&FdoExtension->Timer, DueTime, &FdoExtension->Dpc);
+        }
+        else
+        {
+            KeCancelTimer(&FdoExtension->Timer);
+        }
+    }
+
+    if (InterruptData.Flags & 0x40000)
+    {
+        InterruptData.Flags &= ~0x40000;
+
+        ResetContext.FdoExtension = FdoExtension;
+        ResetContext.PathId = 0;
+        ResetContext.IsUpdateResetSrb = TRUE;
+        ResetContext.Srb = NULL;
+
+        if (!KeSynchronizeExecution(FdoExtension->InterruptObject, IdeResetBusSynchronized, &ResetContext))
+        {
+            DPRINT1("IdePortCompletionDpc: Reset failed\n");
+        }
+    }
+
+    if (InterruptData.Flags & 8)
+    {
+        if ((FdoExtension->Flags & 0x1001) != 0x1001)
+        {
+            FdoExtension->Flags &= ~1;
+            InterruptData.Flags &= ~8;
+        }
+        else
+        {
+            FdoExtension->Flags &= ~1;
+
+            if (!(InterruptData.Flags & 0x80))
+                FdoExtension->TimeOutValue = -1;
+        }
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+
+    if (InterruptData.CompletedRequests && FdoExtension->SyncAccessInterface.FreeAccessToken)
+    {
+        FreeAccessToken = FdoExtension->SyncAccessInterface.FreeAccessToken;
+        FreeAccessToken(FdoExtension->SyncAccessInterface.Context);
+    }
+
+    if (InterruptData.Flags & 8)
+        IoStartNextPacket(FdoExtension->SelfDevice, FALSE);
+
+    if (InterruptData.Flags & 0x40)
+    {
+        DPRINT("IdePortCompletionDpc: FIXME LogErrorEntry()\n");
+        ASSERT(FALSE);
+        //LogErrorEntry(..);
+    }
+
+    while (InterruptData.CompletedRequests)
+    {
+        SrbData = InterruptData.CompletedRequests;
+
+        InterruptData.CompletedRequests = SrbData->CompletedRequests;
+        SrbData->CompletedRequests = NULL;
+
+        ASSERT(InterruptData.CompletedRequests == NULL);
+
+        //IdeLogStopCommandLog(..);
+
+        IdeProcessCompletedRequest(FdoExtension, SrbData, &IsStartNextIo);
+    }
+
+    while (InterruptData.CompletedAbort)
+    {
+        Pdox = InterruptData.CompletedAbort;
+        InterruptData.CompletedAbort = InterruptData.CompletedAbort->CompletedAbort;
+
+        KeAcquireSpinLockAtDpcLevel(&FdoExtension->SpinLock);
+
+        Irp = Pdox->AbortSrb->OriginalRequest;
+
+        if ((Pdox->AbortSrb->SrbStatus & 0x3F) == 1)
+            Irp->IoStatus.Status = STATUS_SUCCESS;
+        else
+            Irp->IoStatus.Status = IdeTranslateSrbStatus(Pdox->AbortSrb);
+
+        Irp->IoStatus.Information = 0;
+
+        Pdox->AbortSrb = NULL;
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+
+        UnrefLogicalUnitExtension(FdoExtension, (PPDO_DEVICE_EXTENSION)IoGetCurrentIrpStackLocation(Irp)->Parameters.Others.Argument4, Irp);
+        IoCompleteRequest(Irp, 1);
+    }
+
+    if (IsStartNextIo)
+    {
+        ASSERT(Fdo->CurrentIrp != NULL);
+        IdePortStartIo(Fdo, Fdo->CurrentIrp);
+    }
+
+    if (InterruptData.Flags & 0x200)
+    {
+        ScsiAddress.AsULONG = 0;
+
+        while (TRUE)
+        {
+            PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, FALSE, IdePortCompletionDpc);
+            if (!PdoExtension)
+                break;
+
+            State.DeviceState = PowerDeviceD0;
+
+            if (PdoExtension != InterruptData.PdoExtensionResetBus &&
+                !(PdoExtension->PdoFlags & 0x8000))
+            {
+                PoRequestPowerIrp(PdoExtension->SelfDevice, 2, State, NULL, NULL, NULL);
+            }
+
+            UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortCompletionDpc);
+        }
+    }
+
+    DPRINT("IdePortCompletionDpc: exit (%p)\n", Fdo);
 }
 
 VOID

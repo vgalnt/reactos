@@ -308,6 +308,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     PKINTERRUPT InterruptObject;
     ULONG SequenceNumber;
     KSPIN_LOCK SpinLock;
+    PHW_TIMER TimerCallBack;
     KSPIN_LOCK PdoArrayLock;
     UCHAR PdoCount1;
     UCHAR PdoCount2;
@@ -369,6 +370,15 @@ typedef struct _PDO_DEVICE_EXTENSION
     ULONG PdoState;
     LONG ItemsQueued;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
+
+typedef struct _ATAPI_RESET_BUS_CONTEXT
+{
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    UCHAR PathId;
+    BOOLEAN IsUpdateResetSrb;
+    UCHAR Pad[2];
+    PSCSI_REQUEST_BLOCK Srb;
+} ATAPI_RESET_BUS_CONTEXT, *PATAPI_RESET_BUS_CONTEXT;
 
 /* ACPI EVAL ****************************************************************/
 
