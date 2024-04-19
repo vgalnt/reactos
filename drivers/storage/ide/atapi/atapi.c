@@ -2487,8 +2487,62 @@ NTAPI
 IdeGetInterruptState(
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PVOID* SynchronizeContext = Context;
+    PATAPI_INTERRUPT_DATA InterruptData = SynchronizeContext[1];
+    PFDO_DEVICE_EXTENSION FdoExtension = SynchronizeContext[0];
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PSCSI_REQUEST_BLOCK Srb;
+    PPDOX_SRB_DATA SrbData;
+    ULONG Limit = 0;
+
+    DPRINT("IdeGetInterruptState: %p, %p\n", FdoExtension, SynchronizeContext);
+
+    if (!(FdoExtension->InterruptData.Flags & 4))
+    {
+        DPRINT("IdeGetInterruptState: return 0\n");
+        return FALSE;
+    }
+
+    InterruptData;
+    RtlCopyMemory(InterruptData, &FdoExtension->InterruptData, sizeof(*InterruptData));
+
+    FdoExtension->InterruptData.Flags &= 0x4180;
+    FdoExtension->InterruptData.CompletedRequests = NULL;
+    FdoExtension->InterruptData.CompletedAbort = NULL;
+    FdoExtension->InterruptData.PdoExtensionResetBus = NULL;
+
+    for (SrbData = InterruptData->CompletedRequests;
+         SrbData;
+         SrbData = SrbData->CompletedRequests)
+    {
+        Limit++;
+        ASSERT(Limit++ < 100);
+
+        ASSERT(SrbData->CurrentSrb != NULL);
+        Srb = SrbData->CurrentSrb;
+
+        PdoExtension = IoGetCurrentIrpStackLocation(Srb->OriginalRequest)->Parameters.Others.Argument4;
+
+        if (Srb->SrbStatus != 1 &&
+            Srb->ScsiStatus == 2 &&
+            !(Srb->SrbStatus & 0x80) &&
+            Srb->SenseInfoBuffer && Srb->SenseInfoBufferLength)
+        {
+            if (PdoExtension->PdoFlags & 4)
+            {
+                Srb->ScsiStatus = 0;
+                Srb->SrbStatus = 0x10;
+            }
+            else
+            {
+                PdoExtension->PdoFlags |= 4;
+            }
+        }
+
+        PdoExtension->TimeOut = -1;
+    }
+
+    return TRUE;
 }
 
 VOID
