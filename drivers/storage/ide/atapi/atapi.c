@@ -1158,8 +1158,8 @@ IdeInterlockedDecrement(
     _In_ PLONG Addend,
     _In_ PVOID TagLock)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    DPRINT(">>>>>>>>>>>>>>>>>>>> Release PdoLock with tag = %p\n", TagLock);
+    return InterlockedDecrement(Addend);
 }
 
 PPDO_DEVICE_EXTENSION
