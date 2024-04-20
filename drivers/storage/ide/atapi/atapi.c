@@ -2545,14 +2545,13 @@ IdeGetInterruptState(
     return TRUE;
 }
 
-VOID
-NTAPI
-IdeProcessCompletedRequest(
-    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
-    _In_ PPDOX_SRB_DATA SrbData,
-    _Out_ BOOLEAN* OutIsStartNextIo)
+BOOLEAN
+NTAPI 
+TestForEnumProbing(
+    _In_ PSCSI_REQUEST_BLOCK Srb)
 {
     UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
 }
 
 NTSTATUS
@@ -2562,6 +2561,362 @@ IdeTranslateSrbStatus(
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+GetNextLuRequest2(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PCHAR File,
+    _In_ ULONG Line)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdeProcessCompletedRequest(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDOX_SRB_DATA SrbData,
+    _Out_ BOOLEAN* OutIsStartNextIo)
+{
+    PATA_DEVICE_EXTENSION HwDeviceExtension = FdoExtension->HwDeviceExtension;
+    ATAPI_RESET_BUS_CONTEXT ResetContext;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PSCSI_REQUEST_BLOCK Srb = SrbData->CurrentSrb;
+    PIRP Irp = Srb->OriginalRequest;
+    ULONG TimeoutErrors;
+    ULONG ErrorCount;
+
+    ASSERT(SrbData->CurrentSrb);
+
+    if (Irp->CurrentLocation > (CHAR)(Irp->StackCount + 1))
+    {
+        DPRINT1("IdeProcessCompletedRequest: %p, %p, %p, %X\n",
+                Srb->OriginalRequest, Srb, Srb->DataBuffer, Srb->DataTransferLength);
+
+        KeBugCheckEx(0x44, (ULONG_PTR)Irp, (ULONG_PTR)Srb, 0, 0);
+    }
+
+    PdoExtension = (PPDO_DEVICE_EXTENSION)IoGetCurrentIrpStackLocation(Irp)->Parameters.Others.Argument4;
+
+    DPRINT("IdeProcessCompletedRequest: %p, %p, %p, %X (%X)\n",
+           Srb->OriginalRequest, Srb, Srb->DataBuffer, Srb->DataTransferLength, PdoExtension->TimeOut);
+
+    if ((Srb->SrbFlags & 0xC0) && !((ULONG_PTR)Srb->SrbExtension & 2) && Irp->MdlAddress)
+    {
+        Srb->DataBuffer = Add2Ptr(Srb->DataBuffer,
+                                  ((ULONG_PTR)MmGetMdlVirtualAddress(Irp->MdlAddress) - (ULONG_PTR)SrbData->Buffer));
+
+        if (SrbData->Flags & 0x100)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+
+    //IdeLogCompletedCommand(..);
+
+    SrbData->CurrentSrb = NULL;
+
+    if (Srb->SrbFlags & 4)
+    {
+        KeAcquireSpinLockAtDpcLevel(&FdoExtension->SpinLock);
+
+        FdoExtension->Flags |= 0x1000;
+
+        if (!(FdoExtension->InterruptData.Flags & 0x80))
+            FdoExtension->TimeOutValue = -1;
+
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+
+        if (!(FdoExtension->Flags & 1) && !(*OutIsStartNextIo) && !(FdoExtension->Flags & 0x800))
+            IoStartNextPacket(FdoExtension->SelfDevice, FALSE);
+    }
+
+    if (Srb->SrbFlags & 0x40000)
+        Srb->SrbFlags &= ~0x40000;
+
+    KeAcquireSpinLockAtDpcLevel(&FdoExtension->SpinLock);
+
+    Irp->IoStatus.Information = Srb->DataTransferLength;
+
+    SrbData->SequenceNumber = 0;
+    SrbData->RetryCount = 0;
+
+    if (FdoExtension->Flags & 0x800)
+    {
+        FdoExtension->Flags &= ~0x800;
+        *OutIsStartNextIo = TRUE;
+    }
+
+    if ((Srb->SrbStatus & 0x3F) == 1)
+    {
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+
+        if (Srb->Function == 0xC7)
+        {
+            KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+            UnrefLogicalUnitExtension(FdoExtension, PdoExtension, Irp);
+            IoCompleteRequest(Irp, 1);
+            Irp = NULL;
+            KeAcquireSpinLockAtDpcLevel(&FdoExtension->SpinLock);
+
+            GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
+        }
+        else if (Srb->SrbFlags & 0x10 || PdoExtension->TimeOut != -1)
+        {
+            KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+        }
+        else
+        {
+            GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
+        }
+
+        if (Irp)
+        {
+            if (FdoExtension->ResetErrorCountersOnSuccess)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            UnrefLogicalUnitExtension(FdoExtension, PdoExtension, Irp);
+            IoCompleteRequest(Irp, 1);
+        }
+
+        return;
+    }
+
+    Irp->IoStatus.Status = IdeTranslateSrbStatus(Srb);
+
+    if (FdoExtension->ResetErrorCountersOnSuccess)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (Srb->SrbStatus == 9 || Srb->SrbStatus == 14)
+    {
+        if ((ULONG_PTR)Srb->SrbExtension & 2)
+        {
+            DPRINT("IdeProcessCompletedRequest: retrying dma Srb %p with pio\n", Srb);
+
+            ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+            Srb->SrbExtension = (PVOID)((ULONG_PTR)Srb->SrbExtension | 1);
+
+            Srb->SrbStatus = 0;
+            Srb->ScsiStatus = 0;
+
+            if ((Srb->SrbFlags & 0x10) == 0)
+            {
+                KeInsertByKeyDeviceQueue(&PdoExtension->SelfDevice->DeviceQueue,
+                                         &Irp->Tail.Overlay.DeviceQueueEntry,
+                                         Srb->QueueSortKey);
+
+                GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
+            }
+            else
+            {
+                KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+                IoStartPacket(FdoExtension->SelfDevice, Irp, NULL, NULL);
+            }
+
+            if (InterlockedIncrement(&PdoExtension->DmaTimeouts) == 6)
+            {
+                //IdeLogError(..);
+
+                if (!(PdoExtension->PdoFlags & 0x8000))
+                    IoInvalidateDeviceRelations(FdoExtension->LowPdo, 0);
+            }
+
+            return;
+        }
+
+        if (!TestForEnumProbing(Srb))
+        {
+            if (Srb->Function != 0xC7 && Srb->Function != 0xC9 && Srb->Function != 0xC8)
+            {
+                if (Srb->Function == 8 || Srb->Function == 7 || Srb->Cdb[0] == 0x35)
+                {
+                    ErrorCount = InterlockedIncrement(&PdoExtension->FlushCacheTimeouts);
+                    DPRINT("IdeProcessCompletedRequest: FlushCacheTimeout incremented to %X\n", ErrorCount);
+
+                    if ((ULONG)ErrorCount >= 3)
+                    {
+                        HwDeviceExtension->DeviceParameters[Srb->TargetId].IdePioFlushCommand = -1;
+                        HwDeviceExtension->DeviceParameters[Srb->TargetId].IdePioFlushCommandExt = -1;
+
+                        ASSERT(ErrorCount <= 3);//PDO_FLUSH_TIMEOUT_LIMIT
+                    }
+
+                    Srb->SrbStatus = 1;
+                    Irp->IoStatus.Status = 0;
+                }
+                else
+                {
+                    TimeoutErrors = InterlockedIncrement(&PdoExtension->TimeoutErrors);
+
+                    DPRINT("IdeProcessCompletedRequest: %X target %X has %X timeout errors so far\n",
+                           PdoExtension->FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId, TimeoutErrors);
+
+                    if (TimeoutErrors == 3 && !(PdoExtension->PdoFlags & 0x8000))
+                        IoInvalidateDeviceRelations(FdoExtension->LowPdo, 0);
+
+                    if (TimeoutErrors >= (PdoExtension->Paging != 0 ? 20 : 6))
+                    {
+                        DPRINT("IdeProcessCompletedRequest: %X target %X has too many timeout. it is a goner...\n",
+                               PdoExtension->FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId);
+
+                        //IdeLogError(..);
+
+                        KeAcquireSpinLockAtDpcLevel(&PdoExtension->PdoLock);
+                        PdoExtension->PdoState |= 0x40;
+                        KeReleaseSpinLockFromDpcLevel(&PdoExtension->PdoLock);
+
+                        if (!(PdoExtension->PdoFlags & 0x8000))
+                            IoInvalidateDeviceRelations(FdoExtension->LowPdo, 0);
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        InterlockedExchange(&PdoExtension->TimeoutErrors, 0);
+    }
+
+    if ((Srb->SrbStatus & 0x3F) == 0xF && InterlockedIncrement(&PdoExtension->CrcErrors) == 6)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if ((Srb->ScsiStatus == 8 || Srb->SrbStatus == 5 || Srb->ScsiStatus == 0x28) && !(Srb->SrbFlags & 0x10))
+    {
+        DPRINT("IdeProcessCompletedRequest: Busy SRB status %X, SCSI status %X)\n", Srb->SrbStatus, Srb->ScsiStatus);
+
+        if (PdoExtension->PdoFlags & 9)
+        {
+            DPRINT("IdeProcessCompletedRequest: Requeuing busy request\n");
+
+            Srb->SrbStatus = 0;
+            Srb->ScsiStatus = 0;
+
+            if (KeInsertByKeyDeviceQueue(&PdoExtension->SelfDevice->DeviceQueue,
+                                         &Irp->Tail.Overlay.DeviceQueueEntry,
+                                         Srb->QueueSortKey))
+            {
+                KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+                return;
+            }
+
+            Srb->SrbStatus = 4;
+            Srb->ScsiStatus = 8;
+
+            ASSERT(FALSE);
+        }
+        else if (PdoExtension->RetriesDoRequest++ < 0x14)
+        {
+            Srb->SrbStatus = 0;
+            Srb->ScsiStatus = 0;
+
+            PdoExtension->PdoFlags |= 8;
+            PdoExtension->BusyRequest = Irp;
+
+            if (PdoExtension->RetriesDoRequest == 0xA)
+            {
+                DPRINT("IdeProcessCompletedRequest: PDO %p %X seems to be DEAD. Try a reset to bring it back.\n",
+                       PdoExtension, PdoExtension->FdoExtension->ResourceData.CmdBlockBase);
+
+                ResetContext.Srb = NULL;
+                ResetContext.PathId = Srb->PathId;
+                ResetContext.FdoExtension = FdoExtension;
+                ResetContext.IsUpdateResetSrb = TRUE;
+
+                KeSynchronizeExecution(FdoExtension->InterruptObject, IdeResetBusSynchronized, &ResetContext);
+
+                //IdeDebugHungControllerCounter = 0;
+            }
+
+            KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+            return;
+        }
+
+        if (!(Srb->SrbFlags & 0x100))
+        {
+            Srb->SrbStatus |= 0x40;
+            PdoExtension->PdoFlags |= 1;
+        }
+
+        if (Srb->SrbFlags & 0x10 || PdoExtension->TimeOut != -1)
+            KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+        else
+            GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
+
+        if (!TestForEnumProbing(Srb))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            //IdeLogError(..);
+        }
+
+        Irp->IoStatus.Status = STATUS_DEVICE_NOT_READY;
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, Irp);
+
+        IoCompleteRequest(Irp, 1);
+        return;
+    }
+
+    if (Srb->ScsiStatus != 2 || (Srb->SrbStatus & 0x80) || !Srb->SenseInfoBuffer || !Srb->SenseInfoBufferLength)
+    {
+        if (Srb->SrbFlags & 0x100)
+        {
+            if (PdoExtension->TimeOut == -1)
+                GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
+            else
+                KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+
+            UnrefLogicalUnitExtension(FdoExtension, PdoExtension, Irp);
+            IoCompleteRequest(Irp, 1);
+            return;
+        }
+
+        Srb->SrbStatus |= 0x40;
+        PdoExtension->PdoFlags |= 1;
+    }
+
+    if (Srb->ScsiStatus != 2)
+    {
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+    }
+    else if ((Srb->SrbStatus & 0x80) || !Srb->SenseInfoBuffer || !Srb->SenseInfoBufferLength)
+    {
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+    }
+    else
+    {
+        Srb->SrbStatus = Srb->SrbStatus | 0x40;
+        PdoExtension->PdoFlags |= 1;
+
+        if (!(PdoExtension->PdoFlags & 8))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            return;
+        }
+
+        DPRINT("IdeProcessCompletedRequest: Requeueing busy request to allow request sense.\n");
+
+        if (KeInsertByKeyDeviceQueue(&PdoExtension->SelfDevice->DeviceQueue,
+                                     &PdoExtension->BusyRequest->Tail.Overlay.DeviceQueueEntry,
+                                     Srb->QueueSortKey))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            return;
+        }
+
+        ASSERT(FALSE);
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+    }
+
+    UnrefLogicalUnitExtension(FdoExtension, PdoExtension, Irp);
+    IoCompleteRequest(Irp, 1);
 }
 
 VOID

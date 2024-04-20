@@ -224,6 +224,31 @@ typedef struct _ATAPI_PRE_ALLOC_ENUM_STRUCT
     PATA_PASS_THROUGH_CONTEXT AtaPassThrContext;
 } ATAPI_PRE_ALLOC_ENUM_STRUCT, *PATAPI_PRE_ALLOC_ENUM_STRUCT;
 
+typedef struct _ATA_DEVICE_PARAMETERS
+{
+    ULONG Unknown1;
+    UCHAR IdePioReadCommand;
+    UCHAR IdePioWriteCommand;
+    UCHAR IdePioFlushCommand;
+    UCHAR IdePioReadCommandExt;
+    UCHAR IdePioWriteCommandExt;
+    UCHAR IdePioFlushCommandExt;
+    BOOLEAN IoReadySupported;
+    UCHAR Pad;
+    ULONG BestPioCycleTime;
+    ULONG BestSwDmaCycleTime;
+    ULONG BestMwDmaCycleTime;
+    ULONG BestUDmaCycleTime;
+    ULONG XferModeBitMap;
+    ULONG BestPioXferMode;
+    ULONG BestSwDmaXferMode;
+    ULONG BestMwDmaXferMode;
+    ULONG BestUDmaXferMode;
+    ULONG XferCurrentMode;
+    ULONG XferSelectedMode;
+    ULONG Unknown2;
+} ATA_DEVICE_PARAMETERS, *PATA_DEVICE_PARAMETERS;
+
 typedef struct _ATA_DEVICE_EXTENSION
 {
     PVOID CurrentSrb;
@@ -248,6 +273,7 @@ typedef struct _ATA_DEVICE_EXTENSION
     BOOLEAN IsTransferModeNotSelected;
     IDENTIFY_DATA IdentifyData[2];
     PCIIDE_BUS_MASTER_INTERFACE BusMasterInterface;
+    ATA_DEVICE_PARAMETERS DeviceParameters[4]; 
 } ATA_DEVICE_EXTENSION, *PATA_DEVICE_EXTENSION;
 
 typedef struct _PDOX_SRB_DATA
@@ -341,6 +367,9 @@ typedef struct _PDO_DEVICE_EXTENSION
     PDEVICE_OBJECT LowPdo;
     PDRIVER_OBJECT DriverObject;
     PDEVICE_OBJECT SelfDevice;
+    ULONG Paging;
+    ULONG Hibernation;
+    ULONG DumpFile;
     SYSTEM_POWER_STATE SystemPowerState;
     DEVICE_POWER_STATE DevicePowerState;
     PDRIVER_DISPATCH NoSupportIrp;
@@ -350,7 +379,9 @@ typedef struct _PDO_DEVICE_EXTENSION
     PFDO_DEVICE_EXTENSION FdoExtension;
     PULONG IdleCounter;
     KEVENT Event;
+    LONG TimeoutErrors;
     LONG DmaTimeouts;
+    LONG FlushCacheTimeouts;
     LONG CrcErrors;
     UCHAR PathId;
     UCHAR TargetId;
@@ -362,6 +393,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     struct _PDO_DEVICE_EXTENSION* CompletedAbort;
     LONG TimeOut;
     PIRP PendingRequest;
+    PIRP BusyRequest;
     PDOX_SRB_DATA PdoxSrbData;
     UCHAR ScsiDeviceType;
     KSPIN_LOCK PdoLock;
