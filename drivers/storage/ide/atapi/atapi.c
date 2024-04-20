@@ -4428,8 +4428,59 @@ AtaPassThroughCompletionRoutine(
     _In_ PIRP Irp,
     _In_ PVOID InContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PATA_PASS_THROUGH_CONTEXT Context = InContext;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PATA_PASS_THROUGH AtaPassThr;
+    KIRQL Irql;
+
+    DPRINT("AtaPassThroughCompletionRoutine: %p, %X\n", Irp, Irp->IoStatus.Status);
+
+    if (Context->Srb->SrbStatus & 0x40)
+    {
+        DPRINT("AtaPassThroughCompletionRoutine: Unfreeze Queue TID %X\n", Context->Srb->TargetId);
+
+        PdoExtension = Context->DeviceObject->DeviceExtension;
+        ASSERT(PdoExtension);
+
+        PdoExtension->PdoFlags &= ~1;
+        FdoExtension = PdoExtension->FdoExtension;
+
+        KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
+        GetNextLuRequest2(PdoExtension->FdoExtension, PdoExtension, __FILE__, __LINE__);
+        KeLowerIrql(Irql);
+    }
+
+    AtaPassThr = Context->Srb->DataBuffer;
+
+    if (AtaPassThr->IdeReg.bReserved & 2)
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+
+    if (Context->MustSucceed)
+    {
+        RtlCopyMemory(Context->AtaPassThr, Context->Srb->DataBuffer, Context->Srb->DataTransferLength);
+    }
+
+    if (Context->CallBack)
+    {
+        VOID (NTAPI* CallBack)(PDEVICE_OBJECT, PVOID, NTSTATUS) = Context->CallBack;
+        CallBack(Context->DeviceObject, Context->CallBackContext, Irp->IoStatus.Status);
+    }
+
+    if (!Context->MustSucceed)
+    {
+        ExFreePool(Context->SenseInfoBuffer);
+        ExFreePool(Context->Srb);
+        ExFreePool(Context);
+
+        if (Irp->MdlAddress)
+            IoFreeMdl(Irp->MdlAddress);
+
+        IoFreeIrp(Irp);
+    }
+
+    DPRINT("AtaPassThroughCompletionRoutine: %X\n", STATUS_MORE_PROCESSING_REQUIRED);
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 NTSTATUS
