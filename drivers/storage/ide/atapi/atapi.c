@@ -1151,6 +1151,17 @@ IdeInterlockedIncrement(
     InterlockedIncrement(Addend);
 }
 
+LONG
+NTAPI
+IdeInterlockedDecrement(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PLONG Addend,
+    _In_ PVOID TagLock)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
 PPDO_DEVICE_EXTENSION
 NTAPI
 RefPdoWithSpinLockHeld(
@@ -1242,7 +1253,32 @@ UnrefLogicalUnitExtension(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PVOID TagLock)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    BOOLEAN SetEvent = FALSE;
+    KIRQL Irql;
+  
+    DPRINT("UnrefLogicalUnitExtension: %p, %p\n", FdoExtension, PdoExtension);
+
+    ASSERT(PdoExtension);
+    if (!PdoExtension)
+        return;
+
+    KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+
+    ASSERT(PdoExtension->ReferenceCount > 0);
+
+    if (!IdeInterlockedDecrement(PdoExtension, &PdoExtension->ReferenceCount, TagLock))
+    {
+        if (PdoExtension->PdoState & 0x40)
+        {
+            if (PdoExtension->PdoState & 0x20)
+                SetEvent = TRUE;
+        }
+    }
+
+    KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+    if (SetEvent)
+        KeSetEvent(&PdoExtension->Event, IO_NO_INCREMENT, FALSE);
 }
 
 PPDO_DEVICE_EXTENSION
