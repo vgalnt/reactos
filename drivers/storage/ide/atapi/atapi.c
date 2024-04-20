@@ -2559,8 +2559,58 @@ NTAPI
 IdeTranslateSrbStatus(
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    if ((Srb->SrbStatus & 0x3F) > 0x30)
+    {
+        DPRINT1("IdeTranslateSrbStatus: STATUS_IO_DEVICE_ERROR\n");
+        return STATUS_IO_DEVICE_ERROR;
+    }
+
+    if ((Srb->SrbStatus & 0x3F) == 0x30)
+    {
+        return Srb->InternalStatus;
+    }
+
+    switch (Srb->SrbStatus & 0x3F)
+    {
+        case 8:
+        case 0x11:
+        case 0x20:
+        case 0x21:
+            DPRINT1("IdeTranslateSrbStatus: STATUS_DEVICE_DOES_NOT_EXIST\n");
+            Status = STATUS_DEVICE_DOES_NOT_EXIST;
+            break;
+
+        case 9:
+        case 0xB:
+        case 0xE:
+            DPRINT1("IdeTranslateSrbStatus: STATUS_IO_TIMEOUT\n");
+            Status = STATUS_IO_TIMEOUT;
+            break;
+
+        case 0xA:
+            DPRINT1("IdeTranslateSrbStatus: STATUS_DEVICE_NOT_CONNECTED\n");
+            Status = STATUS_DEVICE_NOT_CONNECTED;
+            break;
+
+        case 6:
+        case 0x15:
+        case 0x22:
+            DPRINT1("IdeTranslateSrbStatus: STATUS_INVALID_DEVICE_REQUEST\n");
+            Status = 0xC0000010;
+            break;
+
+        case 0x12:
+            DPRINT1("IdeTranslateSrbStatus: STATUS_IO_DEVICE_ERROR\n");
+            Status = STATUS_INVALID_DEVICE_REQUEST;
+            break;
+
+        default:
+            return STATUS_IO_DEVICE_ERROR;
+    }
+
+    return Status;
 }
 
 VOID
