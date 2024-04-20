@@ -2657,7 +2657,105 @@ GetNextLuRequest2(
     _In_ PCHAR File,
     _In_ ULONG Line)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PKDEVICE_QUEUE_ENTRY Entry;
+    PSCSI_REQUEST_BLOCK Srb;
+    POWER_STATE State;
+    NTSTATUS Status;
+    PIRP Irp;
+    BOOLEAN RequeueIrp = FALSE;
+
+    DPRINT("GetNextLuRequest2: %p %X\n", FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId);
+
+    //IdeLogGetNextLuCaller(..);
+
+    if ((!(PdoExtension->PdoFlags & 2) && !PdoExtension->PendingRequest) ||
+        PdoExtension->PdoxSrbData.CurrentSrb)
+    {
+        DPRINT("GetNextLuRequest2: %X, %X NOT PD_LOGICAL_UNIT_IS_ACTIVE\n",
+               FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId);
+
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+        return;
+    }
+
+    if (PdoExtension->PdoFlags & 0x1D || PdoExtension->PdoState & 0x30)
+    {
+        DPRINT("GetNextLuRequest2: %X, %X Ignoring a get next lu call.\n",
+               FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId);
+
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+        return;
+    }
+
+    PdoExtension->PdoFlags &= ~2;
+    PdoExtension->RetriesDoRequest = 0;
+
+    if (PdoExtension->PendingRequest)
+    {
+        Irp = PdoExtension->PendingRequest;
+        PdoExtension->PendingRequest = NULL;
+    }
+    else
+    {
+        Entry = KeRemoveByKeyDeviceQueue(&PdoExtension->SelfDevice->DeviceQueue, PdoExtension->SortKey);
+
+        if (Entry)
+        {
+            Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.DeviceQueueEntry);
+            InterlockedDecrement(&PdoExtension->ItemsQueued);
+        }
+        else
+        {
+            Irp = NULL;
+        }
+    }
+
+    if (Irp)
+    {
+        Srb = IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb;
+
+        if (PdoExtension->PdoState & 0x1F00)
+        {
+            DPRINT("GetNextLuRequest2: %X, %X Lu must queue\n", FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId);
+
+            if (!(PdoExtension->PdoState & 0x1E00))
+            {
+                if (Srb->TimeOutValue < 0x1E)
+                    Srb->TimeOutValue = 0x1E;
+
+                RequeueIrp = TRUE;
+
+                DPRINT("GetNextLuRequest2: %X, %X need to spin up device, requeue irp %p\n",
+                       FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId, Irp);
+            }
+
+            ASSERT(PdoExtension->PendingRequest == NULL);
+            PdoExtension->PendingRequest = Irp;
+
+            Irp = NULL;
+        }
+
+        if (Irp)
+        {
+            PdoExtension->SortKey = (Srb->QueueSortKey + 1);
+            KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+            IoStartPacket(FdoExtension->SelfDevice, Irp, NULL, NULL);
+            return;
+        }
+    }
+    else
+    {
+        DPRINT("GetNextLuRequest2: %X, %X no irp to processing\n", FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId);
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+
+    if (RequeueIrp)
+    {
+        State.DeviceState = PowerDeviceD0;
+        Status = PoRequestPowerIrp(PdoExtension->SelfDevice, 2, State, NULL, NULL, NULL);
+        ASSERT(NT_SUCCESS(Status));
+    }
 }
 
 VOID

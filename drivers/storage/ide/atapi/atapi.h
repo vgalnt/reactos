@@ -388,6 +388,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     UCHAR Lun;
     UCHAR RetriesDoRequest;
     ULONG PdoFlags;
+    ULONG SortKey;
     struct _PDO_DEVICE_EXTENSION* LinkPdoExt;
     PSCSI_REQUEST_BLOCK AbortSrb;
     struct _PDO_DEVICE_EXTENSION* CompletedAbort;
