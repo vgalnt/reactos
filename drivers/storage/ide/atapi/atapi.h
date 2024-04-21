@@ -413,6 +413,12 @@ typedef struct _ATAPI_RESET_BUS_CONTEXT
     PSCSI_REQUEST_BLOCK Srb;
 } ATAPI_RESET_BUS_CONTEXT, *PATAPI_RESET_BUS_CONTEXT;
 
+typedef struct _ATA_DETECT_DEVICE_CONTEXT
+{
+    ATA_PASS_THROUGH AtaPassThr;
+    IDENTIFY_DATA Identify;
+} ATA_DETECT_DEVICE_CONTEX, *PATA_DETECT_DEVICE_CONTEX;
+
 /* ACPI EVAL ****************************************************************/
 
 typedef struct _ACPI_EVAL_SIGNATURE

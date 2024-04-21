@@ -150,6 +150,16 @@ PWSTR TypeName[] =
     L"SlaveDeviceType2"
 };
 
+PWSTR DetectionTimeoutName[] =
+{
+    L"MasterDeviceDetectionTimeout",
+    L"SlaveDeviceDetectionTimeout",
+    NULL,
+    NULL
+};
+
+extern NTSYSAPI BOOLEAN InitSafeBootMode;
+
 /* PRIVATE FUNCTIONS ********************************************************/
 
 VOID
@@ -4516,7 +4526,12 @@ SyncAtaPassThroughCompletionRoutine(
     _In_ PIDE_WAIT_CONTEXT WaitContext,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("SyncAtaPassThroughCompletionRoutine: %p, %X\n", WaitContext, InStatus);
+
+    WaitContext->Status = InStatus;
+    KeSetEvent(&WaitContext->Event, IO_NO_INCREMENT, FALSE);
+
+    DPRINT("SyncAtaPassThroughCompletionRoutine: InStatus %X\n", InStatus);
 }
 
 NTSTATUS
@@ -4843,6 +4858,14 @@ IdePortSaveDeviceParameter(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+NTAPI
+IdePortFudgeAtaIdentifyData(
+    _In_ PIDENTIFY_DATA Identify)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 ULONG
 NTAPI
 AtapiDetectDevice(
@@ -4851,8 +4874,221 @@ AtapiDetectDevice(
     _In_ PIDENTIFY_DATA Identify,
     _In_ BOOLEAN MustSucceed)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    ATA_DETECT_DEVICE_CONTEX Detect;
+    PIDE_CMD_BLOCK_REGS CmdBlock;
+    IDEREGS ideRegs[3];
+    PIDEREGS IdeRegs;
+    ULONG TimeoutValue = 0;
+    ULONG DeviceType;
+    ULONG ix;
+    BOOLEAN IsIdentifyCommand;
+    BOOLEAN IsFoundChild = FALSE;
+    //BOOLEAN IsNoTimeout = FALSE;
+    CHAR StrBuffer[0x2C];
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("AtapiDetectDevice: %X\n", MustSucceed);
+
+    ASSERT(FdoExtension);
+    ASSERT(PdoExtension);
+    ASSERT(PdoExtension->PathId == 0);
+    ASSERT(PdoExtension->TargetId < FdoExtension->HwDeviceExtension->MaxIdeTargetId);
+
+    CmdBlock = &FdoExtension->HwDeviceExtension->CmdBlock;
+
+    if (FdoExtension->DeviceParameter[PdoExtension->TargetId] == 3)
+    {
+        DeviceType = 3;
+    }
+    else
+    {
+        DeviceType = 0;
+
+        IdePortGetDeviceParameter(FdoExtension, TypeName[PdoExtension->TargetId], &DeviceType);
+
+        DPRINT("AtapiDetectDevice: last boot config deviceType %X\n", DeviceType);
+
+        IdePortGetDeviceParameter(FdoExtension, DetectionTimeoutName[PdoExtension->TargetId], &TimeoutValue);
+        if (!TimeoutValue)
+        {
+            //IsNoTimeout = TRUE;
+            TimeoutValue = ((PdoExtension->TargetId & 1) ? 3 : 0xA);
+        }
+
+        if (InitSafeBootMode == 1)
+            TimeoutValue = ((PdoExtension->TargetId & 1) != 0 ? 3 : 0xA);
+
+        IdePortSaveDeviceParameter(FdoExtension, TypeName[PdoExtension->TargetId], 0);
+
+        if (PdoExtension->TargetId == 1 && !FdoExtension->PcmciaIdeHasSlaveDevice)
+            DeviceType = 3;
+    }
+
+    RtlZeroMemory(ideRegs, sizeof(ideRegs));
+
+    DPRINT("AtapiDetectDevice: DeviceType %X\n", DeviceType);
+
+    if (DeviceType == 3)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return 3;
+    }
+
+    if (DeviceType == 1)
+    {
+        ideRegs[0].bCommandReg = 0xEC;
+        ideRegs[0].bReserved = 0x50;
+
+        ideRegs[1].bCommandReg = 0xA1;
+        ideRegs[1].bReserved = 0x10;
+    }
+    else
+    {
+        ideRegs[0].bCommandReg = 0xA1;
+        ideRegs[0].bReserved = 0x10;
+
+        ideRegs[1].bCommandReg = 0xEC;
+        ideRegs[1].bReserved = 0x50;
+    }
+
+    RtlZeroMemory(&Detect.AtaPassThr, sizeof(Detect.AtaPassThr));
+
+    Detect.AtaPassThr.IdeReg.bReserved = 0x30;
+    Detect.AtaPassThr.IdeReg.bSectorCountReg = 0xA;
+
+    IssueSyncAtaPassThroughSafe(FdoExtension, PdoExtension, &Detect.AtaPassThr, 0, 0, 3, MustSucceed);
+
+    DPRINT("AtapiDetectDevice: Hack for device %X at %X took 0 ms\n",
+           PdoExtension->TargetId, FdoExtension->ResourceData.CmdBlockBase);
+
+    if (Detect.AtaPassThr.IdeReg.bCommandReg == 0xFF)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (Detect.AtaPassThr.IdeReg.bCommandReg & 0x80)
+    {
+        RtlZeroMemory(&Detect.AtaPassThr, sizeof(Detect.AtaPassThr));
+        Detect.AtaPassThr.IdeReg.bReserved = 1;
+
+        IssueSyncAtaPassThroughSafe(FdoExtension, PdoExtension, &Detect.AtaPassThr, 0, 0, 0x1E, MustSucceed);
+
+        DPRINT("AtapiDetectDevice: Reset device %X ata %X took 0 ms\n",
+               PdoExtension->TargetId, FdoExtension->ResourceData.CmdBlockBase);
+    }
+
+    for (ix = 0, IdeRegs = ideRegs; ix < 2; ix++, IdeRegs++)
+    {
+        RtlZeroMemory(&Detect.AtaPassThr, sizeof(Detect.AtaPassThr));
+        Detect.AtaPassThr.IdeReg.bReserved = 0x30;
+
+        IsIdentifyCommand = (ideRegs[ix].bCommandReg == 0xEC);
+        if (IsIdentifyCommand)
+        {
+            Detect.AtaPassThr.IdeReg.bSectorCountReg = 0xA;
+
+            IssueSyncAtaPassThroughSafe(FdoExtension, PdoExtension, &Detect.AtaPassThr, 0, 0, 3, MustSucceed);
+
+            if (Detect.AtaPassThr.IdeReg.bCommandReg == 0 || Detect.AtaPassThr.IdeReg.bCommandReg == 1)
+                continue;
+
+            DeviceType = 1;
+        }
+        else
+        {
+            IssueSyncAtaPassThroughSafe(FdoExtension, PdoExtension, &Detect.AtaPassThr, 0, 0, 3, MustSucceed);
+            DeviceType = 2;
+        }
+
+        if (Detect.AtaPassThr.IdeReg.bCommandReg == 0xFF || Detect.AtaPassThr.IdeReg.bCommandReg == 0xFE)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        RtlZeroMemory(&Detect.AtaPassThr, sizeof(Detect.AtaPassThr));
+
+        Detect.AtaPassThr.BufferSize = 0x200;
+        RtlMoveMemory(&Detect, IdeRegs, sizeof(Detect.AtaPassThr.IdeReg));
+
+        ASSERT(TimeoutValue);
+
+        Status = IssueSyncAtaPassThroughSafe(FdoExtension, PdoExtension, &Detect.AtaPassThr, 1, 0, TimeoutValue, MustSucceed);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("AtapiDetectDevice: The irp with command %X, %X target %X failed %X with status %X\n",
+                   ix, CmdBlock->CmdBlockBase, PdoExtension->TargetId, ideRegs[ix].bCommandReg, Status);
+
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else
+        {
+            if (!(Detect.AtaPassThr.IdeReg.bCommandReg & 1))
+            {
+                DPRINT("AtapiDetectDevice: Found a child on %X target %X\n", CmdBlock->CmdBlockBase, PdoExtension->TargetId);
+                IsFoundChild = TRUE;
+
+                if (IsIdentifyCommand)
+                    IdePortFudgeAtaIdentifyData((PIDENTIFY_DATA)Detect.AtaPassThr.Buffer);
+
+                break;
+            }
+
+            DPRINT("AtapiDetectDevice: Command %X, %X target %X failed %X with status %X\n",
+                   ix, CmdBlock->CmdBlockBase, PdoExtension->TargetId, ideRegs[ix].bCommandReg, Detect.AtaPassThr.IdeReg.bCommandReg);
+        }
+    }
+
+    DPRINT("AtapiDetectDevice: Identify Data for device %X at %X took 0 ms\n",
+           PdoExtension->TargetId, FdoExtension->ResourceData.CmdBlockBase, 0);
+
+    IdePortSaveDeviceParameter(FdoExtension, TypeName[PdoExtension->TargetId], (DeviceType != 3 ? DeviceType : 0));
+
+    if (IsFoundChild)
+    {
+        RtlMoveMemory(Identify, Detect.AtaPassThr.Buffer, sizeof(IDENTIFY_DATA));
+
+        for (ix = 0; ix < 8; ix += 2)
+        {
+            StrBuffer[ix] = Identify->FirmwareRevision[ix + 1];
+            StrBuffer[ix + 1] = Identify->FirmwareRevision[ix];
+        }
+        StrBuffer[ix] = 0;
+
+        DPRINT("AtapiDetectDevice: firmware version: '%s'\n", StrBuffer);
+
+        for (ix = 0; ix < 0x28; ix += 2)
+        {
+            StrBuffer[ix] = Identify->ModelNumber[ix + 1];
+            StrBuffer[ix + 1] = Identify->ModelNumber[ix];
+        }
+        StrBuffer[ix] = 0;
+
+        DPRINT("AtapiDetectDevice: model number: '%s'\n", StrBuffer);
+
+        for (ix = 0; ix < 0x14; ix += 2)
+        {
+            StrBuffer[ix] = Identify->SerialNumber[ix + 1];
+            StrBuffer[ix + 1] = Identify->SerialNumber[ix];
+        }
+        StrBuffer[ix] = 0;
+
+        DPRINT("AtapiDetectDevice: serial number: '%s'\n", StrBuffer);
+    }
+    else
+    {
+        DeviceType = 3;
+    }
+
+    if (DeviceType == 3)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    DPRINT("AtapiDetectDevice: ret %X\n", DeviceType);
+
+    return DeviceType;
 }
 
 VOID
