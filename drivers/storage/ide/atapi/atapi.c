@@ -4862,8 +4862,28 @@ IdePortSaveDeviceParameter(
     _In_ PWSTR ValueName,
     _In_ ULONG ValueData)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    HANDLE DevInstRegKey;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IdePortSaveDeviceParameter: '%S' %X\n", ValueName, ValueData);
+
+    Status = IoOpenDeviceRegistryKey(FdoExtension->LowPdo, PLUGPLAY_REGKEY_DRIVER, KEY_WRITE, &DevInstRegKey);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdePortSaveDeviceParameter: Status %X\n", Status);
+        return Status;
+    }
+
+    Status = RtlWriteRegistryValue(RTL_REGISTRY_HANDLE, DevInstRegKey, ValueName, REG_DWORD, &ValueData, 4);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdePortSaveDeviceParameter: Status %X\n", Status);
+    }
+
+    ZwClose(DevInstRegKey);
+
+    return Status;
 }
 
 VOID
