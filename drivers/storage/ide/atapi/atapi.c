@@ -2289,12 +2289,31 @@ IdePortSyncSendIrp(
 
 BOOLEAN
 NTAPI
+AtapiInterrupt(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
 IdePortInterrupt(
     _In_ PKINTERRUPT Interrupt,
     _In_ PVOID ServiceContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PDEVICE_OBJECT Fdo = ServiceContext;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    BOOLEAN Result;
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    Result = AtapiInterrupt(FdoExtension->HwDeviceExtension);
+
+    if (FdoExtension->InterruptData.Flags & 4)
+        KeInsertQueueDpc(&FdoExtension->SelfDevice->Dpc, NULL, NULL);
+
+    return Result;
 }
 
 VOID
