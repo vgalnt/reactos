@@ -251,7 +251,7 @@ typedef struct _ATA_DEVICE_PARAMETERS
 
 typedef struct _ATA_DEVICE_EXTENSION
 {
-    PVOID CurrentSrb;
+    PSCSI_REQUEST_BLOCK CurrentSrb;
     IDE_CMD_BLOCK_REGS CmdBlock;
     IDE_CTRL_BLOCK_REGS CtrlBlock;
     ULONG CmdBlockLength;
@@ -265,7 +265,10 @@ typedef struct _ATA_DEVICE_EXTENSION
     ULONG EmptyDevice;
     ULONG EmptyWaitCount;
     ULONG EmptyResult;
+    UCHAR PioMode[4];
     UCHAR ExpectingInterrupt;
+    BOOLEAN IsActiveDmaTransfer;
+    BOOLEAN IsCdbSaved;
     BOOLEAN IsDscRestrictive;
     BOOLEAN IsDriverMustPoll;
     BOOLEAN IsPrimary;

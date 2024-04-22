@@ -2287,13 +2287,391 @@ IdePortSyncSendIrp(
     return Status;
 }
 
+VOID
+NTAPI
+AtapiCallBack(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 BOOLEAN
 NTAPI
 AtapiInterrupt(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PSCSI_REQUEST_BLOCK CurrentSrb;
+    PATA_PASS_THROUGH AtaPassThr;
+    ULONG bmStatus = 0;
+    ULONG SrbStatus=6;
+    ULONG BytesXferred = 0;
+    ULONG PioModeSize = 0x200;
+    ULONG ix;
+    ULONG jx;
+    UCHAR InterruptReason;
+    UCHAR IdeStatus;
+    UCHAR PioMode;
+    UCHAR Error;
+    BOOLEAN IsActiveDmaTransfer = FALSE;
+    BOOLEAN Result = FALSE;
+    BOOLEAN IsAtapiDevice;
+    ULONG (NTAPI* BmDisarm)(PVOID);
+    ULONG (NTAPI* BmStatus)(PVOID);
+
+    DPRINT("AtapiInterrupt: %p\n", HwDeviceExtension);
+
+    if (HwDeviceExtension->BusMasterInterface.AlwaysClearBusMasterInterrupt &&
+        HwDeviceExtension->BusMasterInterface.BmStatus)
+    {
+        BmStatus = HwDeviceExtension->BusMasterInterface.BmStatus;
+        bmStatus = BmStatus(HwDeviceExtension->BusMasterInterface.Context);
+
+        if (bmStatus & 4)
+        {
+            BmDisarm = HwDeviceExtension->BusMasterInterface.BmDisarm;
+            BmDisarm(HwDeviceExtension->BusMasterInterface.Context);
+            Result = TRUE;
+        }
+    }
+
+    if (!HwDeviceExtension->CurrentSrb)
+    {
+        DPRINT("AtapiInterrupt: CurrentSrb is NULL. Bogus Interrupt\n");
+
+        if (!HwDeviceExtension->IntResFlags && HwDeviceExtension->CmdBlock.CmdBlockBase)
+            READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+
+        return Result;
+    }
+
+    if (!HwDeviceExtension->ExpectingInterrupt)
+    {
+        DPRINT("AtapiInterrupt: Unexpected interrupt.\n");
+        return Result;
+    }
+
+    if (!HwDeviceExtension->BusMasterInterface.AlwaysClearBusMasterInterrupt &&
+        HwDeviceExtension->BusMasterInterface.BmStatus)
+    {
+        BmStatus = HwDeviceExtension->BusMasterInterface.BmStatus;
+        bmStatus = BmStatus(HwDeviceExtension->BusMasterInterface.Context);
+
+        if (bmStatus & 4)
+        {
+            BmDisarm = HwDeviceExtension->BusMasterInterface.BmDisarm;
+            BmDisarm(HwDeviceExtension->BusMasterInterface.Context);
+        }
+    }
+
+    CurrentSrb = HwDeviceExtension->CurrentSrb;
+
+    if (HwDeviceExtension->IsActiveDmaTransfer)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+
+    if (CurrentSrb->Function == 0xC8 || CurrentSrb->Function == 0xC7 || CurrentSrb->Function == 0xC9)
+    {
+        IsAtapiDevice = FALSE;
+
+        AtaPassThr = (PATA_PASS_THROUGH)(CurrentSrb->Function == 0xC9 ? CurrentSrb->Cdb : CurrentSrb->DataBuffer);
+
+        if (AtaPassThr->IdeReg.bCommandReg == 0xE6)
+        {
+            DPRINT1("AtapiInterrupt: FIXME\n");
+            ASSERT(FALSE);
+        }
+    }
+    else
+    {
+        IsAtapiDevice = ((HwDeviceExtension->DeviceFlags[CurrentSrb->TargetId] & 2) == 2);
+    }
+
+    DPRINT("AtapiInterrupt: (%X) Entered with IdeStatus (%X)\n", IsAtapiDevice, IdeStatus);
+
+    if (IdeStatus & 0x80)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    if ((IdeStatus & 1) && CurrentSrb->Cdb[0] != 3)
+    {
+        SrbStatus = 4;
+        goto Finish;
+    }
+
+    InterruptReason = 4;
+
+    if (IsAtapiDevice)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (IsActiveDmaTransfer)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (IdeStatus & 8)
+    {
+        PioMode = HwDeviceExtension->PioMode[CurrentSrb->TargetId];
+        if (PioMode)
+            PioModeSize = (PioMode << 9);
+
+        if (CurrentSrb->SrbFlags & 0x40)
+        {
+            InterruptReason = 2;
+        }
+        else if (CurrentSrb->SrbFlags & 0x80)
+        {
+            InterruptReason = 0;
+        }
+        else
+        {
+            SrbStatus = 4;
+            goto Finish;
+        }
+    }
+    else if (IdeStatus & 0x80)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (HwDeviceExtension->TransferDataBytes)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    if (InterruptReason == 1 && (IdeStatus & 8))
+    {
+        //Write Atapi
+        DPRINT("AtapiInterrupt: Writing Atapi packet.\n");
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+        return Result;
+    }
+    else if (InterruptReason == 0 && (IdeStatus & 8))
+    {
+        // Write ATA
+        if (IsAtapiDevice)
+        {
+            DPRINT1("AtapiInterrupt: FIXME\n");
+            ASSERT(FALSE);
+        }
+        else
+        {
+            DPRINT1("AtapiInterrupt: FIXME\n");
+            ASSERT(FALSE);
+        }
+
+        if (CurrentSrb->SrbFlags & 0x80)
+        {
+            DPRINT("AtapiInterrupt: Write interrupt\n");
+            DPRINT1("AtapiInterrupt: FIXME\n");
+            ASSERT(FALSE);
+        }
+        else
+        {
+            DPRINT("AtapiInterrupt: Int reason 0, but srb is for a write %X\n", CurrentSrb);
+            SrbStatus = 4;
+            goto Finish;
+        }
+    }
+    else if (InterruptReason == 2 && (IdeStatus & 8))
+    {
+        // Read
+        if (IsAtapiDevice)
+        {
+            DPRINT1("AtapiInterrupt: FIXME\n");
+            ASSERT(FALSE);
+        }
+        else
+        {
+            if (HwDeviceExtension->TransferDataBytes >= PioModeSize)
+                BytesXferred = PioModeSize;
+            else
+                BytesXferred = HwDeviceExtension->TransferDataBytes;
+        }
+
+        if (CurrentSrb->SrbFlags & 0x40)
+        {
+            DPRINT("AtapiInterrupt: Read interrupt\n");
+
+            ix = 0;
+            while (TRUE)
+            {
+                for (jx = 0; jx < 25000; jx++)
+                {
+                    IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                    if (!(IdeStatus & 0x80))
+                        break;
+
+                    KeStallExecutionProcessor(40);
+                }
+
+                if (!(IdeStatus & 0x80))
+                    break;
+
+                DPRINT("AtapiInterrupt: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+                       HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+
+                ix++;
+                if (ix >= 0xA)
+                {
+                    if (IdeStatus & 0x80)
+                    {
+                        DPRINT("WaitOnBusy failed in '%s' line %u. %X IdeStatus %X\n",
+                               __FILE__, __LINE__, HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+                    }
+
+                    break;
+                }
+            }
+
+            READ_PORT_BUFFER_USHORT(HwDeviceExtension->CmdBlock.Data,
+                                    (PUSHORT)HwDeviceExtension->TransferDataBuffer,
+                                    (BytesXferred >> 1));
+
+            if (BytesXferred & 1)
+                HwDeviceExtension->TransferDataBuffer[BytesXferred - 1] = READ_PORT_UCHAR((PUCHAR)HwDeviceExtension->CmdBlock.Data);
+
+            if (HwDeviceExtension->IsCdbSaved)
+            {
+                DPRINT1("AtapiInterrupt: FIXME\n");
+                ASSERT(FALSE);
+            }
+
+            HwDeviceExtension->TransferDataBuffer += BytesXferred;
+            HwDeviceExtension->TransferDataBytes -= BytesXferred;
+
+            if (HwDeviceExtension->TransferDataBytes != BytesXferred)
+                return Result;
+
+            if (IsAtapiDevice)
+            {
+                DPRINT1("AtapiInterrupt: FIXME\n");
+                ASSERT(FALSE);
+                return Result;
+            }
+            else
+            {
+                SrbStatus = 1;
+                goto Finish;
+            }
+        }
+        else
+        {
+            DPRINT("AtapiInterrupt: Int reason %X, but srb is for a read %X\n", 2, CurrentSrb);
+            SrbStatus = 4;
+            goto Finish;
+        }
+    }
+    else if (InterruptReason == 3)
+    {
+        // Complete
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        DPRINT("AtapiInterrupt: Unexpected interrupt. InterruptReason %X, Status %X\n", InterruptReason, IdeStatus);
+        ASSERT(Result == FALSE);
+        return Result;
+    }
+
+Finish:
+
+    if (SrbStatus != 4)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else
+    {
+        Error = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Error);
+
+        DPRINT("AtapiInterrupt: last command return IdeStatus byte %X and error byte %X\n", IdeStatus, Error);
+
+        if (HwDeviceExtension->IsCdbSaved)
+        {
+            DPRINT1("AtapiInterrupt: FIXME\n");
+            ASSERT(FALSE);
+        }
+
+        if (CurrentSrb->Function == 8 || CurrentSrb->Function == 7)
+        {
+            SrbStatus = 1;
+        }
+        else if (CurrentSrb->Function != 0xC8 && CurrentSrb->Function != 0xC7 && CurrentSrb->Function != 0xC9)
+        {
+            DPRINT1("AtapiInterrupt: FIXME\n");
+            ASSERT(FALSE);
+        }
+
+        HwDeviceExtension->IsDscRestrictive = FALSE;
+    }
+
+    HwDeviceExtension->ExpectingInterrupt = 0;
+    CurrentSrb->SrbStatus = SrbStatus;
+
+    if (HwDeviceExtension->TransferDataBytes)
+    {
+        if ((HwDeviceExtension->DeviceFlags[CurrentSrb->TargetId] & 4) || SrbStatus == 0x12)
+            CurrentSrb->DataTransferLength -= HwDeviceExtension->TransferDataBytes;
+        else
+            CurrentSrb->DataTransferLength = 0;
+    }
+
+    if (CurrentSrb->Function == 0xC8 || CurrentSrb->Function == 0xC7)
+    {
+        AtapiTaskRegisterSnapshot(&HwDeviceExtension->CmdBlock, CurrentSrb->DataBuffer);
+    }
+    else if (HwDeviceExtension->CurrentSrb->Function == 0xC9)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    if (CurrentSrb->Function == 2)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (HwDeviceExtension->IsDscRestrictive)
+    {
+        DPRINT1("AtapiInterrupt: FIXME\n");
+        ASSERT(FALSE);
+    }
+    else if (!HwDeviceExtension->IsDriverMustPoll)
+    {
+        IdePortNotification(0, HwDeviceExtension, CurrentSrb);
+    }
+
+    if (!HwDeviceExtension->IsDscRestrictive)
+    {
+        HwDeviceExtension->CurrentSrb = 0;
+
+        if (!HwDeviceExtension->IsDriverMustPoll)
+            IdePortNotification(1, HwDeviceExtension, 0);
+    }
+    else
+    {
+        ASSERT(!HwDeviceExtension->IsDriverMustPoll);
+        IdePortNotification(6, HwDeviceExtension, AtapiCallBack, 2000);
+    }
+
+    DPRINT("AtapiInterrupt: Result %X\n", Result);
+    return Result;
 }
 
 BOOLEAN
