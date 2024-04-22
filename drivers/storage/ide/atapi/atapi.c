@@ -250,7 +250,15 @@ AtapiTaskRegisterSnapshot(
     _In_ PIDE_CMD_BLOCK_REGS CmdBlock,
     _In_ PIDEREGS IdeReg)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ASSERT(IdeReg);
+
+    IdeReg->bFeaturesReg = READ_PORT_UCHAR(CmdBlock->Error);
+    IdeReg->bSectorCountReg = READ_PORT_UCHAR(CmdBlock->SectorCount);
+    IdeReg->bSectorNumberReg = READ_PORT_UCHAR(CmdBlock->LbaLow);
+    IdeReg->bCylLowReg = READ_PORT_UCHAR(CmdBlock->LbaMid);
+    IdeReg->bCylHighReg = READ_PORT_UCHAR(CmdBlock->LbaHigh);
+    IdeReg->bDriveHeadReg = READ_PORT_UCHAR(CmdBlock->DeviceSelect);
+    IdeReg->bCommandReg = READ_PORT_UCHAR(CmdBlock->Status);
 }
 
 VOID
