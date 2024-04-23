@@ -5304,11 +5304,13 @@ AtapiDetectDevice(
     IDEREGS ideRegs[3];
     PIDEREGS IdeRegs;
     ULONG TimeoutValue = 0;
+    ULONG DeviceFlags;
     ULONG DeviceType;
     ULONG ix;
+    ULONG nx;
     BOOLEAN IsIdentifyCommand;
     BOOLEAN IsFoundChild = FALSE;
-    //BOOLEAN IsNoTimeout = FALSE;
+    BOOLEAN IsNoTimeout = FALSE;
     CHAR StrBuffer[0x2C];
     NTSTATUS Status;
 
@@ -5337,7 +5339,7 @@ AtapiDetectDevice(
         IdePortGetDeviceParameter(FdoExtension, DetectionTimeoutName[PdoExtension->TargetId], &TimeoutValue);
         if (!TimeoutValue)
         {
-            //IsNoTimeout = TRUE;
+            IsNoTimeout = TRUE;
             TimeoutValue = ((PdoExtension->TargetId & 1) ? 3 : 0xA);
         }
 
@@ -5403,7 +5405,7 @@ AtapiDetectDevice(
                PdoExtension->TargetId, FdoExtension->ResourceData.CmdBlockBase);
     }
 
-    for (ix = 0, IdeRegs = ideRegs; ix < 2; ix++, IdeRegs++)
+    for (ix = 0, nx = 0, IdeRegs = ideRegs; ix < 2; ix++, IdeRegs++)
     {
         RtlZeroMemory(&Detect.AtaPassThr, sizeof(Detect.AtaPassThr));
         Detect.AtaPassThr.IdeReg.bReserved = 0x30;
@@ -5445,7 +5447,33 @@ AtapiDetectDevice(
             DPRINT("AtapiDetectDevice: The irp with command %X, %X target %X failed %X with status %X\n",
                    ix, CmdBlock->CmdBlockBase, PdoExtension->TargetId, ideRegs[ix].bCommandReg, Status);
 
-            UNIMPLEMENTED_DBGBREAK();
+            UNIMPLEMENTED_ONCE;
+
+            DeviceType = 3;
+            DeviceFlags = FdoExtension->HwDeviceExtension->DeviceFlags[PdoExtension->TargetId];
+
+            if (DeviceFlags & 1 && !(DeviceFlags & 2) && nx < 2)
+            {
+                if (ideRegs[ix].bCommandReg == 0xEC)
+                {
+                    ideRegs[ix--].bReserved |= 8;
+                    ix--;
+                    nx++;
+                }
+
+                continue;
+            }
+
+            if (Status == STATUS_IO_TIMEOUT)
+            {
+                if (PdoExtension->TargetId & 1 && IsNoTimeout)
+                {
+                    DPRINT("AtapiDetectDevice: Updating the registry with 1s value for device %d\n", PdoExtension->TargetId);
+                    IdePortSaveDeviceParameter(FdoExtension, DetectionTimeoutName[PdoExtension->TargetId], 1);
+                }
+
+                break;
+            }
         }
         else
         {
