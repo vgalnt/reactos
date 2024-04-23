@@ -3725,13 +3725,121 @@ IdePortCompletionDpc(
     DPRINT("IdePortCompletionDpc: exit (%p)\n", Fdo);
 }
 
+BOOLEAN
+NTAPI
+AtapiRestartBusyRequest(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+BOOLEAN
+NTAPI
+IdeTimeoutSynchronized(
+   _In_ PVOID SynchronizeContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
 VOID
 NTAPI
 IdePortTickHandler(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    ATA_SCSI_ADDRESS ScsiAddress;
+
+    DPRINT("IdePortTickHandler: %p\n", DeviceObject);
+
+    FdoExtension = DeviceObject->DeviceExtension;
+
+#if 0
+    if (IdeDebugRescanBusFreq)
+    {
+        ..
+    }
+#endif
+
+    KeAcquireSpinLockAtDpcLevel(&FdoExtension->SpinLock);
+
+    if (FdoExtension->HwDeviceExtension->EmptyWaitCount)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (FdoExtension->ResetCallAgain)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (FdoExtension->TimeOutValue <= 0)
+    {
+        ScsiAddress.AsULONG = 0;
+
+        while (TRUE)
+        {
+            PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, TRUE, IdePortTickHandler);
+            if (!PdoExtension)
+                break;
+
+            if (!AtapiRestartBusyRequest(FdoExtension, PdoExtension))
+            {
+                if (PdoExtension->TimeOut)
+                {
+                    if (PdoExtension->TimeOut > 0)
+                        PdoExtension->TimeOut--;
+                }
+                else
+                {
+                    DPRINT("IdePortTickHandler: Request timed out\n");
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+            }
+
+            UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortTickHandler);
+        }
+    }
+    else
+    {
+        FdoExtension->TimeOutValue--;
+
+        if (!FdoExtension->TimeOutValue)
+        {
+            if (FdoExtension->InterruptObject)
+            {
+                if (KeSynchronizeExecution(FdoExtension->InterruptObject, IdeTimeoutSynchronized, FdoExtension->SelfDevice))
+                {
+                    if (FdoExtension->SelfDevice->CurrentIrp)
+                    {
+                        UNIMPLEMENTED_DBGBREAK();
+                    }
+                }
+            }
+            else
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+
+        ScsiAddress.AsULONG = 0;
+
+        while (TRUE)
+        {
+            PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, TRUE, IdePortTickHandler);
+            if (!PdoExtension)
+                break;
+
+            AtapiRestartBusyRequest(FdoExtension, PdoExtension);
+            UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortTickHandler);
+        }
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+
+    DPRINT("IdePortTickHandler: exit\n");
 }
 
 VOID

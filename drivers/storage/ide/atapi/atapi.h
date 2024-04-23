@@ -333,6 +333,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG Flags;
     ULONG FdoState; 
     LONG TimeOutValue;
+    ULONG ResetCallAgain;
     UCHAR MaxPdoCount;
     PKINTERRUPT InterruptObject;
     ULONG SequenceNumber;
@@ -504,6 +505,13 @@ FdoPowerCompletionRoutine(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp,
     _In_ PVOID context
+);
+
+VOID
+NTAPI
+IdePortTickHandler(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PVOID Context
 );
 
 #endif /* _PCIIDEX_PCH_ */
