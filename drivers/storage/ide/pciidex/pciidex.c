@@ -2572,13 +2572,27 @@ BmArm(
     return STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS
+ULONG
 NTAPI
 BmDisarm(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ULONG bmStatus;
+
+    bmStatus = BmStatus(PdoExtension);
+
+    WRITE_PORT_UCHAR((PUCHAR)(PdoExtension->BusMasterBase + 0), 0);
+    WRITE_PORT_UCHAR((PUCHAR)(PdoExtension->BusMasterBase + 2), 4);
+
+    if (PdoExtension->BmState)
+        PdoExtension->BmState = 3;
+
+    if (bmStatus)
+    {
+        DPRINT("BmDisarm: BM %X status %X\n", PdoExtension->BusMasterBase, bmStatus);
+    }
+
+    return bmStatus;
 }
 
 NTSTATUS

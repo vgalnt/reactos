@@ -175,6 +175,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     UCHAR DataInFlag;
     PVOID BmCallback;
     PVOID BmCallbackContext;
+    ULONG BmState;
     UCHAR BmStatus;
     BOOLEAN IsChannelEmpty;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
@@ -236,6 +237,12 @@ PPDO_DEVICE_EXTENSION
 NTAPI
 ChannelGetPdoExtension(
     _In_ PDEVICE_OBJECT Pdo
+);
+
+ULONG
+NTAPI
+BmStatus(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension
 );
 
 #endif /* _PCIIDEX_PCH_ */
