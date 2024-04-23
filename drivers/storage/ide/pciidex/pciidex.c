@@ -2595,8 +2595,27 @@ NTAPI
 BmStatus(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    ULONG RetStatus;
+    UCHAR status;
+
+    status = READ_PORT_UCHAR(((PUCHAR)PdoExtension->BusMasterBase + 2));
+    if (status == 0xFF)
+    {
+        return 0;
+    }
+
+    RetStatus = 0;
+
+    if (status & 1)
+        RetStatus = 1;
+
+    if (status & 2)
+        RetStatus |= 2;
+
+    if (status & 4)
+        RetStatus |= 4;
+
+    return RetStatus;
 }
 
 NTSTATUS
