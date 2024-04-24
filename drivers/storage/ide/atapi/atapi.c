@@ -2345,6 +2345,7 @@ AtapiInterrupt(
     UCHAR PioMode;
     UCHAR Error;
     BOOLEAN IsActiveDmaTransfer = FALSE;
+    BOOLEAN IsIdeCommanSleep = FALSE;
     BOOLEAN Result = FALSE;
     BOOLEAN IsAtapiDevice;
     ULONG (NTAPI* BmDisarm)(PVOID);
@@ -2413,8 +2414,8 @@ AtapiInterrupt(
 
         if (AtaPassThr->IdeReg.bCommandReg == 0xE6)
         {
-            DPRINT1("AtapiInterrupt: FIXME\n");
-            ASSERT(FALSE);
+            IsIdeCommanSleep = TRUE;
+            IdeStatus = 0x50;
         }
     }
     else
@@ -2628,8 +2629,37 @@ Finish:
 
     if (SrbStatus != 4)
     {
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        for (jx = 0; jx < 60; jx++)
+        {
+            if (IsIdeCommanSleep)
+                IdeStatus = 0x50;
+            else
+                IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+
+            if (!(IdeStatus & 0x80))
+                break;
+
+            KeStallExecutionProcessor(500);
+        }
+
+        if (jx == 60)
+        {
+            DPRINT("AtapiInterrupt: Resetting due to BSY still up %X. Base Io %X\n", IdeStatus, &HwDeviceExtension->CmdBlock);
+
+            if (!HwDeviceExtension->IsDriverMustPoll)
+            {
+                IdePortNotification(0xB, HwDeviceExtension, 0);
+                return Result;
+            }
+
+            SrbStatus = 0xE;
+        }
+
+        if (IdeStatus & 8)
+        {
+            DPRINT1("AtapiInterrupt: FIXME\n");
+            ASSERT(FALSE);
+        }
     }
     else
     {
