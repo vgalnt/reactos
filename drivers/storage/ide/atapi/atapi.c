@@ -3763,8 +3763,40 @@ AtapiRestartBusyRequest(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PIRP BusyRequest;
+
+    if (!(PdoExtension->PdoFlags & 8))
+    {
+        return FALSE;
+    }
+
+    if (PdoExtension->PdoFlags & 5)
+        return TRUE;
+
+    DPRINT("AtapiRestartBusyRequest: Retrying busy status request\n");
+
+    PdoExtension->PdoFlags &= ~0x18;
+
+    BusyRequest = PdoExtension->BusyRequest;
+    PdoExtension->BusyRequest = NULL;
+
+    if (PdoExtension->PdoState & 0x30)
+    {
+        IoGetCurrentIrpStackLocation(BusyRequest)->Parameters.Scsi.Srb->SrbStatus = 8;
+        BusyRequest->IoStatus.Status = STATUS_NO_SUCH_DEVICE;
+
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, BusyRequest);
+
+        IoCompleteRequest(BusyRequest, 0);
+    }
+    else
+    {
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+        IoStartPacket(FdoExtension->SelfDevice, BusyRequest, NULL, NULL);
+        KeAcquireSpinLockAtDpcLevel(&FdoExtension->SpinLock);
+    }
+
+    return TRUE;
 }
 
 BOOLEAN
