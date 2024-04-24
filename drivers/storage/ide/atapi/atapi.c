@@ -1307,8 +1307,40 @@ NextLogUnitExtension(
     _In_ BOOLEAN IsForceRef,
     _In_ PVOID TagLock)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PPDO_DEVICE_EXTENSION Extension;
+
+    while (TRUE)
+    {
+        DPRINT("NextLogUnitExtension: %p, %X, %X, %X\n", FdoExtension, ScsiAddress->PathId, ScsiAddress->TargetId, ScsiAddress->Lun);
+
+        if (ScsiAddress->PathId >= 1)
+        {
+            DPRINT("NextLogUnitExtension: %p, %X, %X, %X\n", FdoExtension, ScsiAddress->PathId, ScsiAddress->TargetId, ScsiAddress->Lun);
+            return NULL;
+        }
+
+        while (TRUE)
+        {
+            if (ScsiAddress->TargetId >= FdoExtension->HwDeviceExtension->MaxIdeTargetId)
+            {
+                ScsiAddress->PathId++;
+                ScsiAddress->TargetId = 0;
+                DPRINT("NextLogUnitExtension: %p, %X, %X, %X\n", FdoExtension, ScsiAddress->PathId, ScsiAddress->TargetId, ScsiAddress->Lun);
+                break;
+            }
+
+            Extension = RefLogicalUnitExtension(FdoExtension, ScsiAddress->PathId, ScsiAddress->TargetId, ScsiAddress->Lun, IsForceRef, TagLock);
+            if (Extension)
+            {
+                ScsiAddress->Lun++;
+                DPRINT("NextLogUnitExtension: %p, %X, %X, %X\n", FdoExtension, ScsiAddress->PathId, ScsiAddress->TargetId, ScsiAddress->Lun);
+                return Extension;
+            }
+
+            ScsiAddress->TargetId++;
+            ScsiAddress->Lun = 0;
+        }
+    }
 }
 
 /* SCSI FUNCTIONS ***********************************************************/
