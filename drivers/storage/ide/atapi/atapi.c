@@ -2586,8 +2586,11 @@ AtapiInterrupt(
             HwDeviceExtension->TransferDataBuffer += BytesXferred;
             HwDeviceExtension->TransferDataBytes -= BytesXferred;
 
-            if (HwDeviceExtension->TransferDataBytes != BytesXferred)
+            if (HwDeviceExtension->TransferDataBytes)
+            {
+                DPRINT("AtapiInterrupt: BytesLeft %X\n", HwDeviceExtension->TransferDataBytes);
                 return Result;
+            }
 
             if (IsAtapiDevice)
             {
