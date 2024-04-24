@@ -5493,7 +5493,8 @@ NTAPI
 IdePortFudgeAtaIdentifyData(
     _In_ PIDENTIFY_DATA Identify)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    if (Identify->GeneralConfiguration == 0xFFFFFFFF)
+        Identify->GeneralConfiguration = 0x7F7F;
 }
 
 ULONG
