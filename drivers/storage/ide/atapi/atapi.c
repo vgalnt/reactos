@@ -158,6 +158,38 @@ PWSTR DetectionTimeoutName[] =
     NULL
 };
 
+PWSTR UserTimingModeAllowedName[] =
+{
+    L"UserMasterDeviceTimingModeAllowed",
+    L"UserSlaveDeviceTimingModeAllowed",
+    L"UserMasterDeviceTimingModeAllowed2",
+    L"UserSlaveDeviceTimingModeAllowed2"
+};
+
+PWSTR TimingModeName[] =
+{
+    L"MasterDeviceTimingMode",
+    L"SlaveDeviceTimingMode",
+    L"MasterDeviceTimingMode2",
+    L"SlaveDeviceTimingMode2"
+};
+
+PWSTR DataCheckSumName[] =
+{
+    L"MasterIdDataCheckSum",
+    L"SlaveIdDataCheckSum",
+    L"MasterIdDataCheckSum2",
+    L"SlaveIdDataCheckSum2"
+};
+
+PWSTR TimingModeAllowedName[] =
+{
+    L"MasterDeviceTimingModeAllowed",
+    L"SlaveDeviceTimingModeAllowed",
+    L"MasterDeviceTimingModeAllowed2",
+    L"SlaveDeviceTimingModeAllowed2"
+};
+
 extern NTSYSAPI BOOLEAN InitSafeBootMode;
 
 /* PRIVATE FUNCTIONS ********************************************************/
@@ -5750,27 +5782,262 @@ AtapiDetectDevice(
     return DeviceType;
 }
 
+ULONG
+NTAPI
+IdePortSimpleCheckSum(
+    _In_ ULONG CheckSum,
+    _In_ PVOID CheckSumBuffer,
+    _In_ ULONG Length)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+BOOLEAN
+NTAPI
+IdePortMustBePio(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIDENTIFY_DATA Identify)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+IdePortPioByDefaultDevice(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIDENTIFY_DATA Identify)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+UCHAR
+NTAPI
+IdePortGetFlushCommand(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PIDENTIFY_DATA Identify)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+IdePortDeviceHasNonRemovableMedia(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIDENTIFY_DATA Identify)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+IdePortDeviceIsLs120(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIDENTIFY_DATA Identify)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+IdePortNoPowerDown(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIDENTIFY_DATA Identify)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
+DeviceStopDeviceQueueSafe(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ ULONG QueueStopFlag,
+    _In_ BOOLEAN IsLockEnum)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+InitHwExtWithIdentify(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ ULONG Drive,
+    _In_ UCHAR IdentifyCommand,
+    _In_ PIDENTIFY_DATA Identify,
+    _In_ BOOLEAN ForceRemovableMedia)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdePortSelectCHS(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ ULONG Device,
+    _In_ PIDENTIFY_DATA IdentifyData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+FreePdo(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ BOOLEAN IsWait,
+    _In_ BOOLEAN IsDeleteDevice,
+    _In_ PVOID TagLock)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+AnalyzeDeviceCapabilities(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ BOOLEAN* OutIsMustBePio)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+AtapiSyncSelectTransferMode(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ ULONG* OutTMAllowed)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+AtapiHwInitialize(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ UCHAR* OutGetFlushCommand)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+DeviceStartDeviceQueue(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ ULONG ResetState)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+AtapiHwInitializeMultiLun(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ ULONG TargetId,
+    _In_ ULONG RegCheckSum)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+IssueInquirySafe(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PINQUIRYDATA Inquiry,
+    _In_ BOOLEAN IsSafe)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+DeviceInitDeviceType(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PINQUIRYDATA Inquiry)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+DeviceInitIdStrings(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ ULONG DeviceType,
+    _In_ PINQUIRYDATA Inquiry,
+    _In_ PIDENTIFY_DATA IdentifyData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+DeviceRegisterIdleDetection(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ ULONG ConservationIdleTime,
+    _In_ ULONG PerformanceIdleTime)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+IdeBuildDeviceMap(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PATAPI_DRIVER_EXTENSION DriverExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 IdePortScanBus(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
+    PATAPI_DRIVER_EXTENSION DriverExtension; 
     PATA_DEVICE_EXTENSION HwDeviceExtension;
     PPDO_DEVICE_EXTENSION PdoExtension;
     PVOID ImageSectionHandle;
     ATA_SCSI_ADDRESS ScsiAddress;
     ATA_PASS_THROUGH AtaPassThr;
     IDENTIFY_DATA Identify[4];
+    INQUIRYDATA Inquiry;
+    ULONG RegTimingModeAllowed[4];
+    ULONG RegTransferMode[4];
     ULONG DeviceType[4];
+    ULONG SelectedMode;
+    ULONG RegCheckSum;
+    ULONG checkSum[4];
+    ULONG CheckSum;
+    ULONG TMAllowed;
+    ULONG TMMask;
     ULONG ix;
+    ULONG jx;
+    //BOOLEAN IsPioByDefaultDevice[4];
+    BOOLEAN IsNonRemovableMedia[4];
+    BOOLEAN IsEqualCheckSum[4];
+    BOOLEAN IsNoPowerDown[4];
+    BOOLEAN IsMustBePio[4];
+    BOOLEAN IsLs120[4];
     BOOLEAN IsEmptyChannelCheck;
     BOOLEAN IsNewDevice;
+    UCHAR GetFlushCommand[4];
+    KIRQL Irql;
     NTSTATUS Status;
 
     ImageSectionHandle = MmLockPagableDataSection(IdePortScanBus);
 
-    ASSERT("FdoExtension");
-    ASSERT("FdoExtension->PreAllocEnumStruct");
+    ASSERT(FdoExtension);
+    ASSERT(FdoExtension->PreAllocEnumStruct);
 
     HwDeviceExtension = FdoExtension->HwDeviceExtension;
 
@@ -5831,14 +6098,15 @@ IdePortScanBus(
 
             if (NT_SUCCESS(Status))
             {
-                DPRINT("IdePortScanBus: IdeDevicePresent %x detected no device %d\n", FdoExtension->ResourceData.CmdBlockBase, ix);
+                DPRINT("IdePortScanBus: IdeDevicePresent %X detected no device %X\n",
+                       FdoExtension->ResourceData.CmdBlockBase, ix);
 
                 IdePortSaveDeviceParameter(FdoExtension, TypeName[PdoExtension->TargetId], 0);
                 DeviceType[ix] = 3;
             }
             else
             {
-                DeviceType[ix] = AtapiDetectDevice(FdoExtension, PdoExtension, &Identify[ix], 1);
+                DeviceType[ix] = AtapiDetectDevice(FdoExtension, PdoExtension, &Identify[ix], TRUE);
 
                 if (DeviceType[ix] == 3)
                 {
@@ -5846,23 +6114,425 @@ IdePortScanBus(
                 }
                 else
                 {
-                    DPRINT("IdePortScanBus: Status %X\n", Status);
+                    if (DeviceType[ix] == 2)
+                        HwDeviceExtension->DeviceFlags[ix] |= 2;
+                    else
+                        HwDeviceExtension->DeviceFlags[ix] |= 1;
+
+                    /* FIXME IdeFindSpecialDevice() for names:
+                       "TOSHIBA CD-ROM XM-1702B"
+                       "TOSHIBA CD-ROM XM-6202B"
+                       "COMPAQ DVD-ROM DRD-U424"
+                       "           "
+                       "KENWOOD CD-ROM"
+                       "MEMORYSTICK"
+                    */
+                    UNIMPLEMENTED_ONCE;
+                }
+            }
+
+            DPRINT("IdePortScanBus: Detect device %X for %X took 0 ms\n", ix, FdoExtension->ResourceData.CmdBlockBase);
+
+            ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+            ASSERT(DeviceType[ix] != 0);//DeviceUnknown
+            ASSERT(PdoExtension->TargetId == ix);
+
+            if (DeviceType[ix] != 3 && (ix & 1) && DeviceType[ix - 1] != 3)
+            {
+                DPRINT1("IdePortScanBus: FIXME\n");
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+            CheckSum = IdePortSimpleCheckSum(0, Identify[ix].ModelNumber, 0x28);
+            CheckSum += IdePortSimpleCheckSum(CheckSum, Identify[ix].SerialNumber, 0x14);
+            CheckSum += IdePortSimpleCheckSum(CheckSum, Identify[ix].FirmwareRevision, 8);
+
+            checkSum[ix] = CheckSum;
+
+            if (IsNewDevice)
+            {
+                FdoExtension->IsNeedUpdate = TRUE;
+                DPRINT("IdePortScanBus: Found a new device. pdoe %p\n", PdoExtension);
+            }
+            else if (checkSum[ix] != PdoExtension->DataCheckSum)
+            {
+                DPRINT("IdePortScanBus: bad bad bad user. A device is replaced by a different device. pdoe %p\n", PdoExtension);
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+            if (DeviceType[ix] != 3)
+            {
+                IsMustBePio[ix] = IdePortMustBePio(FdoExtension, &Identify[ix]);
+                //IsPioByDefaultDevice[ix] = IdePortPioByDefaultDevice(FdoExtension, &Identify[ix]);
+
+                ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+                if (DeviceType[ix] != 2)
+                    GetFlushCommand[ix] = IdePortGetFlushCommand(FdoExtension, PdoExtension, &Identify[ix]);
+                else
+                    GetFlushCommand[ix] = 0xFF;
+
+                DPRINT("IdePortScanBus: Flush command for device %X at %X took 0 ms\n",
+                       ix, FdoExtension->ResourceData.CmdBlockBase);
+
+                ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+                IsNonRemovableMedia[ix] = IdePortDeviceHasNonRemovableMedia(FdoExtension, &Identify[ix]);
+
+                ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+                IsLs120[ix] = IdePortDeviceIsLs120(FdoExtension, &Identify[ix]);
+
+                ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+                IsNoPowerDown[ix] = IdePortNoPowerDown(FdoExtension, &Identify[ix]);
+
+                ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+                FdoExtension->UserChoiceTransferMode[ix] = 0x12345678;
+
+                IdePortGetDeviceParameter(FdoExtension, UserTimingModeAllowedName[ix], &FdoExtension->UserChoiceTransferMode[ix]);
+
+                if (FdoExtension->UserChoiceTransferMode[ix] == 0x12345678)
+                {
+                    FdoExtension->UserChoiceTransferMode[ix] = 0x7FFFFFFF;
+                    FdoExtension->UserChoiceAtapiTransferMode[ix] = 0x1F;
+                }
+                else
+                {
+                    FdoExtension->UserChoiceAtapiTransferMode[ix] = 0xFFFFFFFF;
+                }
+
+                IdePortGetDeviceParameter(FdoExtension, TimingModeName[ix], &RegTransferMode[ix]);
+
+                RegCheckSum = 0;
+                IdePortGetDeviceParameter(FdoExtension, DataCheckSumName[ix], &RegCheckSum);
+
+                ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+                RegTimingModeAllowed[ix] = 0xFFFFFFFF;
+
+                if (RegCheckSum == checkSum[ix])
+                {
+                    IdePortGetDeviceParameter(FdoExtension, TimingModeAllowedName[ix], &RegTimingModeAllowed[ix]);
+                    IsEqualCheckSum[ix] = TRUE;
+                }
+                else
+                {
+                    IsEqualCheckSum[ix] = FALSE;
+                }
+
+                ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+                TMAllowed = (FdoExtension->UserChoiceTransferMode[ix] & RegTimingModeAllowed[ix]);
+                TMMask = HwDeviceExtension->DeviceParameters[ix].XferMaskMode;
+
+                FdoExtension->TMAllowed[ix] = (TMAllowed & ~TMMask);
+
+                if (PdoExtension->CrcErrors >= 6)
+                    PdoExtension->CrcErrors = 0;
+
+                DPRINT("IdePortScanBus: TMAllowed %X, TMMask %X, UserChoice %X\n",
+                       FdoExtension->TMAllowed[ix], TMMask, FdoExtension->UserChoiceTransferMode[ix]);
+
+                ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+                if (ix == 2)
+                {
+                    DPRINT1("IdePortScanBus: FIXME\n");
                     UNIMPLEMENTED_DBGBREAK();
                 }
             }
 
-            DPRINT("IdePortScanBus: Status %X\n", Status);
+            if (IsNewDevice)
+            {
+                DPRINT1("IdePortScanBus: FIXME\n");
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else
+            {
+                UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
+            }
+        }
+        else
+        {
+            DPRINT("IdePortScanBus() is unable to get pdo (%X,%X,%X)\n",
+                   ScsiAddress.PathId, ScsiAddress.TargetId, ScsiAddress.Lun);
+
+            DeviceType[ix] = 3;
+        }
+    }
+
+    FdoExtension->IsBigLbaEnabled = TRUE;
+
+    DPRINT("IdePortScanBus: detect a change of device...re-initializing\n");
+
+    ScsiAddress.AsULONG = 0;
+    Status = STATUS_SUCCESS;
+
+    while ((PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, TRUE, IdePortScanBus)) != NULL)
+    {
+        DPRINT("IdePortScanBus: stopping pdo %p\n", PdoExtension);
+        Status = DeviceStopDeviceQueueSafe(PdoExtension, 0x800, TRUE);
+        DPRINT("IdePortScanBus: stopped pdo %p\n", PdoExtension);
+
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
+
+        if (!NT_SUCCESS(Status))
+            break;
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        IsEmptyChannelCheck = TRUE;
+
+        DPRINT("IdePortScanBus: all children are stoped\n");
+
+        ScsiAddress.AsULONG = 0;
+        for (ix = 0; ix < HwDeviceExtension->MaxIdeTargetId; ix++)
+        {
+            ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
+
+            if (DeviceType[ix] == 3)
+            {
+                HwDeviceExtension->DeviceFlags[ix] = 0;
+            }
+            else
+            {
+                ScsiAddress.TargetId = ix;
+                IsNewDevice = FALSE;
+
+                PdoExtension = RefLogicalUnitExtension(FdoExtension,
+                                                       ScsiAddress.PathId,
+                                                       ScsiAddress.TargetId,
+                                                       ScsiAddress.Lun,
+                                                       TRUE, IdePortScanBus);
+                if (!PdoExtension)
+                {
+                    PdoExtension = AllocatePdo(FdoExtension, ScsiAddress, IdePortScanBus);
+                    IsNewDevice = TRUE;
+                }
+
+                if (PdoExtension)
+                {
+                    IsEmptyChannelCheck = FALSE;
+
+                    HwDeviceExtension->DeviceFlags[ix] |= 1;
+
+                    if (DeviceType[ix] == 2)
+                        HwDeviceExtension->DeviceFlags[ix] |= 2;
+
+                    if (IsLs120[ix])
+                        HwDeviceExtension->DeviceFlags[ix] |= 0x8000;
+
+                    RtlMoveMemory(&HwDeviceExtension->IdentifyData[ix], &Identify[ix], 0x200);
+
+                    HwDeviceExtension->DeviceFlags[ix] |= 0x20000;
+
+                    DPRINT("IdePortScanBus: Calling InitHwExtWithIdentify\n");
+
+                    InitHwExtWithIdentify(HwDeviceExtension,
+                                          ix,
+                                          (DeviceType[ix] != 2 ? 0xEC : 0xA1),
+                                          &HwDeviceExtension->IdentifyData[ix],
+                                          IsNonRemovableMedia[ix]);
+
+                    DPRINT("IdePortScanBus: Calling IdePortSelectCHS\n");
+                    IdePortSelectCHS(FdoExtension, ix, &Identify[ix]);
+                    DPRINT("IdePortScanBus: back from IdePortSelectCHS\n");
+
+                    if (IsNewDevice)
+                        FreePdo(PdoExtension, TRUE, TRUE, IdePortScanBus);
+                    else
+                        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
+                }
+            }
+        }
+
+        if (!IsEmptyChannelCheck)
+        {
+            DPRINT("IdePortScanBus: Calling AnalyzeDeviceCapabilities\n");
+            AnalyzeDeviceCapabilities(FdoExtension, IsMustBePio);
+
+            DPRINT("IdePortScanBus: Calling AtapiSelectTransferMode\n");
+            AtapiSyncSelectTransferMode(FdoExtension, HwDeviceExtension, FdoExtension->TMAllowed);
+
+            DPRINT("IdePortScanBus: Calling AtapiHwInitialize\n");
+            AtapiHwInitialize(FdoExtension->HwDeviceExtension, GetFlushCommand);
+        }
+    }
+
+    ScsiAddress.AsULONG = 0;
+    while ((PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, TRUE, IdePortScanBus)) != NULL)
+    {
+        DPRINT("IdePortScanBus: re-start pdo %p\n", PdoExtension);
+        DeviceStartDeviceQueue(PdoExtension, 0x800);
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
+    }
+
+    DPRINT("IdePortScanBus: Critical section %X took 0 ms\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    if (NT_SUCCESS(Status))
+    {
+        ScsiAddress.AsULONG = 0;
+
+        for (ix = 0; ix < HwDeviceExtension->MaxIdeTargetId; ix++)
+        {
+            if (DeviceType[ix] == 3)
+                continue;
+
+            ScsiAddress.TargetId = ix;
+
+            for (jx = 0; jx < FdoExtension->MaxPdoCount; jx++)
+            {
+                ScsiAddress.Lun = jx;
+                IsNewDevice = FALSE;
+
+                PdoExtension = RefLogicalUnitExtension(FdoExtension,
+                                                       ScsiAddress.PathId,
+                                                       ScsiAddress.TargetId,
+                                                       ScsiAddress.Lun,
+                                                       TRUE,
+                                                       IdePortScanBus);
+                if (!PdoExtension)
+                {
+                    PdoExtension = AllocatePdo(FdoExtension, ScsiAddress, IdePortScanBus);
+                    IsNewDevice = TRUE;
+                }
+
+                ASSERT(PdoExtension);
+
+                if (!PdoExtension)
+                {
+                    DPRINT1("IdePortScanBus: unable to create new pdo\n");
+                    continue;
+                }
+
+                if (!jx)
+                {
+                    if (FdoExtension->HwDeviceExtension->DeviceParameters[ix].XferSelectedMode & 0x7FFFFFE0)
+                    {
+                        if (!IsEqualCheckSum[ix] ||
+                            FdoExtension->HwDeviceExtension->DeviceParameters[ix].XferSelectedMode != RegTransferMode[ix])
+                        {
+                            UNIMPLEMENTED_DBGBREAK();
+                        }
+                        else
+                        {
+                            DPRINT("IdePortScanBus: Skip dma test for %X\n", ix);
+                        }
+
+                        DPRINT("IdePortScanBus: VerifyDma for %X device %X took 0 ms\n",
+                               FdoExtension->ResourceData.CmdBlockBase, ix);
+                    }
+
+                    RegCheckSum = 0;
+
+                    if (DeviceType[ix] == 2)
+                    {
+                        UNIMPLEMENTED_DBGBREAK();
+                    }
+
+                    AtapiHwInitializeMultiLun(FdoExtension->HwDeviceExtension, PdoExtension->TargetId, RegCheckSum);
+                }
+
+                Status = IssueInquirySafe(FdoExtension, PdoExtension, &Inquiry, TRUE);
+
+                DPRINT("IdePortScanBus: Inquiry %X for Lun %X device %X took 0 ms\n",
+                       FdoExtension->ResourceData.CmdBlockBase, jx, ix);
+
+                if (NT_SUCCESS(Status) || Status == STATUS_DATA_OVERRUN)
+                {
+                    DeviceInitDeviceType(PdoExtension, &Inquiry);
+                    DeviceInitIdStrings(PdoExtension, DeviceType[ix], &Inquiry, &Identify[ix]);
+
+                    PdoExtension->PdoFlags &= ~0x80;
+
+                    DPRINT("IdePortScanBus: Found device at ");
+                    DPRINT("   Bus         %X", PdoExtension->PathId);
+                    DPRINT("   Target Id   %X", PdoExtension->TargetId);
+                    DPRINT("   LUN         %X\n", PdoExtension->Lun);
+
+                    if (IsNoPowerDown[ix] || PdoExtension->ScsiDeviceType == 5)
+                    {
+                        KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+                        PdoExtension->PdoState |= 0x80;
+                        KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+                    }
+
+                    PdoExtension->DataCheckSum = checkSum[ix];
+                    UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
+                    PdoExtension = NULL;
+                }
+
+                if (!PdoExtension)
+                    continue;
+
+                if (!IsNewDevice)
+                {
+                    DPRINT("IdePortScanBus: pdoe %p is missing (physically removed)\n", PdoExtension);
+                }
+
+                KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+                PdoExtension->PdoState |= 0x40;
+                KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+                if (IsNewDevice)
+                    FreePdo(PdoExtension, TRUE, TRUE, IdePortScanBus);
+                else
+                    UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
+            }
+        }
+
+        ScsiAddress.AsULONG = 0;
+        while ((PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, TRUE, IdePortScanBus)) != NULL)
+        {
+            DeviceRegisterIdleDetection(PdoExtension, 0xFFFFFFFF, 0xFFFFFFFF);
+            PdoExtension->SelfDevice->Flags &= DO_DEVICE_INITIALIZING;
+            UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
+        }
+
+        DriverExtension = IoGetDriverObjectExtension(FdoExtension->DriverObject, DriverEntry);
+        IdeBuildDeviceMap(FdoExtension, DriverExtension);
+    }
+
+    DPRINT("IdePortScanBus: Last Stage scanning for %X took 0 ms\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    for (ix = 0; ix < HwDeviceExtension->MaxIdeTargetId; ix++)
+    {
+        PdoExtension = RefLogicalUnitExtension(FdoExtension, 0, ix, 0, TRUE, IdePortScanBus);
+        if (!PdoExtension)
+        {
+            IdePortSaveDeviceParameter(FdoExtension, TimingModeName[ix], 0);
+            continue;
+        }
+
+        SelectedMode = FdoExtension->HwDeviceExtension->DeviceParameters[ix].XferSelectedMode;
+
+        if (PdoExtension->DmaTimeouts >= 6)
+        {
+            SelectedMode &= 0x1F;
+            RegTimingModeAllowed[ix] &= 0x1F;
+        }
+
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
+
+        if (DeviceType[ix] == 3)
+        {
             UNIMPLEMENTED_DBGBREAK();
         }
         else
         {
-            DPRINT("IdePortScanBus: IdePortScanBus() is unable to get pdo (%X,%X,%X)\n", ScsiAddress.PathId, ScsiAddress.TargetId, ScsiAddress.Lun);
+            IdePortSaveDeviceParameter(FdoExtension, TimingModeName[ix], SelectedMode);
+            IdePortSaveDeviceParameter(FdoExtension, TimingModeAllowedName[ix], RegTimingModeAllowed[ix]);
         }
+
+        IdePortSaveDeviceParameter(FdoExtension, DataCheckSumName[ix], checkSum[ix]);
     }
-
-    UNIMPLEMENTED_DBGBREAK();
-
-    DPRINT("IdePortScanBus: detect a change of device...re-initializing\n");
 
 Exit:
 

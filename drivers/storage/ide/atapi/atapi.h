@@ -246,7 +246,7 @@ typedef struct _ATA_DEVICE_PARAMETERS
     ULONG BestUDmaXferMode;
     ULONG XferCurrentMode;
     ULONG XferSelectedMode;
-    ULONG Unknown2;
+    ULONG XferMaskMode;
 } ATA_DEVICE_PARAMETERS, *PATA_DEVICE_PARAMETERS;
 
 typedef struct _ATA_DEVICE_EXTENSION
@@ -342,6 +342,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     KSPIN_LOCK PdoArrayLock;
     UCHAR PdoCount1;
     UCHAR PdoCount2;
+    BOOLEAN IsNeedUpdate;
     UCHAR HackFlags;
     ULONG PcmciaIdeHasSlaveDevice;
     struct _PDO_DEVICE_EXTENSION* PdoArray[8];
@@ -354,6 +355,9 @@ typedef struct _FDO_DEVICE_EXTENSION
     PVOID DefaultTransferModeTimingTable;
     ULONG DmaDetectionLevel;
     ULONG DeviceParameter[4];
+    ULONG UserChoiceTransferMode[4];
+    ULONG UserChoiceAtapiTransferMode[4];
+    ULONG TMAllowed[4];
     ATAPI_SET_POWER_CONTEXT PowerContext[2];
     LONG PowerContextLock[2];
     LONG EnumStructLock;
@@ -361,6 +365,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     PVOID ErrorLog[2];
     PVOID ReservedPages;
     PCIIDE_INTERRUPT_INTERFACE InterruptInterface;
+    ULONG IsBigLbaEnabled;
     ULONG ResetErrorCountersOnSuccess;
     ATA_DEVICE_EXTENSION AtaExt;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
@@ -405,6 +410,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     PDEVICE_OBJECT Pdo;
     LONG ReferenceCount;
     ULONG PdoState;
+    ULONG DataCheckSum;
     LONG ItemsQueued;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 
