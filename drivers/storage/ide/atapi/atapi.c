@@ -5805,6 +5805,20 @@ IdePortSimpleCheckSum(
     return CheckSum;
 }
 
+NTSTATUS
+NTAPI
+IdePortGetParameterFromServiceSubKey(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PWSTR RegKeyValue,
+    _In_ ULONG Type,
+    _In_ BOOLEAN IsRegQuery,
+    _In_ PVOID ParameterData,
+    _In_ ULONG DataSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 BOOLEAN
 NTAPI
 IdePortSearchDeviceInRegMultiSzList(
@@ -5812,7 +5826,31 @@ IdePortSearchDeviceInRegMultiSzList(
     _In_ PIDENTIFY_DATA IdentifyData,
     _In_ PWSTR RegKeyValue)
 {
+    PVOID ParameterData;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IdePortSearchDeviceInRegMultiSzList: '%S'\n", RegKeyValue);
+
+    ASSERT(IdentifyData);
+    ASSERT(RegKeyValue);
+
+    Status = IdePortGetParameterFromServiceSubKey(FdoExtension->DriverObject, RegKeyValue, 7, TRUE, &ParameterData, 0);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdePortSearchDeviceInRegMultiSzList: Status %X\n", Status);
+        return FALSE;
+    }
+
+    if (!ParameterData)
+    {
+        DPRINT1("IdePortSearchDeviceInRegMultiSzList: ParameterData is NULL\n");
+        return FALSE;
+    }
+
+    DPRINT1("IdePortSearchDeviceInRegMultiSzList: FIXME\n");
     UNIMPLEMENTED_DBGBREAK();
+
     return FALSE;
 }
 
