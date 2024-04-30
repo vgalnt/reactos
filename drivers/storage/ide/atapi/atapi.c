@@ -5825,8 +5825,41 @@ IdePortOpenServiceSubKey(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PUNICODE_STRING Name)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PATAPI_DRIVER_EXTENSION DriverExtension;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE DriverHandle;
+    HANDLE KeyHandle;
+    NTSTATUS Status;
+
+    DPRINT("IdePortOpenServiceSubKey: '%wZ'\n", Name);
+
+    DriverExtension = IoGetDriverObjectExtension(DriverObject, DriverEntry);
+    if (!DriverExtension)
+    {
+        DPRINT1("IdePortOpenServiceSubKey: DriverExtension is NULL\n");
+        return NULL;
+    }
+
+    InitializeObjectAttributes(&ObjectAttributes, &DriverExtension->RegistryPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    Status = ZwOpenKey(&DriverHandle, KEY_ALL_ACCESS, &ObjectAttributes);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdePortOpenServiceSubKey: Status %X\n", Status);
+        return NULL;
+    }
+
+    InitializeObjectAttributes(&ObjectAttributes, Name, OBJ_CASE_INSENSITIVE, DriverHandle, NULL);
+
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    ZwClose(DriverHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdePortOpenServiceSubKey: Status %X\n", Status);
+        return NULL;
+    }
+
+    return KeyHandle;
 }
 
 NTSTATUS
