@@ -5807,16 +5807,89 @@ IdePortSimpleCheckSum(
 
 NTSTATUS
 NTAPI
+IdePortRegQueryRoutine(
+    _In_ PWSTR ValueName,
+    _In_ ULONG ValueType,
+    _In_ PVOID ValueData,
+    _In_ ULONG ValueLength,
+    _In_ PVOID Context,
+    _In_ PVOID EntryContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+HANDLE
+NTAPI
+IdePortOpenServiceSubKey(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PUNICODE_STRING Name)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+NTSTATUS
+NTAPI
 IdePortGetParameterFromServiceSubKey(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PWSTR RegKeyValue,
     _In_ ULONG Type,
     _In_ BOOLEAN IsRegQuery,
-    _In_ PVOID ParameterData,
+    _In_ PVOID* OutParameter,
     _In_ ULONG DataSize)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    UNICODE_STRING ValueName;
+    UNICODE_STRING SubKeyUs;
+    ANSI_STRING SubKeyAs;
+    HANDLE KeyHandle;
+    CHAR SubKeyString[0x34];
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IdePortGetParameterFromServiceSubKey: '%S'\n", RegKeyValue);
+
+    *OutParameter = NULL;
+
+    sprintf(SubKeyString, "Parameters");
+    RtlInitAnsiString(&SubKeyAs, SubKeyString);
+
+    Status = RtlAnsiStringToUnicodeString(&SubKeyUs, &SubKeyAs, TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdePortGetParameterFromServiceSubKey: Status %X\n", Status);
+        return Status;
+    }
+
+    KeyHandle = IdePortOpenServiceSubKey(DriverObject, &SubKeyUs);
+    RtlFreeUnicodeString(&SubKeyUs);
+    if (!KeyHandle)
+        return Status;
+
+    if (IsRegQuery)
+    {
+        RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+        QueryTable[0].Name = RegKeyValue;
+        QueryTable[0].QueryRoutine = IdePortRegQueryRoutine;
+        QueryTable[0].Flags = 0x14;
+        QueryTable[0].EntryContext = OutParameter;
+        QueryTable[0].DefaultType = 0;
+        QueryTable[0].DefaultData = NULL;
+        QueryTable[0].DefaultLength = 0;
+
+        Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE, KeyHandle, QueryTable, ULongToPtr(Type), NULL);
+    }
+    else
+    {
+        RtlInitUnicodeString(&ValueName, RegKeyValue);
+        Status = ZwSetValueKey(KeyHandle, &ValueName, 0, Type, OutParameter, DataSize);
+    }
+
+    ZwClose(KeyHandle);
+
+    return Status;
 }
 
 BOOLEAN
