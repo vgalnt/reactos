@@ -5987,8 +5987,51 @@ IdePortGetFlushCommand(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PIDENTIFY_DATA Identify)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    ATA_PASS_THROUGH AtaPassThr;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IdePortGetFlushCommand: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    ASSERT(FdoExtension);
+    ASSERT(PdoExtension);
+    ASSERT(Identify);
+
+    if (IdePortSearchDeviceInRegMultiSzList(FdoExtension, Identify, (PWSTR)L"NoFlushDevice"))
+    {
+        DPRINT("IdePortGetFlushCommand: found a device that couldn't handle any flush command\n");
+        return 0xFF;
+    }
+
+    if (IdePortSearchDeviceInRegMultiSzList(FdoExtension, Identify, (PWSTR)L"UseCheckPowerForFlush"))
+    {
+        DPRINT("IdePortGetFlushCommand: found a device that has to use check power mode command to flush\n");
+        return 0xE5;
+    }
+
+    if (Identify->MajorRevision != 0 &&
+        Identify->MajorRevision != 0xFFFF &&
+        Identify->MajorRevision & 0xFFF0)
+    {
+        return 0xE7;
+    }
+
+    RtlZeroMemory(&AtaPassThr, sizeof(AtaPassThr));
+
+    AtaPassThr.IdeReg.bCommandReg = 0xE7;
+    AtaPassThr.IdeReg.bReserved = 0x50;
+
+    Status = IssueSyncAtaPassThroughSafe(FdoExtension, PdoExtension, &AtaPassThr, FALSE, FALSE, 0xF, FALSE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("IdePortGetFlushCommand: Status %X\n", Status);
+        return 0xE5;
+    }
+
+    if (AtaPassThr.IdeReg.bCommandReg & 1)
+        return 0xE5;
+
+    return 0xE7;
 }
 
 BOOLEAN
