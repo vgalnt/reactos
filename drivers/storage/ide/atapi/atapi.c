@@ -5789,8 +5789,20 @@ IdePortSimpleCheckSum(
     _In_ PVOID CheckSumBuffer,
     _In_ ULONG Length)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PUSHORT Buffer = (PUSHORT)CheckSumBuffer;
+
+    DPRINT("IdePortSimpleCheckSum: %X\n", Length);
+
+    Length /= 2;
+
+    while (Length--)
+    {
+        CheckSum += *Buffer;
+        Buffer++;
+        CheckSum = ((USHORT)CheckSum + (CheckSum >> 16));
+    }
+
+    return CheckSum;
 }
 
 BOOLEAN
