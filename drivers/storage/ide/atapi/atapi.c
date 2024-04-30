@@ -5807,12 +5807,23 @@ IdePortSimpleCheckSum(
 
 BOOLEAN
 NTAPI
+IdePortSearchDeviceInRegMultiSzList(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIDENTIFY_DATA IdentifyData,
+    _In_ PWSTR RegKeyValue)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
 IdePortMustBePio(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PIDENTIFY_DATA Identify)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PAGED_CODE();
+    return IdePortSearchDeviceInRegMultiSzList(FdoExtension, Identify, L"PioOnlyDevice");
 }
 
 BOOLEAN
