@@ -412,6 +412,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     LONG ReferenceCount;
     ULONG PdoState;
     ULONG DataCheckSum;
+    PVOID PdoxUnknown1;
     LONG ItemsQueued;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 

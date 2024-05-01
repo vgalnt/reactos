@@ -1381,7 +1381,8 @@ NTSTATUS
 NTAPI
 IdePortFlushLogicalUnit(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
-    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ BOOLEAN IsFlushAlways)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
@@ -1423,7 +1424,7 @@ IdePortInsertByKeyDeviceQueue(
     if (PdoExtension->PdoState & 0x20)
     {
         KeLowerIrql(Irql);
-        IdePortFlushLogicalUnit(PdoExtension->FdoExtension, PdoExtension);
+        IdePortFlushLogicalUnit(PdoExtension->FdoExtension, PdoExtension, TRUE);
 
         Srb->SrbStatus = 0x16;
         Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
@@ -6119,6 +6120,14 @@ IdePortSelectCHS(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+VOID
+NTAPI
+DeviceUnregisterIdleDetection(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 FreePdo(
@@ -6127,8 +6136,91 @@ FreePdo(
     _In_ BOOLEAN IsDeleteDevice,
     _In_ PVOID TagLock)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension = PdoExtension->FdoExtension;
+    PPDO_DEVICE_EXTENSION CurrentPdoe;
+    PPDO_DEVICE_EXTENSION LastPdoe = NULL;
+    LONG ReferenceCount;
+    KIRQL Irql;
+
+    DPRINT("FreePdo: %X, %X, %X\n", FdoExtension->ResourceData.CmdBlockBase, IsWait, IsDeleteDevice);
+
+    KeAcquireSpinLock(&FdoExtension->PdoArrayLock, &Irql);
+
+    CurrentPdoe = FdoExtension->PdoArray[(PdoExtension->TargetId + PdoExtension->Lun) & 7];
+    while (TRUE)
+    {
+        if (!CurrentPdoe)
+        {
+            KeReleaseSpinLock(&FdoExtension->PdoArrayLock, Irql);
+
+            if (IsDeleteDevice)
+            {
+                DPRINT("FreePdo: deleting device %p that was PROBABLY surprise removed\n", PdoExtension->SelfDevice);
+
+                if (!(PdoExtension->PdoState & 0x20) || PdoExtension->PdoState & 0x10)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+            }
+
+            return STATUS_SUCCESS;
+        }
+
+        if (CurrentPdoe == PdoExtension)
+            break;
+
+        LastPdoe = CurrentPdoe;
+        CurrentPdoe = CurrentPdoe->LinkPdoExt;
+    }
+
+    if (LastPdoe)
+        LastPdoe->LinkPdoExt = CurrentPdoe->LinkPdoExt;
+    else
+        FdoExtension->PdoArray[(PdoExtension->TargetId + PdoExtension->Lun) & 7] = CurrentPdoe->LinkPdoExt;
+
+    ASSERT(!(CurrentPdoe->PdoState & 2));//PDOS_LEGACY_ATTACHER
+
+    if (CurrentPdoe->ReferenceCount > 1)
+    {
+        DPRINT("FreePdo: pdoe %p ReferenceCount is %X\n", CurrentPdoe, CurrentPdoe->ReferenceCount);
+    }
+
+    FdoExtension->PdoCount1--;
+
+    if (CurrentPdoe->DevicePowerState <= 1)
+        FdoExtension->PdoCount2--;
+
+    KeReleaseSpinLock(&FdoExtension->PdoArrayLock, Irql);
+
+    KeAcquireSpinLock(&CurrentPdoe->PdoLock, &Irql);
+
+    ASSERT(!(CurrentPdoe->PdoState & 2));//PDOS_LEGACY_ATTACHER
+    ASSERT(CurrentPdoe->ReferenceCount > 0);
+
+    ReferenceCount = IdeInterlockedDecrement(CurrentPdoe, &CurrentPdoe->ReferenceCount, TagLock);
+
+    CurrentPdoe->PdoState |= 0x60;
+    KeReleaseSpinLock(&CurrentPdoe->PdoLock, Irql);
+
+    DeviceUnregisterIdleDetection(PdoExtension);
+
+    if (PdoExtension->PdoxUnknown1)
+    {
+        ExFreePool(PdoExtension->PdoxUnknown1);
+        PdoExtension->PdoxUnknown1 = NULL;
+    }
+
+    IdePortFlushLogicalUnit(FdoExtension, PdoExtension, TRUE);
+
+    if (ReferenceCount && IsWait)
+        KeWaitForSingleObject(&CurrentPdoe->Event, Executive, KernelMode, FALSE, NULL);
+
+    if (IsDeleteDevice)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return STATUS_SUCCESS;
 }
 
 VOID
@@ -6481,14 +6573,9 @@ IdePortScanBus(
             }
 
             if (IsNewDevice)
-            {
-                DPRINT1("IdePortScanBus: FIXME\n");
-                UNIMPLEMENTED_DBGBREAK();
-            }
+                FreePdo(PdoExtension, TRUE, TRUE, IdePortScanBus);
             else
-            {
                 UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
-            }
         }
         else
         {
