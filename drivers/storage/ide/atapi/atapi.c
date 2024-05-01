@@ -6081,8 +6081,9 @@ IdePortNoPowerDown(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PIDENTIFY_DATA Identify)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PAGED_CODE();
+    DPRINT("IdePortNoPowerDown: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+    return IdePortSearchDeviceInRegMultiSzList(FdoExtension, Identify, L"NoPowerDownDevice");
 }
 
 NTSTATUS
