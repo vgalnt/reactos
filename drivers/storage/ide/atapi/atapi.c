@@ -6040,7 +6040,14 @@ IdePortDeviceHasNonRemovableMedia(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PIDENTIFY_DATA Identify)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIDENTIFY_DEVICE_DATA IdentifyDevice = (PIDENTIFY_DEVICE_DATA)Identify;
+
+    PAGED_CODE();
+    DPRINT("IdePortDeviceHasNonRemovableMedia: %X\n", IdentifyDevice->GeneralConfiguration.RemovableMedia);
+
+    if (IdentifyDevice->GeneralConfiguration.RemovableMedia)
+        return TRUE;
+
     return FALSE;
 }
 

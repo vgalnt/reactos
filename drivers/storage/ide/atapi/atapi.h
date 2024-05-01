@@ -15,6 +15,7 @@
 #include <ntddstor.h> 
 #include <ntdddisk.h> 
 #include <scsi.h> 
+#include <ata.h> 
 
 /* ACPI EVAL ****************************************************************/
 
