@@ -6057,8 +6057,22 @@ IdePortDeviceIsLs120(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PIDENTIFY_DATA Identify)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    ULONG ix;
+    CHAR Model[0x28];
+
+    PAGED_CODE();
+    DPRINT("IdePortDeviceIsLs120: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    for (ix = 0; ix < 0x28; ix += 2)
+    {
+        Model[ix] = Identify->ModelNumber[ix + 1];
+        Model[ix + 1] = Identify->ModelNumber[ix];
+        ix += 2;
+    }
+
+    Model[ix] = 0;
+
+    return (strstr(_strupr(Model), "LS-120") != 0);
 }
 
 BOOLEAN
