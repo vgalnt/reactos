@@ -6125,7 +6125,12 @@ NTAPI
 DeviceUnregisterIdleDetection(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    if (!PdoExtension->IdleCounter)
+        return;
+
+    PoRegisterDeviceForIdleDetection(PdoExtension->SelfDevice, 0, 0, PowerDeviceD3);
+
+    PdoExtension->IdleCounter = NULL;
 }
 
 NTSTATUS
