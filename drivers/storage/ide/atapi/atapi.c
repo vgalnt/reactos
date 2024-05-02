@@ -6272,7 +6272,9 @@ FreePdo(
 
     if (IsDeleteDevice)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        UNIMPLEMENTED_ONCE;
+        //IdeLogFreeCommandLog(..);
+        IoDeleteDevice(CurrentPdoe->SelfDevice);
     }
 
     return STATUS_SUCCESS;
