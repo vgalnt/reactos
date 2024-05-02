@@ -6205,14 +6205,181 @@ InitHwExtWithIdentify(
     }
 }
 
+BOOLEAN
+NTAPI
+SetDriveParameters(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ ULONG Device,
+    _In_ BOOLEAN IsWait)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 VOID
 NTAPI
 IdePortSelectCHS(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ ULONG Device,
-    _In_ PIDENTIFY_DATA IdentifyData)
+    _In_ PIDENTIFY_DATA Identify)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    ULONG CurrentChs;
+    ULONG Chs;
+    ULONG ix;
+    ULONG jx;
+    UCHAR status;
+
+    PAGED_CODE();
+
+    //ASSERT(IdePAGESCANLockCount > 0);
+    ASSERT(FdoExtension);
+    ASSERT(Identify);
+
+    HwDeviceExtension = FdoExtension->HwDeviceExtension;
+
+    ASSERT(HwDeviceExtension);
+    ASSERT(Device < HwDeviceExtension->MaxIdeDevice);
+
+    DPRINT("IdePortSelectCHS: %X\n", HwDeviceExtension->CmdBlock.CmdBlockBase);
+
+    if (!(HwDeviceExtension->DeviceFlags[Device] & 1))
+        return;
+
+    if (HwDeviceExtension->DeviceFlags[Device] & 2)
+        return;
+
+    CurrentChs = (Identify->NumberOfCurrentCylinders * Identify->CurrentSectorsPerTrack * Identify->NumberOfCurrentHeads);
+    Chs = (Identify->NumCylinders * Identify->NumHeads * Identify->NumSectorsPerTrack);
+
+    if (CurrentChs >= Chs &&
+        Identify->MajorRevision &&
+        Identify->NumberOfCurrentCylinders &&
+        Identify->NumberOfCurrentHeads &&
+        Identify->CurrentSectorsPerTrack)
+    {
+        HwDeviceExtension->NumberOfCylinders[Device] = Identify->NumberOfCurrentCylinders;
+        HwDeviceExtension->NumberOfHeads[Device] = Identify->NumberOfCurrentHeads;
+        HwDeviceExtension->SectorsPerTrack[Device] = Identify->CurrentSectorsPerTrack;
+    }
+    else
+    {
+        HwDeviceExtension->NumberOfCylinders[Device] = Identify->NumCylinders;
+        HwDeviceExtension->NumberOfHeads[Device] = Identify->NumHeads;
+        HwDeviceExtension->SectorsPerTrack[Device] = Identify->NumSectorsPerTrack;
+    }
+
+    if (Identify->NumCylinders != Identify->NumberOfCurrentCylinders ||
+        Identify->NumHeads != Identify->NumberOfCurrentHeads ||
+        Identify->NumSectorsPerTrack != Identify->CurrentSectorsPerTrack)
+    {
+        DPRINT("IdePortSelectCHS: %X device %X current CHS (%X, %X, %X) differs from default CHS (%X, %X, %X)\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, Device,
+               Identify->NumberOfCurrentCylinders, Identify->NumberOfCurrentHeads, Identify->CurrentSectorsPerTrack,
+               Identify->NumCylinders, Identify->NumHeads, Identify->NumSectorsPerTrack);
+    }
+
+    if (HwDeviceExtension->SectorsPerTrack[Device] == 0x35)
+    {
+        if (HwDeviceExtension->NumberOfHeads[Device] == 7)
+        {
+            DPRINT("IdePortSelectCHS: Fix up the geometry for ESDI!\n");
+            HwDeviceExtension->SectorsPerTrack[Device] = 0x34;
+            HwDeviceExtension->NumberOfHeads[Device] = 0xE;
+        }
+
+        if (HwDeviceExtension->SectorsPerTrack[Device] == 0x35 && HwDeviceExtension->NumberOfHeads[Device] == 0xF)
+        {
+            DPRINT("IdePortSelectCHS: Fix up the geometry for ESDI!\n");
+            HwDeviceExtension->SectorsPerTrack[Device] = 0x34;
+            HwDeviceExtension->NumberOfHeads[Device] = 0xF;
+        }
+    }
+
+    if (HwDeviceExtension->SectorsPerTrack[Device] == 0x36 && HwDeviceExtension->NumberOfHeads[Device] == 7)
+    {
+        DPRINT("IdePortSelectCHS: Fix up the geometry for ESDI!\n");
+        HwDeviceExtension->SectorsPerTrack[Device] = 0x3F;
+        HwDeviceExtension->NumberOfHeads[Device] = 0x10;
+        return;
+    }
+
+    //DebugPrintTickCount(..);
+    DPRINT("IdePortSelectCHS: ... \n");
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+    DPRINT("IdePortSelectCHS: ... \n");
+
+    for (ix = 0; ix < 10; ix++)
+    {
+        for (jx = 0; jx < 25000; jx++)
+        {
+            status = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+            if (!(status & 0x80))
+                break;
+
+            KeStallExecutionProcessor(40);
+        }
+
+        if (!(status & 0x80))
+            break;
+
+        DPRINT("IdePortSelectCHS: after 1 sec wait, device is still busy (%X %X)\n", HwDeviceExtension->CmdBlock, status);
+    }
+
+    if (status & 0x80)
+    {
+        DPRINT("IdePortSelectCHS: WaitOnBusy failed. %X %X)\n", HwDeviceExtension->CmdBlock, status);
+    }
+
+    DPRINT("IdePortSelectCHS: ... \n");
+    if (status & 0x80)
+    {
+        DPRINT1("IdePortSelectCHS: FIXME\n");
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    DPRINT("IdePortSelectCHS: ... \n");
+
+    ix = 0;
+    while (TRUE)
+    {
+        for (jx = 0; jx < 25000; jx++)
+        {
+            status = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+            if (!(status & 0x80))
+                break;
+
+            KeStallExecutionProcessor(40);
+        }
+
+        if (!(status & 0x80))
+            break;
+
+        DPRINT("IdePortSelectCHS: after 1 sec wait, device is still busy (%X %X)\n", HwDeviceExtension->CmdBlock, status);
+
+        ix++;
+        if (ix >= 10)
+        {
+            if (status & 0x80)
+            {
+                DPRINT("IdePortSelectCHS: WaitOnBusy failed. (%X %X)\n", HwDeviceExtension->CmdBlock, status);
+            }
+
+            break;
+        }
+    }
+
+    DPRINT("IdePortSelectCHS: ... \n");
+    //DebugPrintTickCount(..);
+    DPRINT("FindDevices: Status before SetDriveParameters: (%X %X)\n", status, READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect));
+    DPRINT("IdePortSelectCHS: ... \n");
+
+    if (!SetDriveParameters(HwDeviceExtension, Device, TRUE))
+    {
+        DPRINT("IdePortSelectCHS: Set drive parameters for device %X failed\n", Device);
+        HwDeviceExtension->DeviceFlags[Device] = 0;
+    }
+
+    DPRINT("IdePortSelectCHS: ... \n");
 }
 
 VOID

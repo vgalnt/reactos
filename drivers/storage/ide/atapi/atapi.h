@@ -258,6 +258,9 @@ typedef struct _ATA_DEVICE_EXTENSION
     ULONG CmdBlockLength;
     ULONG CtrlBlockLength;
     ULONG MaxIdeDevice;
+    ULONG NumberOfCylinders[2];
+    ULONG NumberOfHeads[2];
+    ULONG SectorsPerTrack[2];
     ULONG IntResFlags;
     PUCHAR TransferDataBuffer;
     ULONG TransferDataBytes;
