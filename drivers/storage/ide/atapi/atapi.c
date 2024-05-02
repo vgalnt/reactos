@@ -1384,8 +1384,58 @@ IdePortFlushLogicalUnit(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ BOOLEAN IsFlushAlways)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PKDEVICE_QUEUE_ENTRY Entry;
+    PIRP PowerRelatedIrp;
+    PIRP EntryIrp;
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
+
+    if (!(PdoExtension->PdoFlags & 1) && !IsFlushAlways)
+    {
+        DPRINT("IdePortFlushLogicalUnit: Request to flush an unfrozen queue!\n");
+        KeReleaseSpinLock(&FdoExtension->SpinLock, Irql);
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    EntryIrp = NULL;
+    PowerRelatedIrp = NULL;
+
+    while ((Entry = KeRemoveByKeyDeviceQueueIfBusy(&PdoExtension->SelfDevice->DeviceQueue, 0)) != NULL)
+    {
+        DPRINT1("IdePortFlushLogicalUnit: FIXME\n");
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (PdoExtension->PdoFlags & 8)
+    {
+        DPRINT1("IdePortFlushLogicalUnit: FIXME\n");
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (PdoExtension->PendingRequest)
+    {
+        DPRINT1("IdePortFlushLogicalUnit: FIXME\n");
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    PdoExtension->PdoFlags &= ~1;
+
+    KeReleaseSpinLock(&FdoExtension->SpinLock, Irql);
+
+    if (PowerRelatedIrp)
+    {
+        DPRINT1("IdePortFlushLogicalUnit: FIXME\n");
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    while (EntryIrp)
+    {
+        DPRINT1("IdePortFlushLogicalUnit: FIXME\n");
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
