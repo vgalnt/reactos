@@ -6379,6 +6379,27 @@ IdeBuildDeviceMap(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+BOOLEAN
+NTAPI
+IdePortSlaveIsGhost(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIDENTIFY_DATA Identify1,
+    _In_ PIDENTIFY_DATA Identify2)
+{
+    PAGED_CODE();
+    DPRINT("IdePortSlaveIsGhost: scan bus %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    if (RtlCompareMemory(Identify1->ModelNumber, Identify2->ModelNumber, 0x28) != 0x28)
+        return FALSE;
+
+    if (!IdePortSearchDeviceInRegMultiSzList(FdoExtension, Identify1, L"GhostSlave"))
+        return FALSE;
+
+    DPRINT("IdePortSlaveIsGhost: Found a ghost slave\n");
+
+    return TRUE;
+}
+
 VOID
 NTAPI
 IdePortScanBus(
@@ -6520,8 +6541,8 @@ IdePortScanBus(
 
             if (DeviceType[ix] != 3 && (ix & 1) && DeviceType[ix - 1] != 3)
             {
-                DPRINT1("IdePortScanBus: FIXME\n");
-                UNIMPLEMENTED_DBGBREAK();
+                if (IdePortSlaveIsGhost(FdoExtension, &Identify[ix - 1], &Identify[ix]))
+                    DeviceType[ix] = 3;
             }
 
             ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
