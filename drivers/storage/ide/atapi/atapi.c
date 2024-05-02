@@ -6155,9 +6155,54 @@ InitHwExtWithIdentify(
     _In_ ULONG Drive,
     _In_ UCHAR IdentifyCommand,
     _In_ PIDENTIFY_DATA Identify,
-    _In_ BOOLEAN ForceRemovableMedia)
+    _In_ BOOLEAN IsForceRemovableMedia)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIDENTIFY_DEVICE_DATA IdentifyDevice = (PIDENTIFY_DEVICE_DATA)Identify;
+
+    if (Identify->MediaStatusNotification == 1)
+    {
+        DPRINT("InitHwExtWithIdentify: Marking drive %X as removable. SFE %X\n", Drive, Identify->MediaStatusNotification);
+        HwDeviceExtension->DeviceFlags[Drive] |= 0x1000;
+    }
+
+    if (IsForceRemovableMedia)
+    {
+        DPRINT("InitHwExtWithIdentify: Device media is removable\n");
+
+        HwDeviceExtension->DeviceFlags[Drive] &= ~0x20000;
+        HwDeviceExtension->DeviceFlags[Drive] |= 0x10;
+    }
+    else
+    {
+        DPRINT("InitHwExtWithIdentify: Device media is NOT removable\n");
+    }
+
+    if ((Identify->GeneralConfiguration & 0x20) && IdentifyCommand != 0xEC)
+    {
+        DPRINT("InitHwExtWithIdentify: Device interrupts on assertion of DRQ.\n");
+        HwDeviceExtension->DeviceFlags[Drive] |= 8;
+    }
+    else
+    {
+        DPRINT("InitHwExtWithIdentify: Device does not interrupt on assertion of DRQ.\n");
+    }
+
+    if ((Identify->GeneralConfiguration & 0xF00) != 0x100 || IdentifyCommand == 0xEC)
+    {
+        DPRINT("InitHwExtWithIdentify: Device is not a tape drive.\n");
+    }
+    else
+    {
+        DPRINT("InitHwExtWithIdentify: Device is a tape drive.\n");
+        HwDeviceExtension->DeviceFlags[Drive] |= 4;
+    }
+
+    if (IdentifyDevice->SecurityStatus.SecuritySupported &&
+        IdentifyDevice->SecurityStatus.SecurityEnabled &&
+        IdentifyDevice->SecurityStatus.SecurityLocked)
+    {
+        HwDeviceExtension->DeviceFlags[Drive] |= 0x01000000;
+    }
 }
 
 VOID
