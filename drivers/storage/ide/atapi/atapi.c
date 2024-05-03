@@ -6212,8 +6212,77 @@ SetDriveParameters(
     _In_ ULONG Device,
     _In_ BOOLEAN IsWait)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    ULONG ix;
+    ULONG jx;
+    UCHAR status;
+
+    DPRINT("SetDriveParameters: Number of heads %X\n", HwDeviceExtension->NumberOfHeads[Device]);
+    DPRINT("SetDriveParameters: Sectors per track %X\n", HwDeviceExtension->SectorsPerTrack[Device]);
+
+    if (HwDeviceExtension->DeviceFlags[Device] & 0x20000)
+    {
+        ASSERT(!(HwDeviceExtension->DeviceFlags[Device] & 0x10));//DFLAGS_REMOVABLE_DRIVE
+
+        HwDeviceExtension->DeviceFlags[Device] &= ~0x20000;
+        HwDeviceExtension->DeviceFlags[Device] |= 0x40000;
+    }
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect,
+                     (((Device & 0x1) << 4) | IDE_DRIVE_SELECT | (HwDeviceExtension->NumberOfHeads[Device] - 1)));
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, HwDeviceExtension->SectorsPerTrack[Device]);
+
+    DPRINT("SetDriveParameters: ... \n");
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status, 0x91);
+    DPRINT("SetDriveParameters: ... \n");
+
+    if (!IsWait)
+        return TRUE;
+
+    DPRINT("SetDriveParameters: ... \n");
+
+    ix = 0;
+    while (TRUE)
+    {
+          for (jx = 0; jx < 25000; jx++)
+          {
+              status = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+              if (!(status & 0x80))
+                  break;
+
+              KeStallExecutionProcessor(40);
+          }
+
+          if (!(status & 0x80))
+              break;
+
+          DPRINT("SetDriveParameters: after 1 sec wait, device is still busy with %X, status %X\n",
+                 HwDeviceExtension->CmdBlock.CmdBlockBase, status);
+
+          ix++;
+          if (ix >= 0xA)
+          {
+              if (status & 0x80)
+              {
+                  DPRINT("SetDriveParameters: WaitOnBusy failed. (%X %X)\n", HwDeviceExtension->CmdBlock.CmdBlockBase, status);
+              }
+
+              break;
+          }
+    }
+
+    DPRINT("SetDriveParameters: ... \n");
+
+    if (status & 0x80)
+        return 0;
+
+    if (status & 1)
+    {
+        DPRINT("SetDriveParameters: Error bit set. (%X %X)\n", READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Error), status);
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 VOID
@@ -6328,7 +6397,7 @@ IdePortSelectCHS(
 
     if (status & 0x80)
     {
-        DPRINT("IdePortSelectCHS: WaitOnBusy failed. %X %X)\n", HwDeviceExtension->CmdBlock, status);
+        DPRINT("IdePortSelectCHS: WaitOnBusy failed. (%X %X)\n", HwDeviceExtension->CmdBlock, status);
     }
 
     DPRINT("IdePortSelectCHS: ... \n");
@@ -6370,7 +6439,7 @@ IdePortSelectCHS(
 
     DPRINT("IdePortSelectCHS: ... \n");
     //DebugPrintTickCount(..);
-    DPRINT("FindDevices: Status before SetDriveParameters: (%X %X)\n", status, READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect));
+    DPRINT("FindDevices: Status before SetDriveParameters (%X %X)\n", status, READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect));
     DPRINT("IdePortSelectCHS: ... \n");
 
     if (!SetDriveParameters(HwDeviceExtension, Device, TRUE))
