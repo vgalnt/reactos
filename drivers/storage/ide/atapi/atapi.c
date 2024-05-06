@@ -2425,7 +2425,7 @@ AtapiInterrupt(
     ULONG jx;
     UCHAR InterruptReason;
     UCHAR IdeStatus;
-    UCHAR PioMode;
+    UCHAR MaximumBlockTransfer;
     UCHAR Error;
     BOOLEAN IsActiveDmaTransfer = FALSE;
     BOOLEAN IsIdeCommanSleep = FALSE;
@@ -2534,9 +2534,9 @@ AtapiInterrupt(
     }
     else if (IdeStatus & 8)
     {
-        PioMode = HwDeviceExtension->PioMode[CurrentSrb->TargetId];
-        if (PioMode)
-            PioModeSize = (PioMode << 9);
+        MaximumBlockTransfer = HwDeviceExtension->MaximumBlockTransfer[CurrentSrb->TargetId];
+        if (MaximumBlockTransfer)
+            PioModeSize = (MaximumBlockTransfer << 9);
 
         if (CurrentSrb->SrbFlags & 0x40)
         {
@@ -6561,13 +6561,315 @@ FreePdo(
     return STATUS_SUCCESS;
 }
 
+BOOLEAN
+NTAPI
+AtapiDMACapable(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ ULONG Idx)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return TRUE;
+}
+
 VOID
 NTAPI
 AnalyzeDeviceCapabilities(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ BOOLEAN* OutIsMustBePio)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    NTSTATUS (NTAPI* PciIdeUdmaModesSupported)(IDENTIFY_DATA, PULONG, PULONG);
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    PATA_DEVICE_PARAMETERS DeviceParameters;
+    PULONG TransferModeTimingTable;
+    ULONG TableLength;
+    ULONG UserAddressableSectors;
+    ULONG NumSectorsPerTrack;
+    ULONG NumCylinders;
+    ULONG NumHeads;
+    ULONG BestXferMode;
+    ULONG CurrentMode;
+    ULONG CycleTime;
+    ULONG XferMode;
+    ULONG TempMode;
+    ULONG Mode;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("AnalyzeDeviceCapabilities: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    //ASSERT(IdePAGESCANLockCount > 0);
+
+    TableLength = FdoExtension->TransferModeInterface.TableLength;
+    TransferModeTimingTable = FdoExtension->TransferModeInterface.TransferModeTimingTable;
+    ASSERT(TransferModeTimingTable);
+
+    HwDeviceExtension = FdoExtension->HwDeviceExtension;
+
+    for (ix = 0; ix < HwDeviceExtension->MaxIdeDevice; ix++)
+    {
+        if (!(HwDeviceExtension->DeviceFlags[ix] & 1))
+            continue;
+
+        DeviceParameters = &HwDeviceExtension->DeviceParameters[ix];
+
+        HwDeviceExtension->DeviceFlags[ix] &= ~0x400;
+
+        UserAddressableSectors = HwDeviceExtension->IdentifyData[ix].UserAddressableSectors;
+        if (UserAddressableSectors > 0xFBFC10) // 16514064
+        {
+            NumCylinders = HwDeviceExtension->IdentifyData[ix].NumCylinders;
+            NumHeads = HwDeviceExtension->IdentifyData[ix].NumHeads;
+            NumSectorsPerTrack = HwDeviceExtension->IdentifyData[ix].NumSectorsPerTrack;
+
+            if (NumCylinders == 0x3FFF && NumHeads <= 0x10 && NumSectorsPerTrack == 0x3F)
+                HwDeviceExtension->DeviceFlags[ix] |= 0x400;
+
+            if (UserAddressableSectors > (NumCylinders * NumHeads * NumSectorsPerTrack) &&
+                NumCylinders <= 0xFFF &&
+                NumHeads == 0x10 &&
+                NumSectorsPerTrack == 0x3F)
+            {
+                HwDeviceExtension->DeviceFlags[ix] |= 0x400;
+            }
+        }
+
+        if ((HwDeviceExtension->IdentifyData[ix].CommandSetSupport & 0x400) &&
+            (HwDeviceExtension->IdentifyData[ix].CommandSetActive & 0x400))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (HwDeviceExtension->DeviceFlags[ix] & 0x400)
+        {
+            DPRINT("AnalyzeDeviceCapabilities: target %X supports LBA\n", ix);
+        }
+
+        XferMode  = 0;
+        CycleTime = 0xFFFFFFFF;
+        BestXferMode = 0;
+
+        if (HwDeviceExtension->IdentifyData[ix].Capabilities & 0x800)
+            DeviceParameters->IoReadySupported = TRUE;
+        else
+            DeviceParameters->IoReadySupported = FALSE;
+
+        BestXferMode = (HwDeviceExtension->IdentifyData[ix].PioCycleTimingMode & 0xFF);
+
+        if (BestXferMode > 2)
+            BestXferMode = 0;
+
+        ASSERT(BestXferMode < 3);//PIO3
+
+        CycleTime = TransferModeTimingTable[BestXferMode];
+        ASSERT(CycleTime);
+
+        XferMode |= (0xFFFFFFFF >> (0x1F - BestXferMode));
+        CurrentMode = (1 << BestXferMode);
+
+        if (HwDeviceExtension->IdentifyData[ix].TranslationFieldsValid & 2)
+        {
+            if (DeviceParameters->IoReadySupported)
+                CycleTime = HwDeviceExtension->IdentifyData[ix].MinimumPIOCycleTimeIORDY;
+            else
+                CycleTime = HwDeviceExtension->IdentifyData[ix].MinimumPIOCycleTime;
+
+            if (HwDeviceExtension->IdentifyData[ix].AdvancedPIOModes & 1)
+            {
+                XferMode |= 8;
+                BestXferMode = 3;
+                CurrentMode = 8;
+            }
+
+            if (HwDeviceExtension->IdentifyData[ix].AdvancedPIOModes & 2)
+            {
+                XferMode |= 0x10;
+                BestXferMode = 4;
+                CurrentMode = 0x10;
+            }
+
+            if (HwDeviceExtension->IdentifyData[ix].AdvancedPIOModes)
+            {
+                TempMode = HwDeviceExtension->IdentifyData[ix].AdvancedPIOModes;
+                ASSERT(TempMode);
+
+                for (BestXferMode = 0; TempMode; BestXferMode++)
+                    TempMode >>= 1;
+
+                BestXferMode += 2;
+
+                if (BestXferMode > 4)
+                {
+                    DPRINT("AnalyzeDeviceCapabilities: AdvancePIOMode > PIO_MODE4. Defaulting to PIO_MODE4.\n");
+                    BestXferMode = 4;
+                }
+
+                CurrentMode = (1 << BestXferMode);
+                XferMode |= CurrentMode;
+            }
+
+            DPRINT("AnalyzeDeviceCapabilities: [%X] AdvancedPIOModes %X\n",
+                   ix, HwDeviceExtension->IdentifyData[ix].AdvancedPIOModes);
+        }
+
+        ASSERT(CycleTime != 0xFFFFFFFF);
+        ASSERT(XferMode);
+        ASSERT(CurrentMode);
+
+        DeviceParameters->BestPioCycleTime = CycleTime;
+        DeviceParameters->BestPioXferMode = BestXferMode;
+        DeviceParameters->XferCurrentMode = CurrentMode;
+
+        CurrentMode = 0;
+        CycleTime = 0xFFFFFFFF;
+        BestXferMode = 0x7FFFFFFF;
+
+        if (HwDeviceExtension->IdentifyData[ix].SingleWordDMASupport)
+        {
+            DPRINT("AnalyzeDeviceCapabilities: [%X] SingleWordDMASupport %X\n",
+                   ix, HwDeviceExtension->IdentifyData[ix].SingleWordDMASupport);
+
+            DPRINT("AnalyzeDeviceCapabilities: [%X] SingleWordDMAActive %X\n",
+                   ix, HwDeviceExtension->IdentifyData[ix].SingleWordDMAActive);
+
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        DeviceParameters->BestSwDmaCycleTime = CycleTime;
+        DeviceParameters->BestSwDmaXferMode = BestXferMode;
+
+        CycleTime = 0xFFFFFFFF;
+        BestXferMode = 0x7FFFFFFF;
+
+        if (HwDeviceExtension->IdentifyData[ix].MultiWordDMASupport)
+        {
+            DPRINT("AnalyzeDeviceCapabilities: [%X] MultiWordDMASupport %X\n",
+                   ix, HwDeviceExtension->IdentifyData[ix].MultiWordDMASupport);
+
+            DPRINT("AnalyzeDeviceCapabilities: [%X] MultiWordDMAActive %X\n",
+                   ix, HwDeviceExtension->IdentifyData[ix].MultiWordDMAActive);
+
+            TempMode = HwDeviceExtension->IdentifyData[ix].MultiWordDMASupport;
+            ASSERT(TempMode);
+
+            for (BestXferMode = 0; TempMode; BestXferMode++)
+                TempMode >>= 1;
+
+            BestXferMode--;
+
+            if (BestXferMode > 2)
+                BestXferMode = 2;
+
+            CycleTime = TransferModeTimingTable[BestXferMode + 5];
+            ASSERT(CycleTime);
+
+            Mode = (0xFFFFFFFF >> (0x1F - BestXferMode));
+            XferMode |= (Mode << 5);
+
+            if (HwDeviceExtension->IdentifyData[ix].MultiWordDMAActive)
+            {
+                TempMode = HwDeviceExtension->IdentifyData[ix].MultiWordDMAActive;
+                ASSERT(TempMode);
+
+                for (CurrentMode = 0; TempMode; CurrentMode++)
+                    TempMode >>= 1;
+
+                CurrentMode--;
+
+                if (CurrentMode > 2)
+                    CurrentMode = 2;
+
+                CurrentMode = (1 << (CurrentMode + 5));
+            }
+        }
+
+        if (HwDeviceExtension->IdentifyData[ix].TranslationFieldsValid & 2)
+        {
+            DPRINT("AnalyzeDeviceCapabilities: [%X] IdentifyData word 64-70 are valid\n", ix);
+
+            if (HwDeviceExtension->IdentifyData[ix].MinimumMWXferCycleTime &&
+                HwDeviceExtension->IdentifyData[ix].RecommendedMWXferCycleTime)
+            {
+                DPRINT("AnalyzeDeviceCapabilities: [%X] MinimumMWXferCycleTime %X\n",
+                       ix, HwDeviceExtension->IdentifyData[ix].MinimumMWXferCycleTime);
+
+                DPRINT("AnalyzeDeviceCapabilities: [%X] RecommendedMWXferCycleTime %X\n",
+                       ix, HwDeviceExtension->IdentifyData[ix].RecommendedMWXferCycleTime);
+
+                CycleTime = HwDeviceExtension->IdentifyData[ix].MinimumMWXferCycleTime;
+            }
+        }
+
+        DeviceParameters->BestMwDmaCycleTime = CycleTime;
+        DeviceParameters->BestMwDmaXferMode = BestXferMode;
+
+        CycleTime = 0xFFFFFFFF;
+        BestXferMode = 0x7FFFFFFF;
+        Mode = 0x7FFFFFFF;
+
+        PciIdeUdmaModesSupported = FdoExtension->TransferModeInterface.PciIdeUdmaModesSupported;
+
+        if (PciIdeUdmaModesSupported)
+        {
+            Status = PciIdeUdmaModesSupported(HwDeviceExtension->IdentifyData[ix], &BestXferMode, &Mode);
+            if (!NT_SUCCESS(Status))
+            {
+                BestXferMode = 0x7FFFFFFF;
+                Mode = 0x7FFFFFFF;
+            }
+        }
+        else
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (Mode != 0x7FFFFFFF)
+        {
+            CurrentMode = Mode;
+
+            if (CurrentMode >= (TableLength - 0xB)) // 11
+                CurrentMode = (TableLength - 0xC);  // 12
+
+            CurrentMode = (1 << (CurrentMode + 0xB));
+        }
+
+        if (BestXferMode != 0x7FFFFFFF)
+        {
+            if (BestXferMode >= (TableLength - 0xB))
+                BestXferMode = (TableLength - 0xC);
+
+            CycleTime = TransferModeTimingTable[BestXferMode + 0xB];
+            ASSERT(CycleTime);
+
+            Mode = (0xFFFFFFFF >> (0x1F - BestXferMode));
+            XferMode |= (Mode << 0xB);
+        }
+
+        DeviceParameters->BestUDmaCycleTime = CycleTime;
+        DeviceParameters->BestUDmaXferMode = BestXferMode;
+        DeviceParameters->XferModeBitMap = XferMode;
+        DeviceParameters->XferCurrentMode |= CurrentMode;
+
+        if (OutIsMustBePio[ix] ||
+            !AtapiDMACapable(FdoExtension, ix) ||
+            InitSafeBootMode == 1) // #ifndef __REACTOS__ --> *InitSafeBootMode
+        {
+            DPRINT("AnalyzeDeviceCapabilities: Reseting DMA Information\n");
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (DeviceParameters->BestPioXferMode > 2)
+             HwDeviceExtension->MaximumBlockTransfer[ix] = HwDeviceExtension->IdentifyData[ix].MaximumBlockTransfer;
+        else
+            HwDeviceExtension->MaximumBlockTransfer[ix] = 0;
+
+        DPRINT("AnalyzeDeviceCapabilities: [%X] transfer timing:\n", ix);
+        DPRINT("PIO supported   - %4X and best cycle time - %5d ns\n", (XferMode & 0x1F), DeviceParameters->BestPioCycleTime);
+        DPRINT("SWDMA supported - %4X and best cycle time - %5d ns\n", (XferMode & 0xE0), DeviceParameters->BestSwDmaCycleTime);
+        DPRINT("MWDMA supported - %4X and best cycle time - %5d ns\n", (XferMode & 0x700), DeviceParameters->BestMwDmaCycleTime);
+        DPRINT("UDMA supported  - %X and best cycle time - %5d ns\n", (XferMode & 0x7FFFF800), DeviceParameters->BestUDmaCycleTime);
+        DPRINT("Current bitmap  - %4X\n", DeviceParameters->XferCurrentMode);
+    }
 }
 
 VOID

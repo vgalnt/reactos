@@ -269,7 +269,7 @@ typedef struct _ATA_DEVICE_EXTENSION
     ULONG EmptyDevice;
     ULONG EmptyWaitCount;
     ULONG EmptyResult;
-    UCHAR PioMode[4];
+    UCHAR MaximumBlockTransfer[4];
     UCHAR ExpectingInterrupt;
     BOOLEAN IsActiveDmaTransfer;
     BOOLEAN IsCdbSaved;
