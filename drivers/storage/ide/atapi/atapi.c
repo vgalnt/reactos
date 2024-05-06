@@ -6567,8 +6567,34 @@ AtapiDMACapable(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ ULONG Idx)
 {
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    CHAR Model[0x28 + 1];
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("AtapiDMACapable: %X, %X\n", FdoExtension->ResourceData.CmdBlockBase, Idx);
+
+    //ASSERT(IdePAGESCANLockCount > 0);
+
+    HwDeviceExtension = FdoExtension->HwDeviceExtension;
+
+    if (!(HwDeviceExtension->DeviceFlags[Idx] & 1))
+        return FALSE;
+
+    for (ix = 0; ix < 0x28; ix += 2)
+    {
+        Model[ix + 0] = HwDeviceExtension->IdentifyData[Idx].ModelNumber[ix + 1];
+        Model[ix + 1] = HwDeviceExtension->IdentifyData[Idx].ModelNumber[ix + 0];
+    }
+
+    Model[ix] = 0;
+
+    if (RtlCompareMemory(Model, "WDC", 3) != 3)
+        return TRUE;
+
     UNIMPLEMENTED_DBGBREAK();
-    return TRUE;
+
+    return FALSE;
 }
 
 VOID
