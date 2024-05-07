@@ -6903,9 +6903,77 @@ NTAPI
 AtapiSyncSelectTransferMode(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
-    _In_ ULONG* OutTMAllowed)
+    _In_ PULONG TMAllowed)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    NTSTATUS (NTAPI* TransferModeSelect)(PVOID, PPCIIDE_TRANSFER_MODE_SELECT);
+    PATA_DEVICE_PARAMETERS DeviceParameters;
+    PCIIDE_TRANSFER_MODE_SELECT Xmode;
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT("AtapiSyncSelectTransferMode: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    RtlZeroMemory(&Xmode, sizeof(Xmode));
+
+    for (ix = 0; ix < HwDeviceExtension->MaxIdeDevice; ix++)
+    {
+        Xmode.DevicePresent[ix] = ((HwDeviceExtension->DeviceFlags[ix] & 1) == 1);
+        Xmode.FixedDisk[ix] = !(HwDeviceExtension->DeviceFlags[ix] & 2);
+
+        DeviceParameters = &HwDeviceExtension->DeviceParameters[ix];
+
+        Xmode.BestPioCycleTime[ix] = DeviceParameters->BestPioCycleTime;
+        Xmode.BestSwDmaCycleTime[ix] = DeviceParameters->BestSwDmaCycleTime;
+        Xmode.BestMwDmaCycleTime[ix] = DeviceParameters->BestMwDmaCycleTime;
+        Xmode.BestUDmaCycleTime[ix] = DeviceParameters->BestUDmaCycleTime;
+
+        Xmode.IoReadySupported[ix] = DeviceParameters->IoReadySupported;
+
+        Xmode.DeviceTransferModeSupported[ix] = DeviceParameters->XferModeBitMap;
+        Xmode.DeviceTransferModeCurrent[ix] = DeviceParameters->XferCurrentMode;
+
+        if (!FdoExtension->IsBmIfaceReceived)
+        {
+            Xmode.DeviceTransferModeSupported[ix] &= 0x1F;
+            Xmode.DeviceTransferModeCurrent[ix] &= 0x1F;
+        }
+
+        Xmode.IdentifyData[ix] = HwDeviceExtension->IdentifyData[ix];
+        Xmode.UserChoiceTransferMode[ix] = FdoExtension->UserChoiceTransferMode[ix];
+
+        Xmode.DeviceTransferModeSupported[ix] &= TMAllowed[ix];
+        Xmode.DeviceTransferModeCurrent[ix] &= TMAllowed[ix];
+    }
+
+    Xmode.TransferModeTimingTable = FdoExtension->TransferModeInterface.TransferModeTimingTable;
+    Xmode.TransferModeTableLength = FdoExtension->TransferModeInterface.TableLength;
+
+    ASSERT(FdoExtension->TransferModeInterface.TransferModeSelect);
+    TransferModeSelect = FdoExtension->TransferModeInterface.TransferModeSelect;
+
+    Status = TransferModeSelect(FdoExtension->TransferModeInterface.Context, &Xmode);
+    if (!NT_SUCCESS(Status))
+    {
+        for (ix = 0; ix < HwDeviceExtension->MaxIdeDevice; ix++)
+        {
+            DeviceParameters = &HwDeviceExtension->DeviceParameters[ix];
+            DeviceParameters->XferSelectedMode = (DeviceParameters->XferCurrentMode & 0x1F);
+
+            DPRINT("AtapiSyncSelectTransferMode: DEFAULT device %d transfer mode current %X and selected bitmap %X\n",
+                   ix, DeviceParameters->XferCurrentMode, DeviceParameters->XferSelectedMode);
+        }
+
+        return;
+    }
+
+    for (ix = 0; ix < HwDeviceExtension->MaxIdeDevice; ix++)
+    {
+        DeviceParameters = &HwDeviceExtension->DeviceParameters[ix];
+        DeviceParameters->XferSelectedMode = Xmode.DeviceTransferModeSelected[ix];
+
+        DPRINT("AtapiSyncSelectTransferMode: device %d transfer mode current %X and selected bitmap %X\n",
+               ix, DeviceParameters->XferCurrentMode, DeviceParameters->XferSelectedMode);
+    }                         
 }
 
 VOID
