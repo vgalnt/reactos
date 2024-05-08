@@ -3987,8 +3987,50 @@ PciIdeXSetBusData(
     _In_ ULONG ConfigDataOffset,
     _In_ ULONG BufferLength)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PUCHAR CurrentData;
+    PUCHAR SetData;
+    ULONG ix;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("PciIdeXSetBusData(%p %p %X %X)\n", MiniExtension, Buffer, ConfigDataOffset, BufferLength);
+
+    CurrentData = ExAllocatePool(NonPagedPool, BufferLength);
+    if (!CurrentData)
+    {
+        DPRINT1("PciIdeXSetBusData: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    FdoExtension = (PFDO_DEVICE_EXTENSION)((ULONG_PTR)MiniExtension - sizeof(FDO_DEVICE_EXTENSION));
+    KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
+
+    Status = PciIdeBusData(FdoExtension, CurrentData, ConfigDataOffset, BufferLength, TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciIdeXSetBusData: Status %X\n", Status);
+        goto Exit;
+    }
+
+    SetData = Buffer;
+
+    for (ix = 0; ix < BufferLength; ix++)
+    {
+        CurrentData[ix] &= ~((PUCHAR)DataMask)[ix];
+        CurrentData[ix] |= (SetData[ix] & ((PUCHAR)DataMask)[ix]);
+    }
+
+    Status = PciIdeBusData(FdoExtension, CurrentData, ConfigDataOffset, BufferLength, FALSE);
+
+Exit:
+
+    KeReleaseSpinLock(&FdoExtension->SpinLock, Irql);
+
+    ExFreePool(CurrentData);
+
+    return Status;
+
 }
 
 VOID
