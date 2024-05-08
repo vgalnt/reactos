@@ -715,7 +715,7 @@ IdeSendPassThroughCommand(
     HwDeviceExtension->ExpectingInterrupt = 1;
 
     WRITE_PORT_UCHAR(CmdBlock->Features, AtaPassThr->IdeReg.bFeaturesReg);
-    WRITE_PORT_UCHAR(CmdBlock->InterruptReason, AtaPassThr->IdeReg.bSectorCountReg);
+    WRITE_PORT_UCHAR(CmdBlock->SectorCount, AtaPassThr->IdeReg.bSectorCountReg);
     WRITE_PORT_UCHAR(CmdBlock->LbaLow, AtaPassThr->IdeReg.bSectorNumberReg);
     WRITE_PORT_UCHAR(CmdBlock->BytesLow, AtaPassThr->IdeReg.bCylLowReg);
     WRITE_PORT_UCHAR(CmdBlock->BytesHigh, AtaPassThr->IdeReg.bCylHighReg);
