@@ -2789,8 +2789,77 @@ PciIdeChannelTransferModeSelect(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PPCIIDE_TRANSFER_MODE_SELECT XferMode)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    ULONG ix;
+    UCHAR RawStatus;
+    NTSTATUS Status;
+
+    DPRINT("PciIdeChannelTransferModeSelect: %p\n", PdoExtension);
+
+    if (PdoExtension->DmaDetectionLevel == 0)
+    {
+        RawStatus = 0;
+
+        for (ix = 0; ix < 4; ix++)
+        {
+            XferMode->DeviceTransferModeSupported[ix] &= 0x1F;
+            XferMode->DeviceTransferModeCurrent[ix] &= 0x1F;
+        }
+    }
+    else if (PdoExtension->DmaDetectionLevel == 1)
+    {
+        if (PdoExtension->BusMasterBase)
+            RawStatus = PdoExtension->BmStatus;
+    }
+    else if (PdoExtension->DmaDetectionLevel == 2)
+    {
+        RawStatus = (PdoExtension->BusMasterBase == 0 ? 0 : 0x60);
+    }
+    else
+    {
+        RawStatus = 0;
+    }
+
+    Status = STATUS_UNSUCCESSFUL;
+    FdoExtension = PdoExtension->FdoExtension;
+
+    if (PdoExtension->DmaDetectionLevel)
+    {
+        XferMode->Channel = PdoExtension->PdoIndex;
+        XferMode->EnableUDMA66 = PdoExtension->FdoExtension->EnableUDMA66;
+
+        if (FdoExtension->ControllerProperties.PciIdeTransferModeSelect)
+            Status = FdoExtension->ControllerProperties.PciIdeTransferModeSelect(FdoExtension->MiniControllerExtension, XferMode);
+    }
+
+    DPRINT("PciIdeChannelTransferModeSelect: RawStatus=%x, current[0]=%x, current[1]=%x\n",
+           RawStatus, XferMode->DeviceTransferModeCurrent[0], XferMode->DeviceTransferModeCurrent[1]);
+
+    if (Status >= 0)
+        return Status;
+
+    Status = 0;
+
+    if (!(RawStatus & 0x20))
+        XferMode->DeviceTransferModeSelected[0] = XferMode->DeviceTransferModeCurrent[0] & 0x1F;
+
+    if (!(RawStatus & 0x40))
+
+    if (!(RawStatus & 0x40))
+        XferMode->DeviceTransferModeSelected[1] = XferMode->DeviceTransferModeCurrent[1] & 0x1F;
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        DPRINT("PciIdeChannelTransferModeSelect: xfermode[%d]=%x\n",
+               ix, PdoExtension->FdoExtension->ControllerProperties.SupportedTransferMode[0][ix + 2 * PdoExtension->PdoIndex]);
+
+        if (FdoExtension->ControllerProperties.DefaultPIO != 1 || XferMode->DeviceTransferModeSelected[-0x411u] & 0x80)
+            XferMode->DeviceTransferModeSelected[ix] &= (FdoExtension->ControllerProperties.SupportedTransferMode[0][ix + 2 * PdoExtension->PdoIndex]);
+        else
+            XferMode->DeviceTransferModeSelected[ix] &= 0x1F;
+    }
+
+    return Status;
 }
 
 NTSTATUS
@@ -3912,7 +3981,7 @@ PciIdeXGetBusData(
 NTSTATUS
 NTAPI
 PciIdeXSetBusData(
-    _In_ PVOID DeviceExtension,
+    _In_ PVOID MiniExtension,
     _In_reads_bytes_(BufferLength) PVOID Buffer,
     _In_reads_bytes_(BufferLength) PVOID DataMask,
     _In_ ULONG ConfigDataOffset,
