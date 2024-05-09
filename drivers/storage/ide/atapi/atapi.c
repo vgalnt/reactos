@@ -7000,7 +7000,62 @@ IdeMediaStatus(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ ULONG Device)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    UCHAR IdeError;
+    UCHAR IdeStatus;
+    ULONG jx;
+
+    DPRINT("IdeMediaStatus: %X, %X, %X\n", HwDeviceExtension->CmdBlock.CmdBlockBase, Device, IsEnable);
+
+    if (IsEnable)
+    {
+        if (!(HwDeviceExtension->DeviceFlags[Device] & 0x1000))
+            return;
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Features, 0x95);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xEF);
+
+        for (jx = 0; jx < 20000; jx++)
+        {
+            IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+            if (!(IdeStatus & 0x80))
+                break;
+            KeStallExecutionProcessor(150);
+        }
+
+        if (IdeStatus & 1)
+        {
+            IdeError = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Error);
+            DPRINT("IdeMediaStatus: Error enabling media IdeStatus. Status %X, error %X\n", IdeStatus, IdeError);
+        }
+        else
+        {
+            DPRINT("IdeMediaStatus: Media Status Notification Supported\n");
+
+            HwDeviceExtension->DeviceFlags[Device] |= 0x20;
+            HwDeviceExtension->CmdErrorCopy = 0;
+        }
+
+        return;
+    }
+
+    if (!(HwDeviceExtension->DeviceFlags[Device] & 0x20))
+        return;
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Features, 0x31);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xEF);
+
+    for (jx = 0; jx < 20000; jx++)
+    {
+        IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+        if (!(IdeStatus & 0x80))
+            break;
+
+        KeStallExecutionProcessor(150);
+    }
+
+    HwDeviceExtension->DeviceFlags[Device] &= ~0x20;
 }
 
 VOID
