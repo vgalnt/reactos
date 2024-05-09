@@ -6978,11 +6978,155 @@ AtapiSyncSelectTransferMode(
 
 VOID
 NTAPI
-AtapiHwInitialize(
-    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
-    _In_ UCHAR* OutGetFlushCommand)
+AtapiProgramTransferMode(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension)
 {
     UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+InitDeviceParameters(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PUCHAR GetFlushCommand)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdeMediaStatus(
+    _In_ BOOLEAN IsEnable,
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ ULONG Device)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+AtapiHwInitialize(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PUCHAR GetFlushCommand)
+{
+    ULONG Device;
+    ULONG ix;
+    ULONG jx;
+    UCHAR IdeStatus;
+    UCHAR IdeError;
+
+    DPRINT("AtapiHwInitialize: %X\n", HwDeviceExtension->CmdBlock.CmdBlockBase);
+
+    for (Device = 0; Device < HwDeviceExtension->MaxIdeDevice; Device++)
+    {
+        if (!(HwDeviceExtension->DeviceFlags[Device] & 1))
+            return;
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+        if (!(HwDeviceExtension->DeviceFlags[Device] & 2))
+        {
+            ix = 0;
+
+            while (TRUE)
+            {
+                for (jx = 0; jx < 25000; jx++)
+                {
+                    IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                    if (!(IdeStatus & 0x80))
+                        break;
+
+                    KeStallExecutionProcessor(40);
+                }
+
+                if (!(IdeStatus & 0x80))
+                    break;
+
+                DPRINT("AtapiHwInitialize: after 1 sec wait, device is still busy with %X, IdeStatus %X\n",
+                       HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+
+                ix++;
+                if (ix >= 10)
+                {
+                    if (IdeStatus & 0x80)
+                    {
+                        DPRINT("AtapiHwInitialize: WaitOnBusy failed. (%X) IdeStatus %X\n",
+                               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+                    }
+
+                    break;
+                }
+            }
+
+            for (jx = 0; jx < 20000; jx++)
+            {
+                IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                if (IdeStatus & 0x50)
+                    break;
+
+                KeStallExecutionProcessor(150);
+            }
+
+            if (jx == 20000)
+            {
+                DPRINT("AtapiHwInitialize: WaitForDRDY failed. (%X) IdeStatus %X\n",
+                       HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+            }
+        }
+
+        if (!(HwDeviceExtension->DeviceFlags[Device] & 2))
+        {
+            IdeMediaStatus(TRUE, HwDeviceExtension, Device);
+
+            if (HwDeviceExtension->MaximumBlockTransfer[Device])
+            {
+                WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+                WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, HwDeviceExtension->MaximumBlockTransfer[Device]);
+                WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xC6);
+
+                for (jx = 0; jx < 20000; jx++)
+                {
+                    IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                    if (!(IdeStatus & 0x80))
+                        break;
+
+                    KeStallExecutionProcessor(150);
+                }
+
+                if (IdeStatus & 1)
+                {
+                    IdeError = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Error);
+
+                    DPRINT("AtapiHwInitialize: IdeError setting multiple mode. Status %X, error byte %X\n", IdeStatus, IdeError);
+
+                    HwDeviceExtension->MaximumBlockTransfer[Device] = 0;
+                }
+                else
+                {
+                    DPRINT("AtapiHwInitialize: Using Multiblock on Device %d. Blocks / int - %X\n",
+                           Device, HwDeviceExtension->MaximumBlockTransfer[Device]);
+                }
+            }
+        }
+
+        if (!(HwDeviceExtension->DeviceFlags[Device] & 2))
+            continue;
+
+        IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+
+        for (ix = 0; ix < 10000; ix++)
+        {
+            if (!(IdeStatus & 0x80))
+                break;
+
+            KeStallExecutionProcessor(100);
+
+            IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+        }
+    }
+
+    AtapiProgramTransferMode(HwDeviceExtension);
+    InitDeviceParameters(HwDeviceExtension, GetFlushCommand);
 }
 
 VOID
