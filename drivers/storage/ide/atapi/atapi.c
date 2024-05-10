@@ -6976,12 +6976,93 @@ AtapiSyncSelectTransferMode(
     }                         
 }
 
+NTSTATUS
+NTAPI
+AtapiSetTransferMode(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ ULONG Device,
+    _In_ UCHAR Mode)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 AtapiProgramTransferMode(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG SelectedMode;
+    ULONG CurrentMode;
+    ULONG SupportMode;
+    ULONG ix;
+    UCHAR Mode;
+    NTSTATUS Status;
+
+    for (ix = 0; ix < HwDeviceExtension->MaxIdeDevice; ix++)
+    {
+        if (!(HwDeviceExtension->DeviceFlags[ix] & 1))
+            continue;
+
+        SelectedMode = HwDeviceExtension->DeviceParameters[ix].XferSelectedMode;
+
+        DPRINT("AtapiProgramTransferMode: [%X] TMSelected %X\n", ix, SelectedMode);
+
+        HwDeviceExtension->DeviceFlags[ix] &= ~0x10200;
+
+        if (!HwDeviceExtension->IsTransferModeNotSelected)
+        {
+            SupportMode = ((SelectedMode >> 1) & 0xF);
+
+            for (CurrentMode = 0; SupportMode; CurrentMode++)
+                SupportMode >>= 1;
+
+            if (CurrentMode > 2)
+            {
+                DPRINT("AtapiProgramTransferMode: [%X] setting PIOmode %X\n", ix, CurrentMode);
+
+                Status = AtapiSetTransferMode(HwDeviceExtension, ix, (CurrentMode | 8));
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("AtapiProgramTransferMode: Unable to set pio xfer mode %X for %X device %X\n",
+                            CurrentMode, HwDeviceExtension->CmdBlock.CmdBlockBase, ix);
+                }
+            }
+        }
+
+        SupportMode = (SelectedMode >> 5);
+
+        for (CurrentMode = 5; SupportMode; CurrentMode++)
+            SupportMode >>= 1;
+
+        if (CurrentMode < 6)
+            continue;
+
+        CurrentMode--;
+
+        if (CurrentMode >= 0xB)
+            Mode = ((CurrentMode - 0xB) | 0x40);
+        else if (CurrentMode >= 8)
+            Mode = ((CurrentMode - 8) | 0x20);
+        else if (CurrentMode >= 5)
+            Mode = ((CurrentMode - 5) | 0x10);
+
+        DPRINT("AtapiProgramTransferMode: [%X] setting DMAmode %X\n", ix, CurrentMode);
+
+        Status = AtapiSetTransferMode(HwDeviceExtension, ix, Mode);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("AtapiProgramTransferMode: Unable to set DMA mode %X for %X device %X\n",
+                    CurrentMode, HwDeviceExtension->CmdBlock.CmdBlockBase, ix);
+
+            continue;
+        }
+
+        if (CurrentMode >= 0xB)
+            HwDeviceExtension->DeviceFlags[ix] |= 0x10000;
+        else
+            HwDeviceExtension->DeviceFlags[ix] |= 0x200;
+    }
 }
 
 VOID
