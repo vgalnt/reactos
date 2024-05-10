@@ -7138,7 +7138,73 @@ InitDeviceParameters(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PUCHAR GetFlushCommand)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PATA_DEVICE_PARAMETERS DeviceParameters;
+    ULONG Device;
+
+    for (Device = 0; Device < HwDeviceExtension->MaxIdeDevice; Device++)
+    {
+        DeviceParameters = &HwDeviceExtension->DeviceParameters[Device];
+
+        if (!(HwDeviceExtension->DeviceFlags[Device] & 1))
+            continue;
+
+        DPRINT("InitDeviceParameters: (%X:%X) is going to do ", HwDeviceExtension->CmdBlock.CmdBlockBase, Device);
+
+        if (HwDeviceExtension->DeviceFlags[Device] & 0x200)
+            DbgPrint("DMA\n");
+        else
+            DbgPrint("PIO\n");
+
+        if (HwDeviceExtension->DeviceFlags[Device] & 2)
+        {
+            DeviceParameters->Unknown1 = 0x200;
+            continue;
+        }
+
+        if (HwDeviceExtension->MaximumBlockTransfer[Device])
+        {
+            DPRINT("InitDeviceParameters: [%X] is going to do PIO Multiple\n", Device);
+
+            DeviceParameters->IdePioReadCommand = 0xC4;
+            DeviceParameters->IdePioWriteCommand = 0xC5;
+
+            if (HwDeviceExtension->DeviceFlags[Device] & 0x200000)
+            {
+                DeviceParameters->IdePioReadCommandExt = 0x29;
+                DeviceParameters->IdePioWriteCommandExt = 0x39;
+            }
+
+            DeviceParameters->Unknown1 = (HwDeviceExtension->MaximumBlockTransfer[Device] / 0x200);
+        }
+        else
+        {
+            DPRINT("InitDeviceParameters: [%X] is going to do PIO Single\n", Device);
+
+            DeviceParameters->IdePioReadCommand = 0x20;
+            DeviceParameters->IdePioWriteCommand = 0x30;
+
+            if (HwDeviceExtension->DeviceFlags[Device] & 0x200000)
+            {
+                DeviceParameters->IdePioReadCommandExt = 0x24;
+                DeviceParameters->IdePioWriteCommandExt = 0x34;
+            }
+
+            DeviceParameters->Unknown1 = 0x200;
+        }
+
+        if (!GetFlushCommand)
+            continue;
+
+        if (HwDeviceExtension->DeviceFlags[Device] & 0x200000)
+        {
+            DeviceParameters->IdePioFlushCommand = 0xFF;
+            DeviceParameters->IdePioFlushCommandExt = 0xEA;
+        }
+        else
+        {
+            DeviceParameters->IdePioFlushCommand = GetFlushCommand[Device];
+        }
+    }
 }
 
 VOID
