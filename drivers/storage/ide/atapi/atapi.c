@@ -6983,8 +6983,75 @@ AtapiSetTransferMode(
     _In_ ULONG Device,
     _In_ UCHAR Mode)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ULONG ix;
+    ULONG jx;
+    UCHAR IdeStatus;
+
+    DPRINT("AtapiSetTransferMode: %X, %X, %X\n", HwDeviceExtension->CmdBlock.CmdBlockBase, Device, Mode);
+
+    if (HwDeviceExtension->CurrentSrb)
+    {
+        DPRINT1("HwDeviceExtension->CurrentSrb %X\n", HwDeviceExtension->CurrentSrb);
+        ASSERT(HwDeviceExtension->CurrentSrb == NULL);
+    }
+
+    ASSERT(HwDeviceExtension->ExpectingInterrupt == FALSE);
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+    for (ix = 0; ix < 10; ix++)
+    {
+        for (jx = 0; jx < 25000; jx++)
+        {
+            IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+            if (!(IdeStatus & 0x80))
+                break;
+
+            KeStallExecutionProcessor(40);
+        }
+
+        if (!(IdeStatus & 0x80))
+            break;
+
+        DPRINT("AtapiSetTransferMode: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    if (IdeStatus & 0x80)
+    {
+        DPRINT("AtapiSetTransferMode: WaitOnBusy failed. %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Features, 3);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, Mode);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xEF);
+
+    for (ix = 0; ix < 10; ix++)
+    {
+        for (jx = 0; jx < 25000; jx++)
+        {
+            IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+            if (!(IdeStatus & 0x80))
+                break;
+
+            KeStallExecutionProcessor(40);
+        }
+
+        if (!(IdeStatus & 0x80))
+            break;
+
+        DPRINT("AtapiSetTransferMode: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    if (IdeStatus & 0x80)
+    {
+        DPRINT("AtapiSetTransferMode: WaitOnBusy failed. %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    return ((IdeStatus & 0x81) != 0 ? STATUS_INVALID_DEVICE_REQUEST : STATUS_SUCCESS);
 }
 
 VOID
