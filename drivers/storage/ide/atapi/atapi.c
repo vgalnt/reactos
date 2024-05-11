@@ -7492,6 +7492,17 @@ IdePortSlaveIsGhost(
 
 NTSTATUS
 NTAPI
+SyncAtapiSafeCompletion(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 IssueSyncAtapiCommandSafe(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
@@ -7501,8 +7512,153 @@ IssueSyncAtapiCommandSafe(
     _In_ BOOLEAN IsDataIn,
     _In_ BOOLEAN IsBypassFrozen)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PATAPI_PRE_ALLOC_ENUM_STRUCT EnumStruct;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    KEVENT Event;
+    PIRP Irp;
+    ULONG FlushCount;
+    ULONG ix;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("IssueSyncAtapiCommandSafe: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    ASSERT(InterlockedCompareExchange(&(FdoExtension->EnumStructLock), 1, 0) == 0);
+
+    EnumStruct = FdoExtension->PreAllocEnumStruct;
+    if (!EnumStruct)
+    {
+        ASSERT(FdoExtension->PreAllocEnumStruct);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    ASSERT(EnumStruct->SenseInfoBuffer);
+
+    DPRINT("IssueSyncAtapiCommand: Using Sync Atapi safe!\n");
+
+    Srb = EnumStruct->Srb;
+    ASSERT(Srb);
+
+    Irp = EnumStruct->Irp;
+    ASSERT(Irp);
+
+    ASSERT(EnumStruct->DataBufferSize >= DataBufferSize);
+
+    FlushCount = 100;
+    ix = 5;
+
+    Status = STATUS_UNSUCCESSFUL;
+    while (!NT_SUCCESS(Status))
+    {
+        ix--;
+        if (!ix)
+            break;
+
+        KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+        IoInitializeIrp(Irp, IoSizeOfIrp(1), 1); 
+        Irp->MdlAddress = EnumStruct->Mdl;
+
+        IoStack = IoGetNextIrpStackLocation(Irp);
+        IoStack->MajorFunction = IRP_MJ_SCSI;
+        IoStack->Parameters.Scsi.Srb = Srb;
+
+        if (DataBuffer)
+            RtlCopyMemory(EnumStruct->DataBuffer, DataBuffer, DataBufferSize);
+
+        RtlZeroMemory(Srb, sizeof(*Srb));
+
+        Srb->Function = 0;
+        Srb->Length = sizeof(*Srb);
+
+        Srb->PathId = PdoExtension->PathId;
+        Srb->TargetId = PdoExtension->TargetId;
+        Srb->Lun = PdoExtension->Lun;
+
+        Srb->SrbFlags = 8;
+
+        if (IsDataIn)
+            Srb->SrbFlags |= 0x40;
+        else
+            Srb->SrbFlags |= 0x80;
+
+        if (IsBypassFrozen)
+            Srb->SrbFlags |= 0x10;
+
+        Srb->OriginalRequest = Irp;
+        Srb->NextSrb = NULL;
+
+        Srb->ScsiStatus = 0;
+        Srb->SrbStatus = 0;
+
+        if (Cdb->CDB10.OperationCode == 0x28)
+            Srb->TimeOutValue = 0xA;
+        else
+            Srb->TimeOutValue = 4;
+
+        Srb->CdbLength = 6;
+
+        Srb->SenseInfoBuffer = EnumStruct->SenseInfoBuffer;
+        Srb->SenseInfoBufferLength = 0x12;
+
+        Srb->DataBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
+        Srb->DataTransferLength = DataBufferSize;
+
+        RtlCopyMemory(Srb->Cdb, Cdb, sizeof(*Srb->Cdb));
+
+        IoSetCompletionRoutine(Irp, SyncAtapiSafeCompletion, &Event, TRUE, TRUE, TRUE);
+
+        if (IoCallDriver(PdoExtension->SelfDevice, Irp) == STATUS_PENDING)
+            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+        RtlCopyMemory(DataBuffer, Srb->DataBuffer, DataBufferSize);
+
+        if ((Srb->SrbStatus & 0x3F) == 1)
+        {
+            Status = STATUS_SUCCESS;
+            continue;
+        }
+
+        DPRINT("IssueSyncAtapiCommand: atapi command failed SRB status %X\n", Srb->SrbStatus);
+
+        if ((Srb->SrbStatus & 0x3F) == 0x16)
+        {
+            FlushCount--;
+            if (FlushCount)
+                ix++;
+        }
+
+        if ((Srb->SrbStatus & 0x3F) != 0x12)
+            Status = STATUS_UNSUCCESSFUL;
+        else
+            Status = STATUS_DATA_OVERRUN;
+
+        if (Srb->SrbStatus & 0x40)
+        {
+            DPRINT("IssueSyncAtapiCommand: Unfreeze Queue TID %X\n", Srb->TargetId);
+
+            PdoExtension->PdoFlags &= ~1;
+
+            KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
+            GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
+            KeLowerIrql(Irql);
+        }
+
+        if ((Srb->SrbStatus & 0x80) && (EnumStruct->SenseInfoBuffer->FileMark & 0xF) == 5)
+        {
+            ix = 0;
+            Status = STATUS_INVALID_DEVICE_REQUEST;
+        }
+    }
+
+    if (FlushCount != 100)
+        DPRINT("IssueSyncAtapiCommand: FlushCount is %X\n", FlushCount);
+
+    ASSERT(InterlockedCompareExchange(&(FdoExtension->EnumStructLock), 0, 1) == 1);
+
+    DPRINT("IssueSyncAtapiCommandSafe: ret %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
