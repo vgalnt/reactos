@@ -5418,14 +5418,14 @@ Finish:
     Srb->Length = sizeof(*Srb);
 
     if (IsDataIn)
-        Srb->SrbFlags = 0;
+        Srb->SrbFlags = 0x40; // SRB_FLAGS_DATA_IN
     else
-        Srb->SrbFlags = 0x80;
+        Srb->SrbFlags = 0x80; // SRB_FLAGS_DATA_OUT
 
     if (AtaPassThr->IdeReg.bReserved & 0x80)
-        Srb->SrbFlags |= 0x58;
-    else
-        Srb->SrbFlags |= 0x48;
+        Srb->SrbFlags |= 0x10; // SRB_FLAGS_BYPASS_FROZEN_QUEUE
+
+    Srb->SrbFlags |= 0x8; // SRB_FLAGS_DISABLE_SYNCH_TRANSFER
 
     Srb->NextSrb = NULL;
     Srb->TimeOutValue = TimeOutValue;
