@@ -7490,6 +7490,142 @@ IdePortSlaveIsGhost(
     return TRUE;
 }
 
+NTSTATUS
+NTAPI
+IssueSyncAtapiCommandSafe(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PCDB Cdb,
+    _In_ PVOID DataBuffer,
+    _In_ ULONG DataBufferSize,
+    _In_ BOOLEAN IsDataIn,
+    _In_ BOOLEAN IsBypassFrozen)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+IssueSyncAtapiCommand(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PCDB Cdb,
+    _In_ PVOID DataBuffer,
+    _In_ ULONG DataBufferSize,
+    _In_ BOOLEAN IsDataIn,
+    _In_ BOOLEAN IsBypassFrozen)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+IdePortVerifyDma(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ ULONG DeviceType)
+{
+    INQUIRYDATA Source1;
+    INQUIRYDATA Source2;
+    PVOID ReadBuffer;
+    CDB Cdb;
+    LONG DmaTimeouts;
+    NTSTATUS Status;
+    BOOLEAN Result = TRUE;
+
+    DPRINT1("IdePortVerifyDma: %p, %X\n", PdoExtension, DeviceType);
+
+    if (PdoExtension->DmaTimeouts >= 6)
+    {
+        Result = FALSE;
+        goto ErrorExit;
+    }
+
+    if (DeviceType == 2)
+    {
+        Status = IssueInquirySafe(PdoExtension->FdoExtension, PdoExtension, &Source1, FALSE);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("IdePortVerifyDma: Status %X\n", Status);
+            return Result;
+        }
+
+        DmaTimeouts = InterlockedExchange(&PdoExtension->DmaTimeouts, 6);
+
+        Status = IssueInquirySafe(PdoExtension->FdoExtension, PdoExtension, &Source2, FALSE);
+
+        if (!NT_SUCCESS(Status) || RtlCompareMemory(&Source1, &Source2, 0x60) == 0x60)
+        {
+            DPRINT1("IdePortVerifyDma: Status %X\n", Status);
+            InterlockedExchange(&PdoExtension->DmaTimeouts, DmaTimeouts);
+            return Result;
+        }
+
+        Result = FALSE;
+        goto ErrorExit;
+    }
+
+    if (DeviceType != 1)
+        return Result;
+
+    ReadBuffer = ExAllocatePoolWithTag(NonPagedPool, (2 * 0x200), 'PedI');
+    if (!ReadBuffer)
+    {
+        return Result;
+    }
+
+    RtlZeroMemory(&Cdb, sizeof(Cdb));
+
+    Cdb.CDB10.OperationCode = SCSIOP_READ;
+    Cdb.CDB10.TransferBlocksLsb = 1;
+
+    Status = IssueSyncAtapiCommandSafe(PdoExtension->FdoExtension,
+                                       PdoExtension,
+                                       &Cdb,
+                                       ReadBuffer,
+                                       0x200,
+                                       TRUE,
+                                       FALSE);
+    if (NT_SUCCESS(Status))
+    {
+        RtlZeroMemory(&Cdb, sizeof(Cdb));
+
+        Cdb.CDB10.OperationCode = SCSIOP_READ;
+        Cdb.CDB10.TransferBlocksLsb = 1;
+
+        DmaTimeouts = InterlockedExchange(&PdoExtension->DmaTimeouts, 6);
+
+        Status = IssueSyncAtapiCommand(PdoExtension->FdoExtension,
+                                       PdoExtension,
+                                       &Cdb,
+                                       Add2Ptr(ReadBuffer, 0x200),
+                                       0x200,
+                                       TRUE,
+                                       FALSE);
+
+        if (!NT_SUCCESS(Status) || RtlCompareMemory(ReadBuffer, Add2Ptr(ReadBuffer, 0x200), 0x200) == 0x200)
+            InterlockedExchange(&PdoExtension->DmaTimeouts, DmaTimeouts);
+        else
+            Result = FALSE;
+    }
+
+    DPRINT1("IdePortVerifyDma: Status %X\n", Status);
+
+    ExFreePoolWithTag(ReadBuffer, 'PedI');
+
+    if (Result)
+        return Result;
+
+ErrorExit:
+
+    DPRINT1("IdePortVerifyDma: system and/or device lies about its dma capability. pdoe %p\n", PdoExtension);
+    UNIMPLEMENTED_DBGBREAK();
+
+    return Result;
+
+}
+
 VOID
 NTAPI
 IdePortScanBus(
@@ -7906,7 +8042,7 @@ IdePortScanBus(
                         if (!IsEqualCheckSum[ix] ||
                             FdoExtension->HwDeviceExtension->DeviceParameters[ix].XferSelectedMode != RegTransferMode[ix])
                         {
-                            UNIMPLEMENTED_DBGBREAK();
+                            IdePortVerifyDma(PdoExtension, DeviceType[ix]);
                         }
                         else
                         {
