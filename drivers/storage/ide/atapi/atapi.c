@@ -7720,7 +7720,7 @@ IssueSyncAtapiCommandSafe(
 
     ASSERT(EnumStruct->SenseInfoBuffer);
 
-    DPRINT("IssueSyncAtapiCommand: Using Sync Atapi safe!\n");
+    DPRINT("IssueSyncAtapiCommandSafe: Using Sync Atapi safe!\n");
 
     Srb = EnumStruct->Srb;
     ASSERT(Srb);
@@ -7805,7 +7805,7 @@ IssueSyncAtapiCommandSafe(
             continue;
         }
 
-        DPRINT("IssueSyncAtapiCommand: atapi command failed SRB status %X\n", Srb->SrbStatus);
+        DPRINT("IssueSyncAtapiCommandSafe: atapi command failed SRB status %X\n", Srb->SrbStatus);
 
         if ((Srb->SrbStatus & 0x3F) == 0x16)
         {
@@ -7821,7 +7821,7 @@ IssueSyncAtapiCommandSafe(
 
         if (Srb->SrbStatus & 0x40)
         {
-            DPRINT("IssueSyncAtapiCommand: Unfreeze Queue TID %X\n", Srb->TargetId);
+            DPRINT("IssueSyncAtapiCommandSafe: Unfreeze Queue TID %X\n", Srb->TargetId);
 
             PdoExtension->PdoFlags &= ~1;
 
@@ -7838,7 +7838,7 @@ IssueSyncAtapiCommandSafe(
     }
 
     if (FlushCount != 100)
-        DPRINT("IssueSyncAtapiCommand: FlushCount is %X\n", FlushCount);
+        DPRINT("IssueSyncAtapiCommandSafe: FlushCount is %X\n", FlushCount);
 
     ASSERT(InterlockedCompareExchange(&(FdoExtension->EnumStructLock), 0, 1) == 1);
 
