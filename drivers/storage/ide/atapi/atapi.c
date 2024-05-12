@@ -7681,8 +7681,9 @@ SyncAtapiSafeCompletion(
     _In_ PIRP Irp,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PKEVENT Event = Context;
+    KeSetEvent(Event, 0, FALSE);
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 NTSTATUS
