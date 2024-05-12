@@ -862,6 +862,189 @@ IdePortNotification(
     FdoExtension->InterruptData.Flags |= 4;
 }
 
+UCHAR
+NTAPI
+IdeReadWriteExt(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+UCHAR
+NTAPI
+IdeReadWrite(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    PCDB Cdb;
+    ULONG StartingSector;
+    ULONG Device;
+    ULONG Head;
+    UCHAR StartIdeStatus;
+
+    Device = Srb->TargetId;
+
+    DPRINT("IdeReadWrite: %X, %X\n", HwDeviceExtension->CmdBlock.CmdBlockBase, Device);
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+    StartIdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+    if (StartIdeStatus & 0x80)
+    {
+        DPRINT("IdeReadWrite: Returning BUSY status\n");
+        return 5;
+    }
+
+    if (!(StartIdeStatus & 0x40))
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    HwDeviceExtension->TransferDataBuffer = (PUCHAR)Srb->DataBuffer;
+    HwDeviceExtension->TransferDataBytes = Srb->DataTransferLength;
+
+    HwDeviceExtension->ExpectingInterrupt = 1;
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, ((Srb->DataTransferLength + (0x200 - 1)) / 0x200));
+
+    Cdb = (PCDB)Srb->Cdb;
+
+    StartingSector = (Cdb->CDB10.LogicalBlockByte0 << 24) |
+                     (Cdb->CDB10.LogicalBlockByte1 << 16) |
+                     (Cdb->CDB10.LogicalBlockByte2 << 8) |
+                     (Cdb->CDB10.LogicalBlockByte3);
+
+    DPRINT("IdeReadWrite: Starting sector is %X, Number of bytes %X\n", StartingSector, Srb->DataTransferLength);
+
+    if (HwDeviceExtension->DeviceFlags[Device] & 0x400)
+    {
+        Head = (0x40 | ((StartingSector >> 24) & 0x0F));
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT | Head));
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaLow, StartingSector);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaMid, (StartingSector >> 8));
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaHigh, (StartingSector >> 16));
+    }
+    else
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (Srb->SrbFlags & 0x40)
+    {
+        if ((ULONG_PTR)Srb->SrbExtension & 2)
+            WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xC8);
+        else
+            WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, HwDeviceExtension->DeviceParameters[Device].IdePioReadCommand);
+    }
+    else
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if ((ULONG_PTR)Srb->SrbExtension & 2)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return 0;
+}
+
+UCHAR
+NTAPI
+IdeSendCommand(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    PCDB Cdb;
+    ULONG Device;
+    ULONG ix;
+    ULONG jx;
+    UCHAR SrbStatus;
+    UCHAR IdeStatus;
+    UCHAR Command;
+    UCHAR Error;
+
+    Cdb = (PCDB)Srb->Cdb;
+    Command = Cdb->CDB6GENERIC.OperationCode;
+    Device = Srb->TargetId;
+
+    DPRINT("IdeSendCommand: Command %X to device %X\n", Command, Device);
+
+    if (Command == 0x28 || Command == 0x2A)
+    {
+        if (HwDeviceExtension->DeviceFlags[Device] & 0x200000)
+            SrbStatus = IdeReadWriteExt(HwDeviceExtension, Srb);
+        else
+            SrbStatus = IdeReadWrite(HwDeviceExtension, Srb);
+
+        return SrbStatus;
+    }
+    else if (Command == 0)
+    {
+        if (!(HwDeviceExtension->DeviceFlags[Device] & 0x20))
+            return 1;
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xDA);
+
+        for (ix = 0; ix < 10; ix++)
+        {
+            for (jx = 0; jx < 25000; jx++)
+            {
+                IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                if (!(IdeStatus & 0x80))
+                    break;
+
+                KeStallExecutionProcessor(40);
+            }
+
+            if (!(IdeStatus & 0x80))
+                break;
+
+            DPRINT("AtapiSetTransferMode: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+                   HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+        }
+
+        if (IdeStatus & 0x80)
+        {
+            DPRINT("AtapiSetTransferMode: WaitOnBusy failed. %X IdeStatus %X\n",
+                   HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+        }
+
+        if (IdeStatus & 1)
+        {
+            Error = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Error);
+            if (Error != 0x40)
+            {
+                HwDeviceExtension->CmdErrorCopy = Error;
+                Srb->ScsiStatus = 2;
+                Srb->SrbStatus = 4;
+                return 4;
+            }
+
+            READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+        }
+        else
+        {
+            HwDeviceExtension->ExpectingInterrupt = 0;
+        }
+
+        return 1;
+    }
+    else
+    {
+        DPRINT1("IdeSendCommand: FIXME Command %X\n", Command);
+        UNIMPLEMENTED_DBGBREAK();
+
+        DPRINT("IdeSendCommand: Unsupported command %X\n", Command);
+        return 6;
+    }
+   
+}
+
 BOOLEAN
 NTAPI
 AtapiStartIo(
@@ -907,6 +1090,7 @@ AtapiStartIo(
         {
             UNIMPLEMENTED_DBGBREAK();
         }
+        // Srb->Function == 0
         else if (!(HwDeviceExtension->DeviceFlags[Srb->TargetId] & 1))
         {
             SrbStatus = 0xA;
@@ -914,7 +1098,7 @@ AtapiStartIo(
         }
         else
         {
-            UNIMPLEMENTED_DBGBREAK();
+            SrbStatus = IdeSendCommand(HwDeviceExtension, Srb);
         }
     }
     else if (Srb->Function == 2) // SRB_FUNCTION_IO_CONTROL
