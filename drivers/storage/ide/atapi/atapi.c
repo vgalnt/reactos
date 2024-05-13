@@ -7596,9 +7596,12 @@ NTAPI
 AtapiHwInitializeMultiLun(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ ULONG TargetId,
-    _In_ ULONG RegCheckSum)
+    _In_ ULONG NonCdNumLun)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("AtapiHwInitializeMultiLun: %X, %X, %X\n", HwDeviceExtension->CmdBlock.CmdBlockBase, TargetId, NonCdNumLun);
+
+    HwDeviceExtension->DeviceFlags[TargetId] |= 0x800;
+    HwDeviceExtension->MultiLun[TargetId] = (NonCdNumLun ? (NonCdNumLun - 1) : 0);
 }
 
 NTSTATUS
@@ -8128,6 +8131,7 @@ IdePortScanBus(
     ULONG RegTransferMode[4];
     ULONG DeviceType[4];
     ULONG SelectedMode;
+    ULONG NonCdNumLun;
     ULONG RegCheckSum;
     ULONG checkSum[4];
     ULONG CheckSum;
@@ -8538,14 +8542,14 @@ IdePortScanBus(
                                FdoExtension->ResourceData.CmdBlockBase, ix);
                     }
 
-                    RegCheckSum = 0;
+                    NonCdNumLun = 0;
 
                     if (DeviceType[ix] == 2)
                     {
                         UNIMPLEMENTED_DBGBREAK();
                     }
 
-                    AtapiHwInitializeMultiLun(FdoExtension->HwDeviceExtension, PdoExtension->TargetId, RegCheckSum);
+                    AtapiHwInitializeMultiLun(FdoExtension->HwDeviceExtension, PdoExtension->TargetId, NonCdNumLun);
                 }
 
                 Status = IssueInquirySafe(FdoExtension, PdoExtension, &Inquiry, TRUE);

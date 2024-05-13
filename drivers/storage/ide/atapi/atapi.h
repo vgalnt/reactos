@@ -264,6 +264,7 @@ typedef struct _ATA_DEVICE_EXTENSION
     ULONG IntResFlags;
     PUCHAR TransferDataBuffer;
     ULONG TransferDataBytes;
+    ULONG MultiLun[2];
     ULONG DeviceFlags[2];
     ULONG MaxIdeTargetId;
     ULONG EmptyDevice;
