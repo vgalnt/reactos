@@ -7612,8 +7612,25 @@ IssueInquirySafe(
     _In_ PINQUIRYDATA Inquiry,
     _In_ BOOLEAN IsSafe)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    CDB Cdb;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IssueInquirySafe: %X, %X\n", PdoExtension->FdoExtension->ResourceData.CmdBlockBase, IsSafe);
+
+    RtlZeroMemory(Inquiry, sizeof(*Inquiry));
+    RtlZeroMemory(&Cdb, sizeof(Cdb));
+
+    Cdb.CDB6INQUIRY.OperationCode = 0x12;
+    Cdb.CDB6INQUIRY.LogicalUnitNumber = PdoExtension->Lun;
+    Cdb.CDB6INQUIRY.AllocationLength = 0x24;
+
+    if (IsSafe)
+        Status = IssueSyncAtapiCommandSafe(FdoExtension, PdoExtension, &Cdb, Inquiry, 0x24, TRUE, FALSE);
+    else
+        Status = IssueSyncAtapiCommand(FdoExtension, PdoExtension, &Cdb, Inquiry, 0x24, TRUE, FALSE);
+
+    return Status;
 }
 
 VOID

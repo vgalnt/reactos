@@ -527,4 +527,28 @@ IdePortTickHandler(
     _In_ PVOID Context
 );
 
+NTSTATUS
+NTAPI
+IssueSyncAtapiCommandSafe(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PCDB Cdb,
+    _In_ PVOID DataBuffer,
+    _In_ ULONG DataBufferSize,
+    _In_ BOOLEAN IsDataIn,
+    _In_ BOOLEAN IsBypassFrozen
+);
+
+NTSTATUS
+NTAPI
+IssueSyncAtapiCommand(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PCDB Cdb,
+    _In_ PVOID DataBuffer,
+    _In_ ULONG DataBufferSize,
+    _In_ BOOLEAN IsDataIn,
+    _In_ BOOLEAN IsBypassFrozen
+);
+
 #endif /* _PCIIDEX_PCH_ */
