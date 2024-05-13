@@ -958,8 +958,11 @@ IdeSendCommand(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
+    PIDENTIFY_DATA Identify;
+    INQUIRYDATA Inquiry;
     PCDB Cdb;
     ULONG Device;
+    ULONG Length;
     ULONG ix;
     ULONG jx;
     UCHAR SrbStatus;
@@ -1031,6 +1034,53 @@ IdeSendCommand(
         {
             HwDeviceExtension->ExpectingInterrupt = 0;
         }
+
+        return 1;
+    }
+    else if (Command == 0x12)
+    {
+        if (Srb->Lun != 0)
+            return 0xA;
+
+        if (!(HwDeviceExtension->DeviceFlags[Device] & 1))
+            return 0xA;
+
+        Identify = &HwDeviceExtension->IdentifyData[Device];
+
+        RtlZeroMemory(Srb->DataBuffer, Srb->DataTransferLength);
+        RtlZeroMemory(&Inquiry, sizeof(Inquiry));
+
+        Inquiry.DeviceTypeQualifier &= 0xE0;
+
+        if (HwDeviceExtension->DeviceFlags[Device] & 0x10)
+            Inquiry.RemovableMedia |= 0x80;
+
+        for (ix = 0; ix < 8; ix += 2)
+        {
+            Inquiry.VendorId[ix] = Identify->ModelNumber[ix + 1];
+            Inquiry.VendorId[ix + 1] = Identify->ModelNumber[ix];
+        }
+
+        for (ix = 0; ix < 12; ix += 2)
+        {
+            Inquiry.ProductId[ix] = Identify->ModelNumber[ix + 9];
+            Inquiry.ProductId[ix + 1] = Identify->ModelNumber[ix + 8];
+        }
+
+        *(ULONG *)&Inquiry.ProductId[12] = '    ';
+
+        for (ix = 0; ix < 4; ix += 2)
+        {
+            Inquiry.ProductRevisionLevel[ix] = Identify->FirmwareRevision[ix + 1];
+            Inquiry.ProductRevisionLevel[ix + 1] = Identify->FirmwareRevision[ix];
+        }
+
+        if (Srb->DataTransferLength > sizeof(Inquiry))
+            Length = sizeof(Inquiry);
+        else
+            Length = Srb->DataTransferLength;
+
+        RtlMoveMemory(Srb->DataBuffer, &Inquiry, Length);
 
         return 1;
     }
@@ -8060,7 +8110,7 @@ IdePortVerifyDma(
 
         Status = IssueInquirySafe(PdoExtension->FdoExtension, PdoExtension, &Source2, FALSE);
 
-        if (!NT_SUCCESS(Status) || RtlCompareMemory(&Source1, &Source2, 0x60) == 0x60)
+        if (!NT_SUCCESS(Status) || RtlCompareMemory(&Source1, &Source2, sizeof(INQUIRYDATA)) == sizeof(INQUIRYDATA))
         {
             DPRINT1("IdePortVerifyDma: Status %X\n", Status);
             InterlockedExchange(&PdoExtension->DmaTimeouts, DmaTimeouts);
