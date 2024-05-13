@@ -7857,8 +7857,152 @@ IssueSyncAtapiCommand(
     _In_ BOOLEAN IsDataIn,
     _In_ BOOLEAN IsBypassFrozen)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    IO_STATUS_BLOCK IoStatusBlock;
+    SCSI_REQUEST_BLOCK Srb;
+    PSENSE_DATA SenseInfo;
+    PIRP Irp;
+    KEVENT Event;
+    ULONG IoControlCode;
+    ULONG FlushCount;
+    ULONG ix;
+    UCHAR SrbStatus;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("IssueSyncAtapiCommand: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    SenseInfo = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, sizeof(*SenseInfo), 'PedI');
+    if (!SenseInfo)
+    {
+        DPRINT1("IssueSyncAtapiCommand: Can't allocate request sense buffer\n");
+        UNIMPLEMENTED_DBGBREAK();
+        //IdePortLogNoMemoryErrorFn(..);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Status = STATUS_UNSUCCESSFUL;
+
+    FlushCount = 0x64; // 100
+
+    ix = 5;
+    do
+    {
+        ix--;
+        if (!ix)
+            break;
+
+        KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+        IoControlCode = (IsDataIn ? IOCTL_SCSI_EXECUTE_IN : IOCTL_SCSI_EXECUTE_OUT);
+
+        Irp = IoBuildDeviceIoControlRequest(IoControlCode,
+                                            FdoExtension->SelfDevice,
+                                            DataBuffer,
+                                            DataBufferSize,
+                                            DataBuffer,
+                                            DataBufferSize,
+                                            TRUE,
+                                            &Event,
+                                            &IoStatusBlock);
+        if (!Irp)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            //IdePortLogNoMemoryErrorFn(..);
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
+
+        IoGetNextIrpStackLocation(Irp)->Parameters.Scsi.Srb = &Srb;
+
+        RtlZeroMemory(&Srb, sizeof(Srb));
+
+        Srb.PathId = PdoExtension->PathId;
+        Srb.TargetId = PdoExtension->TargetId;
+        Srb.Lun = PdoExtension->Lun;
+
+        Srb.Function = 0;
+        Srb.Length = 0x40;
+
+        Srb.SrbFlags = 0x108;
+        Srb.SrbFlags = (IsDataIn != 0 ? 0x40 : 0x80);
+
+        if (IsBypassFrozen)
+            Srb.SrbFlags |= 0x10;
+
+        Srb.NextSrb = NULL;
+        Srb.OriginalRequest = Irp;
+
+        Srb.ScsiStatus = 0;
+        Srb.SrbStatus = 0;
+
+        if (Cdb->CDB6GENERIC.OperationCode == 0x28)
+            Srb.TimeOutValue = 0xA;
+        else
+            Srb.TimeOutValue = 4;
+
+        Srb.CdbLength = 6;
+
+        Srb.SenseInfoBuffer = SenseInfo;
+        Srb.SenseInfoBufferLength = sizeof(*SenseInfo);
+
+        Srb.DataBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
+        Srb.DataTransferLength = DataBufferSize;
+
+        RtlCopyMemory(Srb.Cdb, Cdb, sizeof(*Srb.Cdb));
+
+        if (IoCallDriver(PdoExtension->SelfDevice, Irp) == STATUS_PENDING)
+            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+        if ((Srb.SrbStatus & 0x3F) == 1)
+        {
+            Status = STATUS_SUCCESS;
+            continue;
+        }
+
+        DPRINT("IssueSyncAtapiCommand: atapi command failed SRB status %X\n", Srb.SrbStatus);
+
+        SrbStatus = (Srb.SrbStatus & 0x3F);
+        if (SrbStatus == 0x16)
+        {
+            FlushCount--;
+            if (FlushCount)
+                ix++;
+        }
+
+        Status = (SrbStatus != 0x12 ? STATUS_UNSUCCESSFUL : STATUS_DATA_OVERRUN);
+
+        if (Srb.SrbStatus & 0x40)
+        {
+            ASSERT((Srb.SrbStatus & 0x40) == 0);//SRB_STATUS_QUEUE_FROZEN
+
+            if (Srb.SrbStatus & 0x40)
+            {
+                DPRINT("IssueSyncAtapiCommand: Unfreeze Queue TID %X\n", Srb.TargetId);
+
+                PdoExtension->PdoFlags &= ~1;
+
+                KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
+                GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
+                KeLowerIrql(Irql);
+            }
+        }
+
+        if ((Srb.SrbStatus & 0x80) && (SenseInfo->FileMark & 0xF) == 5)
+        {
+            Status = STATUS_INVALID_DEVICE_REQUEST;
+            ix = 0;
+        }
+    }
+    while (!NT_SUCCESS(Status));
+
+    ExFreePoolWithTag(SenseInfo, 'PedI');
+
+    if (FlushCount != 0x64)
+    {
+        DPRINT("IssueSyncAtapiCommand: flushCount is %X\n", FlushCount);
+    }
+
+    return Status;
 }
 
 BOOLEAN
