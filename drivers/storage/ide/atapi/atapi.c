@@ -7689,7 +7689,10 @@ DeviceInitDeviceType(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PINQUIRYDATA Inquiry)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PdoExtension->ScsiDeviceType = (Inquiry->DeviceTypeQualifier & 0x1F);
+
+    if (Inquiry->RemovableMedia & 0x80)
+        PdoExtension->SelfDevice->Characteristics |= 1;
 }
 
 VOID
