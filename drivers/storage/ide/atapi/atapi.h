@@ -412,6 +412,9 @@ typedef struct _PDO_DEVICE_EXTENSION
     PIRP BusyRequest;
     PDOX_SRB_DATA PdoxSrbData;
     UCHAR ScsiDeviceType;
+    UCHAR ModelId[0x29];
+    UCHAR RevisionId[9];
+    UCHAR SerialNumId[0x29];
     KSPIN_LOCK PdoLock;
     PDEVICE_OBJECT Pdo;
     LONG ReferenceCount;

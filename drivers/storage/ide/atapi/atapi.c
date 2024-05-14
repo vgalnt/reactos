@@ -7697,13 +7697,98 @@ DeviceInitDeviceType(
 
 VOID
 NTAPI
+CopyField(
+    _Out_ PUCHAR Destination,
+    _In_ PUCHAR Source,
+    _In_ ULONG Length,
+    _In_ UCHAR DefaultCharacter)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 DeviceInitIdStrings(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ ULONG DeviceType,
     _In_ PINQUIRYDATA Inquiry,
-    _In_ PIDENTIFY_DATA IdentifyData)
+    _In_ PIDENTIFY_DATA Identify)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG SpecialDevice;
+    LONG ix;
+    UCHAR Swap;
+
+    PAGED_CODE();
+    DPRINT("DeviceInitIdStrings: %X, %X\n", PdoExtension->FdoExtension->ResourceData.CmdBlockBase, DeviceType);
+
+    ASSERT(PdoExtension);
+    ASSERT(Identify);
+
+    if (DeviceType == 1)
+    {
+        CopyField(PdoExtension->ModelId, Identify->ModelNumber, 0x28, ' ');
+        CopyField(PdoExtension->RevisionId, Identify->FirmwareRevision, 8, ' ' );
+
+        for (ix = 0; ix < (sizeof(PdoExtension->ModelId) - 1); ix += 2)
+        {
+            Swap = PdoExtension->ModelId[ix];
+
+            PdoExtension->ModelId[ix] = PdoExtension->ModelId[ix + 1];
+            PdoExtension->ModelId[ix + 1] = Swap;
+        }
+
+        for (ix = 0; ix < 8; ix += 2)
+        {
+            Swap = PdoExtension->RevisionId[ix];
+
+            PdoExtension->RevisionId[ix] = PdoExtension->RevisionId[ix + 1];
+            PdoExtension->RevisionId[ix + 1] = Swap;
+        }
+    }
+    else if (DeviceType == 2)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        ASSERT(FALSE);
+    }
+
+    for (ix = 0x27; ix >= 0; ix--)
+    {
+        if (PdoExtension->ModelId[ix] != ' ')
+        {
+            PdoExtension->ModelId[ix + 1] = 0;
+            break;
+        }
+    }
+
+    for (ix = 7; ix >= 0; ix--)
+    {
+        if (PdoExtension->RevisionId[ix] != ' ')
+        {
+            PdoExtension->RevisionId[ix + 1] = 0;
+            break;
+        }
+    }
+
+    UNIMPLEMENTED_ONCE;
+    SpecialDevice = 0;//IdeFindSpecialDevice(..);
+
+    if (SpecialDevice != 1 && Identify->SerialNumber[0] != ' ' && Identify->SerialNumber[0] != 0)
+    {
+        for (ix = 0; ix < 0x14; ix++)
+            sprintf((PCHAR)&PdoExtension->SerialNumId[ix * 2], "%2x", Identify->SerialNumber[ix]);
+
+        PdoExtension->SerialNumId[0x28] = 0;
+    }
+    else
+    {
+        PdoExtension->SerialNumId[0] = 0;
+    }
+
+    DPRINT("DeviceInitIdStrings: (%p) Full IDs '%s', '%s', '%s'\n",
+           PdoExtension, PdoExtension->ModelId, PdoExtension->RevisionId, PdoExtension->SerialNumId);
 }
 
 VOID
@@ -8634,9 +8719,9 @@ IdePortScanBus(
 
                     PdoExtension->PdoFlags &= ~0x80;
 
-                    DPRINT("IdePortScanBus: Found device at ");
-                    DPRINT("   Bus         %X", PdoExtension->PathId);
-                    DPRINT("   Target Id   %X", PdoExtension->TargetId);
+                    DPRINT("IdePortScanBus: Found device at\n");
+                    DPRINT("   Bus         %X\n", PdoExtension->PathId);
+                    DPRINT("   Target Id   %X\n", PdoExtension->TargetId);
                     DPRINT("   LUN         %X\n", PdoExtension->Lun);
 
                     if (IsNoPowerDown[ix] || PdoExtension->ScsiDeviceType == 5)
