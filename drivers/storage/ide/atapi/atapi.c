@@ -1859,7 +1859,28 @@ IdePortDispatch(
         {
             if (FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 2)
             {
-                UNIMPLEMENTED_DBGBREAK();
+                if (Srb->Cdb[0] == 0x1A)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+                else if (Srb->Cdb[0] == 0x15)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+                else if (Srb->Cdb[0] == 3)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+                else if (Srb->Function == 0xC7 || Srb->Function == 0xC8)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+                else if (Srb->Cdb[0] == 0x5A || Srb->Cdb[0] == 0x55 ||
+                         Srb->Cdb[0] == 0x12 || Srb->Cdb[0] == 0x4A || Srb->Cdb[0] == 0x46)
+                {
+                    ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+                    Srb->SrbExtension = Or2Ptr(Srb->SrbExtension, 1);
+                }
             }
             else
             {
