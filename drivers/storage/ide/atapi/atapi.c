@@ -1095,6 +1095,225 @@ IdeSendCommand(
    
 }
 
+VOID
+NTAPI
+Scsi2Atapi(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+UCHAR
+NTAPI
+AtapiSendCommand(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    PCDB Cdb;
+    ULONG ix;
+    ULONG jx;
+    UCHAR IdeStatus;
+
+    ASSERT(!(HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x200000));//DFLAGS_48BIT_LBA
+
+    Cdb = (PCDB)Srb->Cdb;
+
+    DPRINT("AtapiSendCommand: Command %X to TargetId %X lun %X\n", Cdb->CDB10.OperationCode, Srb->TargetId, Srb->Lun);
+
+    if (Srb->SrbFlags & 0xC0)
+    {
+        DPRINT("AtapiSendCommand: XferLength %X, LBA %X\n", Srb->DataTransferLength,
+               (Cdb->CDB10.LogicalBlockByte0 | (Cdb->CDB10.LogicalBlockByte1 << 8) |
+                (Cdb->CDB10.LogicalBlockByte2 << 16) | (Cdb->CDB10.LogicalBlockByte3 << 24)));
+    }
+
+    if (Srb->Lun > HwDeviceExtension->MultiLun[Srb->TargetId])
+        return 0xA;
+
+    if (!(HwDeviceExtension->DeviceFlags[Srb->TargetId] & 2))
+        return 0xA;
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Srb->TargetId & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+    IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+
+    DPRINT("AtapiSendCommand: Entered with IdeStatus %X\n", IdeStatus);
+
+    if (IdeStatus & 0x80)
+    {
+        DPRINT("AtapiSendCommand: Device busy (%X)\n", IdeStatus);
+        return 5;
+    }
+
+    if (!(IdeStatus & 0x10) &&
+        HwDeviceExtension->IsDscRestrictive &&
+        (HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x80000))
+    {
+        KeStallExecutionProcessor(1000);
+        DPRINT("AtapiSendCommand: DSC not set (%X)\n", IdeStatus);
+        return 5;
+    }
+
+    if ((ULONG_PTR)Srb->SrbExtension & 4)
+    {
+        DPRINT("AtapiSendCommand: %X mapped as DSC restrictive\n", Cdb->CDB10.OperationCode);
+
+        HwDeviceExtension->IsDscRestrictive = TRUE;
+        HwDeviceExtension->DeviceFlags[Srb->TargetId] |= 0x80000;
+    }
+    else
+    {
+        HwDeviceExtension->IsDscRestrictive = FALSE;
+        HwDeviceExtension->DeviceFlags[Srb->TargetId] &= ~0x00080000;
+    }
+
+    Scsi2Atapi(HwDeviceExtension, Srb);
+
+    HwDeviceExtension->TransferDataBuffer = Srb->DataBuffer;
+    HwDeviceExtension->TransferDataBytes = Srb->DataTransferLength;
+
+    for (ix = 0; ix < 10; ix++)
+    {
+        for (jx = 0; jx < 25000; jx++)
+        {
+            IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+            if (!(IdeStatus & 0x80))
+                break;
+
+            KeStallExecutionProcessor(40);
+        }
+
+        if (!(IdeStatus & 0x80))
+            break;
+
+        DPRINT("AtapiSendCommand: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    if (IdeStatus & 0x80)
+    {
+        DPRINT("AtapiSendCommand: WaitOnBusy failed. %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    if (Srb->DataTransferLength >= 0x10000)
+    {
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesLow, 0xFF);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesHigh, 0xFF);
+    }
+    else
+    {
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesLow, (Srb->DataTransferLength & 0xFF));
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesHigh, ((Srb->DataTransferLength >> 8) & 0xFF));
+    }
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Features, (((ULONG_PTR)Srb->SrbExtension & 2) ? 1 : 0));
+
+    if (HwDeviceExtension->DeviceFlags[Srb->TargetId] & 8)
+    {
+        DPRINT("AtapiSendCommand: Wait for int. to send packet. IdeStatus %X\n", IdeStatus);
+
+        HwDeviceExtension->ExpectingInterrupt = 1;
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xA0);
+        return 0;
+    }
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xA0);
+
+    for (ix = 0; ix < 20; ix++)
+    {
+        IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+        if (!(IdeStatus & 0x80))
+            break;
+
+        KeStallExecutionProcessor(5);
+    }
+
+    for (ix = 0; ix < 10; ix++)
+    {
+        for (jx = 0; jx < 25000; jx++)
+        {
+            IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+            if (!(IdeStatus & 0x80))
+                break;
+
+            KeStallExecutionProcessor(40);
+        }
+
+        if (!(IdeStatus & 0x80))
+            break;
+
+        DPRINT("AtapiSendCommand: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    if (IdeStatus & 0x80)
+    {
+        DPRINT("AtapiSendCommand: WaitOnBusy failed. %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    for (jx = 0; jx < 1000; jx++)
+    {
+        IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+        if (IdeStatus & 0x80)
+        {
+            KeStallExecutionProcessor(100);
+            continue;
+        }
+
+        if (IdeStatus & 8)
+            break;
+
+        KeStallExecutionProcessor(200);
+    }
+
+    if (!(IdeStatus & 8))
+    {
+        DPRINT("AtapiSendCommand: DRQ never asserted (%X)\n", IdeStatus);
+        return 4;
+    }
+
+    READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+
+    HwDeviceExtension->ExpectingInterrupt = 1;
+
+    for (ix = 0; ix < 10; ix++)
+    {
+        for (jx = 0; jx < 25000; jx++)
+        {
+            IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+            if (!(IdeStatus & 0x80))
+                break;
+
+            KeStallExecutionProcessor(40);
+        }
+
+        if (!(IdeStatus & 0x80))
+            break;
+
+        DPRINT("AtapiSendCommand: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    if (IdeStatus & 0x80)
+    {
+        DPRINT("AtapiSendCommand: WaitOnBusy failed. %X IdeStatus %X\n",
+               HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+    }
+
+    WRITE_PORT_BUFFER_USHORT(HwDeviceExtension->CmdBlock.Data, (PUSHORT)&Srb->Cdb, 6);
+
+    if ((ULONG_PTR)Srb->SrbExtension & 2)
+    {
+        HwDeviceExtension->IsActiveDmaTransfer = TRUE;
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return 0;
+}
+
 BOOLEAN
 NTAPI
 AtapiStartIo(
@@ -1134,7 +1353,7 @@ AtapiStartIo(
         }
         else if ((HwDeviceExtension->DeviceFlags[Srb->TargetId] & 3) == 3)
         {
-            UNIMPLEMENTED_DBGBREAK();
+            SrbStatus = AtapiSendCommand(HwDeviceExtension, Srb);
         }
         else if (Srb->Function == 8 || Srb->Function == 7)
         {
