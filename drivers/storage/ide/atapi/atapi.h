@@ -279,6 +279,7 @@ typedef struct _ATA_DEVICE_EXTENSION
     BOOLEAN IsPrimary;
     BOOLEAN IsSecondary;
     BOOLEAN IsTransferModeNotSelected;
+    UCHAR ScsiCdb[0x10];
     UCHAR CmdErrorCopy;
     IDENTIFY_DATA IdentifyData[2];
     PCIIDE_BUS_MASTER_INTERFACE BusMasterInterface;

@@ -1101,7 +1101,45 @@ Scsi2Atapi(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PCDB Cdb = (PCDB)&Srb->Cdb;
+
+    DPRINT("Scsi2Atapi: Operation %X (%X:%X)\n", Cdb->CDB10.OperationCode, Srb->TargetId, Srb->Lun);
+
+    RtlCopyMemory(HwDeviceExtension->ScsiCdb, Srb->Cdb, sizeof(HwDeviceExtension->ScsiCdb));
+
+    HwDeviceExtension->IsCdbSaved = FALSE;
+
+    if (HwDeviceExtension->DeviceFlags[Srb->TargetId] & 4)
+        return;
+
+    if (Cdb->CDB6GENERIC.OperationCode == 4)//SCSIOP_FORMAT_UNIT
+    {
+        if (HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x8000)
+        {
+            Cdb->CDB6GENERIC.OperationCode = 0x24;
+            HwDeviceExtension->IsCdbSaved = TRUE;
+        }
+    }
+    else if (Cdb->CDB6GENERIC.OperationCode == 0x15)
+    {
+        DPRINT1("Scsi2Atapi: Error!\n");
+        ASSERT(FALSE);
+    }
+    else if (Cdb->CDB6GENERIC.OperationCode == 0x1A)
+    {
+        DPRINT1("Scsi2Atapi: Error!\n");
+        ASSERT(FALSE);
+    }
+    else if (Cdb->CDB6GENERIC.OperationCode == 0x1B)//SCSIOP_START_STOP_UNIT
+    {
+        if (Cdb->START_STOP.Immediate)
+        {
+            if (!Cdb->START_STOP.LoadEject && !Cdb->START_STOP.Start)
+                Cdb->START_STOP.Immediate = 0;
+        }
+
+        HwDeviceExtension->IsCdbSaved = TRUE;
+    }
 }
 
 UCHAR
