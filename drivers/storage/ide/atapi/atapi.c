@@ -8577,6 +8577,85 @@ ErrorExit:
 
 }
 
+BOOLEAN
+NTAPI
+IdePortInSetup(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING ObjectName;
+    ULONG OobeInProgress;
+    ULONG SetupInProgress = 0;
+    HANDLE KeyHandle;
+    BOOLEAN IsBootSetup = TRUE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    RtlInitUnicodeString(&ObjectName, L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\setupdd");
+    InitializeObjectAttributes(&ObjectAttributes, &ObjectName, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    DPRINT("IdePortInSetup: Status %X\n", Status);
+
+    if (NT_SUCCESS(Status))
+        ZwClose(KeyHandle);
+    else
+        IsBootSetup = FALSE;
+
+    RtlInitUnicodeString(&ObjectName, L"\\Registry\\Machine\\System\\setup");
+    InitializeObjectAttributes(&ObjectAttributes, &ObjectName, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    DPRINT("IdePortInSetup: Status %X\n", Status);
+    if (!NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    OobeInProgress = 0;
+
+    QueryTable[0].EntryContext = &OobeInProgress;
+    QueryTable[0].DefaultData = &OobeInProgress;
+    QueryTable[0].QueryRoutine = NULL;
+    QueryTable[0].Flags = 0x34;
+    QueryTable[0].Name = L"OobeInProgress";
+    QueryTable[0].DefaultType = 4;
+    QueryTable[0].DefaultLength = 4;
+
+    RtlQueryRegistryValues(RTL_REGISTRY_HANDLE, KeyHandle, QueryTable, NULL, NULL);
+
+    DPRINT("IdePortInSetup: OobeInProgress %X\n", OobeInProgress);
+
+    if (OobeInProgress)
+    {
+        ZwClose(KeyHandle);
+        goto Exit;
+    }
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].EntryContext = &SetupInProgress;
+    QueryTable[0].DefaultData = &SetupInProgress;
+    QueryTable[0].QueryRoutine = NULL;
+    QueryTable[0].Flags = 0x34;
+    QueryTable[0].Name = L"SystemSetupInProgress";
+    QueryTable[0].DefaultType = 4;
+    QueryTable[0].DefaultLength = 4;
+
+    RtlQueryRegistryValues(RTL_REGISTRY_HANDLE, KeyHandle, QueryTable, NULL, NULL);
+    DPRINT("IdePortInSetup: SetupInProgress %X\n", SetupInProgress);
+
+    ZwClose(KeyHandle);
+
+Exit:
+
+    return (IsBootSetup || SetupInProgress);
+}
+
 VOID
 NTAPI
 IdePortScanBus(
@@ -8610,6 +8689,7 @@ IdePortScanBus(
     BOOLEAN IsLs120[4];
     BOOLEAN IsEmptyChannelCheck;
     BOOLEAN IsNewDevice;
+    BOOLEAN IsInSetup;
     UCHAR GetFlushCommand[4];
     KIRQL Irql;
     NTSTATUS Status;
@@ -8628,6 +8708,9 @@ IdePortScanBus(
     }
 
     DPRINT("IdePortScanBus: scan bus %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    IsInSetup = IdePortInSetup(FdoExtension);
+    DPRINT("IdePortScanBus: IsInSetup %X\n", IsInSetup);
 
     IsEmptyChannelCheck = TRUE;
     ScsiAddress.AsULONG = 0;
