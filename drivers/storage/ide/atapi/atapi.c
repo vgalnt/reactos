@@ -1509,8 +1509,9 @@ AtapiStartIo(
 
 BOOLEAN
 NTAPI
-IdeResetBusSynchronized(
-    _In_ PVOID Context)
+AtapiResetController(
+   _In_ PATA_DEVICE_EXTENSION HwDeviceExtension, 
+   _In_ PULONG CallAgain)
 {
     UNIMPLEMENTED_DBGBREAK();
     return FALSE;
@@ -1610,6 +1611,90 @@ IdeStartIoSynchronized(
     DPRINT("IdeStartIoSynchronized: Result %X, %p (%X)\n", Result, PdoExtension, PdoExtension->TimeOut);
 
     return Result;
+}
+
+BOOLEAN
+NTAPI
+IdeResetBusSynchronized(
+    _In_ PVOID Context)
+{
+    PATAPI_RESET_BUS_CONTEXT ResetContext = Context;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PSCSI_REQUEST_BLOCK ResetSrb = NULL;
+    PSCSI_REQUEST_BLOCK Srb;
+    BOOLEAN ResetResult;
+
+    DPRINT("IdeResetBusSynchronized: %X\n", Context);
+
+    FdoExtension = ResetContext->FdoExtension;
+    ASSERT(ResetContext->Srb == FdoExtension->ResetSrb);
+
+    if (ResetContext->IsUpdateResetSrb)
+    {
+        if (FdoExtension->ResetCallAgain)
+        {
+            DPRINT("IdeResetBusSynchronized: WARNING: Resetting a reset\n");
+
+            FdoExtension->ResetCallAgain = 0;
+
+            if (FdoExtension->ResetSrb)
+            {
+                FdoExtension->ResetSrb->SrbStatus = 4;
+                ResetSrb = FdoExtension->ResetSrb;
+                FdoExtension->ResetSrb = NULL;
+            }
+        }
+
+        FdoExtension->ResetSrb = ResetContext->Srb;
+    }
+
+    ResetResult = AtapiResetController(FdoExtension->HwDeviceExtension, &FdoExtension->ResetCallAgain);
+
+    if (ResetResult && FdoExtension->ResetCallAgain)
+    {
+        FdoExtension->InterruptData.Flags |= 0x80;
+        FdoExtension->TimeOutValue = 1;
+
+        Srb = ResetSrb;
+    }
+    else
+    {
+        FdoExtension->InterruptData.Flags &= ~0x80;
+        FdoExtension->TimeOutValue = -1;
+
+        if (FdoExtension->ResetSrb)
+        {
+            Srb = FdoExtension->ResetSrb;
+            FdoExtension->ResetSrb = NULL;
+        }
+        else
+        {
+            Srb = ResetSrb;
+        }
+
+        if (Srb)
+            Srb->SrbStatus = (!ResetResult ? 4 : 1);
+
+        if (ResetResult)
+            IdePortNotification(3, FdoExtension->HwDeviceExtension, Srb);
+
+        if (FdoExtension->InterruptData.Flags & 0x100)
+        {
+            FdoExtension->InterruptData.Flags &= ~0x100;
+            IdeStartIoSynchronized(FdoExtension->SelfDevice);
+        }
+    }
+
+    if (Srb)
+    {
+        IdePortNotification(0, FdoExtension->HwDeviceExtension, Srb);
+        IdePortNotification(1, FdoExtension->HwDeviceExtension, 0);
+    }
+
+    if (FdoExtension->InterruptData.Flags & 4)
+        KeInsertQueueDpc(&FdoExtension->SelfDevice->Dpc, NULL, NULL);
+
+    return TRUE;
 }
 
 VOID

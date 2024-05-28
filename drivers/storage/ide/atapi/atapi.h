@@ -341,6 +341,7 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG FdoState; 
     LONG TimeOutValue;
     ULONG ResetCallAgain;
+    PSCSI_REQUEST_BLOCK ResetSrb;
     UCHAR MaxPdoCount;
     PKINTERRUPT InterruptObject;
     ULONG SequenceNumber;
