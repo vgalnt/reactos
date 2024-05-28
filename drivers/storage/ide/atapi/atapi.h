@@ -284,6 +284,8 @@ typedef struct _ATA_DEVICE_EXTENSION
     IDENTIFY_DATA IdentifyData[2];
     PCIIDE_BUS_MASTER_INTERFACE BusMasterInterface;
     ATA_DEVICE_PARAMETERS DeviceParameters[4]; 
+    ULONG BusyCount;
+    ULONG States[2][17];
 } ATA_DEVICE_EXTENSION, *PATA_DEVICE_EXTENSION;
 
 typedef struct _PDOX_SRB_DATA
@@ -554,6 +556,13 @@ IssueSyncAtapiCommand(
     _In_ ULONG DataBufferSize,
     _In_ BOOLEAN IsDataIn,
     _In_ BOOLEAN IsBypassFrozen
+);
+
+VOID
+NTAPI
+AtapiHwInitialize(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PUCHAR GetFlushCommand
 );
 
 #endif /* _PCIIDEX_PCH_ */

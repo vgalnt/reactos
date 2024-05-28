@@ -1507,12 +1507,282 @@ AtapiStartIo(
     return TRUE;
 }
 
+VOID
+NTAPI
+BuildResetStateTable(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+BOOLEAN
+NTAPI 
+TestForEnumProbing(
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+IdeCompleteRequest(
+   _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+   _In_ PPDOX_SRB_DATA SrbData,
+   _In_ UCHAR SrbStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+IdePortCompleteRequest(
+   _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+   _In_ PSCSI_REQUEST_BLOCK Srb,
+   _In_ UCHAR SrbStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+IdePortpWaitOnBusyEx(
+   _In_ PIDE_CMD_BLOCK_REGS CmdBlock,
+   _Out_ UCHAR* OutIdeStatus,
+   _In_ UCHAR InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+IdePortChannelEmpty(
+PIDE_CMD_BLOCK_REGS CmdBlock,
+   _In_ PIDE_CTRL_BLOCK_REGS CtrlBlock,
+   _In_ ULONG MaxIdeDevice)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 BOOLEAN
 NTAPI
 AtapiResetController(
    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension, 
    _In_ PULONG CallAgain)
 {
+    PIDE_CTRL_BLOCK_REGS CtrlBlock;
+    PIDE_CMD_BLOCK_REGS CmdBlock;
+    PATA_PASS_THROUGH AtaPassThr;
+    ULONG State;
+    ULONG PrevIdx;
+    ULONG ix;
+    ULONG jx;
+    UCHAR IdeStatus;
+    UCHAR Function;
+    BOOLEAN ProbeResult;
+
+    DPRINT("AtapiResetController: %X\n", *CallAgain);
+
+    CmdBlock = &HwDeviceExtension->CmdBlock;
+    CtrlBlock = &HwDeviceExtension->CtrlBlock;
+
+    while (TRUE)
+    {
+        ProbeResult = FALSE;
+
+        if (!*CallAgain)
+            BuildResetStateTable(HwDeviceExtension);
+
+        DPRINT("AtapiResetController: CallAgain %X, Device %X, BusyCount %X\n", *CallAgain, HwDeviceExtension->States[1][*CallAgain], HwDeviceExtension->BusyCount);
+
+        PrevIdx = *CallAgain;
+
+        State = HwDeviceExtension->States[0][*CallAgain];
+
+        if (State == 0)
+        {
+            DPRINT("AtapiResetController: Reset %X IDE... (%X)\n", CmdBlock->CmdBlockBase, HwDeviceExtension->CurrentSrb);
+
+            if (HwDeviceExtension->CurrentSrb)
+            {
+                ProbeResult = TestForEnumProbing(HwDeviceExtension->CurrentSrb);
+                Function = HwDeviceExtension->CurrentSrb->Function;
+
+                if (Function == 0xC7 || Function == 0xC8)
+                {
+                    AtaPassThr = HwDeviceExtension->CurrentSrb->DataBuffer;
+                    AtapiTaskRegisterSnapshot(CmdBlock, &AtaPassThr->IdeReg);
+                }
+                else if (Function == 0xC9)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+
+                IdePortCompleteRequest(HwDeviceExtension, HwDeviceExtension->CurrentSrb, 0xE);
+
+                HwDeviceExtension->CurrentSrb = 0;
+                HwDeviceExtension->TransferDataBytes = 0;
+                HwDeviceExtension->TransferDataBuffer = 0;
+
+                IdePortNotification(1, HwDeviceExtension, 0);
+            }
+
+            if (HwDeviceExtension->IsActiveDmaTransfer)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            HwDeviceExtension->ExpectingInterrupt = 0;
+            HwDeviceExtension->IsDscRestrictive = FALSE;
+
+            if (ProbeResult)
+            {
+                DPRINT("AtapiResetController: [%X] ret TRUE\n");
+                *CallAgain = 0;
+                return TRUE;
+            }
+
+            IdeHardReset(CmdBlock, CtrlBlock, 1, FALSE);
+
+            HwDeviceExtension->BusyCount = 0;
+
+            (*CallAgain)++;
+
+            HwDeviceExtension->BusyCount = 0;
+
+            WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((HwDeviceExtension->States[1][*CallAgain] & 0x1) << 4) | IDE_DRIVE_SELECT));
+            READ_PORT_UCHAR(CmdBlock->Status);
+
+            for (jx = 0; jx < 2000; jx++)
+            {
+                IdeStatus = READ_PORT_UCHAR(CmdBlock->Status);
+                if (!(IdeStatus & 0x80))
+                    break;
+                KeStallExecutionProcessor(100);
+            }
+
+            if (jx == 2000)
+                DPRINT("AtapiResetController: WaitOnBusyUntil failed. IdeStatus %X\n", IdeStatus);
+
+            if (IdeStatus & 0x80)
+            {
+                DPRINT("AtapiResetController: ret TRUE\n");
+                return TRUE;
+            }
+
+            continue;
+        }
+        else if (State == 1)
+        {
+            WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((HwDeviceExtension->States[1][PrevIdx] & 0x1) << 4) | IDE_DRIVE_SELECT));
+            goto State6;
+        }
+        else if (State == 2)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            return FALSE;
+        }
+        else if (State == 3)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            return FALSE;
+        }
+        else if (State == 4)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            return FALSE;
+        }
+        else if (State == 5)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            return FALSE;
+        }
+        else if (State == 6)
+        {
+State6:
+            IdeStatus = READ_PORT_UCHAR(CmdBlock->Status);
+            if (!(IdeStatus & 0x80))
+            {
+                (*CallAgain)++;
+                continue;
+            }
+
+            HwDeviceExtension->BusyCount++;
+
+            if (HwDeviceExtension->BusyCount > 30 || IdeStatus == 0xFF)
+            {
+                DPRINT("ATAPI ResetController: ATA soft reset fails\n");
+                UNIMPLEMENTED_DBGBREAK();
+                (*CallAgain)++;
+                continue;
+            }
+
+            DPRINT("AtapiResetController: ResetController not ready (%X) ...wait for 1 sec\n", IdeStatus);
+            DPRINT("AtapiResetController: ret TRUE\n");
+            return TRUE;
+        }
+        else if (State == 7)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            return FALSE;
+        }
+        else if (State == 8)
+        {
+            for (ix = 0; ix < (HwDeviceExtension->MaxIdeDevice / 2); ix++)
+            {
+                if (!(HwDeviceExtension->DeviceFlags[ix] & 1))
+                    continue;
+
+                WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((ix & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+                for (jx = 0; jx < 1000; jx++)
+                {
+                    IdeStatus = READ_PORT_UCHAR(CmdBlock->Status);
+                    if (!(IdeStatus & 0x80))
+                        break;
+                    KeStallExecutionProcessor(100);
+                }
+
+                if (jx == 1000)
+                    DPRINT("AtapiResetController: WaitOnBusyUntil failed. IdeStatus %x\n", IdeStatus);
+
+                if (IdeStatus & 0x80)
+                {
+                    HwDeviceExtension->DeviceFlags[ix] &= ~1;
+                    HwDeviceExtension->DeviceFlags[ix] |= 0x400000;
+                }
+            }
+
+            AtapiHwInitialize(HwDeviceExtension, 0);
+
+            for (ix = 0; ix < (HwDeviceExtension->MaxIdeDevice / 2); ix++)
+            {
+                if (HwDeviceExtension->DeviceFlags[ix] & 0x400000)
+                    HwDeviceExtension->DeviceFlags[ix] |= 1;
+            }
+
+            if (IdePortChannelEmpty(CmdBlock, CtrlBlock, HwDeviceExtension->MaxIdeDevice))
+                IdePortNotification(0xA, HwDeviceExtension, 0);
+
+            *CallAgain = 0;
+
+            for (ix = 0; ix < (HwDeviceExtension->MaxIdeDevice / 2); ix++)
+                WRITE_PORT_UCHAR(CtrlBlock->DeviceControl, 0);
+
+            DPRINT("AtapiResetController: ret TRUE\n");
+            return TRUE;
+        }
+        else
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            return FALSE;
+        }
+
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
     UNIMPLEMENTED_DBGBREAK();
     return FALSE;
 }
@@ -3805,15 +4075,6 @@ IdeGetInterruptState(
     }
 
     return TRUE;
-}
-
-BOOLEAN
-NTAPI 
-TestForEnumProbing(
-    _In_ PSCSI_REQUEST_BLOCK Srb)
-{
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
 }
 
 NTSTATUS
