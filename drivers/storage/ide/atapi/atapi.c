@@ -301,7 +301,66 @@ IdeHardReset(
     _In_ UCHAR Value,
     _In_ BOOLEAN IsWaitOnBusy)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    UCHAR IdeStatus;
+    ULONG ix;
+    ULONG jx;
+
+    DPRINT("IdeHardReset: Resetting controller.\n");
+
+    WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, IDE_DRIVE_SELECT);
+    WRITE_PORT_UCHAR(CtrlBlock->DeviceControl, 6);
+    KeStallExecutionProcessor(10);
+
+    WRITE_PORT_UCHAR(CtrlBlock->DeviceControl, (!Value ? 0 : 2));
+    KeStallExecutionProcessor(1);
+
+    if (!IsWaitOnBusy)
+        return;
+
+    for (jx = 0; jx < 5000; jx++)
+    {
+        IdeStatus = READ_PORT_UCHAR(CmdBlock->Status);
+        if (!(IdeStatus & 0x80))
+            break;
+        KeStallExecutionProcessor(100);
+    }
+
+    if (jx == 5000)
+    {
+        DPRINT("IdeHardReset: WaitOnBusyUntil failed. status %X\n", IdeStatus);
+    }
+
+    WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, IDE_DRIVE_SELECT);
+
+    if (READ_PORT_UCHAR(CmdBlock->DeviceSelect) != IDE_DRIVE_SELECT)
+    {
+        KeStallExecutionProcessor(1000);
+        WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, 0xB0);
+    }
+
+    for (ix = 0; ix < 31; ix++)
+    {
+        for (jx = 0; jx < 2500; jx++)
+        {
+            IdeStatus = READ_PORT_UCHAR(CmdBlock->Status);
+            if (!(IdeStatus & 0x80))
+                break;
+            KeStallExecutionProcessor(400);
+        }
+
+        if (IdeStatus == 0xFF)
+            break;
+
+        if (!(IdeStatus & 0x80))
+            return;
+
+        DPRINT("IdeHardReset: WaitOnBusy failed. status %X\n", IdeStatus);
+    }
+
+    if (IdeStatus & 0x80)
+    {
+        DPRINT("IdeHardReset: WaitOnBusy failed. status %X\n", IdeStatus);
+    }
 }
 
 BOOLEAN
@@ -630,7 +689,7 @@ IdeSendPassThroughCommand(
 
     if (AtaPassThr->IdeReg.bReserved & 8)
     {
-        IdeHardReset(CmdBlock, CtrlBlock, 0, 1);
+        IdeHardReset(CmdBlock, CtrlBlock, 0, TRUE);
         WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect,
                          (AtaPassThr->IdeReg.bDriveHeadReg | (((Srb->TargetId & 0x1) << 4) | IDE_DRIVE_SELECT)));
     }
@@ -1040,10 +1099,16 @@ IdeSendCommand(
     else if (Command == 0x12)
     {
         if (Srb->Lun != 0)
-            return 0xA;
+        {
+            DPRINT("IdeSendCommand: SRB_STATUS_SELECTION_TIMEOUT. Srb->Lun %X\n", Srb->Lun);
+            return SRB_STATUS_SELECTION_TIMEOUT;
+        }
 
         if (!(HwDeviceExtension->DeviceFlags[Device] & 1))
-            return 0xA;
+        {
+            DPRINT("IdeSendCommand: SRB_STATUS_SELECTION_TIMEOUT. DeviceFlags %X\n", HwDeviceExtension->DeviceFlags[Device]);
+            return SRB_STATUS_SELECTION_TIMEOUT;
+        }
 
         Identify = &HwDeviceExtension->IdentifyData[Device];
 
@@ -1254,7 +1319,7 @@ AtapiSendCommand(
 
         HwDeviceExtension->ExpectingInterrupt = 1;
         WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xA0);
-        return 0;
+        return SRB_STATUS_PENDING;
     }
 
     WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xA0);
@@ -1349,7 +1414,8 @@ AtapiSendCommand(
         UNIMPLEMENTED_DBGBREAK();
     }
 
-    return 0;
+    DPRINT("AtapiSendCommand: ret SRB_STATUS_PENDING (%p) \n", Srb);
+    return SRB_STATUS_PENDING;
 }
 
 BOOLEAN
@@ -1426,10 +1492,10 @@ AtapiStartIo(
         DPRINT("AtapiStartIo: Srb %x complete with status %x\n", Srb, SrbStatus);
     }
 
+    DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
+
     if (SrbStatus == 0)//SRB_STATUS_PENDING
         return TRUE;
-
-    DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
 
     HwDeviceExtension->CurrentSrb = NULL;
 
