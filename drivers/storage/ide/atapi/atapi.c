@@ -1512,7 +1512,67 @@ NTAPI
 BuildResetStateTable(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG NumStates;
+
+    HwDeviceExtension->States[0][0] = 0;
+    HwDeviceExtension->States[0][1] = 1;
+
+    HwDeviceExtension->States[1][0] = ((HwDeviceExtension->DeviceFlags[0] & 1) ? 0 : 1);
+    HwDeviceExtension->States[1][1] = ((HwDeviceExtension->DeviceFlags[0] & 1) ? 0 : 1);
+
+    DPRINT("BuildResetStateTable: HwDeviceExtension->States[1][0] %X\n", HwDeviceExtension->States[1][0]);
+
+    NumStates = 2;
+
+    if (HwDeviceExtension->DeviceFlags[0] & 1)
+    {
+        if (HwDeviceExtension->DeviceFlags[0] & 2)
+        {
+            HwDeviceExtension->States[0][2] = 2;
+            HwDeviceExtension->States[0][3] = 3;
+            HwDeviceExtension->States[0][4] = 4;
+        }
+        else
+        {
+            HwDeviceExtension->States[0][2] = 5;
+            HwDeviceExtension->States[0][3] = 6;
+            HwDeviceExtension->States[0][4] = 7;
+        }
+
+        HwDeviceExtension->States[1][2] = 0;
+        HwDeviceExtension->States[1][3] = 0;
+        HwDeviceExtension->States[1][4] = 0;
+
+        NumStates += 3;
+    }
+
+    if (HwDeviceExtension->DeviceFlags[1] & 1)
+    {
+        if (HwDeviceExtension->DeviceFlags[1] & 2)
+        {
+            HwDeviceExtension->States[0][NumStates + 0] = 2;
+            HwDeviceExtension->States[0][NumStates + 1] = 3;
+            HwDeviceExtension->States[0][NumStates + 2] = 4;
+        }
+        else
+        {
+            HwDeviceExtension->States[0][NumStates + 0] = 5;
+            HwDeviceExtension->States[0][NumStates + 1] = 6;
+            HwDeviceExtension->States[0][NumStates + 2] = 7;
+
+        }
+
+        HwDeviceExtension->States[1][NumStates + 0] = 1;
+        HwDeviceExtension->States[1][NumStates + 1] = 1;
+        HwDeviceExtension->States[1][NumStates + 2] = 1;
+
+        NumStates += 3;
+    }
+
+    HwDeviceExtension->States[0][NumStates] = 8;
+    HwDeviceExtension->States[1][NumStates] = ((HwDeviceExtension->DeviceFlags[0] & 1) ? 0 : 1);
+
+    ASSERT(NumStates <= 0x10); // RESET_STATE_TABLE_LEN - 1
 }
 
 BOOLEAN
