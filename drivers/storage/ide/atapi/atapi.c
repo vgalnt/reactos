@@ -2655,6 +2655,16 @@ Exit:
 
 NTSTATUS
 NTAPI
+IdeClaimLogicalUnit(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 IdePortDispatch(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
@@ -2670,6 +2680,7 @@ IdePortDispatch(
     UCHAR cdb[16];
     BOOLEAN IsInserted = FALSE;
     KIRQL Irql;
+    KIRQL StartIrql = KeGetCurrentIrql();
     NTSTATUS Status;
 
     FdoExtension = Fdo->DeviceExtension;
@@ -2745,11 +2756,13 @@ IdePortDispatch(
                 }
                 else if (Srb->Cdb[0] == 3)
                 {
-                    UNIMPLEMENTED_DBGBREAK();
+                    ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+                    Srb->SrbExtension = Or2Ptr(Srb->SrbExtension, 1);
                 }
                 else if (Srb->Function == 0xC7 || Srb->Function == 0xC8)
                 {
-                    UNIMPLEMENTED_DBGBREAK();
+                    ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+                    Srb->SrbExtension = Or2Ptr(Srb->SrbExtension, 1);
                 }
                 else if (Srb->Cdb[0] == 0x5A || Srb->Cdb[0] == 0x55 ||
                          Srb->Cdb[0] == 0x12 || Srb->Cdb[0] == 0x4A || Srb->Cdb[0] == 0x46)
@@ -2799,7 +2812,7 @@ IdePortDispatch(
             {
                 if (cdb[ix] != Srb->Cdb[ix])
                 {
-                    DPRINT("Miniport modified the Cdb\n");
+                    DPRINT1("IdePortDispatch: Miniport modified the Cdb\n");
                     ASSERT(FALSE);
                 }
             }
@@ -2812,7 +2825,8 @@ IdePortDispatch(
         }
         else
         {
-            UNIMPLEMENTED_DBGBREAK();
+            ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+            Srb->SrbExtension = Or2Ptr(Srb->SrbExtension, 1);
         }
     }
 
@@ -2860,9 +2874,75 @@ IdePortDispatch(
         UNIMPLEMENTED_DBGBREAK();
     }
 
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("IdePortDispatch: SRB %p, Function %X\n", Srb, Srb->Function);
 
-    return STATUS_NOT_IMPLEMENTED;
+    if (Srb->Function == 1 || Srb->Function == 5 || Srb->Function == 6)
+    {
+        Status = IdeClaimLogicalUnit(FdoExtension, Irp);
+
+        if (StartIrql != KeGetCurrentIrql())
+        {
+            DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+            ASSERT(FALSE);
+        }
+
+        goto Exit;
+    }
+    else if (Srb->Function == 4)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (Srb->Function == 0x10)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (Srb->Function == 0x12)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (Srb->Function == 0x15)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (Srb->Function == 0x16)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        DPRINT("IdePortDispatch: Unsupported function, SRB %p\n", Srb);
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+
+    if (StartIrql != KeGetCurrentIrql())
+    {
+        DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+        ASSERT(FALSE);
+    }
+
+    UnrefLogicalUnitExtension(FdoExtension, PdoExtension, Irp);
+
+    IoStack->Parameters.Others.Argument4 = NULL;
+
+    if (StartIrql != KeGetCurrentIrql())
+    {
+        DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+        ASSERT(FALSE);
+    }
+
+    IoCompleteRequest(Irp, 0);
+
+    if (StartIrql != KeGetCurrentIrql())
+    {
+        DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+        ASSERT(FALSE);
+    }
+
+    return Status;
 }
 
 /* POWER FUNCTIONS **********************************************************/
@@ -3438,7 +3518,7 @@ IdePortPassDownToNextDriver(
 NTSTATUS
 NTAPI
 IdePortNoSupportIrp(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
