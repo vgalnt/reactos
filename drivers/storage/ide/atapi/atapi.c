@@ -2432,6 +2432,15 @@ UnrefLogicalUnitExtension(
         KeSetEvent(&PdoExtension->Event, IO_NO_INCREMENT, FALSE);
 }
 
+VOID
+NTAPI
+UnrefPdo(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PVOID TagLock)
+{
+    UnrefLogicalUnitExtension(PdoExtension->FdoExtension, PdoExtension, TagLock);
+}
+
 PPDO_DEVICE_EXTENSION
 NTAPI
 NextLogUnitExtension(
