@@ -1580,8 +1580,19 @@ NTAPI
 TestForEnumProbing(
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PATA_PASS_THROUGH AtaPassThr;
+
+    if (!Srb)
+        return FALSE;
+
+    if (Srb->Function != 0xC7 && Srb->Function != 0xC8)
+        return FALSE;
+
+    AtaPassThr = Srb->DataBuffer;
+
+    DPRINT("TestForEnumProbing: %p (%X), %X\n", Srb, Srb->DataBuffer, AtaPassThr->IdeReg.bReserved);
+
+    return ((AtaPassThr->IdeReg.bReserved & 0x10) == 0x10);
 }
 
 VOID
