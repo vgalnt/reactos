@@ -3632,6 +3632,81 @@ AtapiCallBack(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+ULONG
+NTAPI
+MapError(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    PCDB Cdb;
+    UCHAR Error;
+    UCHAR SrbStatus;
+
+    Error = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Error);
+    Cdb = (PCDB)Srb->Cdb;
+
+    DPRINT("MapError: cdb %X and Error register is %X\n", Cdb->CDB6GENERIC.OperationCode, Error);
+
+    if (HwDeviceExtension->DeviceFlags[Srb->TargetId] & 2)
+    {
+        switch (Error >> 4) /* Sense codes */
+        {
+            case 0:
+                DPRINT("MapError: No sense information\n");
+                break;
+
+            case 1:
+                DPRINT("MapError: Recovered error\n");
+                break;
+
+            case 2:
+                DPRINT("MapError: Device not ready\n");
+                break;
+
+            case 3:
+                DPRINT("MapError: Media error\n");
+                break;
+
+            case 4:
+                DPRINT("MapError: Hardware error\n");
+                break;
+
+            case 5:
+                DPRINT("MapError: Illegal request\n");
+                break;
+
+            case 6:
+                DPRINT("MapError: Unit attention\n");
+                break;
+
+            case 7:
+                DPRINT("MapError: Data protect\n");
+                break;
+
+            case 8:
+                DPRINT("MapError: Blank check\n");
+                break;
+
+            case 0xB:
+                DPRINT("MapError: Command Aborted\n");
+                break;
+
+            default:
+                DPRINT("MapError: Invalid sense information\n");
+                break;
+        }
+
+        SrbStatus = 4;
+        goto Exit;
+    }
+
+    UNIMPLEMENTED_DBGBREAK();
+
+Exit:
+    Srb->ScsiStatus = 2;
+    return SrbStatus;
+}
+
 BOOLEAN
 NTAPI
 AtapiInterrupt(
