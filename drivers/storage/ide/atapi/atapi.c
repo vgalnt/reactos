@@ -3717,7 +3717,10 @@ AtapiInterrupt(
     ULONG bmStatus = 0;
     ULONG SrbStatus=6;
     ULONG BytesXferred = 0;
+    ULONG BytesRequested;
     ULONG PioModeSize = 0x200;
+    ULONG BytesLow;
+    ULONG BytesHigh;
     ULONG ix;
     ULONG jx;
     UCHAR InterruptReason;
@@ -3821,8 +3824,17 @@ AtapiInterrupt(
 
     if (IsAtapiDevice)
     {
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        InterruptReason = (READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.InterruptReason) & 3);
+        DPRINT("AtapiInterrupt: InterruptReason %X\n", InterruptReason);
+
+        if (IsActiveDmaTransfer && InterruptReason != 3)
+        {
+            DPRINT("AtapiInterrupt: Interrupt during DMA transfer, reason %X != 0x3\n", InterruptReason);
+            HwDeviceExtension->ExpectingInterrupt = 0;
+            return Result;
+        }
+
+        PioModeSize = 0x200;
     }
     else if (IsActiveDmaTransfer)
     {
@@ -3851,19 +3863,19 @@ AtapiInterrupt(
     }
     else if (IdeStatus & 0x80)
     {
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        ASSERT(Result == FALSE);
+        return FALSE;
     }
     else if (HwDeviceExtension->TransferDataBytes)
     {
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        return Result;
     }
     else
     {
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        InterruptReason = 3;
     }
+
+    DPRINT("AtapiInterrupt: InterruptReason %X\n", InterruptReason);
 
     if (InterruptReason == 1 && (IdeStatus & 8))
     {
@@ -3903,17 +3915,29 @@ AtapiInterrupt(
     else if (InterruptReason == 2 && (IdeStatus & 8))
     {
         // Read
+        BytesRequested = HwDeviceExtension->TransferDataBytes;
+
         if (IsAtapiDevice)
         {
-            DPRINT1("AtapiInterrupt: FIXME\n");
-            ASSERT(FALSE);
+            BytesLow = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesLow);
+            BytesHigh = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesHigh);
+
+            BytesXferred = (BytesLow | (BytesHigh << 8));
+
+            if (BytesXferred != BytesRequested)
+            {
+                DPRINT("AtapiInterrupt: %X bytes requested, %X bytes xferred\n", BytesRequested, BytesXferred);
+            }
+
+            if (BytesXferred > BytesRequested)
+                BytesXferred = BytesRequested;
         }
         else
         {
-            if (HwDeviceExtension->TransferDataBytes >= PioModeSize)
+            if (BytesRequested >= PioModeSize)
                 BytesXferred = PioModeSize;
             else
-                BytesXferred = HwDeviceExtension->TransferDataBytes;
+                BytesXferred = BytesRequested;
         }
 
         if (CurrentSrb->SrbFlags & 0x40)
@@ -3975,8 +3999,13 @@ AtapiInterrupt(
 
             if (IsAtapiDevice)
             {
-                DPRINT1("AtapiInterrupt: FIXME\n");
-                ASSERT(FALSE);
+                if (!(HwDeviceExtension->DeviceFlags[CurrentSrb->TargetId] & 0x800) &&
+                    CurrentSrb->Cdb[0] == 0x25)
+                {
+                    DPRINT1("AtapiInterrupt: FIXME\n");
+                    ASSERT(FALSE);
+                }
+
                 return Result;
             }
             else
@@ -3995,8 +4024,28 @@ AtapiInterrupt(
     else if (InterruptReason == 3)
     {
         // Complete
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        if (!IsActiveDmaTransfer)
+        {
+            if (HwDeviceExtension->TransferDataBytes)
+            {
+                DPRINT("AtapiInterrupt: HwDeviceExtension->TransferDataBytes %X\n", HwDeviceExtension->TransferDataBytes);
+            }
+
+            SrbStatus = (HwDeviceExtension->TransferDataBytes ? 0x12 : 1);
+        }
+        else
+        {
+            HwDeviceExtension->TransferDataBytes = 0;
+
+            if (!(bmStatus & ~4))
+                SrbStatus = 1;
+            else if (bmStatus & 1)
+                SrbStatus = 0x12;
+            else if (bmStatus & 2)
+                SrbStatus = 4;
+            else
+                SrbStatus = 4;
+        }
     }
     else
     {
@@ -4059,8 +4108,7 @@ Finish:
         }
         else if (CurrentSrb->Function != 0xC8 && CurrentSrb->Function != 0xC7 && CurrentSrb->Function != 0xC9)
         {
-            DPRINT1("AtapiInterrupt: FIXME\n");
-            ASSERT(FALSE);
+            SrbStatus = MapError(HwDeviceExtension, CurrentSrb);
         }
 
         HwDeviceExtension->IsDscRestrictive = FALSE;
@@ -4068,6 +4116,7 @@ Finish:
 
     HwDeviceExtension->ExpectingInterrupt = 0;
     CurrentSrb->SrbStatus = SrbStatus;
+    DPRINT("AtapiInterrupt: CurrentSrb %p, SrbStatus %X\n", CurrentSrb, SrbStatus);
 
     if (HwDeviceExtension->TransferDataBytes)
     {
@@ -4399,7 +4448,6 @@ IdeGetInterruptState(
         return FALSE;
     }
 
-    InterruptData;
     RtlCopyMemory(InterruptData, &FdoExtension->InterruptData, sizeof(*InterruptData));
 
     FdoExtension->InterruptData.Flags &= 0x4180;
