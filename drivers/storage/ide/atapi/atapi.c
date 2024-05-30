@@ -1630,7 +1630,24 @@ IdePortCompleteRequest(
    _In_ PSCSI_REQUEST_BLOCK Srb,
    _In_ UCHAR SrbStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIRP Irp;
+
+    Irp = Srb->OriginalRequest;
+    PdoExtension = IoGetCurrentIrpStackLocation(Irp)->Parameters.Others.Argument4;
+
+    DPRINT("IdePortCompleteRequest: Complete requests for targetid %X\n", PdoExtension->TargetId);
+
+    if (PdoExtension->AbortSrb)
+    {
+        PdoExtension->AbortSrb->SrbStatus = SrbStatus;
+        IdePortNotification(0, HwDeviceExtension, PdoExtension->AbortSrb);
+    }
+ 
+    FdoExtension = CONTAINING_RECORD(HwDeviceExtension, FDO_DEVICE_EXTENSION, AtaExt);
+
+    IdeCompleteRequest(FdoExtension, &PdoExtension->PdoxSrbData, SrbStatus);
 }
 
 NTSTATUS
