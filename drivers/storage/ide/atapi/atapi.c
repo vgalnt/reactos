@@ -1657,8 +1657,51 @@ IdePortpWaitOnBusyEx(
    _Out_ UCHAR* OutIdeStatus,
    _In_ UCHAR InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UCHAR IdeStatus;
+    ULONG ix;
+    ULONG jx;
+
+    for (ix = 0; ix < 2; )
+    {
+        jx = 0;
+
+        while (TRUE)
+        {
+            IdeStatus = READ_PORT_UCHAR(CmdBlock->Status);
+
+            if (IdeStatus == InStatus || !(IdeStatus & 0x80))
+            {
+                ix = 2;
+                break;
+            }
+
+            KeStallExecutionProcessor(5);
+
+            jx++;
+            if (jx < 200000)
+                continue;
+
+            if (!(IdeStatus & 0x80))
+            {
+                ix = 2;
+                break;
+            }
+
+            DPRINT("ATAPI: after 1 sec wait, device is still busy with %X, status %X\n", CmdBlock->CmdBlockBase, IdeStatus);
+
+            ix++;
+            break;
+        }
+    }
+
+    *OutIdeStatus = IdeStatus;
+
+    if (!(IdeStatus & 0x80) || IdeStatus == InStatus)
+        return STATUS_SUCCESS;
+
+    DPRINT("WaitOnBusy failed. (%X) status %X\n", CmdBlock->CmdBlockBase, IdeStatus);
+
+    return STATUS_UNSUCCESSFUL;
 }
 
 BOOLEAN
