@@ -1602,7 +1602,25 @@ IdeCompleteRequest(
    _In_ PPDOX_SRB_DATA SrbData,
    _In_ UCHAR SrbStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_REQUEST_BLOCK Srb;
+
+    ASSERT(SrbData->CurrentSrb);
+
+    Srb = SrbData->CurrentSrb;
+    DPRINT("IdeCompleteRequest: Srb %X\n", Srb);
+
+    if (!Srb)
+        return;
+
+    if (!(Srb->SrbFlags & 0x10000))
+        return;
+
+    Srb->SrbStatus = SrbStatus;
+
+    if (!((ULONG_PTR)Srb->SrbExtension & 2))
+      Srb->DataTransferLength = 0;
+
+    IdePortNotification(0, &FdoExtension->AtaExt, Srb);
 }
 
 VOID
