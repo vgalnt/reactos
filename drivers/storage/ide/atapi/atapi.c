@@ -3521,8 +3521,19 @@ IdePortNoSupportIrp(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Status = Irp->IoStatus.Status;
+
+    if (IoStack->MajorFunction == IRP_MJ_POWER)
+        PoStartNextPowerIrp(Irp);
+
+    DPRINT("IdePortNoSupportIrp: %p failing unsupported Irp (%X:%X) with %X\n", Pdo, IoStack->MajorFunction, IoStack->MinorFunction, Status);
+
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 NTSTATUS
