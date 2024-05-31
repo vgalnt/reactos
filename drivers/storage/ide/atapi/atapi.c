@@ -5209,6 +5209,7 @@ IdeProcessCompletedRequest(
         {
             KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
             IssueRequestSense(PdoExtension, Srb);
+            return;
         }
 
         DPRINT("IdeProcessCompletedRequest: Requeueing busy request to allow request sense.\n");
