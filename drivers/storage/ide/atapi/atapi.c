@@ -4665,8 +4665,38 @@ IdeBuildAndSendIrp(
     _In_ PIO_COMPLETION_ROUTINE CompletionRoutine,
     _In_ PVOID CompletionContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    LARGE_INTEGER StartingOffset;
+    PIO_STACK_LOCATION IoStack;
+    PIRP Irp;
+
+    DPRINT("IdeBuildAndSendIrp: %p\n", PdoExtension);
+
+    StartingOffset.QuadPart = 1;
+
+    Irp = IoBuildAsynchronousFsdRequest(IRP_MJ_READ,
+                                        PdoExtension->SelfDevice,
+                                        Ctx->Srb.DataBuffer,
+                                        Ctx->Srb.DataTransferLength,
+                                        &StartingOffset,
+                                        NULL);
+    if (!Irp)
+    {
+        DPRINT1("IdeBuildAndSendIrp: STATUS_INSUFFICIENT_RESOURCES\n");
+        //IdePortLogNoMemoryErrorFn(..);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    IoSetCompletionRoutine(Irp, CompletionRoutine, CompletionContext, TRUE, TRUE, TRUE);
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MajorFunction = IRP_MJ_SCSI;
+    IoStack->Parameters.Scsi.Srb = &Ctx->Srb;
+
+    Ctx->Srb.OriginalRequest = Irp;
+
+    IoCallDriver(PdoExtension->SelfDevice, Irp);
+
+    return STATUS_PENDING;
 }
 
 NTSTATUS
