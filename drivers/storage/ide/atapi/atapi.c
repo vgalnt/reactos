@@ -5484,8 +5484,84 @@ NTAPI
 IdeTimeoutSynchronized(
    _In_ PVOID SynchronizeContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PDEVICE_OBJECT Fdo = SynchronizeContext;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    BOOLEAN IsLock = FALSE;
+    BOOLEAN ProbeResult = FALSE;
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    DPRINT("IdeTimeoutSynchronized: Enter routine (%X)\n", FdoExtension->ResetCallAgain);
+
+    FdoExtension->TimeOutValue = -1;
+
+    if (FdoExtension->InterruptData.Flags & 0x80)
+    {
+        FdoExtension->InterruptData.Flags &= ~0x80;
+
+        if (FdoExtension->InterruptData.Flags & 0x100)
+        {
+            FdoExtension->InterruptData.Flags &= ~0x100;
+            IdeStartIoSynchronized(Fdo);
+        }
+
+        return FALSE;
+    }
+
+    HwDeviceExtension = FdoExtension->HwDeviceExtension;
+
+    if (!HwDeviceExtension->CurrentSrb)
+    {
+        DPRINT("IdeTimeoutSynchronized: (%p) Next request timed out. Resetting bus.. currentSrb %p\n",
+               Fdo, FdoExtension->HwDeviceExtension->CurrentSrb);
+    }
+    else
+    {
+        ++HwDeviceExtension->TimeOutLock[HwDeviceExtension->CurrentSrb->TargetId];
+
+        if (HwDeviceExtension->TimeOutLock[HwDeviceExtension->CurrentSrb->TargetId] == 1)
+            IsLock = TRUE;
+
+        ProbeResult = TestForEnumProbing(HwDeviceExtension->CurrentSrb);
+        if (!ProbeResult)
+        {
+            DPRINT("IdeTimeoutSynchronized: (%p) Next request timed out. Resetting bus.. currentSrb %p\n",
+                   Fdo, FdoExtension->HwDeviceExtension->CurrentSrb);
+        }
+    }
+
+    ASSERT(FdoExtension->ResetSrb == NULL);
+    FdoExtension->ResetSrb = NULL;
+
+    FdoExtension->ResetCallAgain = 0;
+
+    AtapiResetController(FdoExtension->HwDeviceExtension, &FdoExtension->ResetCallAgain);
+
+    if (ProbeResult)
+    {
+        ASSERT(FdoExtension->ResetCallAgain == 0);
+    }
+    else if (FdoExtension->ResetCallAgain)
+    {
+        FdoExtension->InterruptData.Flags |= 0x80;
+        FdoExtension->TimeOutValue = 1;
+    }
+
+    if (FdoExtension->InterruptData.Flags & 4)
+    {
+        DPRINT("IdeTimeoutSynchronized: KeInsertQueueDpc()\n");
+        KeInsertQueueDpc(&FdoExtension->SelfDevice->Dpc, NULL, NULL);
+    }
+
+    if (ProbeResult || IsLock)
+    {
+        DPRINT("IdeTimeoutSynchronized: ret FALSE\n");
+        return FALSE;
+    }
+
+    DPRINT("IdeTimeoutSynchronized: ret TRUE\n");
+    return TRUE;
 }
 
 VOID
