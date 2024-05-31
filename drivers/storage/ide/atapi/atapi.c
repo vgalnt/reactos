@@ -4703,7 +4703,16 @@ VOID
 IdeFreeIrpAndMdl(
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ASSERT(Irp);
+
+    if (Irp->MdlAddress)
+    {
+        MmUnlockPages(Irp->MdlAddress);
+        IoFreeMdl(Irp->MdlAddress);
+        Irp->MdlAddress = NULL;
+    }
+
+    IoFreeIrp(Irp);
 }
 
 NTSTATUS
