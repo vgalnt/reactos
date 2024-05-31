@@ -4699,6 +4699,13 @@ IdeBuildAndSendIrp(
     return STATUS_PENDING;
 }
 
+VOID
+IdeFreeIrpAndMdl(
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 IdePortInternalCompletion(
@@ -4706,8 +4713,64 @@ IdePortInternalCompletion(
     _In_ PIRP Irp,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PREQUEST_SENSE_CONTEXT SenseContext = Context;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PSCSI_REQUEST_BLOCK FailingSrb;
+    PIO_STACK_LOCATION IoStack;
+    PIRP FailingIrp;
+    UCHAR SrbStatus;
+    KIRQL Irql;
+
+    DPRINT("IdePortInternalCompletion: Enter routine\n");
+
+    if (SenseContext->Srb.Function == 0x10 || SenseContext->Srb.Function == 0x12)
+    {
+        DPRINT("IdePortInternalCompletion: STATUS_MORE_PROCESSING_REQUIRED\n");
+        ExFreePool(SenseContext);
+        IoFreeIrp(Irp);
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    FailingSrb = SenseContext->FailingSrb;
+    FailingIrp = FailingSrb->OriginalRequest;
+
+    IoStack = FailingIrp->Tail.Overlay.CurrentStackLocation;
+    PdoExtension = IoStack->Parameters.Others.Argument4;
+
+    SrbStatus = (SenseContext->Srb.SrbStatus & 0x3F);
+
+    if (SrbStatus == 1 || SrbStatus == 0x12)
+    {
+        FailingSrb->SrbStatus |= 0x80;
+        FailingSrb->SenseInfoBufferLength = SenseContext->Srb.DataTransferLength;
+    }
+
+    KeAcquireSpinLock(&PdoExtension->FdoExtension->SpinLock, &Irql);
+    PdoExtension->PdoFlags &= ~4;
+    KeReleaseSpinLock(&PdoExtension->FdoExtension->SpinLock, Irql);
+
+    ASSERT(FailingSrb->SrbStatus & 0x40);//SRB_STATUS_QUEUE_FROZEN
+
+    if ((FailingSrb->SrbFlags & 0x100) && (FailingSrb->SrbStatus & 0x40))
+    {
+        PdoExtension->PdoFlags &= ~1;
+
+        KeAcquireSpinLock(&PdoExtension->FdoExtension->SpinLock, &Irql);
+        GetNextLuRequest2(PdoExtension->FdoExtension, PdoExtension, __FILE__, __LINE__);
+        KeLowerIrql(Irql);
+
+        FailingSrb->SrbStatus &= ~0x40;
+    }
+
+    UnrefLogicalUnitExtension(PdoExtension->FdoExtension, PdoExtension, FailingIrp);
+
+    ExFreePool(SenseContext);
+    IdeFreeIrpAndMdl(Irp);
+
+    IoCompleteRequest(FailingIrp, 1);
+
+    DPRINT("IdePortInternalCompletion: ret STATUS_MORE_PROCESSING_REQUIRED\n");
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 VOID
