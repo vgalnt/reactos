@@ -4657,6 +4657,131 @@ GetNextLuRequest2(
     }
 }
 
+NTSTATUS
+NTAPI
+IdeBuildAndSendIrp(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PREQUEST_SENSE_CONTEXT Ctx,
+    _In_ PIO_COMPLETION_ROUTINE CompletionRoutine,
+    _In_ PVOID CompletionContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+IdePortInternalCompletion(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+IssueRequestSense(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PSCSI_REQUEST_BLOCK FailingSrb)
+{
+    PPDO_DEVICE_EXTENSION FailingPdoe;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PREQUEST_SENSE_CONTEXT Ctx;
+    PIO_STACK_LOCATION IoStack;
+    PCDB Cdb;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT("IssueRequestSense: Enter routine\n");
+
+    IoStack = IoGetCurrentIrpStackLocation(FailingSrb->OriginalRequest);
+    FailingPdoe = IoStack->Parameters.Others.Argument4;
+
+    Ctx = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Ctx), 'PedI');
+    if (!Ctx)
+    {
+        DPRINT1("IssueRequestSense: pool allocation failed\n");
+        goto ErrorExit;
+    }
+    RtlZeroMemory(Ctx, sizeof(*Ctx));
+
+    Ctx->FailingSrb = FailingSrb;
+
+    Ctx->Srb.CdbLength = 6;
+
+    Cdb = (PCDB)&Ctx->Srb.Cdb;
+    Cdb->CDB6INQUIRY.OperationCode = 3;
+    Cdb->CDB6INQUIRY.LogicalUnitNumber = 0;
+    Cdb->CDB6INQUIRY.PageCode = 0;
+    Cdb->CDB6INQUIRY.IReserved = 0;
+    Cdb->CDB6INQUIRY.AllocationLength = FailingSrb->SenseInfoBufferLength;
+    Cdb->CDB6INQUIRY.Control = 0;
+
+    Ctx->Srb.TargetId = FailingSrb->TargetId;
+    Ctx->Srb.Lun = FailingSrb->Lun;
+    Ctx->Srb.PathId = FailingSrb->PathId;
+
+    Ctx->Srb.Function = 0;
+    Ctx->Srb.Length = sizeof(Ctx->Srb);
+    Ctx->Srb.TimeOutValue = 0x10;
+
+    Ctx->Srb.SenseInfoBufferLength = 0;
+    Ctx->Srb.SenseInfoBuffer = NULL;
+
+    if (FailingSrb->SrbFlags & 8)
+        Ctx->Srb.SrbFlags = 0x5C;
+    else
+        Ctx->Srb.SrbFlags = 0x54;
+
+    Ctx->Srb.DataBuffer = FailingSrb->SenseInfoBuffer;
+    Ctx->Srb.DataTransferLength = FailingSrb->SenseInfoBufferLength;
+
+    Ctx->Srb.SrbStatus = 0;
+    Ctx->Srb.ScsiStatus = 0;
+
+    Ctx->Srb.NextSrb = NULL;
+
+    ASSERT(FailingSrb->OriginalRequest);
+    ASSERT(FailingPdoe);
+
+    Status = IdeBuildAndSendIrp(PdoExtension, Ctx, IdePortInternalCompletion, Ctx);
+    if (NT_SUCCESS(Status))
+        return;
+
+    ASSERT(Status == STATUS_INSUFFICIENT_RESOURCES);
+    ExFreePoolWithTag(Ctx, 0);
+
+ErrorExit:
+
+    KeAcquireSpinLock(&FailingPdoe->FdoExtension->SpinLock, &Irql);
+    FdoExtension = FailingPdoe->FdoExtension;
+    FailingPdoe->PdoFlags &= ~4;
+    KeReleaseSpinLock(&FdoExtension->SpinLock, Irql);
+
+    ASSERT(FailingSrb->SrbStatus & 0x40);//SRB_STATUS_QUEUE_FROZEN
+
+    if (FailingSrb->SrbFlags & 0x100)
+    {
+        if (FailingSrb->SrbStatus & 0x40)
+        {
+            FailingPdoe->PdoFlags &= ~1;
+
+            KeAcquireSpinLock(&FailingPdoe->FdoExtension->SpinLock, &Irql);
+            GetNextLuRequest2(FailingPdoe->FdoExtension, FailingPdoe, __FILE__, __LINE__);
+            KeLowerIrql(Irql);
+
+            FailingSrb->SrbStatus &= ~0x40;
+        }
+    }
+
+    UnrefLogicalUnitExtension(FailingPdoe->FdoExtension, FailingPdoe, FailingSrb->OriginalRequest);
+
+    IoCompleteRequest(FailingSrb->OriginalRequest, 1);
+    return;
+}
+
 VOID
 NTAPI
 IdeProcessCompletedRequest(
@@ -4980,8 +5105,8 @@ IdeProcessCompletedRequest(
 
         if (!(PdoExtension->PdoFlags & 8))
         {
-            UNIMPLEMENTED_DBGBREAK();
-            return;
+            KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+            IssueRequestSense(PdoExtension, Srb);
         }
 
         DPRINT("IdeProcessCompletedRequest: Requeueing busy request to allow request sense.\n");

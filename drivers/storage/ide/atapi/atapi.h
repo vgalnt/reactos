@@ -443,6 +443,12 @@ typedef struct _ATA_DETECT_DEVICE_CONTEXT
     IDENTIFY_DATA Identify;
 } ATA_DETECT_DEVICE_CONTEX, *PATA_DETECT_DEVICE_CONTEX;
 
+typedef struct _REQUEST_SENSE_CONTEXT
+{
+    SCSI_REQUEST_BLOCK Srb;
+    PSCSI_REQUEST_BLOCK FailingSrb;
+} REQUEST_SENSE_CONTEXT, *PREQUEST_SENSE_CONTEXT;
+
 /* ACPI EVAL ****************************************************************/
 
 typedef struct _ACPI_EVAL_SIGNATURE
