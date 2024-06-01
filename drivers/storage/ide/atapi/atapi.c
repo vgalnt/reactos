@@ -5572,6 +5572,7 @@ IdePortTickHandler(
 {
     PFDO_DEVICE_EXTENSION FdoExtension;
     PPDO_DEVICE_EXTENSION PdoExtension;
+    ATAPI_RESET_BUS_CONTEXT ResetContext;
     ATA_SCSI_ADDRESS ScsiAddress;
 
     DPRINT("IdePortTickHandler: %p\n", DeviceObject);
@@ -5615,7 +5616,25 @@ IdePortTickHandler(
                 else
                 {
                     DPRINT("IdePortTickHandler: Request timed out\n");
-                    UNIMPLEMENTED_DBGBREAK();
+
+                    PdoExtension->TimeOut = -1;
+
+                    ResetContext.FdoExtension = FdoExtension;
+                    ResetContext.PathId = PdoExtension->PathId;
+                    ResetContext.IsUpdateResetSrb = TRUE;
+                    ResetContext.Srb = NULL;
+
+                    if (FdoExtension->InterruptObject)
+                    {
+                        if (KeSynchronizeExecution(FdoExtension->InterruptObject, IdeResetBusSynchronized, &ResetContext))
+                        {
+                            ;//IdeLogResetError(..);
+                        }
+                        else
+                        {
+                            DPRINT1("IdePortTickHanlder: Reset failed\n");
+                        }
+                    }
                 }
             }
 
@@ -6760,7 +6779,7 @@ DeviceCreatePhysicalDeviceObject(
     Status = IoCreateDevice(DriverObject, sizeof(PDO_DEVICE_EXTENSION), DeviceName, 0x2D, 0x100, 0, &Pdo);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("AllocatePdo: Status %X\n", Status);
+        DPRINT1("DeviceCreatePhysicalDeviceObject: Status %X\n", Status);
         return Pdo;
     }
 
@@ -7465,7 +7484,7 @@ AtapiDetectDevice(
 
     if (DeviceType == 3)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        UNIMPLEMENTED_ONCE;
     }
 
     DPRINT("AtapiDetectDevice: ret %X\n", DeviceType);
