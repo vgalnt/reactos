@@ -10592,8 +10592,75 @@ NTAPI
 ChannelBuildDeviceRelationList(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PDEVICE_RELATIONS DeviceRelations;
+    ATA_SCSI_ADDRESS ScsiAddress;
+    ULONG Size;
+    ULONG Count = 0;
+    KIRQL Irql;
+    BOOLEAN IsDeadMeat;
+
+    DPRINT("ChannelBuildDeviceRelationList: %%p\n", FdoExtension);
+
+    ScsiAddress.AsULONG = 0;
+
+    PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, TRUE, ChannelBuildDeviceRelationList);
+    for (Count = 0; PdoExtension; Count++)
+    {
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, ChannelBuildDeviceRelationList);
+        PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, TRUE, ChannelBuildDeviceRelationList);
+    }
+
+    //FIXME
+    if (Count)
+        Size = ((Count + 1) * 4);
+    else
+        Size = 8;
+
+    DeviceRelations = ExAllocatePoolWithTag(NonPagedPool, Size, 'PedI');
+    if (!DeviceRelations)
+    {
+        DPRINT1("ChannelBuildDeviceRelationList: Unable to allocate DeviceRelations structures\n");
+        return NULL;
+    }
+
+    ScsiAddress.AsULONG = 0;
+
+    for (DeviceRelations->Count = 0; DeviceRelations->Count < Count; )
+    {
+        PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, TRUE, ChannelBuildDeviceRelationList);
+        if (!PdoExtension)
+            break;
+
+        KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+        IsDeadMeat = ((PdoExtension->PdoState & 0x40) == 0x40);
+        KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+        if (IsDeadMeat)
+        {
+            KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+            PdoExtension->PdoState &= ~0x8000;
+            KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+            DPRINT("ChannelBuildDeviceRelationList: %X target %X pdoExtension %p is marked DEADMEAT\n",
+                   PdoExtension->FdoExtension->ResourceData.CmdBlockBase, PdoExtension->TargetId, PdoExtension);
+        }
+        else
+        {
+            KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+            PdoExtension->PdoState |= 0x8000;
+            KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+            DeviceRelations->Objects[DeviceRelations->Count] = PdoExtension->SelfDevice;
+            ObReferenceObjectByPointer(DeviceRelations->Objects[DeviceRelations->Count++], 0, 0, 0);
+        }
+
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, ChannelBuildDeviceRelationList);
+    }
+
+    DPRINT("ChannelBuildDeviceRelationList: returning %X children\n", DeviceRelations->Count);
+
+    return DeviceRelations;
 }
 
 VOID
