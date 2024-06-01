@@ -9328,12 +9328,69 @@ DeviceRegisterIdleDetection(
 
 NTSTATUS
 NTAPI
+IdeCreateNumericKey(
+    _In_ HANDLE RootDirectory, 
+    _In_ ULONG NumericValue, 
+    _In_ PWSTR NameString, 
+    _In_ HANDLE* OutHanle)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
 IdeBuildDeviceMap(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PATAPI_DRIVER_EXTENSION DriverExtension)
 {
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING ObjectName;
+    HANDLE NumericKeyHandle;
+    HANDLE KeyHandle;
+    ULONG Disposition;
+    ULONG DMAEnabled;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IdeBuildDeviceMap: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    RtlInitUnicodeString(&ObjectName, L"\\Registry\\Machine\\Hardware\\DeviceMap\\Scsi");
+    InitializeObjectAttributes(&ObjectAttributes, &ObjectName, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    Status = ZwCreateKey(&KeyHandle, 0x2001F, &ObjectAttributes, 0, NULL, REG_OPTION_VOLATILE, &Disposition);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdeBuildDeviceMap: Status %X\n", Status);
+        return;
+    }
+
+    Status = IdeCreateNumericKey(KeyHandle, FdoExtension->ScsiPortCount, L"Scsi Port ", &NumericKeyHandle);
+    ZwClose(KeyHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdeBuildDeviceMap: Status %X\n", Status);
+        return;
+    }
+
+    DMAEnabled = 0;
+
+    for (ix = 0; ix < FdoExtension->HwDeviceExtension->MaxIdeDevice; ix++)
+    {
+        if (FdoExtension->HwDeviceExtension->DeviceFlags[ix] & 0x200)
+            DMAEnabled |= (1 << ix);
+    }
+
+    RtlInitUnicodeString(&ObjectName, L"DMAEnabled");
+    ZwSetValueKey(NumericKeyHandle, &ObjectName, 0, 4, &DMAEnabled, 4);
+
+    if (DriverExtension)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
     UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
 }
 
 BOOLEAN
