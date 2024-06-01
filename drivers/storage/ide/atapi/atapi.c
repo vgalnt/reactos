@@ -9290,7 +9290,40 @@ DeviceRegisterIdleDetection(
     _In_ ULONG ConservationIdleTime,
     _In_ ULONG PerformanceIdleTime)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ATA_PASS_THROUGH AtaPassThr;
+    NTSTATUS Status;
+    KIRQL Irql;
+
+    if (PdoExtension->PdoState & 0x80)
+        return;
+
+    if (PdoExtension->DumpFile)
+        return;
+
+    RtlZeroMemory(&AtaPassThr, sizeof(AtaPassThr));
+
+    AtaPassThr.IdeReg.bCommandReg = 0xE7;
+    AtaPassThr.IdeReg.bReserved = 0x50;
+
+    Status = IssueSyncAtaPassThroughSafe(PdoExtension->FdoExtension, PdoExtension, &AtaPassThr, FALSE, FALSE, 0xF, FALSE);
+
+    if (!NT_SUCCESS(Status))
+    {
+        KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+        PdoExtension->PdoState |= 0x80;
+        KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+        DPRINT("DeviceRegisterIdleDetection: Pdoe %p DOES NOT support power managerment command\n", PdoExtension);
+    }
+    else
+    {
+        PdoExtension->IdleCounter = PoRegisterDeviceForIdleDetection(PdoExtension->SelfDevice,
+                                                                     ConservationIdleTime,
+                                                                     PerformanceIdleTime,
+                                                                     PowerDeviceD3);
+
+        DPRINT("DeviceRegisterIdleDetection: Pdoe %p support power managerment command\n", PdoExtension);
+    }
 }
 
 NTSTATUS
