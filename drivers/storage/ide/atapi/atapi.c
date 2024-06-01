@@ -9178,6 +9178,7 @@ DeviceInitIdStrings(
     _In_ PINQUIRYDATA Inquiry,
     _In_ PIDENTIFY_DATA Identify)
 {
+    PUCHAR ModelId;
     ULONG SpecialDevice;
     LONG ix;
     UCHAR Swap;
@@ -9211,7 +9212,32 @@ DeviceInitIdStrings(
     }
     else if (DeviceType == 2)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        DPRINT("DeviceInitIdStrings: (%p) Inquiry '%s', '%s', '%s'\n",
+               PdoExtension, Inquiry->VendorId, Inquiry->ProductId, Inquiry->ProductRevisionLevel);
+
+        CopyField(PdoExtension->ModelId, Inquiry->VendorId, 8, ' ');
+        ModelId = PdoExtension->ModelId;
+
+        for (ix = 7; ix >= 0; ix--)
+        {
+            if (ModelId[ix] != ' ')
+            {
+                ModelId[ix + 1] = ' ';
+                ModelId += (ix + 2);
+                break;
+            }
+        }
+
+        CopyField(ModelId, Inquiry->ProductId, 0x10, ' ');
+        ModelId += 0x10;
+
+        for (ix = 0; (ULONG_PTR)&ModelId[ix] < (ULONG_PTR)&PdoExtension->ModelId[0x28]; ix++)
+            ModelId[ix] = ' ';
+
+        CopyField(PdoExtension->RevisionId, Inquiry->ProductRevisionLevel, 4, ' ');
+
+        for (ix = 4; ix < 8; ++ix)
+            PdoExtension->RevisionId[ix] = ' ';
     }
     else
     {
@@ -9242,7 +9268,9 @@ DeviceInitIdStrings(
     if (SpecialDevice != 1 && Identify->SerialNumber[0] != ' ' && Identify->SerialNumber[0] != 0)
     {
         for (ix = 0; ix < 0x14; ix++)
+        {
             sprintf((PCHAR)&PdoExtension->SerialNumId[ix * 2], "%2x", Identify->SerialNumber[ix]);
+        }
 
         PdoExtension->SerialNumId[0x28] = 0;
     }
