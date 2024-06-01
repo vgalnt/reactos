@@ -9334,8 +9334,40 @@ IdeCreateNumericKey(
     _In_ PWSTR NameString, 
     _In_ HANDLE* OutHanle)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING NumericKeyUs;
+    UNICODE_STRING ObjectName;
+    WCHAR ObjectNameBuffer[0x40];
+    WCHAR Buffer[0x10];
+    ULONG Disposition;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IdeCreateNumericKey: '%S'\n", NameString);
+
+    ObjectName.Length = 0;
+    ObjectName.MaximumLength = 0x40;
+    ObjectName.Buffer = ObjectNameBuffer;
+
+    RtlInitUnicodeString(&NumericKeyUs, NameString);
+    RtlCopyUnicodeString(&ObjectName, &NumericKeyUs);
+
+    NumericKeyUs.Length = 0;
+    NumericKeyUs.MaximumLength = 0x10;
+    NumericKeyUs.Buffer = Buffer;
+
+    Status = RtlIntegerToUnicodeString(NumericValue, 10, &NumericKeyUs);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdeCreateNumericKey: Status %X\n", Status);
+        return Status;
+    }
+
+    RtlAppendUnicodeStringToString(&ObjectName, &NumericKeyUs);
+
+    InitializeObjectAttributes(&ObjectAttributes, &ObjectName, OBJ_CASE_INSENSITIVE, RootDirectory, NULL);
+
+    return ZwCreateKey(OutHanle, 0x2001F, &ObjectAttributes, 0, NULL, REG_OPTION_VOLATILE, &Disposition);
 }
 
 VOID
