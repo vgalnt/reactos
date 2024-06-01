@@ -9962,12 +9962,23 @@ Exit:
     return (IsBootSetup || SetupInProgress);
 }
 
+ULONG
+NTAPI
+IdePortQueryNonCdNumLun(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ BOOLEAN IsBypassFrozen)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 VOID
 NTAPI
 IdePortScanBus(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    PATAPI_DRIVER_EXTENSION DriverExtension; 
+    //PATAPI_DRIVER_EXTENSION DriverExtension; 
     PATA_DEVICE_EXTENSION HwDeviceExtension;
     PPDO_DEVICE_EXTENSION PdoExtension;
     PVOID ImageSectionHandle;
@@ -9977,6 +9988,7 @@ IdePortScanBus(
     INQUIRYDATA Inquiry;
     ULONG RegTimingModeAllowed[4];
     ULONG RegTransferMode[4];
+    ULONG SpecialDevice[4];
     ULONG DeviceType[4];
     ULONG SelectedMode;
     ULONG NonCdNumLun;
@@ -9987,7 +9999,7 @@ IdePortScanBus(
     ULONG TMMask;
     ULONG ix;
     ULONG jx;
-    //BOOLEAN IsPioByDefaultDevice[4];
+    BOOLEAN IsPioByDefaultDevice[4];
     BOOLEAN IsNonRemovableMedia[4];
     BOOLEAN IsEqualCheckSum[4];
     BOOLEAN IsNoPowerDown[4];
@@ -10025,6 +10037,8 @@ IdePortScanBus(
     {
         ScsiAddress.Lun = 0;
         ScsiAddress.TargetId = ix;
+
+        DPRINT("IdePortScanBus: (%X) scan %X:%X:%X\n", FdoExtension->ResourceData.CmdBlockBase, ScsiAddress.PathId, ScsiAddress.TargetId, ScsiAddress.Lun);
 
         PdoExtension = RefLogicalUnitExtension(FdoExtension,
                                                ScsiAddress.PathId,
@@ -10083,10 +10097,10 @@ IdePortScanBus(
                 }
                 else
                 {
+                    HwDeviceExtension->DeviceFlags[ix] |= 1;
+
                     if (DeviceType[ix] == 2)
                         HwDeviceExtension->DeviceFlags[ix] |= 2;
-                    else
-                        HwDeviceExtension->DeviceFlags[ix] |= 1;
 
                     /* FIXME IdeFindSpecialDevice() for names:
                        "TOSHIBA CD-ROM XM-1702B"
@@ -10096,7 +10110,11 @@ IdePortScanBus(
                        "KENWOOD CD-ROM"
                        "MEMORYSTICK"
                     */
-                    UNIMPLEMENTED_ONCE;
+                    SpecialDevice[ix] = 0;
+                    if (SpecialDevice[ix] == 2)
+                    {
+                        UNIMPLEMENTED_ONCE;
+                    }
                 }
             }
 
@@ -10136,7 +10154,7 @@ IdePortScanBus(
             if (DeviceType[ix] != 3)
             {
                 IsMustBePio[ix] = IdePortMustBePio(FdoExtension, &Identify[ix]);
-                //IsPioByDefaultDevice[ix] = IdePortPioByDefaultDevice(FdoExtension, &Identify[ix]);
+                IsPioByDefaultDevice[ix] = IdePortPioByDefaultDevice(FdoExtension, &Identify[ix]);
 
                 ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
 
@@ -10210,10 +10228,18 @@ IdePortScanBus(
 
                 ASSERT(DeviceType[ix] <= 3);//DeviceNotExist
 
-                if (ix == 2)
+                if (DeviceType[ix] == 2)
                 {
-                    DPRINT1("IdePortScanBus: FIXME\n");
-                    UNIMPLEMENTED_DBGBREAK();
+                    if (IsInSetup)
+                        IsMustBePio[ix] = TRUE;
+
+                    if (SpecialDevice[ix] != 3 && !IsMustBePio[ix] && !IsPioByDefaultDevice[ix])
+                    {
+                        DPRINT1("IdePortScanBus: FIXME\n");
+                        UNIMPLEMENTED_DBGBREAK();
+                    }
+
+                    FdoExtension->TMAllowed[ix] &= FdoExtension->UserChoiceAtapiTransferMode[ix];
                 }
             }
 
@@ -10356,6 +10382,8 @@ IdePortScanBus(
                 ScsiAddress.Lun = jx;
                 IsNewDevice = FALSE;
 
+                DPRINT("IdePortScanBus: (%X) scan %X:%X:%X\n", FdoExtension->ResourceData.CmdBlockBase, ScsiAddress.PathId, ScsiAddress.TargetId, ScsiAddress.Lun);
+
                 PdoExtension = RefLogicalUnitExtension(FdoExtension,
                                                        ScsiAddress.PathId,
                                                        ScsiAddress.TargetId,
@@ -10375,6 +10403,8 @@ IdePortScanBus(
                     DPRINT1("IdePortScanBus: unable to create new pdo\n");
                     continue;
                 }
+
+                DPRINT("IdePortScanBus: jx %X\n", jx);
 
                 if (!jx)
                 {
@@ -10398,8 +10428,20 @@ IdePortScanBus(
 
                     if (DeviceType[ix] == 2)
                     {
-                        UNIMPLEMENTED_DBGBREAK();
+                        if (SpecialDevice[ix] != 3)
+                        {
+                            NonCdNumLun = IdePortQueryNonCdNumLun(FdoExtension, PdoExtension, 0);
+                            DPRINT("IdePortScanBus: NonCdNumLun %X\n", NonCdNumLun);
+                        }
+                        else
+                        {
+                            DPRINT("IdePortScanBus: Skip modesense\n");
+                        }
+
                     }
+
+                    DPRINT("IdePortScanBus: Initialize Luns for %X device %X took 0 ms\n",
+                           FdoExtension->ResourceData.CmdBlockBase, ix);
 
                     AtapiHwInitializeMultiLun(FdoExtension->HwDeviceExtension, PdoExtension->TargetId, NonCdNumLun);
                 }
@@ -10460,8 +10502,8 @@ IdePortScanBus(
             UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
         }
 
-        DriverExtension = IoGetDriverObjectExtension(FdoExtension->DriverObject, DriverEntry);
-        IdeBuildDeviceMap(FdoExtension, DriverExtension);
+        //DriverExtension = IoGetDriverObjectExtension(FdoExtension->DriverObject, DriverEntry);
+        //IdeBuildDeviceMap(FdoExtension, DriverExtension);
     }
 
     DPRINT("IdePortScanBus: Last Stage scanning for %X took 0 ms\n", FdoExtension->ResourceData.CmdBlockBase);
