@@ -8540,7 +8540,16 @@ AnalyzeDeviceCapabilities(
             InitSafeBootMode == 1) // #ifndef __REACTOS__ --> *InitSafeBootMode
         {
             DPRINT("AnalyzeDeviceCapabilities: Reseting DMA Information\n");
-            UNIMPLEMENTED_DBGBREAK();
+
+            DeviceParameters->XferCurrentMode &= 0x1F;
+            DeviceParameters->XferModeBitMap &= 0x1F;
+
+            DeviceParameters->BestSwDmaCycleTime = 0;
+            DeviceParameters->BestMwDmaCycleTime = 0;
+            DeviceParameters->BestUDmaCycleTime = 0;
+            DeviceParameters->BestSwDmaXferMode = 0;
+            DeviceParameters->BestMwDmaXferMode = 0;
+            DeviceParameters->BestUDmaXferMode = 0;
         }
 
         if (DeviceParameters->BestPioXferMode > 2)
