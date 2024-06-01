@@ -11029,8 +11029,62 @@ IdeGetDeviceCapabilities(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PDEVICE_CAPABILITIES Capabilities)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    IO_STATUS_BLOCK IoStatusBlock;
+    PIO_STACK_LOCATION IoStack;
+    PDEVICE_OBJECT AttachedDo;
+    KEVENT Event;
+    PIRP Irp;
+    NTSTATUS Status;
+  
+    PAGED_CODE();
+    DPRINT("IdeGetDeviceCapabilities: %p\n", DeviceObject);
+
+    RtlZeroMemory(Capabilities, sizeof(*Capabilities));
+
+    Capabilities->Address = 0xFFFFFFFF;
+    Capabilities->UINumber = 0xFFFFFFFF;
+    Capabilities->Size = sizeof(*Capabilities);
+    Capabilities->Version = 1;
+
+    KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+    AttachedDo = IoGetAttachedDeviceReference(DeviceObject);
+
+    Irp = IoBuildSynchronousFsdRequest(IRP_MJ_PNP, AttachedDo, NULL, 0, NULL, &Event, &IoStatusBlock);
+    if (!Irp)
+    {
+        DPRINT1("IdeGetDeviceCapabilities: STATUS_INSUFFICIENT_RESOURCES\n");
+        ObDereferenceObject(AttachedDo);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Irp->IoStatus.Information = 0;
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    if (!IoStack)
+    {
+        DPRINT1("IdeGetDeviceCapabilities: STATUS_INVALID_PARAMETER\n");
+        ObDereferenceObject(AttachedDo);
+        return STATUS_INVALID_PARAMETER;
+    }
+    RtlZeroMemory(IoStack, sizeof(*IoStack));
+
+    IoStack->MajorFunction = IRP_MJ_PNP;
+    IoStack->MinorFunction = IRP_MN_QUERY_CAPABILITIES;
+    IoStack->Parameters.DeviceCapabilities.Capabilities = Capabilities;
+
+    IoSetCompletionRoutine(Irp, NULL, NULL, FALSE, FALSE, FALSE);
+
+    Status = IoCallDriver(AttachedDo, Irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = IoStatusBlock.Status;
+    }
+
+    ObDereferenceObject(AttachedDo);
+    return Status;
 }
 
 NTSTATUS
