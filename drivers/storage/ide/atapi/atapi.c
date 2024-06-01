@@ -9969,8 +9969,50 @@ IdePortQueryNonCdNumLun(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ BOOLEAN IsBypassFrozen)
 {
+    PMODE_PARAMETER_HEADER10 Header;
+    CDB Cdb;
+    ULONG Size;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IdePortQueryNonCdNumLun: %X, %X\n", FdoExtension->ResourceData.CmdBlockBase, IsBypassFrozen);
+
+    Size = (sizeof(*Header) + 0xC);
+
+    Header = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, Size, 'PedI');
+    if (!Header)
+    {
+        DPRINT1("IdePortQueryNonCdNumLun: Can't allocate Header buffer\n");
+        return 0;
+    }
+
+    RtlZeroMemory(Header, Size);
+    RtlZeroMemory(&Cdb, sizeof(Cdb));
+
+    Cdb.MODE_SENSE10.OperationCode = 0x5A;
+    Cdb.MODE_SENSE10.PageCode = 0x1B;
+    Cdb.MODE_SENSE10.AllocationLength[1] = Size;
+
+    Status = IssueSyncAtapiCommand(FdoExtension, PdoExtension, &Cdb, Header, Size, TRUE, IsBypassFrozen);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IdePortQueryNonCdNumLun: Status %X\n", Status);
+        goto Exit;
+    }
+
     UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    return 0;
+
+Exit:
+
+    ExFreePoolWithTag(Header, 'PedI');
+
+    if (!NT_SUCCESS(Status))
+    {
+        return 0;
+    }
+
+    return 2;
 }
 
 VOID
