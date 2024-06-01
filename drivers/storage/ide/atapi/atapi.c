@@ -11025,12 +11025,70 @@ DeviceQueryDeviceRelations(
 
 NTSTATUS
 NTAPI
-DeviceQueryCapabilities(
+IdeGetDeviceCapabilities(
     _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+    _In_ PDEVICE_CAPABILITIES Capabilities)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceQueryCapabilities(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PDEVICE_CAPABILITIES Capabilities;
+    DEVICE_CAPABILITIES capabilities;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DeviceQueryCapabilities: %p, %p\n", Pdo, Irp);
+
+    Capabilities = IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceCapabilities.Capabilities;
+
+    PdoExtension = RefPdo(Pdo, TRUE, DeviceQueryCapabilities);
+    if (!PdoExtension)
+    {
+        DPRINT1("DeviceQueryCapabilities: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        goto Finish;
+    }
+
+    Status = IdeGetDeviceCapabilities(PdoExtension->FdoExtension->LowPdo, &capabilities);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DeviceQueryCapabilities: Status %p\n", Status);
+        UnrefPdo(PdoExtension, DeviceQueryCapabilities);
+        goto Finish;
+    }
+
+    RtlMoveMemory(Capabilities, &capabilities, sizeof(*Capabilities));
+
+    if (PdoExtension->SerialNumId[0])
+        Capabilities->UniqueID = 1;
+    else
+        Capabilities->UniqueID = 0;
+
+    Capabilities->Removable = 0;
+    Capabilities->SurpriseRemovalOK = 0;
+
+    Capabilities->Address = ((PdoExtension->TargetId & 0xF) | (PdoExtension->Lun << 4));
+    Capabilities->UINumber = PdoExtension->TargetId;
+
+    Capabilities->D1Latency = 0x4BAF0;//310000
+    Capabilities->D2Latency = 0x4BAF0;
+    Capabilities->D3Latency = 0x4BAF0;
+
+    UnrefPdo(PdoExtension, DeviceQueryCapabilities);
+
+Finish:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 NTSTATUS
