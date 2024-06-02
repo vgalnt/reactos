@@ -190,6 +190,20 @@ PWSTR TimingModeAllowedName[] =
     L"SlaveDeviceTimingModeAllowed2"
 };
 
+PCHAR DeviceTypeName[10][3] =
+{
+    {"Disk", "GenDisk", "DiskPeripheral"},
+    {"Sequential", "GenSequential", "TapePeripheral"},
+    {"Printer", "GenPrinter", "PrinterPeripheral"},
+    {"Processor", "GenProcessor", "ProcessorPeripheral"},
+    {"Worm", "GenWorm", "WormPeripheral"},
+    {"CdRom", "GenCdRom", "CdRomPeripheral"},
+    {"Scanner", "GenScanner", "ScannerPeripheral"},
+    {"Optical", "GenOptical", "OpticalDiskPeripheral"},
+    {"Changer", "GenChanger", "MediumChangerPeripheral"},
+    {"Net", "GenNet", "CommunicationPeripheral"}
+};
+
 extern NTSYSAPI BOOLEAN InitSafeBootMode;
 
 /* PRIVATE FUNCTIONS ********************************************************/
@@ -11236,14 +11250,165 @@ Finish:
     return Status;
 }
 
+PWCHAR
+NTAPI
+DeviceBuildBusId(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNICODE_STRING IdUs;
+    ANSI_STRING IdAs;
+    PCHAR DeviceTypeString;
+    PCHAR IdStr;
+    PWCHAR Id;
+    USHORT Length;
+    CHAR TypeStrBuffer[12];
+
+    PAGED_CODE();
+    DPRINT("DeviceBuildBusId: %p\n", PdoExtension);
+
+    if (PdoExtension->ScsiDeviceType >= 0xA)
+    {
+        sprintf(TypeStrBuffer, "Type%d", PdoExtension->ScsiDeviceType);
+        DeviceTypeString = TypeStrBuffer;
+    }
+    else
+    {
+        DeviceTypeString = DeviceTypeName[PdoExtension->ScsiDeviceType][0];
+    }
+
+    Length = (strlen(DeviceTypeString) + 0x60);
+
+    Id = ExAllocatePoolWithTag(PagedPool, (Length * 2), 'PedI');
+    IdStr  = ExAllocatePoolWithTag(PagedPool, Length, 'PedI');
+
+    if (!IdStr)
+    {
+        if (!Id)
+        {
+            DPRINT1("DeviceBuildBusId: allocate failed\n");
+            return NULL;
+        }
+
+        ExFreePoolWithTag(Id, 'PedI');
+        goto Exit;
+    }
+
+    if (!Id)
+    {
+        DPRINT1("DeviceBuildBusId: allocate failed\n");
+        goto Exit;
+    }
+
+    sprintf(IdStr, "IDE\\");
+
+    CopyField((PUCHAR)&IdStr[strlen(IdStr)], (PUCHAR)DeviceTypeString, strlen(DeviceTypeString), '_');
+    CopyField((PUCHAR)&IdStr[strlen(IdStr)], PdoExtension->ModelId, 0x28, '_');
+    CopyField((PUCHAR)&IdStr[strlen(IdStr)], PdoExtension->RevisionId, 8, '_');
+
+    RtlInitAnsiString(&IdAs, IdStr);
+
+    IdUs.Length = 0;
+    IdUs.MaximumLength = (Length * 2);
+    IdUs.Buffer = Id;
+
+    RtlAnsiStringToUnicodeString(&IdUs, &IdAs, FALSE);
+
+    IdUs.Buffer[IdUs.Length / 2] = 0;
+
+Exit:
+
+    if (IdStr)
+        ExFreePoolWithTag(IdStr, 'PedI');
+
+    DPRINT("DeviceBuildBusId: ret Id '%S'\n", Id);
+    return Id;
+}
+
+PWCHAR
+NTAPI
+DeviceBuildHardwareId(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PWCHAR
+NTAPI
+DeviceBuildCompatibleId(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PWCHAR
+NTAPI
+DeviceBuildInstanceId(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 NTSTATUS
 NTAPI
 DeviceQueryId(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PWCHAR Id = NULL;
+    BUS_QUERY_ID_TYPE IdType;
+    NTSTATUS Status = STATUS_DEVICE_DOES_NOT_EXIST;
+
+    PAGED_CODE();
+
+    PdoExtension = RefPdo(Pdo, TRUE, DeviceQueryId);
+    if (!PdoExtension)
+    {
+        DPRINT1("DeviceQueryId: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        goto Finish;
+    }
+
+    IdType = IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryId.IdType;
+    switch (IdType)
+    {
+        case BusQueryDeviceID:
+            Id = DeviceBuildBusId(PdoExtension);
+            break;
+
+        case BusQueryHardwareIDs:
+            Id = DeviceBuildHardwareId(PdoExtension);
+            break;
+
+        case BusQueryCompatibleIDs:
+            Id = DeviceBuildCompatibleId(PdoExtension);
+            break;
+
+        case BusQueryInstanceID:
+            Id = DeviceBuildInstanceId(PdoExtension);
+            break;
+
+        default:
+            DPRINT("DeviceQueryId: type %X not supported\n", IdType);
+            Status = STATUS_NOT_SUPPORTED;
+            break;
+    }
+
+    UnrefPdo(PdoExtension, DeviceQueryId);
+
+    if (Id)
+    {
+        Irp->IoStatus.Information = (ULONG_PTR)Id;
+        Status = STATUS_SUCCESS;
+    }
+
+Finish:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 NTSTATUS
