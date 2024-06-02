@@ -11148,11 +11148,92 @@ Finish:
 NTSTATUS
 NTAPI
 DeviceQueryText(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PWCHAR DeviceText = NULL;
+    UNICODE_STRING ModelIdUs;
+    ANSI_STRING ModelIdAs;
+    DEVICE_TEXT_TYPE Type;
+    LONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DeviceQueryText: %p, %p\n", Pdo, Irp);
+
+    Irp->IoStatus.Information = 0;
+
+    PdoExtension = RefPdo(Pdo, TRUE, DeviceQueryText);
+    if (!PdoExtension)
+    {
+        DPRINT1("DeviceQueryText: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        goto Finish;
+    }
+
+    Status = STATUS_NO_MEMORY;
+
+    Type = IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryDeviceText.DeviceTextType;
+    if (Type == DeviceTextDescription)
+    {
+        DeviceText = ExAllocatePoolWithTag(PagedPool, 0x52, 'PedI');
+        if (DeviceText)
+        {
+            ModelIdUs.Length = 0;
+            ModelIdUs.MaximumLength = 0x52;
+            ModelIdUs.Buffer = DeviceText;
+
+            RtlInitAnsiString(&ModelIdAs, (PCHAR)PdoExtension->ModelId);
+            RtlAnsiStringToUnicodeString(&ModelIdUs, &ModelIdAs, FALSE);
+
+            ASSERT(ModelIdUs.Length < ModelIdUs.MaximumLength);
+
+            ix = (ModelIdUs.Length / 2);
+            while (TRUE)
+            {
+                ix--;
+                if (ix < 0)
+                    break;
+
+                if (DeviceText[ix] != ' ' && DeviceText[ix] != 0)
+                   break;
+            }
+
+            DeviceText[ix + 1] = 0;
+            Status = STATUS_SUCCESS;
+        }
+    }
+    else if (Type == DeviceTextLocationInformation)
+    {
+        DeviceText = ExAllocatePoolWithTag(PagedPool, 0x64, 'PedI');
+        if (DeviceText)
+        {
+            wcscpy(DeviceText, ((PdoExtension->TargetId & 1) ? L"1" : L"0"));
+
+            RtlInitUnicodeString(&ModelIdUs, DeviceText);
+            ModelIdUs.Buffer[ModelIdUs.Length / 2] = 0;
+
+            Status = STATUS_SUCCESS;
+        }
+    }
+    else
+    {
+        Status = STATUS_NOT_SUPPORTED;
+    }
+
+    UnrefPdo(PdoExtension, DeviceQueryText);
+
+Finish:
+
+    DPRINT("DeviceQueryText: DeviceText '%S'\n", DeviceText);
+
+    Irp->IoStatus.Information = (ULONG_PTR)DeviceText;
+    Irp->IoStatus.Status = Status;
+
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
