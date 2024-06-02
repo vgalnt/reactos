@@ -11495,8 +11495,37 @@ NTAPI
 DeviceBuildInstanceId(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    UNICODE_STRING IdUs;
+    ANSI_STRING IdAs;
+    PWCHAR Id;
+
+    PAGED_CODE();
+    DPRINT("DeviceBuildInstanceId: %p\n", PdoExtension);
+
+    Id = ExAllocatePoolWithTag(PagedPool, 0x54, 'PedI');
+    if (!Id)
+    {
+        DPRINT1("DeviceBuildInstanceId: allocate failed\n");
+        return NULL;
+    }
+
+    if (!PdoExtension->SerialNumId[0])
+    {
+        swprintf(Id, L"%x.%x.%x", PdoExtension->PathId, PdoExtension->TargetId, PdoExtension->Lun);
+        return Id;
+    }
+
+    RtlInitAnsiString(&IdAs, (PCHAR)PdoExtension->SerialNumId);
+
+    IdUs.Length = 0;
+    IdUs.MaximumLength = 0x54;
+    IdUs.Buffer = Id;
+
+    RtlAnsiStringToUnicodeString(&IdUs, &IdAs, FALSE);
+    Id[IdUs.Length / 2] = 0;
+
+    DPRINT("DeviceBuildInstanceId: ret Id '%S'\n", Id);
+    return Id;
 }
 
 NTSTATUS
