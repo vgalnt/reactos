@@ -11329,8 +11329,112 @@ NTAPI
 DeviceBuildHardwareId(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    UNICODE_STRING IdUs;
+    ANSI_STRING IdAs;
+    PCHAR DeviceTypeString;
+    PCHAR CompatibleString;
+    PWCHAR IdLine;
+    PWCHAR Id;
+    ULONG ix;
+    CHAR CompatibleBuffer[0x14];
+    CHAR TypeStrBuffer[0x14];
+    CHAR Buffer[0x40];
+
+    PAGED_CODE();
+    DPRINT("DeviceBuildHardwareId: %p\n", PdoExtension);
+
+    Id = ExAllocatePoolWithTag(PagedPool, 0x282, 'PedI');
+    if (!Id)
+    {
+        DPRINT1("DeviceBuildHardwareId: allocate failed\n");
+        return NULL;
+    }
+
+    if (PdoExtension->ScsiDeviceType >= 0xA)
+    {
+        sprintf(TypeStrBuffer, "Type%d", PdoExtension->ScsiDeviceType);
+        DeviceTypeString = TypeStrBuffer;
+    }
+    else
+    {
+        DeviceTypeString = DeviceTypeName[PdoExtension->ScsiDeviceType][0];
+    }
+
+    if (PdoExtension->FdoExtension->HwDeviceExtension->DeviceFlags[PdoExtension->TargetId] & 0x8000)
+    {
+        CompatibleString = "GenSFloppy";
+    }
+    else if (PdoExtension->ScsiDeviceType >= 0xA)
+    {
+        sprintf(CompatibleBuffer, "GenType%d", PdoExtension->ScsiDeviceType);
+        CompatibleString = CompatibleBuffer;
+    }
+    else
+    {
+        CompatibleString = DeviceTypeName[PdoExtension->ScsiDeviceType][1];
+    }
+
+    RtlZeroMemory(Id, 0x282);
+
+    IdLine = Id;
+
+    for (ix = 0; ix < 5; ix++)
+    {
+        if (ix == 0)
+        {
+            sprintf(Buffer, "IDE\\%s", DeviceTypeString);
+
+            CopyField((PUCHAR)&Buffer[strlen(Buffer)], PdoExtension->ModelId, 0x28, '_');
+            CopyField((PUCHAR)&Buffer[strlen(Buffer)], PdoExtension->RevisionId, 8, '_');
+        }
+        else if (ix == 1)
+        {
+            sprintf(Buffer, "IDE\\");
+
+            CopyField((PUCHAR)&Buffer[strlen(Buffer)], PdoExtension->ModelId, 0x28, '_');
+            CopyField((PUCHAR)&Buffer[strlen(Buffer)], PdoExtension->RevisionId, 8, '_');
+        }
+        else if (ix == 2)
+        {
+            sprintf(Buffer, "IDE\\%s", DeviceTypeString);
+
+            CopyField((PUCHAR)&Buffer[strlen(Buffer)], PdoExtension->ModelId, 0x28, '_');
+        }
+        else if (ix == 3)
+        {
+            CopyField((PUCHAR)Buffer, PdoExtension->ModelId, 0x28, '_');
+            CopyField((PUCHAR)&Buffer[strlen(Buffer)], PdoExtension->RevisionId, 8, '_');
+        }
+        else if (ix == 4)
+        {
+            strcpy(Buffer, CompatibleString);
+        }
+        else
+        {
+            ASSERT(0);
+        }
+
+        RtlInitAnsiString(&IdAs, Buffer);
+
+        IdUs.Length = 0;
+
+        if (NlsMbCodePageTag)
+            IdUs.MaximumLength = RtlxAnsiStringToUnicodeSize(&IdAs);
+        else
+            IdUs.MaximumLength = ((IdAs.Length + 1) * 2);
+
+        IdUs.Buffer = IdLine;
+
+        RtlAnsiStringToUnicodeString(&IdUs, &IdAs, FALSE);
+
+        IdLine[IdUs.Length / 2] = 0;
+        IdLine += ((IdUs.Length / 2) + 1);
+    }
+
+    IdLine[0] = L'\0';
+
+    DPRINT("DeviceBuildHardwareId: ret Id '%S'\n", Id);
+    return Id;
 }
 
 PWCHAR
