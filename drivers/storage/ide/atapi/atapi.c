@@ -11442,8 +11442,52 @@ NTAPI
 DeviceBuildCompatibleId(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PCHAR CompatibleString;
+    PWCHAR Id;
+    UNICODE_STRING IdUs;
+    ANSI_STRING IdAs;
+    ULONG Length;
+
+    PAGED_CODE();
+    DPRINT("DeviceBuildCompatibleId: %p\n", PdoExtension);
+
+    if (PdoExtension->FdoExtension->HwDeviceExtension->DeviceFlags[PdoExtension->TargetId] & 0x8000)
+    {
+        CompatibleString = "GenSFloppy";
+    }
+    else if (PdoExtension->ScsiDeviceType >= 0xA)
+    {
+        CompatibleString = NULL;
+    }
+    else
+    {
+        CompatibleString = DeviceTypeName[PdoExtension->ScsiDeviceType][1];
+    }
+
+    RtlInitAnsiString(&IdAs, CompatibleString);
+
+    if (NlsMbCodePageTag)
+        Length = RtlxAnsiStringToUnicodeSize(&IdAs);
+    else
+        Length = ((IdAs.Length + 1) * 2);
+
+    IdUs.Length = 0;
+    IdUs.MaximumLength = Length;
+
+    IdUs.Buffer = Id = ExAllocatePoolWithTag(PagedPool, (Length + 4), 'PedI');
+    if (!Id)
+    {
+        DPRINT1("DeviceBuildCompatibleId: allocate failed\n");
+        return NULL;
+    }
+
+    RtlAnsiStringToUnicodeString(&IdUs, &IdAs, FALSE);
+
+    IdUs.Buffer[IdUs.Length / 2] = 0;
+    IdUs.Buffer[(IdUs.Length / 2) + 1] = 0;
+
+    DPRINT("DeviceBuildCompatibleId: ret Id '%S'\n", Id);
+    return Id;
 }
 
 PWCHAR
