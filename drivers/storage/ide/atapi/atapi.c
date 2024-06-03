@@ -2673,8 +2673,64 @@ IdeClaimLogicalUnit(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    PVOID ImageSectionHandle;
+    PSCSI_REQUEST_BLOCK Srb;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IdeClaimLogicalUnit: %X\n", FdoExtension->ResourceData.CmdBlockBase);
+
+    IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+    Srb = IoStack->Parameters.Scsi.Srb;
+
+    PdoExtension = IoStack->Parameters.Others.Argument4;
+    ASSERT(PdoExtension);
+
+    ImageSectionHandle = MmLockPagableDataSection(IdeClaimLogicalUnit);
+    KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+
+    if (Srb->Function == 6)
+    {
+        PdoExtension->PdoState &= ~3;
+        KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+        Status = STATUS_SUCCESS;
+        Srb->SrbStatus = 1;
+        goto Exit;
+    }
+
+    if (PdoExtension->PdoState & 1)
+    {
+        KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+        Srb->SrbStatus = 5;
+        Status = STATUS_DEVICE_BUSY;
+        goto Exit;
+    }
+
+    if (Srb->Function == 1)
+        PdoExtension->PdoState |= 1;
+
+    if (Srb->Function == 5)
+        PdoExtension->Pdo = Srb->DataBuffer;
+
+    Srb->DataBuffer = PdoExtension->Pdo;
+
+    if (IoGetCurrentIrpStackLocation(Irp)->DeviceObject == PdoExtension->FdoExtension->SelfDevice)
+        PdoExtension->PdoState |= 2;
+
+    Status = STATUS_SUCCESS;
+
+    KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+    Srb->SrbStatus = 1;
+
+Exit:
+
+    MmUnlockPagableImageSection(ImageSectionHandle);
+    return Status;
 }
 
 NTSTATUS
