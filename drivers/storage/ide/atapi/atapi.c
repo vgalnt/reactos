@@ -9731,8 +9731,7 @@ IssueSyncAtapiCommand(
     ix = 5;
     do
     {
-        ix--;
-        if (!ix)
+        if (!ix--)
             break;
 
         KeInitializeEvent(&Event, NotificationEvent, FALSE);
@@ -9792,10 +9791,12 @@ IssueSyncAtapiCommand(
         Srb.DataBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
         Srb.DataTransferLength = DataBufferSize;
 
-        RtlCopyMemory(Srb.Cdb, Cdb, sizeof(*Srb.Cdb));
+        RtlCopyMemory(Srb.Cdb, Cdb, sizeof(Srb.Cdb));
 
         if (IoCallDriver(PdoExtension->SelfDevice, Irp) == STATUS_PENDING)
             KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+        DPRINT("IssueSyncAtapiCommand: Srb.SrbStatus %X\n", Srb.SrbStatus);
 
         if ((Srb.SrbStatus & 0x3F) == 1)
         {
@@ -9817,21 +9818,18 @@ IssueSyncAtapiCommand(
 
         if (Srb.SrbStatus & 0x40)
         {
-            ASSERT((Srb.SrbStatus & 0x40) == 0);//SRB_STATUS_QUEUE_FROZEN
+            UNIMPLEMENTED_ONCE;//ASSERT((Srb.SrbStatus & 0x40) == 0);//SRB_STATUS_QUEUE_FROZEN
 
-            if (Srb.SrbStatus & 0x40)
-            {
-                DPRINT("IssueSyncAtapiCommand: Unfreeze Queue TID %X\n", Srb.TargetId);
+            DPRINT("IssueSyncAtapiCommand: Unfreeze Queue TID %X\n", Srb.TargetId);
 
-                PdoExtension->PdoFlags &= ~1;
+            PdoExtension->PdoFlags &= ~1;
 
-                KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
-                GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
-                KeLowerIrql(Irql);
-            }
+            KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
+            GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
+            KeLowerIrql(Irql);
         }
 
-        if ((Srb.SrbStatus & 0x80) && (SenseInfo->FileMark & 0xF) == 5)
+        if ((Srb.SrbStatus & 0x80) && SenseInfo->SenseKey == 5)
         {
             Status = STATUS_INVALID_DEVICE_REQUEST;
             ix = 0;
@@ -9952,7 +9950,6 @@ ErrorExit:
     UNIMPLEMENTED_DBGBREAK();
 
     return Result;
-
 }
 
 BOOLEAN
