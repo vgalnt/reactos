@@ -2683,7 +2683,7 @@ IdeClaimLogicalUnit(
     PAGED_CODE();
     DPRINT("IdeClaimLogicalUnit: %X\n", FdoExtension->ResourceData.CmdBlockBase);
 
-    IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
     Srb = IoStack->Parameters.Scsi.Srb;
 
     PdoExtension = IoStack->Parameters.Others.Argument4;
@@ -4603,16 +4603,18 @@ IdeTranslateSrbStatus(
         case 0x15:
         case 0x22:
             DPRINT1("IdeTranslateSrbStatus: STATUS_INVALID_DEVICE_REQUEST\n");
-            Status = 0xC0000010;
+            Status = STATUS_INVALID_DEVICE_REQUEST;
             break;
 
         case 0x12:
-            DPRINT1("IdeTranslateSrbStatus: STATUS_IO_DEVICE_ERROR\n");
+            DPRINT1("IdeTranslateSrbStatus: STATUS_INVALID_DEVICE_REQUEST\n");
             Status = STATUS_INVALID_DEVICE_REQUEST;
             break;
 
         default:
-            return STATUS_IO_DEVICE_ERROR;
+            DPRINT1("IdeTranslateSrbStatus: STATUS_IO_DEVICE_ERROR. SrbStatus (%X)\n", Srb->SrbStatus);
+            Status = STATUS_IO_DEVICE_ERROR;
+            break;
     }
 
     return Status;
