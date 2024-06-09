@@ -10609,7 +10609,7 @@ IdePortScanBus(
         while ((PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, TRUE, IdePortScanBus)) != NULL)
         {
             DeviceRegisterIdleDetection(PdoExtension, 0xFFFFFFFF, 0xFFFFFFFF);
-            PdoExtension->SelfDevice->Flags &= DO_DEVICE_INITIALIZING;
+            PdoExtension->SelfDevice->Flags &= ~DO_DEVICE_INITIALIZING;
             UnrefLogicalUnitExtension(FdoExtension, PdoExtension, IdePortScanBus);
         }
 
