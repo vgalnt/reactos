@@ -9029,7 +9029,7 @@ AtapiHwInitialize(
     for (Device = 0; Device < HwDeviceExtension->MaxIdeDevice; Device++)
     {
         if (!(HwDeviceExtension->DeviceFlags[Device] & 1))
-            return;
+            continue;
 
         WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
 
