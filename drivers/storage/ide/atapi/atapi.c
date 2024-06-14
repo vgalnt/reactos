@@ -9634,7 +9634,7 @@ IssueSyncAtapiCommandSafe(
         Srb->DataBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
         Srb->DataTransferLength = DataBufferSize;
 
-        RtlCopyMemory(Srb->Cdb, Cdb, sizeof(*Srb->Cdb));
+        RtlCopyMemory(Srb->Cdb, Cdb, sizeof(Srb->Cdb));
 
         IoSetCompletionRoutine(Irp, SyncAtapiSafeCompletion, &Event, TRUE, TRUE, TRUE);
 
