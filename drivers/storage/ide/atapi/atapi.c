@@ -11753,7 +11753,6 @@ ChannelDeviceIoControl(
     if (PropertyQuery->PropertyId != StorageAdapterProperty)
     {
         DPRINT1("ChannelDeviceIoControl: STATUS_NOT_IMPLEMENTED\n");
-        Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
         goto Exit;
     }
 
