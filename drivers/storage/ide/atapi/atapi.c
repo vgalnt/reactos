@@ -9195,10 +9195,12 @@ DeviceInitDeviceType(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PINQUIRYDATA Inquiry)
 {
-    PdoExtension->ScsiDeviceType = (Inquiry->DeviceTypeQualifier & 0x1F);
+    DPRINT("DeviceInitDeviceType: %p, %X, %X\n", PdoExtension, Inquiry->DeviceType, Inquiry->RemovableMedia);
 
-    if (Inquiry->RemovableMedia & 0x80)
-        PdoExtension->SelfDevice->Characteristics |= 1;
+    PdoExtension->ScsiDeviceType = Inquiry->DeviceType;
+
+    if (Inquiry->RemovableMedia)
+        PdoExtension->SelfDevice->Characteristics |= FILE_REMOVABLE_MEDIA;
 }
 
 VOID
