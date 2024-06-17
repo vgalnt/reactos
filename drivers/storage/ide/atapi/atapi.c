@@ -11673,12 +11673,13 @@ IdePortDispatchPnp(
     _In_ PIRP Irp)
 {
     PFDO_DEVICE_EXTENSION FdoExtension;
+    PPDO_DEVICE_EXTENSION PdoExtension;
     ULONG CmdBlockBase;
     UCHAR MinorFunction;
     BOOLEAN IsFdo;
 
     PAGED_CODE();
-    DPRINT("IdePortDispatchPnp: %p, %p\n", DeviceObject, Irp);
+    DPRINT("IdePortDispatchPnp: %p:%X, %p\n", DeviceObject, DeviceObject->Flags, Irp);
 
     FdoExtension = DeviceObject->DeviceExtension;
     MinorFunction = (IoGetCurrentIrpStackLocation(Irp))->MinorFunction;
@@ -11691,7 +11692,9 @@ IdePortDispatchPnp(
     }
     else
     {
-        ASSERT(FALSE);
+        PdoExtension = DeviceObject->DeviceExtension;
+        CmdBlockBase = PdoExtension->FdoExtension->ResourceData.CmdBlockBase;
+        DPRINT("IdePortDispatchPnp: PDO %d (%X) got %s\n", PdoExtension->TargetId, CmdBlockBase, PnpMinorNames[MinorFunction]);
         IsFdo = FALSE;
     }
 
@@ -11700,7 +11703,7 @@ IdePortDispatchPnp(
         if (IsFdo)
             return FdoExtension->FdoPnpDispatchTable[MinorFunction](DeviceObject, Irp);
         else
-            ASSERT(FALSE);
+            return PdoExtension->PdoPnpDispatchTable[MinorFunction](DeviceObject, Irp);
     }
 
     if (MinorFunction != 0xFF)
@@ -11709,7 +11712,7 @@ IdePortDispatchPnp(
     if (IsFdo)
         return FdoExtension->PassDownToNextDriver(DeviceObject, Irp);
     else
-        {ASSERT(FALSE);return 0;}
+        return PdoExtension->NoSupportIrp(DeviceObject, Irp);
 }
 
 /* FUNCTIONS ******************************************************************/
