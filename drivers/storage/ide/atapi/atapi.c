@@ -7869,17 +7869,6 @@ IdePortNoPowerDown(
     return IdePortSearchDeviceInRegMultiSzList(FdoExtension, Identify, L"NoPowerDownDevice");
 }
 
-NTSTATUS
-NTAPI
-DeviceStopDeviceQueueSafe(
-    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
-    _In_ ULONG QueueStopFlag,
-    _In_ BOOLEAN IsLockEnum)
-{
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
-}
-
 VOID
 NTAPI
 InitHwExtWithIdentify(
@@ -9137,6 +9126,17 @@ AtapiHwInitialize(
 
     AtapiProgramTransferMode(HwDeviceExtension);
     InitDeviceParameters(HwDeviceExtension, GetFlushCommand);
+}
+
+NTSTATUS
+NTAPI
+DeviceStopDeviceQueueSafe(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ ULONG QueueStopFlag,
+    _In_ BOOLEAN IsLockEnum)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 VOID
@@ -11047,12 +11047,109 @@ ChannelSurpriseRemoveDevice(
 
 NTSTATUS
 NTAPI
-DeviceStartDevice(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
+DeviceInitDeviceState(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PVOID InCallBack,
+    _In_ PVOID CallBackContext)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+IdePortWmiRegister(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    //UNIMPLEMENTED_DBGBREAK();
+    UNIMPLEMENTED;
+}
+
+VOID
+NTAPI
+DeviceQueryInitData(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+DeviceInitCompletionRoutine(
+    _In_ PVOID Context,
+    _In_ NTSTATUS Status)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+DeviceStartDevice(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    KEVENT Event;
+    KIRQL Irql;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("DeviceStartDevice: %p, %p\n", Pdo, Irp);
+
+    PdoExtension = RefPdo(Pdo, TRUE, DeviceStartDevice);
+    if (!PdoExtension)
+    {
+        DPRINT1("DeviceStartDevice: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        goto Exit;
+    }
+
+    if (PdoExtension->PdoState & 4)
+    {
+        DPRINT("DeviceStartDevice: PDOe %p Didn't register for WMI\n", PdoExtension);
+    }
+    else
+    {
+        IdePortWmiRegister(PdoExtension);
+    }
+
+    KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+    PdoExtension->PdoState &= ~0x2038;
+    PdoExtension->PdoState |= 4;
+    KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+    InterlockedIncrement(&PdoExtension->Unknown1);
+
+    DeviceStopDeviceQueueSafe(PdoExtension, 0x1000, 0);
+    DeviceStartDeviceQueue(PdoExtension, 0x400);
+
+    KeInitializeEvent(&Event, IO_NO_INCREMENT, FALSE);
+
+    DeviceQueryInitData(PdoExtension);
+
+    PdoExtension->IsWriteCache = TRUE;
+
+    Status = DeviceInitDeviceState(PdoExtension, DeviceInitCompletionRoutine, &Event);
+    DPRINT("DeviceStartDevice: Status %X\n", Status);
+
+    if (NT_SUCCESS(Status))
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+    }
+    else
+    {
+        ASSERT(NT_SUCCESS(Status));
+        DeviceInitCompletionRoutine(&Event, Status);
+    }
+
+    DeviceStartDeviceQueue(PdoExtension, 0x1000);
+    UnrefPdo(PdoExtension, DeviceStartDevice);
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 NTSTATUS

@@ -420,10 +420,12 @@ typedef struct _PDO_DEVICE_EXTENSION
     UCHAR ModelId[0x29];
     UCHAR RevisionId[9];
     UCHAR SerialNumId[0x29];
+    BOOLEAN IsWriteCache;
     KSPIN_LOCK PdoLock;
     PDEVICE_OBJECT Pdo;
     LONG ReferenceCount;
     ULONG PdoState;
+    LONG Unknown1;
     ULONG DataCheckSum;
     PVOID PdoxUnknown1;
     LONG ItemsQueued;
