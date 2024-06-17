@@ -4730,6 +4730,15 @@ GetNextLuRequest2(
     }
 }
 
+VOID
+NTAPI
+GetNextLuPendingRequest(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 IdeBuildAndSendIrp(
@@ -9280,7 +9289,38 @@ DeviceStartDeviceQueue(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ ULONG ResetState)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG PdoState;
+    KIRQL Irql;
+    BOOLEAN IsItemsQueued;
+
+    KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+
+    PdoState = PdoExtension->PdoState;
+    PdoExtension->PdoState = (PdoState & ~ResetState);
+
+    if (PdoExtension->PdoState & 0x40)
+    {
+        IsItemsQueued = FALSE;
+    }
+    else if ((PdoState & 0x1E00) != (PdoExtension->PdoState & 0x1E00) && !(PdoExtension->PdoState & 0x1E00))
+    {
+        IsItemsQueued = TRUE;
+    }
+    else
+    {
+        IsItemsQueued = FALSE;
+    }
+
+    KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+    if (!IsItemsQueued)
+        return;
+
+    KeAcquireSpinLock(&PdoExtension->FdoExtension->SpinLock, &Irql);
+    GetNextLuPendingRequest(PdoExtension->FdoExtension, PdoExtension);
+    KeLowerIrql(Irql);
+
+    DPRINT("DeviceStartDeviceQueue: pdo %p is pnp started with %X items queued\n", PdoExtension->SelfDevice, PdoExtension->ItemsQueued);
 }
 
 VOID
