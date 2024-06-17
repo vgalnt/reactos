@@ -4736,7 +4736,10 @@ GetNextLuPendingRequest(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension,
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    if (PdoExtension->PendingRequest)
+        GetNextLuRequest2(FdoExtension, PdoExtension, __FILE__, __LINE__);
+    else
+        KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
 }
 
 NTSTATUS
