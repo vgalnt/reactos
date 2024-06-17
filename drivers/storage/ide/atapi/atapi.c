@@ -5937,7 +5937,12 @@ IdePreAllocEnumStructs(
         goto ErrorExit;
     }
 
-    //enumStruct->Unknown = ExAllocatePoolWithTag(..);
+    enumStruct->StopQueueContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(*enumStruct->StopQueueContext), 'PedI');
+    if (!enumStruct->StopQueueContext)
+    {
+        DPRINT1("IdePreAllocEnumStructs: Allocate failed\n");
+        goto ErrorExit;
+    }
 
     enumStruct->SenseInfoBuffer = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, sizeof(*enumStruct->SenseInfoBuffer), 'PedI');
     if (!enumStruct->SenseInfoBuffer)
@@ -9128,15 +9133,121 @@ AtapiHwInitialize(
     InitDeviceParameters(HwDeviceExtension, GetFlushCommand);
 }
 
+VOID
+NTAPI
+IdeStopQueueCompletionRoutine(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIDE_STOP_QUEUE_CONTEX StopContext,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 DeviceStopDeviceQueueSafe(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ ULONG QueueStopFlag,
-    _In_ BOOLEAN IsLockEnum)
+    _In_ BOOLEAN IsPreAllocStruct)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PATAPI_PRE_ALLOC_ENUM_STRUCT EnumStruct;
+    PIDE_STOP_QUEUE_CONTEX Context;
+    ULONG RetryCount = 1;
+    KIRQL Irql;
+    BOOLEAN IsSync = FALSE;
+    NTSTATUS Status;
+
+    DPRINT("DeviceStopDeviceQueueSafe: %X\n", PdoExtension->FdoExtension->HwDeviceExtension->CmdBlock.CmdBlockBase);
+
+    ASSERT(QueueStopFlag & 0x1E00);//PDOS_MUST_QUEUE
+
+    if (IsPreAllocStruct)
+    {
+        ASSERT(InterlockedCompareExchange(&(PdoExtension->FdoExtension->EnumStructLock), 1, 0) == 0);
+
+        EnumStruct = PdoExtension->FdoExtension->PreAllocEnumStruct;
+        if (!EnumStruct)
+        {
+            DPRINT1("DeviceStopDeviceQueueSafe: failed\n");
+            ASSERT(EnumStruct);
+            return STATUS_NO_MEMORY;
+        }
+
+        Context = EnumStruct->StopQueueContext;
+        RetryCount = 5;
+    }
+    else
+    {
+        Context = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Context), 'PedI');
+        if (!Context)
+        {
+            DPRINT1("DeviceStopDeviceQueueSafe: Allocate failed\n");
+            return STATUS_NO_MEMORY;
+        }
+    }
+
+
+    KeAcquireSpinLock(&PdoExtension->PdoLock, &Irql);
+
+    if (PdoExtension->PdoState & 0x1F40)
+    {
+        PdoExtension->PdoState |= QueueStopFlag;
+        IsSync = TRUE;
+    }
+
+    KeReleaseSpinLock(&PdoExtension->PdoLock, Irql);
+
+    RtlZeroMemory(Context, sizeof(*Context));
+
+    KeInitializeEvent(&Context->Event, NotificationEvent, FALSE);
+
+    Context->PdoExtension = PdoExtension;
+    Context->QueueStopFlag = QueueStopFlag;
+    Context->AtaPassThr.IdeReg.bReserved = 0x20;
+
+    if (IsSync)
+    {
+        Status = STATUS_SUCCESS;
+        IdeStopQueueCompletionRoutine(PdoExtension->SelfDevice, Context, Status);
+    }
+    else
+    {
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        do
+        {
+            if (!RetryCount)
+                break;
+            RetryCount--;
+
+            Status = IssueAsyncAtaPassThroughSafe(PdoExtension->FdoExtension,
+                                                  PdoExtension,
+                                                  &Context->AtaPassThr,
+                                                  FALSE,
+                                                  IdeStopQueueCompletionRoutine,
+                                                  Context,
+                                                  1,
+                                                  0xF,
+                                                  IsPreAllocStruct);
+            ASSERT(NT_SUCCESS(Status));
+
+            if (Status == STATUS_PENDING)
+                KeWaitForSingleObject(&Context->Event, Executive, KernelMode, FALSE, NULL);
+
+            Status = Context->Status;
+        }
+        while (Status == STATUS_INSUFFICIENT_RESOURCES);
+    }
+
+    if (IsPreAllocStruct)
+    {
+        ASSERT(InterlockedCompareExchange(&(PdoExtension->FdoExtension->EnumStructLock), 0, 1) == 1);
+    }
+    else
+    {
+        ExFreePoolWithTag(Context, 'PedI');
+    }
+
+    return Status;
 }
 
 VOID
