@@ -12315,12 +12315,122 @@ IdePortDeviceControl(
 
 NTSTATUS
 NTAPI
-DeviceDeviceIoControl(
-    _In_ PDEVICE_OBJECT Pdo,
+DeviceStorageQueryProperty(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceScsiGetAddress(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DeviceDeviceIoControl(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    ULONG IoCtl;
+    BOOLEAN IsCallPortDevice;
+    NTSTATUS Status;
+  
+    IoCtl = IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.IoControlCode;
+
+    DPRINT("DeviceDeviceIoControl: %p, %p, %X\n", Pdo, Irp, IoCtl);
+
+    if ((IoCtl & 0xFFFF0000) != 0x2D0000 && (IoCtl & 0xFFFF0000) != 0x40000)
+    {
+        Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
+        IoCompleteRequest(Irp, 0);
+
+        DPRINT1("DeviceDeviceIoControl: (%p:%X) ret Status %X\n", Pdo, IoCtl, Irp->IoStatus.Status);
+        return Irp->IoStatus.Status;
+    }
+
+    PdoExtension = RefPdo(Pdo, FALSE, Irp);
+    if (!PdoExtension)
+    {
+        IsCallPortDevice = FALSE;
+        Irp->IoStatus.Status = STATUS_INVALID_DEVICE_STATE;
+        DPRINT1("DeviceDeviceIoControl: (%p:%X) ret Status %X\n", Pdo, IoCtl, Irp->IoStatus.Status);
+        goto Finish;
+    }
+
+    if (IoCtl == 0x4D008 || IoCtl == 0x4100C || IoCtl == 0x41010)
+    {
+          IsCallPortDevice = TRUE;
+    }
+    else if (IoCtl == 0x41018)
+    {
+        Irp->IoStatus.Status = Status = DeviceScsiGetAddress(PdoExtension, Irp);
+        IsCallPortDevice = FALSE;
+    }
+    else if (IoCtl == 0x41020)
+    {
+        IsCallPortDevice = FALSE;
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (IoCtl == 0x4D004 || IoCtl == 0x4D014)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        IsCallPortDevice = FALSE;
+    }
+    else if (IoCtl == 0x4D02C)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        IsCallPortDevice = FALSE;
+    }
+    else if (IoCtl == 0x4D030)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        IsCallPortDevice = FALSE;
+    }
+    else if (IoCtl == 0x2D1400)
+    {
+        Status = DeviceStorageQueryProperty(PdoExtension, Irp);
+        DPRINT("DeviceDeviceIoControl: Status %X\n", Status);
+
+        if (Status != STATUS_NOT_SUPPORTED)
+        {
+            IsCallPortDevice = FALSE;
+            Irp->IoStatus.Status = Status;
+        }
+        else
+        {
+            IsCallPortDevice = TRUE;
+        }
+    }
+    else
+    {
+        IsCallPortDevice = FALSE;
+        Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    UnrefPdo(PdoExtension, Irp);
+
+Finish:
+
+    if (IsCallPortDevice)
+    {
+        Status = IdePortDeviceControl(PdoExtension->FdoExtension->SelfDevice, Irp);
+        DPRINT("DeviceDeviceIoControl: ret Status %X\n", Status);
+        return Status;
+    }
+
+    IoCompleteRequest(Irp, 0);
+
+    DPRINT("DeviceDeviceIoControl: ret Status %X\n", Irp->IoStatus.Status);
+    return Irp->IoStatus.Status;
 }
 
 NTSTATUS
