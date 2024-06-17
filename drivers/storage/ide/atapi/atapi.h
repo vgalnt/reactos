@@ -322,6 +322,12 @@ typedef struct _ATAPI_INTERRUPT_DATA
     struct _PDO_DEVICE_EXTENSION* PdoExtensionResetBus;
 } ATAPI_INTERRUPT_DATA, *PATAPI_INTERRUPT_DATA;
 
+typedef struct _ATAPI_INIT_DATA
+{
+    ULONG Count;
+    IDEREGS IdeReg[0];
+} ATAPI_INIT_DATA, *PATAPI_INIT_DATA;
+
 typedef struct _FDO_DEVICE_EXTENSION
 {
     PDEVICE_OBJECT LowDevice;
@@ -436,7 +442,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     ULONG PdoState;
     LONG Unknown1;
     ULONG DataCheckSum;
-    PVOID PdoxUnknown1;
+    PATAPI_INIT_DATA InitData;
     LONG ItemsQueued;
 } PDO_DEVICE_EXTENSION, *PPDO_DEVICE_EXTENSION;
 

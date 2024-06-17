@@ -8278,10 +8278,10 @@ FreePdo(
 
     DeviceUnregisterIdleDetection(PdoExtension);
 
-    if (PdoExtension->PdoxUnknown1)
+    if (PdoExtension->InitData)
     {
-        ExFreePool(PdoExtension->PdoxUnknown1);
-        PdoExtension->PdoxUnknown1 = NULL;
+        ExFreePool(PdoExtension->InitData);
+        PdoExtension->InitData = NULL;
     }
 
     IdePortFlushLogicalUnit(FdoExtension, PdoExtension, TRUE);
@@ -11243,12 +11243,125 @@ IdePortWmiRegister(
     UNIMPLEMENTED;
 }
 
+NTSTATUS
+NTAPI
+DeviceQueryFirmwareBootSettings(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _Out_ PATAPI_INIT_DATA* OutInitData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 DeviceQueryInitData(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PPDO_DEVICE_EXTENSION Lun0PdoExtension;
+    PATAPI_INIT_DATA NewInitData;
+    PATAPI_INIT_DATA InitData;
+    ULONG NewCount;
+    ULONG ix;
+    ULONG jx;
+    UCHAR Command;
+
+    PAGED_CODE();
+
+    DPRINT("DeviceQueryInitData: Init. pdoe %p (%X, %X, %X)\n",
+           PdoExtension, PdoExtension->PathId, PdoExtension->TargetId, PdoExtension->Lun);
+
+    if (PdoExtension->InitData)
+        return;
+
+    InitData = PdoExtension->InitData;
+    Lun0PdoExtension = RefLogicalUnitExtension(PdoExtension->FdoExtension,
+                                               PdoExtension->PathId,
+                                               PdoExtension->TargetId,
+                                               0,
+                                               TRUE,
+                                               DeviceQueryInitData);
+    if (Lun0PdoExtension)
+    {
+        ASSERT(Lun0PdoExtension->TargetId == PdoExtension->TargetId);
+        DeviceQueryFirmwareBootSettings(Lun0PdoExtension, &InitData);
+        UnrefPdo(Lun0PdoExtension, DeviceQueryInitData);
+    }
+
+    if (InitData)
+    {
+        for (ix = 0; ix < InitData->Count; ix++)
+        {
+            Command = InitData->IdeReg[ix].bCommandReg;
+
+            if ((Command != 0xEF || InitData->IdeReg[ix].bFeaturesReg != 3) &&
+                Command != 0x91 &&
+                Command != 0xC6)
+            {
+                continue;
+            }
+
+            DPRINT("DeviceQueryInitData: Ignoring Command %X in GTF\n", Command);
+
+            InitData->Count--;
+
+            for (jx = ix; jx < InitData->Count; jx++)
+                InitData->IdeReg[jx] = InitData->IdeReg[jx + 1];
+
+            if (ix < InitData->Count)
+                ix--;
+        }
+    }
+
+    if (!PdoExtension->ScsiDeviceType)
+        NewCount = 2;
+    else
+        NewCount = 1;
+
+    if (InitData)
+    {
+        NewCount += InitData->Count;
+        ix = InitData->Count;
+    }
+    else
+    {
+        ix = 0;
+    }
+
+    NewInitData = ExAllocatePoolWithTag(NonPagedPool, (sizeof(*NewInitData) + (NewCount * sizeof(IDEREGS))), 'PedI');
+    if (!NewInitData)
+    {
+        DPRINT1("DeviceQueryInitData: Allocate failed\n");
+        PdoExtension->InitData = InitData;
+        return;
+    }
+
+    NewInitData->Count = NewCount;
+
+    if (InitData)
+    {
+        RtlCopyMemory(&NewInitData->IdeReg, &InitData->IdeReg, (InitData->Count * sizeof(IDEREGS)));
+
+        ExFreePoolWithTag(InitData, 'PedI');
+        InitData = NULL;
+    }
+
+    RtlZeroMemory(&NewInitData->IdeReg[ix], sizeof(IDEREGS));
+
+    NewInitData->IdeReg[ix].bFeaturesReg = 0x66;
+    NewInitData->IdeReg[ix].bCommandReg = 0xEF;
+    NewInitData->IdeReg[ix].bReserved = 0x42;
+
+    if (!PdoExtension->ScsiDeviceType)
+    {
+        RtlZeroMemory(&NewInitData->IdeReg[ix + 1], sizeof(IDEREGS));
+
+        NewInitData->IdeReg[ix + 1].bFeaturesReg = 2;
+        NewInitData->IdeReg[ix + 1].bCommandReg = 0xEF;
+        NewInitData->IdeReg[ix + 1].bReserved = 0x42;
+    }
+
+    PdoExtension->InitData = NewInitData;
 }
 
 VOID
