@@ -9140,7 +9140,31 @@ IdeStopQueueCompletionRoutine(
     _In_ PIDE_STOP_QUEUE_CONTEX StopContext,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    KIRQL Irq;
+
+    PdoExtension = StopContext->PdoExtension;
+    StopContext->Status = InStatus;
+
+    if (!NT_SUCCESS(InStatus))
+    {
+        DPRINT("IdeStopQueueCompletionRoutine: unable to stop pdox %p\n", PdoExtension);
+    }
+    else
+    {
+        KeAcquireSpinLock(&PdoExtension->PdoLock, &Irq);
+
+        if (StopContext->QueueStopFlag == 0x400)
+            PdoExtension->PdoState |= 8;
+
+        PdoExtension->PdoState |= StopContext->QueueStopFlag;
+
+        DPRINT("IdeStopQueueCompletionRoutine: pdo %p is pnp stopped with %X items queued\n", Pdo, PdoExtension->ItemsQueued);
+
+        KeReleaseSpinLock(&PdoExtension->PdoLock, Irq);
+    }
+
+    KeSetEvent(&StopContext->Event, IO_NO_INCREMENT, FALSE);
 }
 
 NTSTATUS
