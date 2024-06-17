@@ -3612,8 +3612,9 @@ IdePortAlwaysStatusSuccessIrp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    IoCompleteRequest(Irp, 0);
+    return STATUS_SUCCESS;
 }
 
 /* FDO PNP FUNCTIONS ********************************************************/
@@ -12059,8 +12060,8 @@ DriverEntry(
     DriverObject->DriverStartIo = IdePortStartIo;
     DriverObject->DriverUnload = IdePortUnload;
 
-    //DriverObject->MajorFunction[IRP_MJ_CREATE] = IdePortAlwaysStatusSuccessIrp;
-    //DriverObject->MajorFunction[IRP_MJ_CLOSE] = IdePortAlwaysStatusSuccessIrp;
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = IdePortAlwaysStatusSuccessIrp;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = IdePortAlwaysStatusSuccessIrp;
     DriverObject->MajorFunction[IRP_MJ_SCSI] = IdePortDispatch;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = IdePortDispatchDeviceControl;
     DriverObject->MajorFunction[IRP_MJ_POWER] = IdePortDispatchPower;
