@@ -6601,7 +6601,7 @@ DeviceQueryACPISettingsCompletionRoutine(
 NTSTATUS
 NTAPI
 DeviceQueryACPISettings(
-    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PDEVICE_OBJECT DeviceObject,
     _In_ ACPI_EVAL_SIGNATURE MethodSign,
     _Out_ PACPI_EVAL_OUTPUT_BUFFER* OutQueryResult)
 {
@@ -6616,7 +6616,7 @@ DeviceQueryACPISettings(
 
     DPRINT("DeviceQueryACPISettings: '%c%c%c%c'\n", MethodSign.Char[0], MethodSign.Char[1], MethodSign.Char[2], MethodSign.Char[3]);
 
-    LowDevice = IoGetAttachedDeviceReference(FdoExtension->SelfDevice);
+    LowDevice = IoGetAttachedDeviceReference(DeviceObject);
 
     for (ix = 0; ix < 2; ix++)
     {
@@ -6728,7 +6728,7 @@ DeviceQueryChannelTimingSettings(
 
     Signature.AsULONG = 'MTG_';
 
-    Status = DeviceQueryACPISettings(FdoExtension, Signature, &QueryResult);
+    Status = DeviceQueryACPISettings(FdoExtension->SelfDevice, Signature, &QueryResult);
     if (!NT_SUCCESS(Status))
     {
         DPRINT1("DeviceQueryChannelTimingSettings: Status %X\n", Status);
@@ -11249,8 +11249,40 @@ DeviceQueryFirmwareBootSettings(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _Out_ PATAPI_INIT_DATA* OutInitData)
 {
+    PACPI_EVAL_OUTPUT_BUFFER QueryResult;
+    ACPI_EVAL_SIGNATURE MethodSign;
+    NTSTATUS Status;
+
+    DPRINT("DeviceQueryFirmwareBootSettings: %p\n", PdoExtension);
+
+    *OutInitData = NULL;
+
+    MethodSign.AsULONG = 'FTG_';
+
+    Status = DeviceQueryACPISettings(PdoExtension->SelfDevice, MethodSign, &QueryResult);
+    if (NT_SUCCESS(Status))
+    {
+        if (QueryResult->Count != 1)
+        {
+            ASSERT(QueryResult->Count == 1);
+            Status = STATUS_UNSUCCESSFUL;
+        }
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DeviceQueryFirmwareBootSettings: Status %X\n", Status);
+        goto Exit;
+    }
+
     UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+
+Exit:
+
+    if (QueryResult)
+        ExFreePoolWithTag(QueryResult, 'PedI');
+
+    return Status;
 }
 
 VOID
