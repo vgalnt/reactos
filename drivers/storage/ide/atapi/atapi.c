@@ -11542,7 +11542,14 @@ DeviceInitCompletionRoutine(
     _In_ PVOID Context,
     _In_ NTSTATUS Status)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PRKEVENT Event = Context;
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DeviceInitCompletionRoutine: ERROR: DeviceInitDeviceStateFailed with Status %X\n", Status);
+    }
+
+    KeSetEvent(Event, IO_NO_INCREMENT, FALSE);
 }
 
 NTSTATUS
