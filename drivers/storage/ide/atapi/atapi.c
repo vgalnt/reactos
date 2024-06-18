@@ -12462,12 +12462,74 @@ IdePortDeviceControl(
 
 NTSTATUS
 NTAPI
+DeviceBuildStorageDeviceDescriptor(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PSTORAGE_DEVICE_DESCRIPTOR StorageDeviceDescriptor,
+    _Out_ ULONG* OutputLength)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 DeviceStorageQueryProperty(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSTORAGE_PROPERTY_QUERY PropertyQuery;
+    PIO_STACK_LOCATION IoStack;
+    STORAGE_QUERY_TYPE QueryType;
+    ULONG OutputBufferLength;
+    NTSTATUS Status = STATUS_NOT_SUPPORTED;
+
+    PAGED_CODE();
+    DPRINT("DeviceStorageQueryProperty: %p, %p\n", PdoExtension, Irp);
+
+    IoStack = Irp->Tail.Overlay.CurrentStackLocation;
+    PropertyQuery = Irp->AssociatedIrp.SystemBuffer;
+
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength < 0xC)
+    {
+        DPRINT1("DeviceStorageQueryProperty: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (PropertyQuery->PropertyId != StorageDeviceProperty)
+    {
+        DPRINT("DeviceStorageQueryProperty: ret Status %X (%X)\n", Status, PropertyQuery->PropertyId);
+        return Status;
+    }
+
+    QueryType = PropertyQuery->QueryType;
+
+    if (QueryType == 0)
+    {
+        DPRINT("DeviceStorageQueryProperty: IOCTL_STORAGE_QUERY_PROPERTY PropertyStandardQuery\n");
+
+        OutputBufferLength = IoStack->Parameters.DeviceIoControl.OutputBufferLength;
+
+        Status = DeviceBuildStorageDeviceDescriptor(PdoExtension, Irp->AssociatedIrp.SystemBuffer, &OutputBufferLength);
+        if (NT_SUCCESS(Status))
+            Irp->IoStatus.Information = (ULONG_PTR)OutputBufferLength;
+    }
+    else if (QueryType == 1)
+    {
+        DPRINT("DeviceStorageQueryProperty: IOCTL_STORAGE_QUERY_PROPERTY PropertyExistsQuery\n");
+        Status = STATUS_SUCCESS;
+    }
+    else if (QueryType == 2)
+    {
+        DPRINT("DeviceStorageQueryProperty: IOCTL_STORAGE_QUERY_PROPERTY PropertyMaskQuery\n");
+        Status = STATUS_NOT_IMPLEMENTED;
+    }
+    else
+    {
+        DPRINT("DeviceStorageQueryProperty: IOCTL_STORAGE_QUERY_PROPERTY unknown type\n");
+        Status = STATUS_NOT_IMPLEMENTED;
+    }
+
+    return Status;
 }
 
 NTSTATUS
