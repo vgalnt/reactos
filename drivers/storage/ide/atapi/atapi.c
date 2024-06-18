@@ -11230,7 +11230,84 @@ DeviceInitDeviceStateCompletionRoutine(
     _In_ PATAPI_DEVICE_STATE_CONTEXT InContext,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PATAPI_DEVICE_STATE_CONTEXT Context = InContext;
+    VOID (NTAPI* CallBack)(PVOID, NTSTATUS);
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PATAPI_INIT_DATA InitData;
+    ULONG MaxState;
+    NTSTATUS Status;
+
+    while (TRUE)
+    {
+        if (!NT_SUCCESS(InStatus))
+        {
+            InterlockedIncrement(&Context->FailedInits);
+            DPRINT("DeviceInitDeviceStateCompletionRoutine: Last init. command failed with status %X\n", InStatus);
+        }
+
+        PdoExtension = Context->PdoExtension;
+
+        MaxState = Context->State[Context->MaxState];
+        if (MaxState)
+        {
+            if (MaxState != 1)
+            {
+                ASSERT(FALSE);
+                break;
+            }
+
+            CallBack = Context->CallBack;
+            CallBack(Context->CallBackContext, (Context->FailedInits ? STATUS_UNSUCCESSFUL : STATUS_SUCCESS));
+
+            UnrefPdo(Context->PdoExtension, DeviceInitDeviceState);
+            ExFreePoolWithTag(Context, 'PedI');
+            break;
+        }
+
+        InitData = Context->PdoExtension->InitData;
+        ASSERT(InitData);
+
+        RtlZeroMemory(&Context->AtaPassThr, sizeof(Context->AtaPassThr));
+
+        Context->AtaPassThr.IdeReg = InitData->IdeReg[Context->CountInits];
+        Context->AtaPassThr.IdeReg.bReserved |= 0xC0;
+
+        Context->CountInits++;
+        if (Context->CountInits >= InitData->Count)
+            Context->MaxState++;
+
+        if (Context->AtaPassThr.IdeReg.bFeaturesReg == 2 &&
+            Context->AtaPassThr.IdeReg.bCommandReg == 0xEF)
+        {
+            ASSERT(PdoExtension->ScsiDeviceType == DIRECT_ACCESS_DEVICE);
+
+            if (!PdoExtension->IsWriteCache)
+                Context->AtaPassThr.IdeReg.bFeaturesReg = 0x82;
+        }
+
+        DPRINT("DeviceInitDeviceStateCompletionRoutine: restore firmware settings from ACPI BIOS. IdeReg = %X %X %X %X %X %X %X\n",
+               Context->AtaPassThr.IdeReg.bFeaturesReg,
+               Context->AtaPassThr.IdeReg.bSectorCountReg,
+               Context->AtaPassThr.IdeReg.bSectorNumberReg,
+               Context->AtaPassThr.IdeReg.bCylLowReg,
+               Context->AtaPassThr.IdeReg.bCylHighReg,
+               Context->AtaPassThr.IdeReg.bDriveHeadReg,
+               Context->AtaPassThr.IdeReg.bCommandReg);
+
+        Status = IssueAsyncAtaPassThroughSafe(PdoExtension->FdoExtension,
+                                              PdoExtension,
+                                              &Context->AtaPassThr,
+                                              TRUE,
+                                              DeviceInitDeviceStateCompletionRoutine,
+                                              Context,
+                                              0,
+                                              0xF,
+                                              FALSE);
+        if (NT_SUCCESS(Status))
+            break;
+
+        InStatus = Status;
+    }
 }
 
 NTSTATUS

@@ -602,4 +602,12 @@ AtapiHwInitialize(
     _In_ PUCHAR GetFlushCommand
 );
 
+NTSTATUS
+NTAPI
+DeviceInitDeviceState(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PVOID CallBack,
+    _In_ PVOID CallBackContext
+);
+
 #endif /* _PCIIDEX_PCH_ */
