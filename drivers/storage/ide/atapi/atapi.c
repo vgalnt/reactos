@@ -12467,8 +12467,125 @@ DeviceBuildStorageDeviceDescriptor(
     _In_ PSTORAGE_DEVICE_DESCRIPTOR StorageDeviceDescriptor,
     _Out_ ULONG* OutputLength)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    STORAGE_DEVICE_DESCRIPTOR Descriptor;
+    INQUIRYDATA Inquiry;
+    PUCHAR Buffer;
+    ULONG Length1;
+    ULONG Length2;
+    ULONG Length3;
+    ULONG Remain;
+    ULONG Length;
+    NTSTATUS Status;
+
+    ASSERT(PdoExtension);
+    ASSERT(StorageDeviceDescriptor);
+
+    Length1 = (strlen((PCHAR)PdoExtension->ModelId) + 1);
+    Length2 = (strlen((PCHAR)PdoExtension->RevisionId) + 1);
+    Length3 = (strlen((PCHAR)PdoExtension->SerialNumId) + 1);
+
+    RtlZeroMemory(&Descriptor, sizeof(Descriptor));
+
+    Descriptor.Version = sizeof(Descriptor);
+    Descriptor.Size = (sizeof(Descriptor) + sizeof(Inquiry) + Length1 + Length2 + Length3);
+    Descriptor.DeviceType = PdoExtension->ScsiDeviceType;
+
+    HwDeviceExtension = PdoExtension->FdoExtension->HwDeviceExtension;
+
+    if (HwDeviceExtension->DeviceFlags[PdoExtension->TargetId] & 0x10)
+        Descriptor.RemovableMedia = 1;
+
+    if (HwDeviceExtension->DeviceFlags[PdoExtension->TargetId] & 2)
+        Descriptor.BusType = 2;
+    else
+        Descriptor.BusType = 3;
+
+    Buffer = (PUCHAR)StorageDeviceDescriptor;
+    Remain = *OutputLength;
+
+    if (Remain)
+    {
+        if (Remain > sizeof(Descriptor))
+            Length = sizeof(Descriptor);
+        else
+            Length = Remain;
+
+        RtlCopyMemory(StorageDeviceDescriptor, &Descriptor, Length);
+
+        Buffer += Length;
+        Remain -= Length;
+    }
+
+    if (Remain)
+    {
+        Status = IssueInquirySafe(PdoExtension->FdoExtension, PdoExtension, &Inquiry, FALSE);
+
+        if (NT_SUCCESS(Status) || (Status == STATUS_DATA_OVERRUN))
+        {
+            if (Remain > sizeof(Inquiry))
+                Length = sizeof(Inquiry);
+            else
+                Length = Remain;
+
+            RtlCopyMemory(Buffer, &Inquiry, Length);
+
+            StorageDeviceDescriptor->RawPropertiesLength = Length;
+
+            Buffer += Length;
+            Remain -= Length;
+        }
+    }
+
+    if (Remain)
+    {
+        if (Remain > Length1)
+            Length = Length1;
+        else
+            Length = Remain;
+
+        RtlCopyMemory(Buffer, PdoExtension->ModelId, Length);
+        Buffer[Length - 1] = 0;
+
+        StorageDeviceDescriptor->ProductIdOffset = (*OutputLength - Remain);
+
+        Buffer += Length;
+        Remain -= Length;
+    }
+
+    if (Remain)
+    {
+        if (Remain > Length1)
+            Length = Length1;
+        else
+            Length = Remain;
+
+        RtlCopyMemory(Buffer, PdoExtension->RevisionId, Length);
+        Buffer[Length - 1] = 0;
+
+        StorageDeviceDescriptor->ProductRevisionOffset = (*OutputLength - Remain);
+
+        Buffer += Length;
+        Remain -= Length;
+    }
+
+    if (Remain)
+    {
+        if (Remain > Length3)
+            Length = Length3;
+        else
+            Length = Remain;
+
+        RtlCopyMemory(Buffer, PdoExtension->SerialNumId, Length);
+        Buffer[Length - 1] = 0;
+
+        StorageDeviceDescriptor->SerialNumberOffset = (*OutputLength - Remain);
+        Remain -= Length;
+    }
+
+    *OutputLength -= Remain;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
