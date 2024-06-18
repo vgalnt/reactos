@@ -467,6 +467,19 @@ typedef struct _REQUEST_SENSE_CONTEXT
     PSCSI_REQUEST_BLOCK FailingSrb;
 } REQUEST_SENSE_CONTEXT, *PREQUEST_SENSE_CONTEXT;
 
+typedef struct _ATAPI_DEVICE_STATE_CONTEXT
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    ULONG State[2];
+    ULONG MaxState;
+    ULONG CountStates;
+    ULONG CountInits;
+    LONG FailedInits;
+    PVOID CallBack;
+    PVOID CallBackContext;
+    ATA_PASS_THROUGH AtaPassThr;
+} ATAPI_DEVICE_STATE_CONTEXT, *PATAPI_DEVICE_STATE_CONTEXT;
+
 /* ACPI EVAL ****************************************************************/
 
 typedef struct _ACPI_EVAL_SIGNATURE

@@ -11223,6 +11223,16 @@ ChannelSurpriseRemoveDevice(
 
 /* PDO PNP FUNCTIONS ********************************************************/
 
+VOID
+NTAPI
+DeviceInitDeviceStateCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PATAPI_DEVICE_STATE_CONTEXT InContext,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 DeviceInitDeviceState(
@@ -11230,8 +11240,61 @@ DeviceInitDeviceState(
     _In_ PVOID InCallBack,
     _In_ PVOID CallBackContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    VOID (NTAPI* CallBack)(PVOID, NTSTATUS) = InCallBack;
+    PATAPI_DEVICE_STATE_CONTEXT Context;
+    ULONG NumState;
+
+    DPRINT("DeviceInitDeviceState: %p\n", PdoExtension);
+
+    if (!InterlockedExchange(&PdoExtension->Unknown1, 0))
+        return STATUS_SUCCESS;
+
+    if (!(PdoExtension->PdoState & 4))
+    {
+        DPRINT("DeviceInitDeviceState: device not started...skipping acpi init\n");
+        CallBack(CallBackContext, STATUS_SUCCESS);
+        return STATUS_SUCCESS;
+    }
+
+    Context = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Context), 'PedI');
+    if (!Context)
+    {
+        DPRINT1("DeviceInitDeviceState: STATUS_NO_MEMORY\n");
+        return STATUS_NO_MEMORY;
+    }
+
+    if (!RefPdo(PdoExtension->SelfDevice, FALSE, DeviceInitDeviceState))
+    {
+        DPRINT1("DeviceInitDeviceState: STATUS_NO_SUCH_DEVICE\n");
+        ExFreePoolWithTag(Context, 'PedI');
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    RtlZeroMemory(Context, sizeof(*Context));
+
+    if (PdoExtension->InitData)
+    {
+        Context->State[0] = 0;
+        NumState = 1;
+    }
+    else
+    {
+        NumState = 0;
+    }
+
+    Context->State[NumState] = 1;
+
+    NumState++;
+    ASSERT(NumState <= 2);//deviceInitState_max
+
+    Context->PdoExtension = PdoExtension;
+    Context->CountStates = NumState;
+    Context->CallBack = InCallBack;
+    Context->CallBackContext = CallBackContext;
+
+    DeviceInitDeviceStateCompletionRoutine(PdoExtension->SelfDevice, Context, STATUS_SUCCESS);
+
+    return STATUS_PENDING;
 }
 
 VOID
