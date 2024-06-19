@@ -2735,12 +2735,187 @@ Exit:
 
 VOID
 NTAPI
+IdePortFudgeAtaIdentifyData(
+    _In_ PIDENTIFY_DATA Identify)
+{
+    if (Identify->GeneralConfiguration == 0xFFFFFFFF)
+        Identify->GeneralConfiguration = 0x7F7F;
+}
+
+
+VOID
+NTAPI
+InitDeviceGeometry(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ ULONG Device,
+    _In_ ULONG NumberOfCylinders,
+    _In_ ULONG NumberOfHeads,
+    _In_ ULONG SectorsPerTrack)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 DeviceIdeReadCapacityCompletionRoutine(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PVOID InContext,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIDE_READ_CAPACITY_CONTEXT Context = InContext;
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PREAD_CAPACITY_DATA CapacityData;
+    PSCSI_REQUEST_BLOCK Srb;
+    PIDENTIFY_DATA Identify;
+    PIRP Irp;
+    ULONG SectorsPerTrack;
+    ULONG NumCylinders;
+    ULONG NumHeads;
+    ULONG Chs;
+    ULONG MaxLba;
+    KIRQL Irql;
+
+    Irp = Context->Irp;
+    Srb = IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb;
+
+    FdoExtension = Context->PdoExtension->FdoExtension;
+    HwDeviceExtension = FdoExtension->HwDeviceExtension;
+
+    DPRINT("DeviceIdeReadCapacityCompletionRoutine: %X, %p\n", FdoExtension->ResourceData.CmdBlockBase, Srb);
+
+    if (!NT_SUCCESS(InStatus))
+    {
+        DPRINT1("DeviceIdeReadCapacityCompletionRoutine: InStatus %X\n", InStatus);
+
+        if (Srb)
+        {
+            if (InStatus == STATUS_INSUFFICIENT_RESOURCES)
+            {
+                Srb->SrbStatus = SRB_STATUS_INTERNAL_ERROR;
+                Srb->InternalStatus = STATUS_INSUFFICIENT_RESOURCES;
+            }
+            else
+            {
+                Srb->SrbStatus = SRB_STATUS_ERROR;
+            }
+        }
+
+        goto Exit;
+    }
+
+    Identify = (PIDENTIFY_DATA)Context->AtaPassThr.Buffer;
+
+    IdePortFudgeAtaIdentifyData(Identify);
+
+    if (Identify->MajorRevision &&
+        Identify->NumberOfCurrentCylinders &&
+        Identify->NumberOfCurrentHeads &&
+        Identify->CurrentSectorsPerTrack)
+    {
+        NumCylinders = Identify->NumberOfCurrentCylinders;
+        NumHeads = Identify->NumberOfCurrentHeads;
+        SectorsPerTrack = Identify->CurrentSectorsPerTrack;
+
+        if (Identify->UserAddressableSectors > (NumCylinders * NumHeads * SectorsPerTrack))
+        {
+            if (NumCylinders <= 0xFFF && NumHeads == 0x10 && SectorsPerTrack == 0x3F)
+            {
+                NumCylinders = (Identify->UserAddressableSectors / 0x3F0);
+            }
+        }
+    }
+    else
+    {
+        NumCylinders = Identify->NumCylinders;
+        NumHeads = Identify->NumHeads;
+        SectorsPerTrack = Identify->NumSectorsPerTrack;
+    }
+
+    if (!NumCylinders || !NumHeads || !SectorsPerTrack)
+    {
+        NumCylinders = 1;
+        NumHeads = 1;
+        SectorsPerTrack = 1;
+
+        Chs = 0;
+    }
+    else
+    {
+        Chs = (NumHeads * NumCylinders * SectorsPerTrack);
+    }
+
+    KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
+
+    InitDeviceGeometry(HwDeviceExtension, Srb->TargetId, NumCylinders, NumHeads, SectorsPerTrack);
+
+    if (HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x40000)
+    {
+        RtlMoveMemory(&HwDeviceExtension->IdentifyData[Srb->TargetId], Identify, sizeof(IDENTIFY_DATA));
+
+        ASSERT(!(HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x10));
+
+        HwDeviceExtension->DeviceFlags[Srb->TargetId] |= 0x20000;
+        HwDeviceExtension->DeviceFlags[Srb->TargetId] &= ~0x40000;
+    }
+
+    if (!Srb)
+    {
+        KeReleaseSpinLock(&FdoExtension->SpinLock, Irql);
+        goto Exit;
+    }
+
+    CapacityData = Srb->DataBuffer;
+    CapacityData->BytesPerBlock = 0x20000;
+
+    if (FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x400)
+    {
+        if (Identify->UserAddressableSectors < 0x10000000)
+            MaxLba = (Identify->UserAddressableSectors - 1);
+        else
+            MaxLba = 0x0FFFFFFF;
+
+        if (FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x200000)
+        {
+            MaxLba = (Identify->Max48BitLBA[0] - 1);
+            ASSERT(Identify->Max48BitLBA[1] == 0);
+        }
+
+        DPRINT("IDE LBA disk %X - total # of sectors %X\n", Srb->TargetId, Identify->UserAddressableSectors);
+    }
+    else
+    {
+        MaxLba = (Chs - 1);
+
+        DPRINT("IDE CHS disk %X - #sectors %X, #heads %X, #cylinders %X\n", Srb->TargetId, SectorsPerTrack, NumHeads, NumCylinders);
+
+        DPRINT("IDE CHS disk Identify data %X - #sectors %X, #heads %X, #cylinders %X\n",
+               Srb->TargetId, Identify->NumSectorsPerTrack, Identify->NumHeads, Identify->NumCylinders);
+
+        DPRINT("IDE CHS disk Identify currentdata %X - #sectors %X, #heads %X, #cylinders %X\n",
+               Srb->TargetId, Identify->CurrentSectorsPerTrack, Identify->NumberOfCurrentHeads, Identify->NumberOfCurrentCylinders);
+    }
+
+    CapacityData->LogicalBlockAddress = RtlUlongByteSwap(MaxLba);
+
+    Srb->SrbStatus = SRB_STATUS_SUCCESS;
+    Irp->IoStatus.Information = sizeof(*CapacityData);
+
+    KeReleaseSpinLock(&FdoExtension->SpinLock, Irql);
+
+Exit:
+
+    if (Srb)
+        Srb->DataBuffer = Context->DataBuffer;
+
+    UnrefLogicalUnitExtension(FdoExtension, Context->PdoExtension, Irp);
+
+    IoGetCurrentIrpStackLocation(Irp)->Parameters.Others.Argument4 = NULL;
+
+    ExFreePoolWithTag(Context, 'PedI');
+
+    Irp->IoStatus.Status = InStatus;
+    IoCompleteRequest(Irp, 0);
 }
 
 NTSTATUS
@@ -7426,15 +7601,6 @@ IdePortSaveDeviceParameter(
     ZwClose(DevInstRegKey);
 
     return Status;
-}
-
-VOID
-NTAPI
-IdePortFudgeAtaIdentifyData(
-    _In_ PIDENTIFY_DATA Identify)
-{
-    if (Identify->GeneralConfiguration == 0xFFFFFFFF)
-        Identify->GeneralConfiguration = 0x7F7F;
 }
 
 ULONG
