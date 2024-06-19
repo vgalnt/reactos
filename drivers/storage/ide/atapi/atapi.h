@@ -480,6 +480,15 @@ typedef struct _ATAPI_DEVICE_STATE_CONTEXT
     ATA_PASS_THROUGH AtaPassThr;
 } ATAPI_DEVICE_STATE_CONTEXT, *PATAPI_DEVICE_STATE_CONTEXT;
 
+typedef struct _IDE_READ_CAPACITY_CONTEXT
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIRP Irp;
+    PVOID DataBuffer;
+    ATA_PASS_THROUGH AtaPassThr;
+    IDENTIFY_DATA IdentifyData;
+} IDE_READ_CAPACITY_CONTEXT, *PIDE_READ_CAPACITY_CONTEXT;
+
 /* ACPI EVAL ****************************************************************/
 
 typedef struct _ACPI_EVAL_SIGNATURE
@@ -608,6 +617,20 @@ DeviceInitDeviceState(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PVOID CallBack,
     _In_ PVOID CallBackContext
+);
+
+NTSTATUS
+NTAPI
+IssueAsyncAtaPassThroughSafe(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PATA_PASS_THROUGH AtaPassThr,
+    _In_ BOOLEAN IsDataIn,
+    _In_ PVOID CallBack,
+    _In_ PVOID CallBackContext,
+    _In_ UCHAR SrbFunctionType,
+    _In_ LONG TimeOutValue,
+    _In_ BOOLEAN MustSucceed
 );
 
 #endif /* _PCIIDEX_PCH_ */

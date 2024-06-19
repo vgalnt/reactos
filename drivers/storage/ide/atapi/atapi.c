@@ -2733,6 +2733,106 @@ Exit:
     return Status;
 }
 
+VOID
+NTAPI
+DeviceIdeReadCapacityCompletionRoutine(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PVOID InContext,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+DeviceIdeReadCapacity(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PIRP Irp)
+{
+    PIDE_READ_CAPACITY_CONTEXT Context;
+    PSCSI_REQUEST_BLOCK Srb;
+    ULONG_PTR Address;
+    NTSTATUS Status;
+
+    DPRINT("DeviceIdeReadCapacity: %X\n", PdoExtension->FdoExtension->ResourceData.CmdBlockBase);
+
+    Srb = IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb;
+
+    if (!(PdoExtension->FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 1))
+    {
+        Srb->SrbStatus = 8;
+        UnrefLogicalUnitExtension(PdoExtension->FdoExtension, PdoExtension, Irp);
+
+        DPRINT1("DeviceIdeReadCapacity: STATUS_NO_SUCH_DEVICE\n");
+        Irp->IoStatus.Status = STATUS_NO_SUCH_DEVICE;
+        IoCompleteRequest(Irp, 0);
+        return Irp->IoStatus.Status;
+    }
+
+    Context = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Context), 'PedI');
+
+    if (!Context || !Irp->MdlAddress)
+    {
+        DPRINT1("DeviceIdeReadCapacity: STATUS_INSUFFICIENT_RESOURCES\n");
+
+        if (!Irp->MdlAddress)
+        {
+            DPRINT1("DeviceIdeReadCapacity: Irp->MdlAddress is NULL\n");
+            ExFreePoolWithTag(Context, 'PedI');
+        }
+
+        UnrefLogicalUnitExtension(PdoExtension->FdoExtension, PdoExtension, Irp);
+
+        Srb->SrbStatus = 0x30;
+        Srb->InternalStatus = STATUS_INSUFFICIENT_RESOURCES;
+
+        //IdePortLogNoMemoryErrorFn(..);
+
+        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        IoCompleteRequest(Irp, 0);
+        return Irp->IoStatus.Status;
+    }
+
+    Context->DataBuffer = Srb->DataBuffer;
+
+    Address = (ULONG_PTR)MmGetSystemAddressForMdlSafe(Irp->MdlAddress, HighPagePriority);
+
+    Srb->DataBuffer = Add2Ptr(Srb->DataBuffer, Address);
+    Srb->DataBuffer = Add2Ptr(Srb->DataBuffer, -(ULONG_PTR)MmGetMdlVirtualAddress(Irp->MdlAddress));
+
+    Context->PdoExtension = PdoExtension;
+    Context->Irp = Irp;
+
+    if (!Address)
+    {
+        //IdePortLogNoMemoryErrorFn(..);
+        DeviceIdeReadCapacityCompletionRoutine(PdoExtension->SelfDevice, Context, STATUS_INSUFFICIENT_RESOURCES);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    IoMarkIrpPending(Irp);
+
+    RtlZeroMemory(&Context->AtaPassThr, sizeof(Context->AtaPassThr));
+
+    Context->AtaPassThr.BufferSize = sizeof(IDENTIFY_DATA);
+    Context->AtaPassThr.IdeReg.bCommandReg = 0xEC;
+    Context->AtaPassThr.IdeReg.bReserved = 0x40;
+
+    Status = IssueAsyncAtaPassThroughSafe(PdoExtension->FdoExtension,
+                                          PdoExtension,
+                                          &Context->AtaPassThr,
+                                          TRUE,
+                                          DeviceIdeReadCapacityCompletionRoutine,
+                                          Context,
+                                          0,
+                                          0xF,
+                                          FALSE);
+    if (Status != STATUS_PENDING)
+        DeviceIdeReadCapacityCompletionRoutine(PdoExtension->SelfDevice, Context, Status);
+
+    return STATUS_PENDING;
+}
+
 NTSTATUS
 NTAPI
 IdePortDispatch(
@@ -2850,7 +2950,15 @@ IdePortDispatch(
 
                     if (Srb->Cdb[0] == 0x25)
                     {
-                        UNIMPLEMENTED_DBGBREAK();
+                        if (StartIrql != KeGetCurrentIrql())
+                        {
+                            DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+                            ASSERT(FALSE);
+                        }
+
+                        Status = DeviceIdeReadCapacity(PdoExtension, Irp);
+                        DPRINT("IdePortDispatch: ret Status %X\n", Status);
+                        return Status;
                     }
                     else if (Srb->Cdb[0] == 0x1A)
                     {
