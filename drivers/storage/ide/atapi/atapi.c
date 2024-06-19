@@ -1438,7 +1438,15 @@ AtapiStartIo(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
+    PSRB_IO_CONTROL SrbIoControl;
+    ULONG ControlCode;
+    ULONG Device;
     UCHAR SrbStatus;
+    union _PARAMS
+    {
+        PSENDCMDINPARAMS CmdIn;
+        PSENDCMDOUTPARAMS CmdOut;
+    } Buffer;
 
     DPRINT("AtapiStartIo: %p, %p\n", HwDeviceExtension, Srb);
 
@@ -1463,19 +1471,23 @@ AtapiStartIo(
 
         if (Srb->Function == 0xC9)
         {
-            UNIMPLEMENTED_DBGBREAK();
+            UNIMPLEMENTED_DBGBREAK();SrbStatus=4;
+            DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
         }
         else if (Srb->Function == 0xC8 || Srb->Function == 0xC7)
         {
             SrbStatus = IdeSendPassThroughCommand(HwDeviceExtension, Srb);
+            DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
         }
         else if ((HwDeviceExtension->DeviceFlags[Srb->TargetId] & 3) == 3)
         {
             SrbStatus = AtapiSendCommand(HwDeviceExtension, Srb);
+            DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
         }
         else if (Srb->Function == 8 || Srb->Function == 7)
         {
-            UNIMPLEMENTED_DBGBREAK();
+            UNIMPLEMENTED_DBGBREAK();SrbStatus=4;
+            DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
         }
         // Srb->Function == 0
         else if (!(HwDeviceExtension->DeviceFlags[Srb->TargetId] & 1))
@@ -1486,27 +1498,95 @@ AtapiStartIo(
         else
         {
             SrbStatus = IdeSendCommand(HwDeviceExtension, Srb);
+            DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
         }
     }
     else if (Srb->Function == 2) // SRB_FUNCTION_IO_CONTROL
     {
-        UNIMPLEMENTED_DBGBREAK();
+        if (HwDeviceExtension->CurrentSrb)
+        {
+            DPRINT("AtapiStartIo: Already have a request!\n");
+            Srb->SrbStatus = 5;
+            IdePortNotification(0, HwDeviceExtension, Srb);
+            return FALSE;
+        }
+
+        HwDeviceExtension->CurrentSrb = Srb;
+
+        SrbIoControl = (PSRB_IO_CONTROL)Srb->DataBuffer;
+
+        if (RtlCompareMemory(SrbIoControl->Signature, "SCSIDISK", 8) != 8)
+        {
+            DPRINT("AtapiStartIo: IoControl signature incorrect. Send '%s', expected '%s'\n", SrbIoControl->Signature, "SCSIDISK");
+            SrbStatus = 6;
+        }
+        else
+        {
+            ControlCode = SrbIoControl->ControlCode;
+
+            if (ControlCode == 0x1B0500)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else if (ControlCode == 0x1B0501)
+            {
+                Buffer.CmdIn = Add2Ptr(SrbIoControl, sizeof(*SrbIoControl));
+
+                if (Buffer.CmdIn->irDriveRegs.bCommandReg == 0xEC)
+                {
+                    Device = Buffer.CmdIn->bDriveNumber;
+
+                    if ((HwDeviceExtension->DeviceFlags[Device] & 1) &&
+                        !(HwDeviceExtension->DeviceFlags[Device] & 2))
+                    {
+                        RtlZeroMemory(Buffer.CmdIn, 0x210);
+
+                        Buffer.CmdOut->cBufferSize = 0x200;
+                        Buffer.CmdOut->DriverStatus.bDriverError = 0;
+                        Buffer.CmdOut->DriverStatus.bIDEError = 0;
+
+                        RtlMoveMemory(Buffer.CmdOut->bBuffer, &HwDeviceExtension->IdentifyData[Device], 0x200);
+                        SrbStatus = 1;
+                    }
+                    else
+                    {
+                        SrbStatus = 0xA;
+                    }
+                }
+                else
+                {
+                    SrbStatus = 6;
+                }
+            }
+            else if (ControlCode == 0x1B0502 || ControlCode == 0x1B0503 || ControlCode == 0x1B0504 || ControlCode == 0x1B0505 ||
+                     ControlCode == 0x1B0506 || ControlCode == 0x1B0507 || ControlCode == 0x1B0508 || ControlCode == 0x1B0509 ||
+                     ControlCode == 0x1B050A || ControlCode == 0x1B050B || ControlCode == 0x1B050C)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+
+        DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
     }
     else if (Srb->Function == 0x10) // SRB_FUNCTION_ABORT_COMMAND
     {
-        UNIMPLEMENTED_DBGBREAK();
+        UNIMPLEMENTED_DBGBREAK();SrbStatus=4;
+        DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
     }
     else if (Srb->Function == 0x12) // SRB_FUNCTION_RESET_BUS
     {
-        UNIMPLEMENTED_DBGBREAK();
+         UNIMPLEMENTED_DBGBREAK();SrbStatus=4;
+        DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
     }
     else
     {
         SrbStatus = 6;
-        DPRINT("AtapiStartIo: Srb %x complete with status %x\n", Srb, SrbStatus);
+        DPRINT("AtapiStartIo: Srb %p complete with status 6\n", Srb);
     }
-
-    DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
 
     if (SrbStatus == 0)//SRB_STATUS_PENDING
         return TRUE;
