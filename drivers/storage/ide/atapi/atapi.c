@@ -2752,7 +2752,15 @@ InitDeviceGeometry(
     _In_ ULONG NumberOfHeads,
     _In_ ULONG SectorsPerTrack)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ASSERT(HwDeviceExtension);
+    ASSERT(Device < HwDeviceExtension->MaxIdeDevice);
+    ASSERT(NumberOfCylinders);
+    ASSERT(NumberOfHeads);
+    ASSERT(SectorsPerTrack);
+
+    HwDeviceExtension->NumberOfCylinders[Device] = NumberOfCylinders;
+    HwDeviceExtension->NumberOfHeads[Device] = NumberOfHeads;
+    HwDeviceExtension->SectorsPerTrack[Device] = SectorsPerTrack;
 }
 
 VOID
