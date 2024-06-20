@@ -12692,11 +12692,32 @@ Finish:
 NTSTATUS
 NTAPI
 DeviceQueryPnPDeviceState(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    PdoExtension = RefPdo(Pdo, TRUE, DeviceQueryPnPDeviceState);
+    if (!PdoExtension)
+    {
+        DPRINT1("DeviceQueryPnPDeviceState: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        goto Exit;
+    }
+
+    DPRINT("DeviceQueryPnPDeviceState: QUERY_DEVICE_STATE for PDOE %p\n", PdoExtension);
+
+    if (PdoExtension->Paging)
+        Irp->IoStatus.Information |= 0x20;
+
+    UnrefPdo(PdoExtension, DeviceQueryPnPDeviceState);
+
+Exit:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 NTSTATUS
