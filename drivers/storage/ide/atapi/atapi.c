@@ -13131,8 +13131,28 @@ DeviceScsiGetAddress(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_ADDRESS Address;
+
+    PAGED_CODE();
+    DPRINT("DeviceScsiGetAddress: %p, %p\n", PdoExtension, Irp);
+
+    if (IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.OutputBufferLength < sizeof(*Address))
+    {
+        DPRINT1("DeviceScsiGetAddress: STATUS_BUFFER_TOO_SMALL\n");
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    Address = Irp->AssociatedIrp.SystemBuffer;
+
+    Address->Length = sizeof(*Address);
+    Address->PortNumber = (UCHAR)PdoExtension->FdoExtension->ScsiPortCount;
+    Address->PathId = PdoExtension->PathId;
+    Address->TargetId = PdoExtension->TargetId;
+    Address->Lun = PdoExtension->Lun;
+
+    Irp->IoStatus.Information = sizeof(*Address);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
