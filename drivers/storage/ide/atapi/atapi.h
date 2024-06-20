@@ -633,4 +633,16 @@ IssueAsyncAtaPassThroughSafe(
     _In_ BOOLEAN MustSucceed
 );
 
+NTSTATUS
+NTAPI
+IssueSyncAtaPassThroughSafe(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PATA_PASS_THROUGH AtaPassThr,
+    _In_ UCHAR IsDataIn,
+    _In_ UCHAR SrbFunctionType,
+    _In_ LONG TimeOutValue,
+    _In_ BOOLEAN MustSucceed
+);
+
 #endif /* _PCIIDEX_PCH_ */

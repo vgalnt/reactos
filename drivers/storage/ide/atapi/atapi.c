@@ -3098,6 +3098,112 @@ DeviceIdeReadCapacity(
 
 NTSTATUS
 NTAPI
+DeviceIdeModeSense(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PIRP Irp)
+{
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    PMODE_PARAMETER_HEADER ModePageHeader;
+    ATA_PASS_THROUGH AtaPassThr;
+    PSCSI_REQUEST_BLOCK Srb;
+    PCDB Cdb;
+    ULONG ModeDataBufferSize;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("DeviceIdeModeSense: %p, %p\n", PdoExtension, Irp);
+
+    HwDeviceExtension = PdoExtension->FdoExtension->HwDeviceExtension;
+    Srb = IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb;
+    Cdb = (PCDB)Srb->Cdb;
+
+    if (PdoExtension->FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 1)
+    {
+        Srb->SrbStatus = 8;
+        UnrefLogicalUnitExtension(PdoExtension->FdoExtension, PdoExtension, Irp);
+        Irp->IoStatus.Status = Status = STATUS_NO_SUCH_DEVICE;
+        IoCompleteRequest(Irp, 0);
+        return Status;
+    }
+
+    ASSERT(Cdb->MODE_SENSE.OperationCode == SCSIOP_MODE_SENSE);
+
+    if (Cdb->MODE_SENSE.LogicalUnitNumber != PdoExtension->Lun ||
+        Cdb->MODE_SENSE.Pc & 0xC0)
+    {
+        Srb->SrbStatus = 6;
+        UnrefPdo(PdoExtension, Irp);
+        Irp->IoStatus.Status = Status = STATUS_INVALID_DEVICE_REQUEST;
+        goto Exit;
+    }
+
+    ModeDataBufferSize = Srb->DataTransferLength;
+
+    if (ModeDataBufferSize < sizeof(*ModePageHeader))
+    {
+        Srb->SrbStatus = 6;
+        UnrefPdo(PdoExtension, Irp);
+        Irp->IoStatus.Status = Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    ModePageHeader = Srb->DataBuffer;
+    ASSERT(ModePageHeader);
+
+    ASSERT(ModeDataBufferSize);
+    RtlZeroMemory(ModePageHeader, ModeDataBufferSize);
+
+    ModePageHeader->ModeDataLength = 3;
+
+    if (HwDeviceExtension->DeviceFlags[Srb->TargetId] & 0x20)
+    {
+        RtlZeroMemory(&AtaPassThr, sizeof(AtaPassThr));
+
+        AtaPassThr.IdeReg.bCommandReg = 0xDA;
+        AtaPassThr.IdeReg.bReserved = 0x40;
+
+        IssueSyncAtaPassThroughSafe(PdoExtension->FdoExtension, PdoExtension, &AtaPassThr, 0, 0, 0xF, FALSE);
+
+        if (AtaPassThr.IdeReg.bCommandReg & 1)
+        {
+            if (AtaPassThr.IdeReg.bFeaturesReg & 0x40)
+                ModePageHeader->DeviceSpecificParameter |= 0x80;
+        }
+    }
+
+    if ((Cdb->MODE_SENSE.Pc & 0x3F) != 0x3F &&
+        (Cdb->MODE_SENSE.Pc & 0x3F) != 8)
+    {
+        Srb->DataTransferLength -= (ModeDataBufferSize - 4);
+        Srb->SrbStatus = 1;
+        Irp->IoStatus.Information = Srb->DataTransferLength;
+        UnrefPdo(PdoExtension, Irp);
+        Irp->IoStatus.Status = Status = 0;
+        goto Exit;
+    }
+
+    if ((ModeDataBufferSize - 4) < 0xC)
+    {
+        Srb->DataTransferLength -= (ModeDataBufferSize - 4);
+        Srb->SrbStatus = 0x12;
+        Irp->IoStatus.Information = Srb->DataTransferLength;
+        UnrefPdo(PdoExtension, Irp);
+        Irp->IoStatus.Status = Status = STATUS_BUFFER_TOO_SMALL;
+        goto Exit;
+    }
+
+    DPRINT1("DeviceIdeModeSense: FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
+
+
+Exit:
+
+    IoCompleteRequest(Irp, 0);
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IdePortDispatch(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
@@ -3225,7 +3331,15 @@ IdePortDispatch(
                     }
                     else if (Srb->Cdb[0] == 0x1A)
                     {
-                        UNIMPLEMENTED_DBGBREAK();
+                        if (StartIrql != KeGetCurrentIrql())
+                        {
+                            DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+                            ASSERT(FALSE);
+                        }
+
+                        Status = DeviceIdeModeSense(PdoExtension, Irp);
+                        DPRINT("IdePortDispatch: ret Status %X\n", Status);
+                        return Status;
                     }
                     else if (Srb->Cdb[0] == 0x15)
                     {
