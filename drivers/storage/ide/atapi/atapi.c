@@ -12131,11 +12131,41 @@ DeviceStopDevice(
 NTSTATUS
 NTAPI
 DeviceQueryDeviceRelations(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_RELATIONS DeviceRelations;
+    NTSTATUS Status;
+
+    DPRINT("DeviceQueryDeviceRelations: %p, %p\n", Pdo, Irp);
+
+    if (IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryDeviceRelations.Type != TargetDeviceRelation)
+    {
+        goto Exit;
+    }
+
+    DeviceRelations = ExAllocatePoolWithTag(NonPagedPool, (sizeof(*DeviceRelations) + sizeof(PDEVICE_OBJECT)), 'PedI');
+    if (!DeviceRelations)
+    {
+        DPRINT1("DeviceQueryDeviceRelations: STATUS_NO_MEMORY\n");
+        Irp->IoStatus.Status = STATUS_NO_MEMORY;
+        Irp->IoStatus.Information = 0;
+        goto Exit;
+    }
+
+    DeviceRelations->Count = 1;
+    DeviceRelations->Objects[0] = Pdo;
+
+    ObReferenceObjectByPointer(Pdo, 0, NULL, KernelMode);
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = (ULONG_PTR)DeviceRelations;
+
+Exit:
+
+    Status = Irp->IoStatus.Status;
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 NTSTATUS
