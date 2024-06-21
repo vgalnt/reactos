@@ -2589,9 +2589,13 @@ IdePortFlushLogicalUnit(
     _In_ BOOLEAN IsFlushAlways)
 {
     PKDEVICE_QUEUE_ENTRY Entry;
+    PSCSI_REQUEST_BLOCK Srb;
     PIRP PowerRelatedIrp;
     PIRP EntryIrp;
+    PIRP Irp;
     KIRQL Irql;
+
+    DPRINT("IdePortFlushLogicalUnit: %p, %p, %X\n", FdoExtension, PdoExtension, IsFlushAlways);
 
     KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
 
@@ -2607,8 +2611,22 @@ IdePortFlushLogicalUnit(
 
     while ((Entry = KeRemoveByKeyDeviceQueueIfBusy(&PdoExtension->SelfDevice->DeviceQueue, 0)) != NULL)
     {
-        DPRINT1("IdePortFlushLogicalUnit: FIXME\n");
-        UNIMPLEMENTED_DBGBREAK();
+        Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.DeviceQueueEntry);
+        Srb = IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb;
+
+        if (Srb->Function == 0xC7)
+        {
+            ASSERT(!PowerRelatedIrp);
+            PowerRelatedIrp = Irp;
+        }
+        else
+        {
+            Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
+            Srb->SrbStatus = 0x16;
+
+            Irp->Tail.Overlay.ListEntry.Flink = (PVOID)EntryIrp;
+            EntryIrp = Irp;
+        }
     }
 
     if (PdoExtension->PdoFlags & 8)
@@ -2635,10 +2653,15 @@ IdePortFlushLogicalUnit(
 
     while (EntryIrp)
     {
-        DPRINT1("IdePortFlushLogicalUnit: FIXME\n");
-        UNIMPLEMENTED_DBGBREAK();
+        Irp = EntryIrp;
+        EntryIrp = (PVOID)EntryIrp->Tail.Overlay.ListEntry.Flink;
+
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, Irp);
+
+        IoCompleteRequest(Irp, 0);
     }
 
+    DPRINT("IdePortFlushLogicalUnit:  ret STATUS_SUCCESS\n");
     return STATUS_SUCCESS;
 }
 
@@ -3457,7 +3480,19 @@ IdePortDispatch(
     }
     else if (Srb->Function == 0x15)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        DPRINT("IdePortDispatch: SCSI flush queue command\n");
+
+        Status = IdePortFlushLogicalUnit(FdoExtension, PdoExtension, 0);
+
+        Srb->SrbStatus = (!NT_SUCCESS(Status) ? 4 : 1);
+
+        if (StartIrql != KeGetCurrentIrql())
+        {
+            DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+            ASSERT(FALSE);
+        }
+
+        goto Exit;
     }
     else if (Srb->Function == 0x16)
     {
