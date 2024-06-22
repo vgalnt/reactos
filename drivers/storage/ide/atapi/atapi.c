@@ -3241,6 +3241,7 @@ IdePortDispatch(
     ULONG ix;
     UCHAR cdb[16];
     BOOLEAN IsInserted = FALSE;
+    BOOLEAN IsFlushOrShutdown = FALSE;
     KIRQL Irql;
     KIRQL StartIrql = KeGetCurrentIrql();
     NTSTATUS Status;
@@ -3408,7 +3409,51 @@ IdePortDispatch(
         }
     }
 
-    if (Srb->Function == 0xC7 || Srb->Function == 0xC8 || Srb->Function == 0xC9 ||
+
+    if (Srb->Function == SRB_FUNCTION_SHUTDOWN || Srb->Function == SRB_FUNCTION_FLUSH)
+    {
+        if (Srb->Function == SRB_FUNCTION_SHUTDOWN)
+        {
+            DPRINT("IdePortDispatch: SRB_FUNCTION_SHUTDOWN...\n");
+        }
+
+        if (!(FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 2) &&
+            (PdoExtension->FlushCacheTimeouts >= 3 ||
+             PdoExtension->FdoExtension->HwDeviceExtension->DeviceParameters[PdoExtension->TargetId].IdePioFlushCommand == 0xFF))
+        {
+            Status = STATUS_SUCCESS;
+            Srb->SrbStatus = 1;
+
+            if (StartIrql != KeGetCurrentIrql())
+            {
+                DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+                ASSERT(FALSE);
+            }
+
+            goto Exit;
+        }
+
+        DPRINT("IdePortDispatch: SRB_FUNCTION_%X to target %x\n", Srb->Function, Srb->TargetId);
+
+        if (!(FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 2))
+        {
+            Status = STATUS_SUCCESS;
+            Srb->SrbStatus = 1;
+
+            if (StartIrql != KeGetCurrentIrql())
+            {
+                DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+                ASSERT(FALSE);
+            }
+
+            goto Exit;
+        }
+
+        IsFlushOrShutdown = TRUE;
+    }
+
+    if (IsFlushOrShutdown ||
+        Srb->Function == 0xC7 || Srb->Function == 0xC8 || Srb->Function == 0xC9 ||
         Srb->Function == 0x00 || Srb->Function == 0x02)
     {
         if (PdoExtension->PdoState & 0x40)
@@ -3446,10 +3491,6 @@ IdePortDispatch(
 
         DPRINT("IdePortDispatch: return STATUS_PENDING\n");
         return STATUS_PENDING;
-    }
-    else if (Srb->Function == SRB_FUNCTION_SHUTDOWN || Srb->Function == SRB_FUNCTION_FLUSH)
-    {
-        UNIMPLEMENTED_DBGBREAK();
     }
 
     DPRINT("IdePortDispatch: SRB %p, Function %X\n", Srb, Srb->Function);
