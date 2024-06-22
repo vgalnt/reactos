@@ -953,9 +953,12 @@ IdeReadWrite(
 {
     PCDB Cdb;
     ULONG StartingSector;
+    ULONG BytesXferred;
     ULONG Device;
     ULONG Head;
+    ULONG jx;
     UCHAR StartIdeStatus;
+    UCHAR IdeStatus;
 
     Device = Srb->TargetId;
 
@@ -1014,7 +1017,58 @@ IdeReadWrite(
     }
     else
     {
-        UNIMPLEMENTED_DBGBREAK();
+        if ((ULONG_PTR)Srb->SrbExtension & 2)
+            WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xCA);
+        else
+            WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, HwDeviceExtension->DeviceParameters[Device].IdePioWriteCommand);
+
+        if (!((ULONG_PTR)Srb->SrbExtension & 2))
+        {
+            if (HwDeviceExtension->TransferDataBytes >= HwDeviceExtension->DeviceParameters[Device].Unknown1)
+                BytesXferred = HwDeviceExtension->DeviceParameters[Device].Unknown1;
+            else
+                BytesXferred = HwDeviceExtension->TransferDataBytes;
+
+            for (jx = 0; jx < 20000; jx++)
+            {
+                IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                if (!(IdeStatus & 0x80))
+                    break;
+
+                KeStallExecutionProcessor(150);
+            }
+
+            if (IdeStatus & 0x80)
+            {
+                DPRINT("IdeReadWrite 2: Returning BUSY status %X\n", IdeStatus);
+                return 5;
+            }
+
+            for (jx = 0; jx < 1000; jx++)
+            {
+                IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                if (IdeStatus & 8)
+                    break;
+
+                KeStallExecutionProcessor(200);
+            }
+
+            if (!(IdeStatus & 8))
+            {
+                DPRINT("IdeReadWrite: DRQ never asserted (%X) original status (%X)\n", IdeStatus, StartIdeStatus);
+
+                HwDeviceExtension->TransferDataBytes = 0;
+                HwDeviceExtension->CurrentSrb = 0;
+                HwDeviceExtension->ExpectingInterrupt = 0;
+
+                return 9;
+            }
+
+            WRITE_PORT_BUFFER_USHORT(HwDeviceExtension->CmdBlock.Data, (PUSHORT)HwDeviceExtension->TransferDataBuffer, (BytesXferred / 2));
+
+            HwDeviceExtension->TransferDataBytes -= BytesXferred;
+            HwDeviceExtension->TransferDataBuffer += BytesXferred;
+        }
     }
 
     if ((ULONG_PTR)Srb->SrbExtension & 2)
