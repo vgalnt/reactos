@@ -3194,7 +3194,7 @@ DeviceIdeModeSense(
     Srb = IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb;
     Cdb = (PCDB)Srb->Cdb;
 
-    if (PdoExtension->FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 1)
+    if (!(PdoExtension->FdoExtension->HwDeviceExtension->DeviceFlags[Srb->TargetId] & 1))
     {
         Srb->SrbStatus = 8;
         UnrefLogicalUnitExtension(PdoExtension->FdoExtension, PdoExtension, Irp);
@@ -3248,8 +3248,8 @@ DeviceIdeModeSense(
         }
     }
 
-    if ((Cdb->MODE_SENSE.Pc & 0x3F) != 0x3F &&
-        (Cdb->MODE_SENSE.Pc & 0x3F) != 8)
+    if ((Cdb->MODE_SENSE.PageCode & 0x3F) != 0x3F &&
+        (Cdb->MODE_SENSE.PageCode & 0x3F) != 8)
     {
         Srb->DataTransferLength -= (ModeDataBufferSize - 4);
         Srb->SrbStatus = 1;
