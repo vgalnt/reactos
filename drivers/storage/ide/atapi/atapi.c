@@ -3181,6 +3181,7 @@ DeviceIdeModeSense(
 {
     PATA_DEVICE_EXTENSION HwDeviceExtension;
     PMODE_PARAMETER_HEADER ModePageHeader;
+    PMODE_CACHING_PAGE ModeCaching;
     ATA_PASS_THROUGH AtaPassThr;
     PSCSI_REQUEST_BLOCK Srb;
     PCDB Cdb;
@@ -3255,7 +3256,7 @@ DeviceIdeModeSense(
         Srb->SrbStatus = 1;
         Irp->IoStatus.Information = Srb->DataTransferLength;
         UnrefPdo(PdoExtension, Irp);
-        Irp->IoStatus.Status = Status = 0;
+        Irp->IoStatus.Status = Status = STATUS_SUCCESS;
         goto Exit;
     }
 
@@ -3269,9 +3270,20 @@ DeviceIdeModeSense(
         goto Exit;
     }
 
-    DPRINT1("DeviceIdeModeSense: FIXME\n");
-    UNIMPLEMENTED_DBGBREAK();
+    ModeCaching = (PMODE_CACHING_PAGE)&ModePageHeader[1];
 
+    ModeCaching->PageCode = 8;
+    ModeCaching->PageLength = 0xA;
+    ModeCaching->WriteCacheEnable = PdoExtension->IsWriteCache;
+
+    ModePageHeader->ModeDataLength += 0xC;
+
+    Srb->DataTransferLength -= (ModeDataBufferSize - 0x10);
+    Srb->SrbStatus = 1;
+
+    Irp->IoStatus.Information = Srb->DataTransferLength;
+    UnrefPdo(PdoExtension, Irp);
+    Irp->IoStatus.Status = Status = STATUS_SUCCESS;
 
 Exit:
 
