@@ -1081,6 +1081,26 @@ IdeReadWrite(
 
 UCHAR
 NTAPI
+IdeSendFlushCommand(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+UCHAR
+NTAPI
+IdeSendFlushCommandExt(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+UCHAR
+NTAPI
 IdeSendCommand(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
@@ -1216,6 +1236,27 @@ IdeSendCommand(
         RtlMoveMemory(Srb->DataBuffer, &Inquiry, Length);
 
         return 1;
+    }
+    else if (Command == 0x35)
+    {
+        DPRINT("IdeSendCommand: Flush the cache for IDE device %X\n", Device);
+
+        if (HwDeviceExtension->DeviceFlags[Device] & 0x200000)
+        {
+            if (HwDeviceExtension->DeviceParameters[Device].IdePioFlushCommandExt == 0xFF)
+                return 1;
+
+            SrbStatus = IdeSendFlushCommandExt(HwDeviceExtension, Srb);
+        }
+        else
+        {
+            if (HwDeviceExtension->DeviceParameters[Device].IdePioFlushCommand == 0xFF)
+                return 1;
+
+            SrbStatus = IdeSendFlushCommand(HwDeviceExtension, Srb);
+        }
+
+        return SrbStatus;
     }
     else
     {
