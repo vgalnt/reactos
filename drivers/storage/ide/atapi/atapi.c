@@ -9204,11 +9204,11 @@ AnalyzeDeviceCapabilities(
             if (BestXferMode > 2)
                 BestXferMode = 2;
 
-            CycleTime = TransferModeTimingTable[BestXferMode + 5];
+            CycleTime = TransferModeTimingTable[BestXferMode + 8];
             ASSERT(CycleTime);
 
             Mode = (0xFFFFFFFF >> (0x1F - BestXferMode));
-            XferMode |= (Mode << 5);
+            XferMode |= (Mode << 8);
 
             if (HwDeviceExtension->IdentifyData[ix].MultiWordDMAActive)
             {
@@ -9223,7 +9223,7 @@ AnalyzeDeviceCapabilities(
                 if (CurrentMode > 2)
                     CurrentMode = 2;
 
-                CurrentMode = (1 << (CurrentMode + 5));
+                CurrentMode = (1 << (CurrentMode + 8));
             }
         }
 
