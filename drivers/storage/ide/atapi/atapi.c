@@ -9529,9 +9529,6 @@ AtapiProgramTransferMode(
         for (CurrentMode = 5; SupportMode; CurrentMode++)
             SupportMode >>= 1;
 
-        if (CurrentMode < 6)
-            continue;
-
         CurrentMode--;
 
         if (CurrentMode >= 0xB)
@@ -9540,6 +9537,9 @@ AtapiProgramTransferMode(
             Mode = ((CurrentMode - 8) | 0x20);
         else if (CurrentMode >= 5)
             Mode = ((CurrentMode - 5) | 0x10);
+
+        if (CurrentMode < 5)
+            continue;
 
         DPRINT("AtapiProgramTransferMode: [%X] setting DMAmode %X\n", ix, CurrentMode);
 
@@ -9552,10 +9552,10 @@ AtapiProgramTransferMode(
             continue;
         }
 
+        HwDeviceExtension->DeviceFlags[ix] |= 0x200;
+
         if (CurrentMode >= 0xB)
             HwDeviceExtension->DeviceFlags[ix] |= 0x10000;
-        else
-            HwDeviceExtension->DeviceFlags[ix] |= 0x200;
     }
 }
 
