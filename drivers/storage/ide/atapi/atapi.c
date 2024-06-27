@@ -2410,11 +2410,13 @@ IdePortStartIo(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
+    NTSTATUS (NTAPI* BmSetup)(PVOID Context, PVOID DataBuffer, ULONG Length, PMDL Mdl, UCHAR Flag, PVOID Callback, PVOID CallbackContext);
     PFDO_DEVICE_EXTENSION FdoExtension;
     PPDO_DEVICE_EXTENSION PdoExtension;
     PIO_STACK_LOCATION IoStack;
     PSCSI_REQUEST_BLOCK Srb;
     PPDOX_SRB_DATA SrbData;
+    NTSTATUS Status;
 
     IoStack = IoGetCurrentIrpStackLocation(Irp);
     Srb = IoStack->Parameters.Scsi.Srb;
@@ -2469,7 +2471,34 @@ IdePortStartIo(
 
     while ((ULONG_PTR)Srb->SrbExtension & 2)//SRB_USES_DMA(Srb)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        if (FdoExtension->HackFlags & 2)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            continue;
+        }
+
+        if (FdoExtension->HackFlags & 4)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        BmSetup = FdoExtension->HwDeviceExtension->BusMasterInterface.BmSetup;
+
+        Status = BmSetup(FdoExtension->HwDeviceExtension->BusMasterInterface.Context,
+                         Srb->DataBuffer,
+                         Srb->DataTransferLength,
+                         Irp->MdlAddress,
+                         (Srb->SrbFlags & 0x40),
+                         IdePortAllocateAccessToken,
+                         Fdo);
+
+        if (NT_SUCCESS(Status))
+            return;
+
+        DPRINT1("IdePortStartIo: Status %X. Try PIO for Srb %p\n", Status, Srb);
+
+        ASSERT(!(((ULONG_PTR)Srb->SrbExtension) & ~7));
+        Srb->SrbExtension = And2Ptr(Srb->SrbExtension, ~2);
     }
 
     if (!Irp->MdlAddress)
