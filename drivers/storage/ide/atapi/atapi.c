@@ -4576,8 +4576,21 @@ AtapiInterrupt(
 
     if (HwDeviceExtension->IsActiveDmaTransfer)
     {
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        if (!(bmStatus & 4) && !HwDeviceExtension->IsDriverMustPoll)
+        {
+            DPRINT("AtapiInterrupt: No BusMaster Interrupt\n");
+            ASSERT(Result == FALSE);
+            return FALSE;
+        }
+
+        IsActiveDmaTransfer = TRUE;
+        HwDeviceExtension->IsActiveDmaTransfer = 0;
+
+        if (HwDeviceExtension->BusMasterInterface.IgnoreActiveBitForAtaDevice &&
+            !(HwDeviceExtension->DeviceFlags[CurrentSrb->TargetId] & 2))
+        {
+            bmStatus &= ~1;
+        }
     }
 
     IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
@@ -4631,8 +4644,7 @@ AtapiInterrupt(
     }
     else if (IsActiveDmaTransfer)
     {
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        InterruptReason = 3;
     }
     else if (IdeStatus & 8)
     {
