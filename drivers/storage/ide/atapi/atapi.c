@@ -951,6 +951,7 @@ IdeReadWrite(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
+    VOID (NTAPI* BmArm)(PVOID);
     PCDB Cdb;
     ULONG StartingSector;
     ULONG BytesXferred;
@@ -1073,7 +1074,10 @@ IdeReadWrite(
 
     if ((ULONG_PTR)Srb->SrbExtension & 2)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        HwDeviceExtension->IsActiveDmaTransfer = 1;
+
+        BmArm = HwDeviceExtension->BusMasterInterface.BmArm;
+        BmArm(HwDeviceExtension->BusMasterInterface.Context);
     }
 
     return 0;
