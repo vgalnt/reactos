@@ -79,7 +79,7 @@ typedef struct _PHYSICAL_REGION_DESCRIPTOR_TABLE
 typedef struct _PCIIDE_BUS_MASTER_INTERFACE
 {
     ULONG Size;
-    ULONG SupportedTransferMode[2];
+    ULONG SupportedTransferMode[4];
     ULONG MaximumPhysicalSize;
     PVOID Context;
     PVOID BmSetup;
