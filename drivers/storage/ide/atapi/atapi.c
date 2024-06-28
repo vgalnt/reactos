@@ -10990,6 +10990,74 @@ Exit:
     return 2;
 }
 
+BOOLEAN
+NTAPI
+IdePortDmaCdromDrive(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ BOOLEAN IsSafe)
+{
+    PCDVD_CAPABILITIES_PAGE Capabilities;
+    PVOID Buffer;
+    CDB Cdb;
+    BOOLEAN Result = FALSE;
+    NTSTATUS Status;
+
+    DPRINT("IdePortDmaCdromDrive: %X, %X\n", FdoExtension->ResourceData.CmdBlockBase, IsSafe);
+
+    Buffer = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, 0x20, 'PedI');
+    if (!Buffer)
+    {
+        DPRINT1("IdePortDmaCdromDrive: Allocate failed\n");
+        return FALSE;
+    }
+    RtlZeroMemory(Buffer, 0x20);
+
+    RtlZeroMemory(&Cdb, sizeof(Cdb));
+
+    Cdb.MODE_SENSE10.OperationCode = 0x5A;
+    Cdb.MODE_SENSE10.Dbd = 1;
+    Cdb.MODE_SENSE10.PageCode = 0x2A;
+    Cdb.MODE_SENSE10.AllocationLength[0] = 0;
+    Cdb.MODE_SENSE10.AllocationLength[1] = 0x20;
+
+    if (IsSafe)
+        Status = IssueSyncAtapiCommandSafe(FdoExtension, PdoExtension, &Cdb, Buffer, 0x20, TRUE, FALSE);
+    else
+        Status = IssueSyncAtapiCommand(FdoExtension, PdoExtension, &Cdb, Buffer, 0x20, TRUE, FALSE);
+
+    if (!NT_SUCCESS(Status) && Status != STATUS_DATA_OVERRUN)
+    {
+        DPRINT1("IdePortDmaCdromDrive: Status %X\n", Status);
+        goto Exit;
+    }
+
+    Capabilities = Add2Ptr(Buffer, sizeof(MODE_PARAMETER_HEADER10));
+
+    if (Capabilities->PageCode != 0x2A)
+    {
+        DPRINT1("IdePortDmaCdromDrive: PageCode %X\n", Capabilities->PageCode);
+        goto Exit;
+    }
+
+    if (Capabilities->CDRWrite ||
+        Capabilities->CDEWrite ||
+        Capabilities->DVDROMRead ||
+        Capabilities->DVDRRead ||
+        Capabilities->DVDRAMRead ||
+        Capabilities->DVDRWrite ||
+        Capabilities->DVDRAMWrite)
+    {
+        Result = TRUE;
+    }
+
+Exit:
+
+    ExFreePoolWithTag(Buffer, 'PedI');
+
+    return Result;
+} 
+
 VOID
 NTAPI
 IdePortScanBus(
@@ -11252,8 +11320,11 @@ IdePortScanBus(
 
                     if (SpecialDevice[ix] != 3 && !IsMustBePio[ix] && !IsPioByDefaultDevice[ix])
                     {
-                        DPRINT1("IdePortScanBus: FIXME\n");
-                        UNIMPLEMENTED_DBGBREAK();
+                        if (IdePortDmaCdromDrive(FdoExtension, PdoExtension, TRUE))
+                        {
+                            DPRINT("IdePortScanBus: USE DMA FOR ix %d\n", ix);
+                            FdoExtension->UserChoiceAtapiTransferMode[ix] = 0xFFFFFFFF;
+                        }
                     }
 
                     FdoExtension->TMAllowed[ix] &= FdoExtension->UserChoiceAtapiTransferMode[ix];
