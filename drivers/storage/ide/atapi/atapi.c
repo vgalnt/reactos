@@ -1347,6 +1347,7 @@ AtapiSendCommand(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
+    VOID (NTAPI* BmArm)(PVOID);
     PCDB Cdb;
     ULONG ix;
     ULONG jx;
@@ -1545,7 +1546,9 @@ AtapiSendCommand(
     if ((ULONG_PTR)Srb->SrbExtension & 2)
     {
         HwDeviceExtension->IsActiveDmaTransfer = TRUE;
-        UNIMPLEMENTED_DBGBREAK();
+
+        BmArm = HwDeviceExtension->BusMasterInterface.BmArm;
+        BmArm(HwDeviceExtension->BusMasterInterface.Context);
     }
 
     DPRINT("AtapiSendCommand: ret SRB_STATUS_PENDING (%p) \n", Srb);
