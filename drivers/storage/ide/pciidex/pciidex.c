@@ -2548,6 +2548,17 @@ ChannelQueryDeviceRelations(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+NTAPI
+BmReceiveScatterGatherList(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PSCATTER_GATHER_LIST ScatterGather,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 BmSetup(
@@ -2559,8 +2570,25 @@ BmSetup(
     _In_ PVOID Callback,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    DPRINT("BmSetup: (%X) %X %X %X %X\n", PdoExtension->BusMasterBase, DataBuffer, Length, Mdl, DataInFlag);
+
+    ASSERT(PdoExtension->BmState == 0);//BmIdle
+
+    PdoExtension->DataInFlag = DataInFlag;
+    PdoExtension->Mdl = Mdl;
+    PdoExtension->BmCallback = Callback;
+    PdoExtension->BmCallbackContext = Context;
+    PdoExtension->TransferDataBuffer = DataBuffer;
+    PdoExtension->TransferLength = Length;
+
+    return PdoExtension->DmaAdapter->DmaOperations->GetScatterGatherList(PdoExtension->DmaAdapter,
+                                                                         PdoExtension->SelfDevice,
+                                                                         Mdl,
+                                                                         DataBuffer,
+                                                                         Length,
+                                                                         BmReceiveScatterGatherList,
+                                                                         PdoExtension,
+                                                                         (DataInFlag == 0));
 }
 
 NTSTATUS

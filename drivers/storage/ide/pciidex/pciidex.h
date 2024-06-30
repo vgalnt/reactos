@@ -170,6 +170,8 @@ typedef struct _PDO_DEVICE_EXTENSION
     ULONG MaximumPhysicalPages;
     PPHYSICAL_REGION_DESCRIPTOR_TABLE RegionDescriptors;
     PHYSICAL_ADDRESS PhysicalRegionDescriptorTable;
+    PVOID TransferDataBuffer;
+    ULONG TransferLength;
     PVOID MapRegisterBase;
     PMDL Mdl;
     UCHAR DataInFlag;
