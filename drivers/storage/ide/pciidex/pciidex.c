@@ -2550,13 +2550,41 @@ ChannelQueryDeviceRelations(
 
 VOID
 NTAPI
+BmRebuildScatterGatherList(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension,
+    _In_ PSCATTER_GATHER_LIST ScatterGather)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+BmPrepareController(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 BmReceiveScatterGatherList(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp,
     _In_ PSCATTER_GATHER_LIST ScatterGather,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PPDO_DEVICE_EXTENSION PdoExtension = Context;
+    VOID (NTAPI* BmCallback)(PVOID Context);
+
+    DPRINT("BmReceiveScatterGatherList: %p\n", ScatterGather);
+
+    ASSERT(PdoExtension);
+
+    BmRebuildScatterGatherList(PdoExtension, ScatterGather);
+    BmPrepareController(PdoExtension);
+
+    BmCallback = PdoExtension->BmCallback;
+    BmCallback(PdoExtension->BmCallbackContext);
 }
 
 NTSTATUS
