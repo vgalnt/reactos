@@ -2554,7 +2554,63 @@ BmRebuildScatterGatherList(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension,
     _In_ PSCATTER_GATHER_LIST ScatterGather)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCATTER_GATHER_ELEMENT SgElements;
+    ULONG Address;
+    ULONG ElementSize;
+    ULONG Size;
+    ULONG ix;
+    ULONG jx = 0;
+
+    ASSERT(ScatterGather);
+    ASSERT(PdoExtension);
+    ASSERT(PdoExtension->TransferLength);
+    ASSERT(PdoExtension->Mdl);
+
+    DPRINT("BmRebuildScatterGatherList: %X, %X, %X\n",
+           PdoExtension->TransferDataBuffer, PdoExtension->TransferLength, ScatterGather->NumberOfElements);
+
+    PdoExtension->ScatterGather = ScatterGather;
+
+    for (ix = 0; ix < ScatterGather->NumberOfElements; ix++)
+    {
+        SgElements = &ScatterGather->Elements[ix];
+        Address = SgElements->Address.LowPart;
+
+        ASSERT(!(Address & 0x1));
+        ASSERT(!SgElements->Address.HighPart);
+
+        for (ElementSize = SgElements->Length; ElementSize; jx++)
+        {
+            ASSERT(jx < PdoExtension->MaximumPhysicalPages);
+
+            PdoExtension->RegionDescriptors[jx].Prd[0].BaseAddress = Address;
+
+            Size = (0x10000 - (USHORT)Address);
+
+            if (Size < ElementSize)
+            {
+                PdoExtension->RegionDescriptors[jx].Prd[0].ByteCount = Size;
+                Address += Size;
+                ElementSize -= Size;
+            }
+            else if (ElementSize <= 0x10000)
+            {
+                PdoExtension->RegionDescriptors[jx].Prd[0].ByteCount = (ElementSize & 0xFFFE);
+                Address += (ElementSize & 0xFFFE);
+                ElementSize = 0;
+            }
+            else
+            {
+                PdoExtension->RegionDescriptors[jx].Prd[0].ByteCount = 0;
+                Address += 0x10000;
+                ElementSize -= 0x10000;
+            }
+
+            PdoExtension->RegionDescriptors[jx].Prd[0].EndTable = 0;
+        }
+    }
+
+    PdoExtension->RegionDescriptors[jx - 1].Prd[0].EndTable = 1;
 }
 
 VOID
