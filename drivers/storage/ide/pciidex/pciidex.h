@@ -64,17 +64,22 @@ typedef struct _IDE_SYNC_ACCESS_INTERFACE
     PVOID Context;
 } IDE_SYNC_ACCESS_INTERFACE, *PIDE_SYNC_ACCESS_INTERFACE;
 
+#include <pshpack1.h>
+
 typedef struct _PHYSICAL_REGION_DESCRIPTOR
 {
     ULONG BaseAddress;
-    USHORT ByteCount;
-    USHORT EndTable;
+    ULONG ByteCount:16;
+    ULONG Reserved:15;
+    ULONG EndTable:1;
 } PHYSICAL_REGION_DESCRIPTOR, *PPHYSICAL_REGION_DESCRIPTOR;
 
 typedef struct _PHYSICAL_REGION_DESCRIPTOR_TABLE
 {
     PHYSICAL_REGION_DESCRIPTOR Prd[1];
 } PHYSICAL_REGION_DESCRIPTOR_TABLE, *PPHYSICAL_REGION_DESCRIPTOR_TABLE;
+
+#include <poppack.h> 
 
 typedef struct _PCIIDE_BUS_MASTER_INTERFACE
 {
@@ -171,6 +176,7 @@ typedef struct _PDO_DEVICE_EXTENSION
     PPHYSICAL_REGION_DESCRIPTOR_TABLE RegionDescriptors;
     PHYSICAL_ADDRESS PhysicalRegionDescriptorTable;
     PVOID TransferDataBuffer;
+    PSCATTER_GATHER_LIST ScatterGather;
     ULONG TransferLength;
     PVOID MapRegisterBase;
     PMDL Mdl;
