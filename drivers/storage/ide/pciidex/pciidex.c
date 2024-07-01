@@ -2618,7 +2618,16 @@ NTAPI
 BmPrepareController(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PUCHAR BmBase;
+
+    BmBase = (PUCHAR)PdoExtension->BusMasterBase;
+    DPRINT("BmPrepareController: (%X) %I64X\n", BmBase, PdoExtension->PhysicalRegionDescriptorTable.QuadPart);
+
+    WRITE_PORT_UCHAR((BmBase + 0), 0);
+    WRITE_PORT_UCHAR((BmBase + 2), 6);
+    WRITE_PORT_ULONG((PULONG)(BmBase + 4), PdoExtension->PhysicalRegionDescriptorTable.LowPart);
+
+    PdoExtension->BmState = 1;
 }
 
 VOID
