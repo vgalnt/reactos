@@ -2684,13 +2684,21 @@ BmSetup(
                                                                          (DataInFlag == 0));
 }
 
-NTSTATUS
+VOID
 NTAPI
 BmArm(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ASSERT((PdoExtension->BmState == 1) || (PdoExtension->BmState == 3));//BmSet BmDisarmed
+
+    if (PdoExtension->DataInFlag)
+        WRITE_PORT_UCHAR((PUCHAR)PdoExtension->BusMasterBase, 9);
+    else
+        WRITE_PORT_UCHAR((PUCHAR)PdoExtension->BusMasterBase, 1);
+
+    PdoExtension->BmState = 2;
+
+    DPRINT("BmArm()\n");
 }
 
 ULONG
