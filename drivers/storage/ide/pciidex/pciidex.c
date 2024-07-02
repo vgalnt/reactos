@@ -2729,8 +2729,20 @@ NTAPI
 BmFlush(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ASSERT(PdoExtension->BmState != 2);//BmArmed
+
+    PdoExtension->DmaAdapter->DmaOperations->PutScatterGatherList(PdoExtension->DmaAdapter,
+                                                                  PdoExtension->ScatterGather,
+                                                                  (PdoExtension->DataInFlag == 0));
+    PdoExtension->ScatterGather = NULL;
+    PdoExtension->TransferDataBuffer = NULL;
+    PdoExtension->TransferLength = 0;
+    PdoExtension->Mdl = NULL;
+    PdoExtension->BmState = 0;
+
+    DPRINT("BmFlush()\n");
+
+    return STATUS_SUCCESS;
 }
 
 ULONG
