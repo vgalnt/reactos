@@ -2541,11 +2541,25 @@ ChannelStopDevice(
 NTSTATUS
 NTAPI
 ChannelQueryDeviceRelations(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelQueryDeviceRelations: %p\n", Pdo);
+
+    if (IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryDeviceRelations.Type != 4)
+        goto Finish;
+
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+
+Finish:
+
+    Status = Irp->IoStatus.Status;
+    IoCompleteRequest(Irp, 0);
+    return Status;
 }
 
 VOID
