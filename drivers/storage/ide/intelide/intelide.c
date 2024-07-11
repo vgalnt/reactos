@@ -26,7 +26,6 @@ NTAPI
 PiixIdeSyncAccessRequired(
     _In_ PVOID DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
     return FALSE;
 }
 
