@@ -17,8 +17,26 @@ PiixIdeChannelEnabled(
     _In_ PVOID DeviceExtension,
     _In_ ULONG Channel)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    INTEL_MODES_TIMING_AND_CONTROL TimingAndControl[2];
+    NTSTATUS Status;
+
+    DPRINT("PiixIdeChannelEnabled: %p, %X\n", DeviceExtension, Channel);
+
+    if (Channel & ~1)
+    {
+        DPRINT1("PiixIdeChannelEnabled: Channel %X\n", Channel);
+        ASSERT((Channel & ~1) == 0);
+        return 0;
+    }
+
+    Status = PciIdeXGetBusData(DeviceExtension, TimingAndControl, 0x40, sizeof(TimingAndControl));
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiixIdeChannelEnabled: Status %X\n", Status);
+        return 2;
+    }
+
+    return (TimingAndControl[Channel].IdeDecodeEnable ? 1 : 0);
 }
 
 BOOLEAN
