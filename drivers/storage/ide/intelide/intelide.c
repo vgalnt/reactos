@@ -62,10 +62,46 @@ NTAPI
 PiixIdeUdmaModesSupported(
     _In_ IDENTIFY_DATA IdentifyData,
     _Out_ ULONG* OutBestXferMode,
-    _Out_ ULONG* OutCurrentXferMode)
+    _Out_ ULONG* OutXferMode)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    IDENTIFY_DATA identify;
+    ULONG BestXferMode;
+    ULONG XferMode;
+    ULONG TempMode;
+
+    DPRINT("PiixIdeUdmaModesSupported()\n");
+
+    RtlCopyMemory(&identify, &IdentifyData, sizeof(identify));
+
+    if (!(IdentifyData.TranslationFieldsValid & 4))
+    {
+        DPRINT("PiixIdeUdmaModesSupported: TranslationFieldsValid %X\n", IdentifyData.TranslationFieldsValid);
+        return STATUS_SUCCESS;
+    }
+
+    if (identify.UltraDMASupport)
+    {
+        TempMode = identify.UltraDMASupport;
+        ASSERT(TempMode);
+
+        for (BestXferMode = 0; TempMode; BestXferMode++)
+            TempMode >>= 1;
+
+        *OutBestXferMode = (BestXferMode - 1);
+    }
+
+    if (identify.UltraDMAActive)
+    {
+        TempMode = identify.UltraDMAActive;
+        ASSERT(TempMode);
+
+        for (XferMode = 0; TempMode; XferMode++)
+            TempMode >>= 1;
+
+        *OutXferMode = (XferMode - 1);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
