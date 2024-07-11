@@ -54,8 +54,7 @@ PiixIdeUseDma(
     _In_ PUCHAR CdbCommand,
     _In_ PUCHAR Slave)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    return 1;
 }
 
 NTSTATUS
