@@ -432,8 +432,50 @@ NTAPI
 PciIdeGetNativeModeInterface(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    IO_STATUS_BLOCK IoStatusBlock;
+    PIO_STACK_LOCATION IoStack;
+    KEVENT Event;
+    PIRP Irp;
+    NTSTATUS Status;
+
+    DPRINT1("PciIdeGetNativeModeInterface: %p\n", FdoExtension);
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    Irp = IoBuildSynchronousFsdRequest(IRP_MJ_PNP, FdoExtension->LowDevice, NULL, 0, NULL, &Event, &IoStatusBlock);
+    if (!Irp)
+    {
+        DPRINT1("PciIdeGetNativeModeInterface: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+    IoStack->Parameters.QueryInterface.Size = sizeof(PCI_NATIVE_IDE_INTERFACE);
+    IoStack->Parameters.QueryInterface.Version = 1;
+    IoStack->Parameters.QueryInterface.InterfaceType = &GUID_PCI_NATIVE_IDE_INTERFACE;
+    IoStack->Parameters.QueryInterface.Interface = (PINTERFACE)&FdoExtension->PciNativeIdeInterface;
+    IoStack->Parameters.QueryInterface.InterfaceSpecificData = 0;
+
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+    Status = IoCallDriver(FdoExtension->LowDevice, Irp);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciIdeGetNativeModeInterface: Status %X\n", Status);
+        return Status;
+    }
+
+    if (Status == STATUS_PENDING)
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+    if (NT_SUCCESS(IoStatusBlock.Status))
+    {
+        ASSERT(FdoExtension->PciNativeIdeInterface.InterruptControl);
+    }
+
+    return IoStatusBlock.Status;
 }
 
 NTSTATUS
@@ -1753,7 +1795,7 @@ ControllerStartDevice(
 
     if (FdoExtension->NativeMode[0] && FdoExtension->NativeMode[1])
     {
-        if (FdoExtension->PciNativeIdeInterface)
+        if (FdoExtension->PciNativeIdeInterface.InterruptControl)
         {
             UNIMPLEMENTED_DBGBREAK();
         }
