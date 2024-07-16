@@ -45,7 +45,7 @@ add_library(pci MODULE
     pci.rc)
 
 set_module_type(pci kernelmodedriver)
-target_link_libraries(pci arbiter)
+target_link_libraries(pci wdmguid arbiter)
 add_importlibs(pci ntoskrnl hal)
 add_pch(pci pci.h SOURCE)
 add_dependencies(pci pciclass)

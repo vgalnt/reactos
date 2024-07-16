@@ -20,6 +20,8 @@
 #include <ndk/vffuncs.h>
 #include <arbiter.h>
 #include <cmreslist.h>
+#include <initguid.h>
+#include <wdmguid.h>
 
 // Tag used in all pool allocations (Pci Bus)
 #define PCI_POOL_TAG    'BicP'
@@ -67,6 +69,8 @@
 #ifndef Add2Ptr
   #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
 #endif
+
+DEFINE_GUID(GUID_PCI_NATIVE_IDE_INTERFACE, 0x98F37D63, 0x42AE, 0x4AD9, 0x8C, 0x36, 0x93, 0x2D, 0x28, 0x38, 0x3D, 0xF8);
 
 /* STRUCTURES ***************************************************************/
 
@@ -1417,6 +1421,12 @@ devpresent_Initializer(
 
 NTSTATUS
 NTAPI
+nativeIde_Initializer(
+    _In_ PPCI_ARBITER_INSTANCE Instance
+);
+
+NTSTATUS
+NTAPI
 agpintrf_Constructor(
     _In_ PVOID DeviceExtension,
     _In_ PVOID Instance,
@@ -1545,6 +1555,17 @@ routeintrf_Constructor(
 NTSTATUS
 NTAPI
 devpresent_Constructor(
+    _In_ PVOID DeviceExtension,
+    _In_ PVOID Instance,
+    _In_ PVOID InterfaceData,
+    _In_ USHORT Version,
+    _In_ USHORT Size,
+    _In_ PINTERFACE Interface
+);
+
+NTSTATUS
+NTAPI
+nativeIde_Constructor(
     _In_ PVOID DeviceExtension,
     _In_ PVOID Instance,
     _In_ PVOID InterfaceData,
@@ -1828,7 +1849,7 @@ extern PCI_INTERFACE PciCardbusPrivateInterface;
 extern PCI_INTERFACE PciLegacyDeviceDetectionInterface;
 extern PCI_INTERFACE PciPmeInterface;
 extern PCI_INTERFACE PciDevicePresentInterface;
-//extern PCI_INTERFACE PciNativeIdeInterface;
+extern PCI_INTERFACE PciNativeIdeInterface;
 extern PCI_INTERFACE PciLocationInterface;
 extern PCI_INTERFACE AgpTargetInterface;
 extern PCI_INTERFACE TranslatorInterfaceInterrupt;

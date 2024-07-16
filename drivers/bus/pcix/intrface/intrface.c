@@ -26,7 +26,7 @@ PPCI_INTERFACE PciInterfaces[] =
     &PciLegacyDeviceDetectionInterface,
     &PciPmeInterface,
     &PciDevicePresentInterface,
-//  &PciNativeIdeInterface,
+    &PciNativeIdeInterface,
     &PciLocationInterface,
     &AgpTargetInterface,
     NULL
