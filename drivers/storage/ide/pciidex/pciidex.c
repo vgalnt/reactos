@@ -2015,8 +2015,70 @@ ControllerInterrupt(
     _In_ PKINTERRUPT Interrupt,
     _In_ PVOID ServiceContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PIDE_INTERRUPT_SERVICE_CONTEXT IsrContext = ServiceContext;
+    PBUS_MASTER_IDE_REGISTERS BusMasterBase;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    PIDE_CMD_BLOCK_REGS CmdBlock;
+    ULONG BmStatus;
+    ULONG Channel;
+    BOOLEAN Result = FALSE;
+
+    FdoExtension = IsrContext->FdoExtension;
+    Channel = IsrContext->Channel;
+
+    DPRINT("ControllerInterrupt: ISR called for channel %X\n", Channel);
+
+    if (FdoExtension->NativeInterruptEnabled)
+    {
+        if (!FdoExtension->ControllerIsrInstalled)
+        {
+            if (FdoExtension->PciNativeIdeInterface.InterruptControl)
+                FdoExtension->PciNativeIdeInterface.InterruptControl(FdoExtension->PciNativeIdeInterface.StdInterface.Context, TRUE);
+        }
+    }
+    else
+    {
+        if (!FdoExtension->ControllerIsrInstalled)
+            return FALSE;
+
+        if (FdoExtension->PciNativeIdeInterface.InterruptControl)
+            FdoExtension->PciNativeIdeInterface.InterruptControl(FdoExtension->PciNativeIdeInterface.StdInterface.Context, TRUE);
+
+        FdoExtension->NativeInterruptEnabled = TRUE;
+    }
+
+    ASSERT(FdoExtension->NativeInterruptEnabled);
+
+    CmdBlock = &FdoExtension->CmdBlock[Channel];
+    READ_PORT_UCHAR(CmdBlock->Status);
+
+    if (!FdoExtension->BmMissing[Channel])
+    {
+        BusMasterBase = Add2Ptr(FdoExtension->TranslatedBusMasterBaseAddress, (Channel * 8)); // FIXME (split to 2?)
+        BmStatus = READ_PORT_UCHAR(&BusMasterBase->StatusPrimary);
+
+        DPRINT1("ControllerInterrupt: BmStatus %X\n", BmStatus);
+
+        if (BmStatus & 4)
+        {
+            WRITE_PORT_UCHAR(&BusMasterBase->CommandPrimary, 0);
+            WRITE_PORT_UCHAR(&BusMasterBase->StatusPrimary, 4);
+
+            Result = TRUE;
+        }
+    }
+
+    DPRINT1("ControllerInterrupt: ISR for %X returning %X\n", Channel, Result != FALSE);
+
+    if (!FdoExtension->ControllerIsrInstalled)
+    {
+        if (FdoExtension->PciNativeIdeInterface.InterruptControl)
+            FdoExtension->PciNativeIdeInterface.InterruptControl(FdoExtension->PciNativeIdeInterface.StdInterface.Context, FALSE);
+
+        FdoExtension->NativeInterruptEnabled = FALSE;
+    }
+
+    return Result;
 }
 
 NTSTATUS
