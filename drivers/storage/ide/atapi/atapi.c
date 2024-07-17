@@ -2373,11 +2373,15 @@ IdeResetBusSynchronized(
     return TRUE;
 }
 
-VOID
+IO_ALLOCATION_ACTION
 NTAPI
 CallIdeStartIoSynchronized(
-    _In_ PDEVICE_OBJECT Fdo)
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Inout_ PIRP Irp,
+    _In_ PVOID MapRegisterBase,
+    _In_ PVOID Context)
 {
+    PDEVICE_OBJECT Fdo = Context;
     PFDO_DEVICE_EXTENSION FdoExtension;
     KIRQL Irql;
 
@@ -2386,6 +2390,8 @@ CallIdeStartIoSynchronized(
     KeAcquireSpinLock(&FdoExtension->SpinLock, &Irql);
     KeSynchronizeExecution(FdoExtension->InterruptObject, IdeStartIoSynchronized, Fdo);
     KeReleaseSpinLock(&FdoExtension->SpinLock, Irql);
+
+    return 1;
 }
 
 VOID
@@ -2394,7 +2400,7 @@ IdePortAllocateAccessToken(
     _In_ PDEVICE_OBJECT Fdo)
 {
     PFDO_DEVICE_EXTENSION FdoExtension;
-    VOID (NTAPI* AllocateAccessToken)(PVOID Token, PVOID Callback, PVOID Context);
+    NTSTATUS (NTAPI* AllocateAccessToken)(PVOID Token, PDRIVER_CONTROL Callback, PVOID Context);
 
     DPRINT("IdePortAllocateAccessToken: Fdo %X\n", Fdo);
 
@@ -2407,7 +2413,7 @@ IdePortAllocateAccessToken(
     }
     else
     {
-        CallIdeStartIoSynchronized(Fdo);
+        CallIdeStartIoSynchronized(NULL, NULL, NULL, Fdo);
     }
 }
 
