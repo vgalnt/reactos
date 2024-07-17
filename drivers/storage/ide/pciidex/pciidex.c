@@ -1401,26 +1401,23 @@ AnalyzeResourceList(
 
         for (jx = 0; jx < InFullDesc->PartialResourceList.Count; jx++)
         {
-            if (InDesc[ix].Type == 1 || InDesc[ix].Type == 3)
+            if ((InDesc[ix].Type == 1 || InDesc[ix].Type == 3) && InDesc[jx].u.Generic.Length == 8 && CmdIdx < 2)
             {
-                if (InDesc[jx].u.Generic.Length == 8 && CmdIdx < 2)
-                {
-                    RtlCopyMemory((PdoDesc[CmdIdx] + PdoPartialList[CmdIdx]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
-                    PdoPartialList[CmdIdx]->Count++;
-                    CmdIdx++;
-                }
-                else if (InDesc[jx].u.Generic.Length == 4 && CtrlIdx < 2)
-                {
-                    RtlCopyMemory((PdoDesc[CtrlIdx] + PdoPartialList[CmdIdx]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
-                    PdoPartialList[CtrlIdx]->Count++;
-                    CtrlIdx++;
-                }
-                else if (InDesc[jx].u.Generic.Length == 0x10 && BusMaster < 1)
-                {
-                    RtlCopyMemory(&BmDesc[BmFullDesc->PartialResourceList.Count], &InDesc[jx], sizeof(BmDesc[0]));
-                    BmFullDesc->PartialResourceList.Count++;
-                    BusMaster++;
-                }
+                RtlCopyMemory((PdoDesc[CmdIdx] + PdoPartialList[CmdIdx]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
+                PdoPartialList[CmdIdx]->Count++;
+                CmdIdx++;
+            }
+            else if ((InDesc[ix].Type == 1 || InDesc[ix].Type == 3) && InDesc[jx].u.Generic.Length == 4 && CtrlIdx < 2)
+            {
+                RtlCopyMemory((PdoDesc[CtrlIdx] + PdoPartialList[CtrlIdx]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
+                PdoPartialList[CtrlIdx]->Count++;
+                CtrlIdx++;
+            }
+            else if ((InDesc[ix].Type == 1 || InDesc[ix].Type == 3) && InDesc[jx].u.Generic.Length == 0x10 && BusMaster < 1)
+            {
+                RtlCopyMemory(&BmDesc[BmFullDesc->PartialResourceList.Count], &InDesc[jx], sizeof(BmDesc[0]));
+                BmFullDesc->PartialResourceList.Count++;
+                BusMaster++;
             }
             else if (InDesc[jx].Type == 2 && IntIdx < 2)
             {
@@ -1429,8 +1426,9 @@ AnalyzeResourceList(
 
                 if (!IntIdx && FdoExtension->NativeMode[1])
                 {
-                    RtlCopyMemory((PdoDesc[1] + PdoPartialList[1]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
                     IntIdx = 1;
+                    RtlCopyMemory((PdoDesc[1] + PdoPartialList[1]->Count), &InDesc[jx], sizeof(*PdoDesc[0]));
+                    PdoPartialList[IntIdx]->Count++;
                 }
 
                 IntIdx++;
@@ -1465,6 +1463,8 @@ AnalyzeResourceList(
     {
         if (FdoExtension->NativeMode[ix] && (ix >= CmdIdx || ix >= CtrlIdx || ix >= IntIdx))
         {
+            DPRINT1("AnalyzeResourceList: [%X] %X, %X, %X\n", ix, CmdIdx, CtrlIdx, IntIdx);
+
             CmdIdx = 0;
             CtrlIdx = 0;
             IntIdx = 0;
