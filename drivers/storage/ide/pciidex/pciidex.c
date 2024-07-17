@@ -827,6 +827,32 @@ Finish:
     return Irp->IoStatus.Status;
 }
 
+VOID
+NTAPI
+AtapiBuildIoAddress(
+    _In_ PUCHAR CmdBlockBase,
+    _In_ PUCHAR CtrlBlockBase,
+    _Out_ IDE_CMD_BLOCK_REGS* BaseIoAddress1,
+    _Out_ IDE_CTRL_BLOCK_REGS* BaseIoAddress2,
+    _Out_ ULONG* OutBaseIoAddress1Length,
+    _Out_ ULONG* OutBaseIoAddress2Length,
+    _Out_ ULONG* OutMaxIdeDevice,
+    _Out_ ULONG* OutMaxIdeTargetId)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+DigestResourceList(
+    _In_ PIDE_RESOURCE_DATA ResourceData,
+    _In_ PCM_RESOURCE_LIST CmResources,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR* OutInterruptDesc)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 /* POWER FUNCTIONS **********************************************************/
 
 NTSTATUS
@@ -1767,10 +1793,22 @@ Exit:
 
 NTSTATUS
 NTAPI
+ControllerInterruptControl(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ ULONG Channel,
+    _In_ BOOLEAN IsDisconnectOrReconnect)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ControllerStartDevice(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
+    PBUS_MASTER_IDE_REGISTERS BusMasterBase;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor;
     PCM_FULL_RESOURCE_DESCRIPTOR FullList;
     PFDO_DEVICE_EXTENSION FdoExtension;
@@ -1868,7 +1906,101 @@ ControllerStartDevice(
 
     if (FdoExtension->NativeMode[0] && FdoExtension->NativeMode[1])
     {
-        UNIMPLEMENTED_DBGBREAK();
+        DPRINT1("ControllerStartDevice: Starting native mode device (%p)\n", FdoExtension);
+
+        FullList = CmResources->List;
+
+        for (ix = 0; ix < CmResources->Count; ix++)
+        {
+            Descriptor = &FullList->PartialResourceList.PartialDescriptors[jx];
+
+            for (jx = 0; jx >= FullList->PartialResourceList.Count; jx++)
+            {
+                if (Descriptor[jx].Type == 1)
+                {
+                    DPRINT1("ControllerStartDevice: IO %X, %X\n",
+                            Descriptor[jx].u.Port.Start.LowPart, Descriptor[jx].u.Port.Length);
+                }
+                else if (Descriptor[jx].Type == 2)
+                {
+                    DPRINT1("ControllerStartDevice: Int %X, %X\n",
+                            Descriptor[jx].u.Interrupt.Level, Descriptor[jx].u.Interrupt.Vector);
+                }
+                else
+                {
+                    DPRINT1("ControllerStartDevice: Unknown resource\n");
+                }
+            }
+
+            FullList = (PCM_FULL_RESOURCE_DESCRIPTOR)&Descriptor[jx];
+        }
+
+        for (ix = 0; ix < 2; ix++)
+        {
+            Status = DigestResourceList(&FdoExtension->ResourceData,
+                                        FdoExtension->ChannelResources[ix],
+                                        &FdoExtension->InterruptDesc[ix]);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+                goto Exit;
+            }
+
+            if (!FdoExtension->InterruptDesc[ix])
+            {
+                DPRINT1("ControllerStartDevice: STATUS_INSUFFICIENT_RESOURCES\n");
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                goto Exit;
+            }
+
+            DPRINT("ControllerStartDevice: Connecting interrupt for channel %X interrupt vector %X\n",
+                   ix, FdoExtension->InterruptDesc[ix]->u.Interrupt.Vector);
+
+            if (PciIdeChannelEnabled(FdoExtension, ix))
+            {
+                    AtapiBuildIoAddress(FdoExtension->ResourceData.CmdBlockBase,
+                                        FdoExtension->ResourceData.CtrlBlockBase,
+                                        &FdoExtension->CmdBlock[ix],
+                                        &FdoExtension->CtrlBlock[ix],
+                                        &FdoExtension->CmdBlockLength[ix],
+                                        &FdoExtension->CtrlBlockLength[ix],
+                                        &FdoExtension->MaxIdeDevice[ix],
+                                        NULL);
+
+                    Status = ControllerInterruptControl(FdoExtension, ix, FALSE);
+                    if (!NT_SUCCESS(Status))
+                    {
+                        DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+                        break;
+                    }
+            }
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ControllerStartDevice: (%p, %p) Status %X\n", Fdo, Irp, Status);
+            goto Exit;
+        }
+
+        FdoExtension->ControllerIsrInstalled = TRUE;
+
+        if (FdoExtension->PciNativeIdeInterface.InterruptControl)
+            FdoExtension->PciNativeIdeInterface.InterruptControl(FdoExtension->PciNativeIdeInterface.StdInterface.Context, TRUE);
+
+        FdoExtension->NativeInterruptEnabled = TRUE;
+
+        ASSERT(FdoExtension->ControllerIsrInstalled == TRUE);
+        ASSERT(FdoExtension->NativeInterruptEnabled == TRUE);
+
+        EnablePCIBusMastering(FdoExtension);
+
+        BusMasterBase = (PBUS_MASTER_IDE_REGISTERS)FdoExtension->TranslatedBusMasterBaseAddress;
+
+        if (READ_PORT_UCHAR(&BusMasterBase->StatusPrimary) & 0x18)
+            FdoExtension->BmMissing[0] = TRUE;
+
+        if (READ_PORT_UCHAR(&BusMasterBase->StatusSecondary) & 0x18)
+            FdoExtension->BmMissing[1] = TRUE;
     }
 
     Status = PciIdeCreateSyncChildAccess(FdoExtension);
@@ -1914,15 +2046,18 @@ ControllerStartDevice(
                 switch (Descriptor[kx].Type)
                 {
                     case 1:
-                        DPRINT("ControllerStartDevice: IO Port = 0x%x. Lenght = 0x%x\n", Descriptor[kx].u.Port.Start.LowPart, Descriptor[kx].u.Port.Length);
+                        DPRINT("ControllerStartDevice: IO Port %X, Lenght %X\n",
+                               Descriptor[kx].u.Port.Start.LowPart, Descriptor[kx].u.Port.Length);
                         break;
 
                     case 3:
-                        DPRINT("ControllerStartDevice: Memory Port = 0x%x. Lenght = 0x%x\n", Descriptor[kx].u.Memory.Start.LowPart, Descriptor[kx].u.Memory.Length);
+                        DPRINT("ControllerStartDevice: Memory Port %X, Lenght %X\n",
+                               Descriptor[kx].u.Memory.Start.LowPart, Descriptor[kx].u.Memory.Length);
                         break;
 
                     case 2:
-                        DPRINT("ControllerStartDevice: Int Level = 0x%x. Int Vector = 0x%x\n", Descriptor[kx].u.Interrupt.Level, Descriptor[kx].u.Interrupt.Vector);
+                        DPRINT("ControllerStartDevice: Int Level %X, Int Vector %X\n",
+                               Descriptor[kx].u.Interrupt.Level, Descriptor[kx].u.Interrupt.Vector);
                         break;
 
                     default:

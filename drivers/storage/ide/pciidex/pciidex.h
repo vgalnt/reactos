@@ -80,6 +80,20 @@ typedef struct _PHYSICAL_REGION_DESCRIPTOR_TABLE
     PHYSICAL_REGION_DESCRIPTOR Prd[1];
 } PHYSICAL_REGION_DESCRIPTOR_TABLE, *PPHYSICAL_REGION_DESCRIPTOR_TABLE;
 
+typedef struct _BUS_MASTER_IDE_REGISTERS
+{
+    UCHAR CommandPrimary;
+    UCHAR DeviceSpecificPrimary0;
+    UCHAR StatusPrimary;
+    UCHAR DeviceSpecificPrimary1;
+    PPHYSICAL_REGION_DESCRIPTOR_TABLE PrdTablePrimary;
+    UCHAR CommandSecondary;
+    UCHAR DeviceSpecificSecondary0;
+    UCHAR StatusSecondary;
+    UCHAR DeviceSpecificSecondary1;
+    PPHYSICAL_REGION_DESCRIPTOR_TABLE PrdTableSecondary;
+} BUS_MASTER_IDE_REGISTERS, *PBUS_MASTER_IDE_REGISTERS;
+
 #include <poppack.h> 
 
 typedef struct _PCIIDE_BUS_MASTER_INTERFACE
@@ -114,6 +128,68 @@ typedef struct _PCI_NATIVE_IDE_INTERFACE
     INTERFACE StdInterface;
     PNATIVE_IDE_INTERRUPT_CONTROL InterruptControl;
 } PCI_NATIVE_IDE_INTERFACE, *PPCI_NATIVE_IDE_INTERFACE;
+
+typedef struct _IDE_CMD_BLOCK_REGS
+{
+    PUCHAR CmdBlockBase;
+    PUSHORT Data;
+    union
+    {
+        PUCHAR Error;           /* read */
+        PUCHAR Features;        /* write */
+    };
+    union
+    {
+        PUCHAR SectorCount;
+        PUCHAR InterruptReason; /* read ATAPI */
+    };
+    PUCHAR LbaLow;
+    union
+    {
+        PUCHAR LbaMid;          /* ATA LBA */
+        PUCHAR BytesLow;        /* ATAPI */
+    };
+    union
+    {
+        PUCHAR LbaHigh;         /* ATA LBA */
+        PUCHAR BytesHigh;       /* ATAPI */
+    };
+    PUCHAR DeviceSelect;
+    union
+    {
+        PUCHAR Status;          /* read */
+        PUCHAR Command;         /* write */
+    };
+} IDE_CMD_BLOCK_REGS, *PIDE_CMD_BLOCK_REGS;
+
+typedef struct _IDE_CTRL_BLOCK_REGS
+{
+    PUCHAR CtrlBlockBase;
+    union
+    {
+        PUCHAR AltStatus;       /* read */
+        PUCHAR DeviceControl;   /* write */
+    };
+    PUCHAR Control;
+} IDE_CTRL_BLOCK_REGS, *PIDE_CTRL_BLOCK_REGS;
+
+typedef struct _IDE_RESOURCE_DATA
+{
+    ULONG TypeResForCmdBlock;
+    ULONG TypeResForCtrlBlock;
+    PUCHAR CmdBlockBase;
+    PUCHAR CtrlBlockBase;
+    ULONG IntResFlags;
+    ULONG Vector;
+    BOOLEAN PrimaryClaimed;
+    BOOLEAN SecondaryClaimed;
+} IDE_RESOURCE_DATA, *PIDE_RESOURCE_DATA;
+
+typedef struct _IDE_INTERRUPT_SERVICE_CONTEXT
+{
+    struct _FDO_DEVICE_EXTENSION* FdoExtension;
+    ULONG Channel;
+} IDE_INTERRUPT_SERVICE_CONTEXT, *PIDE_INTERRUPT_SERVICE_CONTEXT;
 
 typedef struct _FDO_DEVICE_EXTENSION
 {
@@ -155,6 +231,18 @@ typedef struct _FDO_DEVICE_EXTENSION
     ULONG TimingTableLength;
     IDE_SET_POWER_CONTEXT PowerContext[2];
     LONG PowerContextLock[2];
+    PKINTERRUPT InterruptObject[2];
+    IDE_INTERRUPT_SERVICE_CONTEXT ServiceContext[2];
+    IDE_RESOURCE_DATA ResourceData;
+    IDE_CMD_BLOCK_REGS CmdBlock[2];
+    IDE_CTRL_BLOCK_REGS CtrlBlock[2];
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR InterruptDesc[2];
+    ULONG CmdBlockLength[2];
+    ULONG CtrlBlockLength[2];
+    ULONG MaxIdeDevice[2];
+    BOOLEAN ControllerIsrInstalled;
+    BOOLEAN NativeInterruptEnabled;
+    BOOLEAN BmMissing[2];
     PCI_NATIVE_IDE_INTERFACE PciNativeIdeInterface;
 } FDO_DEVICE_EXTENSION, *PFDO_DEVICE_EXTENSION;
 
@@ -260,6 +348,13 @@ ULONG
 NTAPI
 BmStatus(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension
+);
+
+ULONG
+NTAPI
+PciIdeChannelEnabled(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ ULONG Channel
 );
 
 #endif /* _PCIIDEX_PCH_ */
