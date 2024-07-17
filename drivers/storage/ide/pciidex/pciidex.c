@@ -2009,6 +2009,16 @@ Exit:
 
 /* FDO PNP FUNCTIONS ********************************************************/
 
+BOOLEAN
+NTAPI
+ControllerInterrupt(
+    _In_ PKINTERRUPT Interrupt,
+    _In_ PVOID ServiceContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 NTSTATUS
 NTAPI
 ControllerInterruptControl(
@@ -2016,8 +2026,58 @@ ControllerInterruptControl(
     _In_ ULONG Channel,
     _In_ BOOLEAN IsDisconnectOrReconnect)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR InterruptDesc;
+    PIDE_INTERRUPT_SERVICE_CONTEXT ServiceContext;
+    PKINTERRUPT* OutInterruptObject;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    if (IsDisconnectOrReconnect)
+    {
+        DPRINT1("ControllerInterruptControl: Interrupt control for %X (disconnect)\n", Channel);
+
+        if (FdoExtension->InterruptObject[Channel])
+        {
+            IoDisconnectInterrupt(FdoExtension->InterruptObject[Channel]);
+            FdoExtension->InterruptObject[Channel] = NULL;
+        }
+
+        return Status;
+    }
+
+    DPRINT1("ControllerInterruptControl: Interrupt control for %X (reconnect)\n", Channel);
+
+    InterruptDesc = FdoExtension->InterruptDesc[Channel];
+    if (!InterruptDesc)
+    {
+        DPRINT1("ControllerInterruptControl: STATUS_UNSUCCESSFUL\n");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    ServiceContext = &FdoExtension->ServiceContext[Channel];
+    ServiceContext->FdoExtension = FdoExtension;
+    ServiceContext->Channel = Channel;
+
+    OutInterruptObject = &FdoExtension->InterruptObject[Channel];
+
+    Status = IoConnectInterrupt(OutInterruptObject,
+                                ControllerInterrupt,
+                                ServiceContext,
+                                NULL,
+                                InterruptDesc->u.Interrupt.Vector,
+                                InterruptDesc->u.Interrupt.Level,
+                                InterruptDesc->u.Interrupt.Level,
+                                (InterruptDesc->Flags & 1),
+                                (InterruptDesc->ShareDisposition == 3),
+                                InterruptDesc->u.Interrupt.Affinity,
+                                FALSE);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ControllerInterruptControl: Can't connect interrupt %X\n", InterruptDesc->u.Interrupt.Vector);
+        *OutInterruptObject = NULL;
+    }
+
+    return Status;
 }
 
 NTSTATUS
