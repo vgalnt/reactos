@@ -3572,8 +3572,7 @@ PciIdeInterruptControl(
     _In_ PPDO_DEVICE_EXTENSION Context,
     _In_ BOOLEAN IsDisconnectOrReconnect)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    return ControllerInterruptControl(Context->FdoExtension, Context->PdoIndex, IsDisconnectOrReconnect);
 }
 
 NTSTATUS
