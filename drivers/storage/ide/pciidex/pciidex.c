@@ -3425,9 +3425,11 @@ NTAPI
 PciIdeFreeAccessToken(
     _In_ PVOID Token)
 {
-    //PPDO_DEVICE_EXTENSION PdoExtension = Token
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension = Token;
+
+    IoFreeController(PdoExtension->FdoExtension->ControllerObject);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
