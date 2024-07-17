@@ -3407,9 +3407,17 @@ PciIdeAllocateAccessToken(
     _In_ PDRIVER_CONTROL ExecutionRoutine,
     _In_ PVOID Context)
 {
-    //PPDO_DEVICE_EXTENSION PdoExtension = Token
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension = Token;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+
+    ASSERT(Token);
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+
+    FdoExtension = PdoExtension->FdoExtension;
+
+    IoAllocateController(FdoExtension->ControllerObject, PdoExtension->SelfDevice, ExecutionRoutine, Context);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
