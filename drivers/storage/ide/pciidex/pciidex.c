@@ -3054,8 +3054,48 @@ IdePortChannelEmpty(
    _In_ PIDE_CTRL_BLOCK_REGS CtrlBlock,
    _In_ ULONG MaxIdeDevice)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    ULONG ix;
+    UCHAR IdeStatus;
+    BOOLEAN IsDoIdentifyDevice = FALSE;
+
+    DPRINT("IdePortChannelEmpty: %X\n", CmdBlock->CmdBlockBase, MaxIdeDevice);
+
+    if (!MaxIdeDevice)
+        return TRUE;
+
+    for (ix = 0; ix < MaxIdeDevice; ix++)
+    {
+        WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((ix & 0x1) << 4) | IDE_DRIVE_SELECT));
+        IdeStatus = READ_PORT_UCHAR(CmdBlock->Status);
+
+        if (IdeStatus == 0xFF || IdeStatus == 0xFE)
+            continue;
+
+        IdePortpWaitOnBusyEx(CmdBlock, &IdeStatus, 0xFF);
+
+        if ((IdeStatus & 0x80) && IdeStatus != 0xFE)
+        {
+            if (IdeStatus == 0xFF)
+                continue;
+
+            DPRINT("IdePortChannelEmpty: Channel looks busy %X. Try a reset\n", IdeStatus);
+
+            WRITE_PORT_UCHAR(CtrlBlock->DeviceControl, 4);
+            KeStallExecutionProcessor(10);
+            WRITE_PORT_UCHAR(CtrlBlock->DeviceControl, 0);
+
+            WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((ix & 0x1) << 4) | IDE_DRIVE_SELECT));
+            IdePortpWaitOnBusyEx(CmdBlock, &IdeStatus, 0xFF);
+        }
+
+        if (IdeStatus != 0xFF)
+            IsDoIdentifyDevice = TRUE;
+    }
+
+    if (IsDoIdentifyDevice)
+        return IdePortIdentifyDevice(CmdBlock, CtrlBlock, MaxIdeDevice);
+
+    return TRUE;
 }
 
 NTSTATUS
