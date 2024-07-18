@@ -2919,6 +2919,134 @@ PciIdeXSaveDeviceParameter(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+IdePortpWaitOnBusyEx(
+   _In_ PIDE_CMD_BLOCK_REGS CmdBlock,
+   _Out_ UCHAR* OutIdeStatus,
+   _In_ UCHAR InStatus)
+{
+    UCHAR IdeStatus;
+    ULONG ix;
+    ULONG jx;
+
+    for (ix = 0; ix < 2; )
+    {
+        jx = 0;
+
+        while (TRUE)
+        {
+            IdeStatus = READ_PORT_UCHAR(CmdBlock->Status);
+
+            if (IdeStatus == InStatus || !(IdeStatus & 0x80))
+            {
+                ix = 2;
+                break;
+            }
+
+            KeStallExecutionProcessor(5);
+
+            jx++;
+            if (jx < 200000)
+                continue;
+
+            if (!(IdeStatus & 0x80))
+            {
+                ix = 2;
+                break;
+            }
+
+            DPRINT("ATAPI: after 1 sec wait, device is still busy with %X, status %X\n", CmdBlock->CmdBlockBase, IdeStatus);
+
+            ix++;
+            break;
+        }
+    }
+
+    *OutIdeStatus = IdeStatus;
+
+    if (!(IdeStatus & 0x80) || IdeStatus == InStatus)
+        return STATUS_SUCCESS;
+
+    DPRINT("WaitOnBusy failed. (%X) status %X\n", CmdBlock->CmdBlockBase, IdeStatus);
+
+    return STATUS_UNSUCCESSFUL;
+}
+
+BOOLEAN
+NTAPI
+IdePortIdentifyDevice(
+    _In_ PIDE_CMD_BLOCK_REGS CmdBlock,
+    _In_ PIDE_CTRL_BLOCK_REGS CtrlBlock,
+    _In_ ULONG MaxIdeDevice)
+{
+    ULONG Device = 0;
+    ULONG ix = 4;
+    ULONG jx;
+    UCHAR status;
+    BOOLEAN Result = TRUE;
+
+    DPRINT("IdePortIdentifyDevice: %X, %X, %X\n", CmdBlock->CmdBlockBase, CtrlBlock->CtrlBlockBase, MaxIdeDevice);
+
+    while (TRUE)
+    {
+        WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+        WRITE_PORT_UCHAR(CmdBlock->BytesHigh, 0xAA);
+        WRITE_PORT_UCHAR(CmdBlock->BytesLow, 0x55);
+
+        if (READ_PORT_UCHAR(CmdBlock->LbaHigh) == 0xAA && READ_PORT_UCHAR(CmdBlock->LbaMid) == 0x55)
+        {
+            DPRINT("IdePortIdentifyDevice: Result = 0\n");
+            Result = FALSE;
+        }
+        else
+        {
+            status = READ_PORT_UCHAR(CmdBlock->Status);
+
+            DPRINT("IdePortIdentifyDevice: status read back from Master (%X)\n", status);
+
+            if (status & 0x80)
+            {
+                for (jx = 0; jx < 0xA; jx++)
+                {
+                    KeStallExecutionProcessor(1000);
+                    status = READ_PORT_UCHAR(CmdBlock->Status);
+
+                    DPRINT("IdePortIdentifyDevice: First access to status %X\n", status);
+
+                    if (!(status & 0x80))
+                        break;
+                }
+
+                ix--;
+                if (ix != 0 && !(status & 0x80))
+                    continue;
+            }
+
+            Device++;
+
+            WRITE_PORT_UCHAR(CmdBlock->DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+            WRITE_PORT_UCHAR(CmdBlock->BytesHigh, 0xAA);
+            WRITE_PORT_UCHAR(CmdBlock->BytesLow, 0x55);
+
+            if (READ_PORT_UCHAR(CmdBlock->LbaHigh) != 0xAA || READ_PORT_UCHAR(CmdBlock->LbaMid) != 0x55)
+            {
+                status = READ_PORT_UCHAR(CmdBlock->Status);
+                DPRINT("IdePortIdentifyDevice: status read back from Slave (%X)\n", status);
+            }
+            else
+            {
+                DPRINT("IdePortIdentifyDevice: Result = 0\n");
+                Result = FALSE;
+            }
+        }
+
+        Device++;
+        if (Device >= MaxIdeDevice || !Result)
+            return Result;
+    }
+}
+
 BOOLEAN
 NTAPI
 IdePortChannelEmpty(
