@@ -2919,15 +2919,33 @@ PciIdeXSaveDeviceParameter(
     return Status;
 }
 
+BOOLEAN
+NTAPI
+IdePortChannelEmpty(
+   _In_ PIDE_CMD_BLOCK_REGS CmdBlock,
+   _In_ PIDE_CTRL_BLOCK_REGS CtrlBlock,
+   _In_ ULONG MaxIdeDevice)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 NTSTATUS
 NTAPI
 ChannelStartDevice(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR IntCmDescriptor;
     PPDO_DEVICE_EXTENSION PdoExtension;
     PFDO_DEVICE_EXTENSION FdoExtension;
     PVOID MiniExtension;
+    IDE_RESOURCE_DATA ResourceData;
+    IDE_CMD_BLOCK_REGS CmdBlock;
+    IDE_CTRL_BLOCK_REGS CtrlBlock;
+    ULONG CmdBlockLength;
+    ULONG CtrlBlockLength;
+    ULONG MaxIdeDevice;
     USHORT Parameter;
     USHORT VendorId;
     USHORT DeviceId;
@@ -2949,7 +2967,45 @@ ChannelStartDevice(
     if (!FdoExtension->NativeMode[PdoExtension->PdoIndex] &&
         PciIdeChannelEnabled(FdoExtension, PdoExtension->PdoIndex) == 2)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        Status = DigestResourceList(&ResourceData,
+                                    IoGetCurrentIrpStackLocation(Irp)->Parameters.StartDevice.AllocatedResourcesTranslated,
+                                    &IntCmDescriptor);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ChannelStartDevice: Status %X\n", Status);
+            PdoExtension->IsChannelEmpty = 0;
+            goto Exit;
+        }
+
+        AtapiBuildIoAddress(ResourceData.CmdBlockBase,
+                            ResourceData.CtrlBlockBase,
+                            &CmdBlock,
+                            &CtrlBlock,
+                            &CmdBlockLength,
+                            &CtrlBlockLength,
+                            &MaxIdeDevice,
+                            NULL);
+
+        if (!ResourceData.TypeResForCmdBlock && ResourceData.CmdBlockBase)
+            MmUnmapIoSpace(ResourceData.CmdBlockBase, CmdBlockLength);
+
+        if (!ResourceData.TypeResForCtrlBlock && ResourceData.CtrlBlockBase)
+            MmUnmapIoSpace(ResourceData.CtrlBlockBase, CtrlBlockLength);
+
+        if (IdePortChannelEmpty(&CmdBlock, &CtrlBlock, MaxIdeDevice))
+        {
+            PdoExtension->IsChannelEmpty = 1;
+
+            if (IntCmDescriptor)
+            {
+                PdoExtension->PnPDeviceState |= 0x14;
+                IoInvalidateDeviceState(Pdo);
+            }
+        }
+        else
+        {
+            PdoExtension->IsChannelEmpty = 0;
+        }
     }
 
     PdoExtension->DmaDetectionLevel = 1;
