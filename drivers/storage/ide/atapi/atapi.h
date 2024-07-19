@@ -236,7 +236,7 @@ typedef struct _ATAPI_PRE_ALLOC_ENUM_STRUCT
 
 typedef struct _ATA_DEVICE_PARAMETERS
 {
-    ULONG Unknown1;
+    ULONG MaxTransferSize;
     UCHAR IdePioReadCommand;
     UCHAR IdePioWriteCommand;
     UCHAR IdePioFlushCommand;

@@ -941,7 +941,146 @@ IdeReadWriteExt(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    VOID (NTAPI* BmArm)(PVOID);
+    ULONG SectorCount;
+    ULONG StartingSector;
+    ULONG BytesXferred;
+    ULONG jx;
+    UCHAR IdeStatus;
+    UCHAR StartIdeStatus;
+    PCDB Cdb;
+    ULONG Device;
+
+    Device = Srb->TargetId;
+
+    DPRINT("IdeReadWriteExt: %X, %X, %X\n", HwDeviceExtension->CmdBlock.CmdBlockBase, Device, Srb->SrbExtension);
+
+    ASSERT(HwDeviceExtension->DeviceFlags[Device] & 0x200000);//DFLAGS_48BIT_LBA
+    ASSERT(HwDeviceExtension->DeviceFlags[Device] & 0x400);//DFLAGS_LBA
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+    StartIdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+    if (StartIdeStatus & 0x80)
+    {
+        DPRINT("IdeReadWriteExt: Returning BUSY StartIdeStatus\n");
+        return 5;
+    }
+
+    if (!(StartIdeStatus & 0x40))
+    {
+        DPRINT("IdeReadWriteExt: IDE_STATUS_DRDY not set\n");
+        return 5;
+    }
+
+    HwDeviceExtension->TransferDataBuffer = (PUCHAR)Srb->DataBuffer;
+    HwDeviceExtension->TransferDataBytes = Srb->DataTransferLength;
+
+    HwDeviceExtension->ExpectingInterrupt = 1;
+
+    SectorCount = ((Srb->DataTransferLength + (0x200 - 1)) / 0x200);
+    ASSERT(SectorCount != 0);
+
+    Cdb = (PCDB)Srb->Cdb;
+    StartingSector = (Cdb->CDB10.LogicalBlockByte0 << 24) |
+                     (Cdb->CDB10.LogicalBlockByte1 << 16) |
+                     (Cdb->CDB10.LogicalBlockByte2 << 8) |
+                     (Cdb->CDB10.LogicalBlockByte3);
+
+    DPRINT("IdeReadWriteExt: StartingSector %X, SectorCount %X\n", StartingSector, SectorCount);
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT | 0x40));
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, (UCHAR)(SectorCount >> 8));
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaLow, (UCHAR)(StartingSector >> 24));
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaMid, 0);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaHigh, 0);
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, (UCHAR)SectorCount);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaLow, (UCHAR)StartingSector);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaMid, (UCHAR)(StartingSector >> 8));
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaHigh, (UCHAR)(StartingSector >> 16));
+
+    if (Srb->SrbFlags & 0x40) // SRB_FLAGS_DATA_IN
+    {
+        if ((ULONG_PTR)Srb->SrbExtension & 2)
+        {
+            WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0x25);
+            HwDeviceExtension->IsActiveDmaTransfer = 1;
+            BmArm = HwDeviceExtension->BusMasterInterface.BmArm;
+            BmArm(HwDeviceExtension->BusMasterInterface.Context);
+        }
+        else
+        {
+            ASSERT(HwDeviceExtension->DeviceParameters[Device].IdePioReadCommandExt);
+            WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, HwDeviceExtension->DeviceParameters[Device].IdePioReadCommandExt);
+        }
+
+        return 0;
+    }
+
+    if ((ULONG_PTR)Srb->SrbExtension & 2)
+    {
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0x35);
+
+        HwDeviceExtension->IsActiveDmaTransfer = 1;
+
+        BmArm = HwDeviceExtension->BusMasterInterface.BmArm;
+        BmArm(HwDeviceExtension->BusMasterInterface.Context);
+
+        return 0;
+    }
+
+    ASSERT(HwDeviceExtension->DeviceParameters[Device].IdePioWriteCommandExt);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, HwDeviceExtension->DeviceParameters[Device].IdePioWriteCommandExt);
+
+    if (HwDeviceExtension->TransferDataBytes >= HwDeviceExtension->DeviceParameters[Device].MaxTransferSize)
+        BytesXferred = HwDeviceExtension->DeviceParameters[Device].MaxTransferSize;
+    else
+        BytesXferred = HwDeviceExtension->TransferDataBytes;
+
+    for (jx = 0; jx < 20000; jx++)
+    {
+        IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+        if (!(IdeStatus & 0x80))
+            break;
+
+        KeStallExecutionProcessor(150);
+    }
+
+    if (IdeStatus & 0x80)
+    {
+        DPRINT("IdeReadWriteExt 2: Returning BUSY StartIdeStatus %X\n", IdeStatus);
+        return 5;
+    }
+
+    for (jx = 0; jx < 1000; jx++)
+    {
+        IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+        if (IdeStatus & 8)
+            break;
+
+        KeStallExecutionProcessor(200);
+    }
+
+    if (!(IdeStatus & 8))
+    {
+        DPRINT("IdeReadWriteExt: DRQ never asserted (%X) original StartIdeStatus (%X)\n", IdeStatus, StartIdeStatus);
+
+        HwDeviceExtension->TransferDataBytes = 0;
+        HwDeviceExtension->CurrentSrb = 0;
+        HwDeviceExtension->ExpectingInterrupt = 0;
+
+        return 9;
+    }
+
+    WRITE_PORT_BUFFER_USHORT(HwDeviceExtension->CmdBlock.Data,
+                             (PUSHORT)HwDeviceExtension->TransferDataBuffer,
+                             (BytesXferred >> 1));
+
+    HwDeviceExtension->TransferDataBytes -= BytesXferred;
+    HwDeviceExtension->TransferDataBuffer += BytesXferred;
+
     return 0;
 }
 
@@ -1025,8 +1164,8 @@ IdeReadWrite(
 
         if (!((ULONG_PTR)Srb->SrbExtension & 2))
         {
-            if (HwDeviceExtension->TransferDataBytes >= HwDeviceExtension->DeviceParameters[Device].Unknown1)
-                BytesXferred = HwDeviceExtension->DeviceParameters[Device].Unknown1;
+            if (HwDeviceExtension->TransferDataBytes >= HwDeviceExtension->DeviceParameters[Device].MaxTransferSize)
+                BytesXferred = HwDeviceExtension->DeviceParameters[Device].MaxTransferSize;
             else
                 BytesXferred = HwDeviceExtension->TransferDataBytes;
 
@@ -9638,7 +9777,7 @@ InitDeviceParameters(
 
         if (HwDeviceExtension->DeviceFlags[Device] & 2)
         {
-            DeviceParameters->Unknown1 = 0x200;
+            DeviceParameters->MaxTransferSize = 0x200;
             continue;
         }
 
@@ -9655,7 +9794,7 @@ InitDeviceParameters(
                 DeviceParameters->IdePioWriteCommandExt = 0x39;
             }
 
-            DeviceParameters->Unknown1 = (HwDeviceExtension->MaximumBlockTransfer[Device] / 0x200);
+            DeviceParameters->MaxTransferSize = (HwDeviceExtension->MaximumBlockTransfer[Device] / 0x200);
         }
         else
         {
@@ -9670,7 +9809,7 @@ InitDeviceParameters(
                 DeviceParameters->IdePioWriteCommandExt = 0x34;
             }
 
-            DeviceParameters->Unknown1 = 0x200;
+            DeviceParameters->MaxTransferSize = 0x200;
         }
 
         if (!GetFlushCommand)
