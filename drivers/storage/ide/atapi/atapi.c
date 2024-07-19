@@ -4772,6 +4772,7 @@ NTAPI
 AtapiInterrupt(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension)
 {
+    PSENDCMDOUTPARAMS OutParameters;
     PSCSI_REQUEST_BLOCK CurrentSrb;
     PATA_PASS_THROUGH AtaPassThr;
     ULONG bmStatus = 0;
@@ -5210,8 +5211,30 @@ Finish:
 
     if (CurrentSrb->Function == 2)
     {
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        OutParameters = Add2Ptr(CurrentSrb->DataBuffer, sizeof(SRB_IO_CONTROL));
+
+        if (SrbStatus == 1)
+            Error = 0;
+        else
+            Error = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Error);
+
+        OutParameters->cBufferSize = BytesXferred;
+        OutParameters->DriverStatus.bDriverError = ((Error) ? 1 : 0);
+        OutParameters->DriverStatus.bIDEError = Error;
+
+        if (HwDeviceExtension->TypeSmartCommand == 0xDA)
+        {
+            OutParameters->bBuffer[0] = 0xDA;
+            OutParameters->bBuffer[1] = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.InterruptReason);
+            OutParameters->bBuffer[2] = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaLow);
+            OutParameters->bBuffer[3] = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesLow);
+            OutParameters->bBuffer[4] = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesHigh);
+            OutParameters->bBuffer[5] = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect);
+            OutParameters->bBuffer[6] = 0xB0;
+            OutParameters->cBufferSize = 8;
+        }
+
+        IdePortNotification(0, HwDeviceExtension, CurrentSrb);
     }
     else if (HwDeviceExtension->IsDscRestrictive)
     {
