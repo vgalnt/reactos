@@ -9223,6 +9223,7 @@ AnalyzeDeviceCapabilities(
     ULONG NumSectorsPerTrack;
     ULONG NumCylinders;
     ULONG NumHeads;
+    ULONG MaxLBA;
     ULONG BestXferMode;
     ULONG CurrentMode;
     ULONG CycleTime;
@@ -9274,7 +9275,22 @@ AnalyzeDeviceCapabilities(
         if ((HwDeviceExtension->IdentifyData[ix].CommandSetSupport & 0x400) &&
             (HwDeviceExtension->IdentifyData[ix].CommandSetActive & 0x400))
         {
-            UNIMPLEMENTED_DBGBREAK();
+            ASSERT(HwDeviceExtension->IdentifyData[ix].Max48BitLBA[0] != 0);
+            MaxLBA = HwDeviceExtension->IdentifyData[ix].Max48BitLBA[0];
+
+            ASSERT(HwDeviceExtension->IdentifyData[ix].Max48BitLBA[1] == 0);
+            ASSERT(MaxLBA >= HwDeviceExtension->IdentifyData[ix].UserAddressableSectors);
+
+            DPRINT("AnalyzeDeviceCapabilities: Max LBA supported is %X\n", MaxLBA);
+
+            if (FdoExtension->IsBigLbaEnabled != 1 || MaxLBA < 0x10000000)
+            {
+                DPRINT("AnalyzeDeviceCapabilities: big lba disabled\n");
+            }
+            else
+            {
+                HwDeviceExtension->DeviceFlags[ix] |= 0x200400;
+            }
         }
 
         if (HwDeviceExtension->DeviceFlags[ix] & 0x400)
@@ -9455,9 +9471,29 @@ AnalyzeDeviceCapabilities(
                 Mode = 0x7FFFFFFF;
             }
         }
-        else
+        else if (HwDeviceExtension->IdentifyData[ix].TranslationFieldsValid & 4)
         {
-            UNIMPLEMENTED_DBGBREAK();
+            if (HwDeviceExtension->IdentifyData[ix].UltraDMASupport)
+            {
+                TempMode = HwDeviceExtension->IdentifyData[ix].UltraDMASupport;
+                ASSERT(TempMode);
+
+                for (BestXferMode = 0; TempMode; BestXferMode++)
+                    TempMode >>= 1;
+
+                BestXferMode--;
+            }
+
+            if (HwDeviceExtension->IdentifyData[ix].UltraDMAActive)
+            {
+                TempMode = HwDeviceExtension->IdentifyData[ix].UltraDMASupport;
+                ASSERT(TempMode);
+
+                for (Mode = 0; TempMode; Mode++)
+                    TempMode >>= 1;
+
+                Mode--;
+            }
         }
 
         if (Mode != 0x7FFFFFFF)
