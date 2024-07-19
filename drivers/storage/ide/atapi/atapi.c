@@ -1694,6 +1694,121 @@ AtapiSendCommand(
     return SRB_STATUS_PENDING;
 }
 
+ULONG
+NTAPI
+IdeSendSmartCommand(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    PSENDCMDOUTPARAMS OutParameters;
+    SENDCMDINPARAMS inParameters;
+    ULONG ix;
+    ULONG jx;
+    UCHAR IdeStatus;
+    UCHAR Features;
+    UCHAR Device;
+
+    inParameters = *(SENDCMDINPARAMS *)Add2Ptr(Srb->DataBuffer, sizeof(SRB_IO_CONTROL));
+
+    DPRINT("IdeSendSmartCommand: %p, %X, %X, %X\n",
+           HwDeviceExtension, Srb, inParameters.irDriveRegs.bCommandReg, inParameters.irDriveRegs.bFeaturesReg);
+
+    if (inParameters.irDriveRegs.bCommandReg != 0xB0)
+        return 6;
+
+    Device = inParameters.bDriveNumber;
+
+    if (!(HwDeviceExtension->DeviceFlags[Device] & 1))
+    {
+        return 0xA;
+    }
+
+    if (HwDeviceExtension->DeviceFlags[Device] & 2)
+    {
+        return 0xA;
+    }
+
+    HwDeviceExtension->TypeSmartCommand = Features = inParameters.irDriveRegs.bFeaturesReg;
+    Srb->TargetId = Device;
+
+    OutParameters = Add2Ptr(Srb->DataBuffer, sizeof(SRB_IO_CONTROL));
+
+    if (Features == 0xD0 || Features == 0xD1 || Features == 0xD5)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return 0;
+    }
+
+    if (Features == 0xD8 || Features == 0xD9 || Features == 0xDA || Features == 0xD2 ||
+        Features == 0xD4 || Features == 0xD3 || Features == 0xDB)
+    {
+        if (Features == 0xD4)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        for (ix = 0; ix < 10; ix++)
+        {
+            for (jx = 0; jx < 25000; jx++)
+            {
+                IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                if (!(IdeStatus & 0x80))
+                    break;
+
+                KeStallExecutionProcessor(40);
+            }
+
+            if (!(IdeStatus & 0x80))
+                break;
+
+            DPRINT("AtapiSetTransferMode: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+                   HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+        }
+
+        if (IdeStatus & 0x80)
+        {
+            DPRINT("AtapiSetTransferMode: WaitOnBusy failed. %X IdeStatus %X\n",
+                   HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+        }
+
+        if (IdeStatus & 0x80)
+        {
+            DPRINT1("IdeSendSmartCommand: Returning BUSY status\n");
+            return 5;
+        }
+
+        RtlZeroMemory(OutParameters, sizeof(*OutParameters));
+
+        HwDeviceExtension->TransferDataBytes = 0;
+        HwDeviceExtension->TransferDataBuffer = (PUCHAR)OutParameters->bBuffer;
+
+        HwDeviceExtension->ExpectingInterrupt = 1;
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Features, inParameters.irDriveRegs.bFeaturesReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, inParameters.irDriveRegs.bSectorCountReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaLow, inParameters.irDriveRegs.bSectorNumberReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaMid, inParameters.irDriveRegs.bCylLowReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaHigh, inParameters.irDriveRegs.bCylHighReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xB0);
+
+        return 0;
+    }
+
+    if (Features != 0xD6)
+    {
+        DPRINT1("IdeSendSmartCommand: SRB_STATUS_INVALID_REQUEST (%p, %X, %X, %X)\n",
+               HwDeviceExtension, Srb, inParameters.irDriveRegs.bCommandReg, inParameters.irDriveRegs.bFeaturesReg);
+
+        return SRB_STATUS_INVALID_REQUEST;
+    }
+
+    UNIMPLEMENTED_DBGBREAK();
+
+    return 0;
+}
+
 BOOLEAN
 NTAPI
 AtapiStartIo(
@@ -1824,7 +1939,11 @@ AtapiStartIo(
                      ControlCode == 0x1B0506 || ControlCode == 0x1B0507 || ControlCode == 0x1B0508 || ControlCode == 0x1B0509 ||
                      ControlCode == 0x1B050A || ControlCode == 0x1B050B || ControlCode == 0x1B050C)
             {
-                UNIMPLEMENTED_DBGBREAK();
+                SrbStatus = IdeSendSmartCommand(HwDeviceExtension, Srb);
+                if (!SrbStatus)
+                    return 1;
+
+                DPRINT("AtapiStartIo: Srb %p complete with status %X\n", Srb, SrbStatus);
             }
             else
             {
