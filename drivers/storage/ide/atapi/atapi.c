@@ -9972,7 +9972,7 @@ InitDeviceParameters(
                 DeviceParameters->IdePioWriteCommandExt = 0x39;
             }
 
-            DeviceParameters->MaxTransferSize = (HwDeviceExtension->MaximumBlockTransfer[Device] / 0x200);
+            DeviceParameters->MaxTransferSize = (HwDeviceExtension->MaximumBlockTransfer[Device] * 0x200);
         }
         else
         {
