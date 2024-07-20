@@ -4996,22 +4996,54 @@ AtapiInterrupt(
         }
         else
         {
-            DPRINT1("AtapiInterrupt: FIXME\n");
-            ASSERT(FALSE);
+            if (HwDeviceExtension->TransferDataBytes >= PioModeSize)
+                BytesXferred = PioModeSize;
+            else
+                BytesXferred = HwDeviceExtension->TransferDataBytes;
         }
 
-        if (CurrentSrb->SrbFlags & 0x80)
+        if (!(CurrentSrb->SrbFlags & 0x80))
         {
-            DPRINT("AtapiInterrupt: Write interrupt\n");
-            DPRINT1("AtapiInterrupt: FIXME\n");
-            ASSERT(FALSE);
-        }
-        else
-        {
-            DPRINT("AtapiInterrupt: Int reason 0, but srb is for a write %X\n", CurrentSrb);
+            DPRINT1("AtapiInterrupt: Int reason 0, but srb is for a write %X\n", CurrentSrb);
             SrbStatus = 4;
             goto Finish;
         }
+
+        DPRINT("AtapiInterrupt: Write interrupt\n");
+
+        for (ix = 0; ix < 10; ix++)
+        {
+            for (jx = 0; jx < 25000; jx++)
+            {
+                IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                if (!(IdeStatus & 0x80))
+                    break;
+
+                KeStallExecutionProcessor(40);
+            }
+
+            if (!(IdeStatus & 0x80))
+                break;
+
+            DPRINT1("AtapiInterrupt: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+                    HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+        }
+
+        if (IdeStatus & 0x80)
+        {
+            DPRINT1("AtapiInterrupt: WaitOnBusy failed. %X IdeStatus %X\n",
+                    HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+        }
+
+        WRITE_PORT_BUFFER_USHORT(HwDeviceExtension->CmdBlock.Data, (PUSHORT)HwDeviceExtension->TransferDataBuffer, (BytesXferred / 2));
+
+        if (BytesXferred & 1)
+            WRITE_PORT_UCHAR((PUCHAR)HwDeviceExtension->CmdBlock.Data, HwDeviceExtension->TransferDataBuffer[BytesXferred - 1]);
+
+        HwDeviceExtension->TransferDataBuffer += BytesXferred;
+        HwDeviceExtension->TransferDataBytes -= BytesXferred;
+
+        return Result;
     }
     else if (InterruptReason == 2 && (IdeStatus & 8))
     {
