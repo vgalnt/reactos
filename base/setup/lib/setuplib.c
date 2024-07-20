@@ -413,17 +413,23 @@ GetSourcePaths(
     /* Determine the installation source path via the full path of the installer */
     RtlInitEmptyUnicodeString(InstallSourcePath,
                               (PWSTR)((ULONG_PTR)ImageFileBuffer + sizeof(UNICODE_STRING)),
-                              sizeof(ImageFileBuffer) - sizeof(UNICODE_STRING)
-            /* Reserve space for a NULL terminator */ - sizeof(UNICODE_NULL));
+                              sizeof(ImageFileBuffer) - sizeof(UNICODE_STRING) -
+                              sizeof(UNICODE_NULL)); // Reserve space for a NULL terminator
+
     BufferSize = sizeof(ImageFileBuffer);
+
     Status = NtQueryInformationProcess(NtCurrentProcess(),
                                        ProcessImageFileName,
                                        InstallSourcePath,
                                        BufferSize,
                                        NULL);
+
     // STATUS_INFO_LENGTH_MISMATCH or STATUS_BUFFER_TOO_SMALL ?
     if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("GetSourcePaths: Status %X\n", Status);
         return Status;
+    }
 
     /* Manually NULL-terminate */
     InstallSourcePath->Buffer[InstallSourcePath->Length / sizeof(WCHAR)] = UNICODE_NULL;
@@ -432,67 +438,66 @@ GetSourcePaths(
     Ptr = wcsrchr(InstallSourcePath->Buffer, OBJ_NAME_PATH_SEPARATOR);
     if (Ptr)
         *Ptr = UNICODE_NULL;
+
     InstallSourcePath->Length = wcslen(InstallSourcePath->Buffer) * sizeof(WCHAR);
 
+    /* Strip the trailing system32 */
+    Ptr = wcsstr(InstallSourcePath->Buffer, L"\\system32");
+    if (!Ptr)
+        Ptr = wcsstr(InstallSourcePath->Buffer, L"\\System32");
 
-    /*
-     * Now resolve the full path to \SystemRoot. In case it prefixes
-     * the installation source path determined from the full path of
-     * the installer, we use instead the resolved \SystemRoot as the
-     * installation source path.
-     * Otherwise, we use instead the path from the full installer path.
-     */
+    if (Ptr)
+        *Ptr = UNICODE_NULL;
 
+    InstallSourcePath->Length = wcslen(InstallSourcePath->Buffer) * sizeof(WCHAR);
+
+    /* Now resolve the full path to \SystemRoot.
+       In case it prefixes the installation source path determined from the full path of the installer,
+       we use instead the resolved \SystemRoot as the installation source path.
+       Otherwise, we use instead the path from the full installer path.
+    */
     InitializeObjectAttributes(&ObjectAttributes,
                                &SystemRootPath,
                                OBJ_CASE_INSENSITIVE,
                                NULL,
                                NULL);
 
-    Status = NtOpenSymbolicLinkObject(&LinkHandle,
-                                      SYMBOLIC_LINK_QUERY,
-                                      &ObjectAttributes);
+    Status = NtOpenSymbolicLinkObject(&LinkHandle, SYMBOLIC_LINK_QUERY, &ObjectAttributes);
     if (!NT_SUCCESS(Status))
     {
-        /*
-         * We failed at opening the \SystemRoot link (usually due to wrong
-         * access rights). Do not consider this as a fatal error, but use
-         * instead the image file path as the installation source path.
-         */
-        DPRINT1("NtOpenSymbolicLinkObject(%wZ) failed with Status 0x%08lx\n",
-                &SystemRootPath, Status);
+        /* We failed at opening the \SystemRoot link (usually due to wrong access rights).
+           Do not consider this as a fatal error, but use instead the image file path as the installation source path.
+        */
+        DPRINT1("GetSourcePaths: '%wZ' (%X)\n", &SystemRootPath, Status);
         goto InitPaths;
     }
 
-    RtlInitEmptyUnicodeString(&SystemRootPath,
-                              SystemRootBuffer,
-                              sizeof(SystemRootBuffer));
+    RtlInitEmptyUnicodeString(&SystemRootPath, SystemRootBuffer, sizeof(SystemRootBuffer));
 
     /* Resolve the link and close its handle */
-    Status = NtQuerySymbolicLinkObject(LinkHandle,
-                                       &SystemRootPath,
-                                       &BufferSize);
+    Status = NtQuerySymbolicLinkObject(LinkHandle, &SystemRootPath, &BufferSize);
+
     NtClose(LinkHandle);
 
     if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("GetSourcePaths: Status %X\n", Status);
         return Status; // Unexpected error
+    }
 
     /* Check whether the resolved \SystemRoot is a prefix of the image file path */
     if (RtlPrefixUnicodeString(&SystemRootPath, InstallSourcePath, TRUE))
-    {
         /* Yes it is, so we use instead SystemRoot as the installation source path */
         InstallSourcePath = &SystemRootPath;
-    }
-
 
 InitPaths:
-    /*
-     * Retrieve the different source path components
-     */
+
+    /* Retrieve the different source path components */
     RtlCreateUnicodeString(SourcePath, InstallSourcePath->Buffer);
 
     /* Strip trailing directory */
     Ptr = wcsrchr(InstallSourcePath->Buffer, OBJ_NAME_PATH_SEPARATOR);
+
     if (Ptr)
     {
         RtlCreateUnicodeString(SourceRootDir, Ptr);
