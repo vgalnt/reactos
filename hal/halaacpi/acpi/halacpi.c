@@ -1134,17 +1134,35 @@ VOID
 NTAPI
 HalpWriteResetCommand(VOID)
 {
-    if (HalpFixedAcpiDescTable.Header.Revision > 1 &&
-        (HalpFixedAcpiDescTable.flags & 4) &&
-        !(HalpFixedAcpiDescTable.boot_arch & 2))
+    PUCHAR reset_reg;
+  
+    if (HalpFixedAcpiDescTable.Header.Revision <= 1 ||
+        !(HalpFixedAcpiDescTable.flags & 4) ||
+        (HalpFixedAcpiDescTable.boot_arch & 2))
     {
-        DPRINT1("HalpWriteResetCommand: Revision %X, flags %X, boot_arch %X\n",
-                HalpFixedAcpiDescTable.Header.Revision,
-                HalpFixedAcpiDescTable.flags,
-                HalpFixedAcpiDescTable.boot_arch);
-
-        ASSERT(FALSE); // HalpDbgBreakPointEx();
+        goto Finish;
     }
+
+    DPRINT1("HalpWriteResetCommand: Revision %X, flags %X, boot_arch %X\n",
+            HalpFixedAcpiDescTable.Header.Revision,
+            HalpFixedAcpiDescTable.flags,
+            HalpFixedAcpiDescTable.boot_arch);
+
+    if (HalpFixedAcpiDescTable.reset_reg.AddressSpaceID == 0)
+    {
+        reset_reg = HalpMapPhysicalMemoryWriteThrough64(HalpFixedAcpiDescTable.reset_reg.Address, 1);
+        WRITE_REGISTER_UCHAR(reset_reg, HalpFixedAcpiDescTable.reset_val);
+    }
+    else if (HalpFixedAcpiDescTable.reset_reg.AddressSpaceID == 1)
+    {
+        WRITE_PORT_UCHAR(ULongToPtr(HalpFixedAcpiDescTable.reset_reg.Address.LowPart), HalpFixedAcpiDescTable.reset_val);
+    }
+    else if (HalpFixedAcpiDescTable.reset_reg.AddressSpaceID == 2)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+Finish:
 
     /* Generate RESET signal via keyboard controller */
     WRITE_PORT_UCHAR((PUCHAR)0x64, 0xFE);
