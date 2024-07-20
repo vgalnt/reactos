@@ -1259,7 +1259,35 @@ IdeSendFlushCommandExt(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    UCHAR Command;
+
+    Command = HwDeviceExtension->DeviceParameters[Srb->TargetId].IdePioFlushCommandExt;
+    if (Command == 0xFF)
+        return 1;
+
+    DPRINT("IdeSendFlushCommandExt: device %X, srb %X\n", Srb->TargetId, Srb);
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Srb->TargetId & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+    HwDeviceExtension->TransferDataBuffer = (PUCHAR)Srb->DataBuffer;
+    HwDeviceExtension->TransferDataBytes = Srb->DataTransferLength;
+
+    HwDeviceExtension->ExpectingInterrupt = 1;
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Features, 0);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, 0);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaLow, 0);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaMid, 0);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaHigh, 0);
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Features, 0);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, 0);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaLow, 0);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaMid, 0);
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaHigh, 0);
+
+    WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, Command);
+
     return 0;
 }
 
