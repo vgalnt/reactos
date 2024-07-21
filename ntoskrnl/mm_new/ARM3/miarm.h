@@ -1929,7 +1929,6 @@ InitializePool(
     _In_ ULONG Threshold
 );
 
-INIT_FUNCTION
 VOID
 NTAPI
 ExInitializePoolDescriptor(

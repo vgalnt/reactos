@@ -674,7 +674,6 @@ ExpRemovePoolTracker(
     DPRINT1("Out of pool tag space, ignoring...\n");
 }
 
-INIT_FUNCTION
 VOID
 NTAPI
 ExInitializePoolDescriptor(
