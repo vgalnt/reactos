@@ -97,6 +97,7 @@ typedef struct _INTEL_CONTROLLER_EXTENSION
     USHORT DeviceId;
     UCHAR Pad[2];
     ULONG SupportedTransferMode[2][2];
+    UCHAR CableReporting[2][2];
     ULONG UdmaSpeed;
     IDENTIFY_DATA IdentifyData[2];
 } INTEL_CONTROLLER_EXTENSION, *PINTEL_CONTROLLER_EXTENSION;

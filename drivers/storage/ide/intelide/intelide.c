@@ -10,6 +10,21 @@
 //#define NDEBUG
 #include <debug.h>
 
+UCHAR PiixSpecialTiming[5] =
+{
+    0, 2, 1, 3, 3
+};
+
+UCHAR PiixIoReadySamplePointClockSetting[5] =
+{
+    0, 0, 1, 2, 2
+};
+
+UCHAR PiixRecoveryTimeClockSetting[5] =
+{
+    0, 0, 0, 1, 3
+};
+
 
 IDE_CHANNEL_STATE
 NTAPI 
@@ -115,8 +130,318 @@ PiixIdepTransferModeSelect(
     _Out_ INTEL_ULTRA_DMA_CONTROL* OutUdmaControl,
     _Out_ INTEL_ULTRA_DMA_TIMING* OutUdmaTiming)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    INTEL_MODES_TIMING_AND_CONTROL TimingAndControl;
+    INTEL_SLAVE_IDE_TIMING SlaveTiming;
+    INTEL_ULTRA_DMA_CONTROL UdmaControl;
+    INTEL_ULTRA_DMA_TIMING UdmaTiming;
+    PULONG TimingTable;
+    ULONG XferModeSupported;
+    ULONG EnableUdma66;
+    ULONG XferMode[2];
+    ULONG TempMode;
+    ULONG Channel;
+    ULONG Timing;
+    ULONG Mode;
+    ULONG Idx;
+    ULONG ix;
+    UCHAR DeviceUdmaTiming;
+
+    Channel = XferModeSelect->Channel;
+    DPRINT("PiixIdepTransferModeSelect: Channel %X\n", Channel);
+
+    TimingAndControl.AsUSHORT = 0;
+    SlaveTiming.AsUCHAR = 0;
+
+    TimingTable = XferModeSelect->TransferModeTimingTable;
+    ASSERT(TimingTable);
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        EnableUdma66 = XferModeSelect->EnableUDMA66;
+
+        if (!XferModeSelect->DevicePresent[ix])
+            continue;
+
+        XferModeSupported = XferModeSelect->DeviceTransferModeSupported[ix];
+
+        if (DeviceExtension->UdmaSpeed == 1)
+            XferModeSupported &= 0x3FFF;
+        else if (DeviceExtension->UdmaSpeed == 2)
+            XferModeSupported &= 0xFFFF;
+        else if (DeviceExtension->UdmaSpeed == 3)
+            XferModeSupported &= 0x1FFFF;
+        else
+            XferModeSupported &= 0x7FF;
+
+        if (DeviceExtension->UdmaSpeed == 3)
+            EnableUdma66 = 1;
+
+        if (!(DeviceExtension->CableReporting[Channel][ix] && EnableUdma66))
+            XferModeSupported &= 0x3FFF;
+
+        TempMode = (XferModeSupported >> 5);
+
+        for (Mode = 5; TempMode; Mode++)
+            TempMode >>= 1;
+
+        Mode--;
+
+        if (Mode >= 0xB)
+            XferMode[ix] = (1 << Mode);
+        else
+            XferMode[ix] = 0;
+
+        XferModeSupported = (XferModeSelect->DeviceTransferModeSupported[ix] & 0x7E0);
+
+        TempMode = (XferModeSupported >> 5);
+
+        for (Mode = 5; TempMode; Mode++)
+            TempMode >>= 1;
+
+        Mode--;
+
+        if (Mode >= 9)
+        {
+            while (Mode >= 7)
+            {
+                if (Mode == 8)
+                {
+                    Mode--;
+                    continue;
+                }
+
+                if (XferModeSelect->BestMwDmaCycleTime[ix] <= TimingTable[Mode])
+                {
+                    XferMode[ix] |= (1 << Mode);
+                    break;
+                }
+
+                Mode--;
+            }
+        }
+        else if (Mode == 7)
+        {
+            if (XferModeSelect->BestSwDmaCycleTime[ix] <= TimingTable[Mode])
+                XferMode[ix] |= 0x80;
+        }
+
+        XferModeSupported = XferModeSelect->DeviceTransferModeSupported[ix];
+
+        TempMode = ((XferModeSupported & 0x1F) >> 1);
+
+        for (Mode = 0; TempMode; Mode++)
+            TempMode >>= 1;
+
+        if (Mode == 2)
+        {
+            XferMode[ix] |= (1 << Mode);
+            continue;
+        }
+
+        while (Mode > 1)
+        {
+            if (XferModeSelect->BestPioCycleTime[ix] <= TimingTable[Mode])
+            {
+                XferMode[ix] |= (1 << Mode);
+                break;
+            }
+
+            Mode--;
+        }
+
+        if (Mode <= 1)
+            XferMode[ix] |= 1;
+    }
+
+    if (DeviceExtension->DeviceId == 0x1230)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        Timing = 0;
+
+        if (!XferModeSelect->DevicePresent[ix])
+        {
+            Idx = 0;
+        }
+        else
+        {
+            Idx = 1;
+
+            if (!(XferMode[ix] & 0x7FFFFFE0))
+            {
+                if (XferMode[ix] & 1)
+                {
+                    Idx = 1;
+                }
+                else if (XferMode[ix] & 4)
+                {
+                    Idx = 2;
+
+                    if (XferModeSelect->IoReadySupported[ix])
+                        Timing |= 2;
+                }
+                else if (XferMode[ix] & 8)
+                {
+                    Idx = 3;
+                }
+                else if (XferMode[ix] & 0x10)
+                {
+                    Idx = 4;
+                }
+                else
+                {
+                    ASSERT(FALSE);
+                }
+            }
+            else if (XferMode[ix] & 0x80)
+            {
+                Idx = 2;
+
+                if (XferMode[ix] & 1)
+                    Timing |= 8;
+
+                if (XferModeSelect->IoReadySupported[ix])
+                    Timing |= 2;
+            }
+            else if (XferMode[ix] & 0x200)
+            {
+                Idx = 3;
+
+                if (XferMode[ix] & 5)
+                    Timing |= 8;
+            }
+            else if (XferMode[ix] & 0x400)
+            {
+                if (XferMode[ix] & 8)
+                    Idx = 3;
+                else
+                    Idx = 4;
+
+                if (XferMode[ix] & 5)
+                    Timing |= 8;
+            }
+
+            if (XferModeSelect->FixedDisk[ix])
+                Timing |= 4;
+        }
+
+        Timing |= PiixSpecialTiming[Idx];
+
+        if (!ix)
+        {
+            TimingAndControl.ISP = PiixIoReadySamplePointClockSetting[Idx];
+            TimingAndControl.RecoveryTime = PiixRecoveryTimeClockSetting[Idx];
+
+            TimingAndControl.TIME0 = ((Timing & 1) ? 1 : 0);
+            TimingAndControl.IE0 = ((Timing & 2) ? 1 : 0);
+            TimingAndControl.PPE0 = ((Timing & 4) ? 1 : 0);
+            TimingAndControl.DTE0 = ((Timing & 8) ? 1 : 0);
+        }
+        else if (!Channel)
+        {
+            SlaveTiming.IordySamplePoint1 = PiixIoReadySamplePointClockSetting[Idx];
+            SlaveTiming.RecoveryTime1 = PiixRecoveryTimeClockSetting[Idx];
+
+            TimingAndControl.TIME1 = ((Timing & 1) ? 1 : 0);
+            TimingAndControl.IE1 = ((Timing & 2) ? 1 : 0);
+            TimingAndControl.PPE1 = ((Timing & 4) ? 1 : 0);
+            TimingAndControl.DTE1 = ((Timing & 8) ? 1 : 0);
+        }
+        else
+        {
+            SlaveTiming.IordySamplePoint2 = PiixIoReadySamplePointClockSetting[Idx];
+            SlaveTiming.RecoveryTime2 = PiixRecoveryTimeClockSetting[Idx];
+
+            TimingAndControl.TIME1 = ((Timing & 1) ? 1 : 0);
+            TimingAndControl.IE1 = ((Timing & 2) ? 1 : 0);
+            TimingAndControl.PPE1 = ((Timing & 4) ? 1 : 0);
+            TimingAndControl.DTE1 = ((Timing & 8) ? 1 : 0);
+        }
+    }
+
+    if (DeviceExtension->DeviceId == 0x1230)
+        SlaveTiming.AsUCHAR = 0;
+    else
+        TimingAndControl.SITRE = 1;        
+
+    TimingAndControl.IdeDecodeEnable = 1;
+
+    UdmaControl.AsUCHAR = 0;
+    UdmaTiming.AsUSHORT = 0;
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        if (XferMode[ix] & 0x7FFFF800)
+        {
+            if (XferMode[ix] & 0x10000)
+            {
+                DeviceUdmaTiming = 1;
+            }
+            else if (XferMode[ix] & 0x8000)
+            {
+                DeviceUdmaTiming = 2;
+            }
+            else if (XferMode[ix] & 0x4000)
+            {
+                DeviceUdmaTiming = 1;
+            }
+            else if (XferMode[ix] & 0x2000)
+            {
+                DeviceUdmaTiming = 2;
+            }
+            else if (XferMode[ix] & 0x1000)
+            {
+                DeviceUdmaTiming = 1;
+            }
+            else if (XferMode[ix] & 0x800)
+            {
+                DeviceUdmaTiming = 0;
+            }
+            else
+            {
+                ASSERT(!"intelide: Unknown UDMA MODE\n");
+                DeviceUdmaTiming = 1;
+            }
+
+            // ?? Why are only Primary used for UdmaTiming? (PCT0 and PCT1)
+
+            if (ix == 0)
+            {
+                if (!Channel)
+                    UdmaControl.PSDE0 = 1;
+                else
+                    UdmaControl.SSDE0 = 1;
+
+                UdmaTiming.PCT0 = DeviceUdmaTiming;
+            }
+            else
+            {
+                ASSERT(ix == 1);
+
+                if (!Channel)
+                    UdmaControl.PSDE1 = 1;
+                else
+                    UdmaControl.SSDE1 = 1;
+
+                UdmaTiming.PCT1 = DeviceUdmaTiming;
+            }
+
+            XferMode[ix] &= ~(0x700 | 0xE0);
+        }
+    }
+
+    for (ix = 0; ix < 2; ix++)
+        OutXferMode[ix] = XferMode[ix];
+
+    *OutTimingAndControl = TimingAndControl;
+    *OutSlaveTiming = SlaveTiming;
+    *OutUdmaControl = UdmaControl;
+    *OutUdmaTiming = UdmaTiming;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
