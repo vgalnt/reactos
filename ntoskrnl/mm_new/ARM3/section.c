@@ -9598,6 +9598,16 @@ Exit:
 
 NTSTATUS
 NTAPI
+MiUnmapViewInSystemSpace(
+    _In_ PMMSESSION Session,
+    _In_ PVOID MappedBase)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 MmUnmapViewInSessionSpace(
     _In_ PVOID MappedBase)
 {
@@ -9610,8 +9620,8 @@ NTAPI
 MmUnmapViewInSystemSpace(
     _In_ PVOID MappedBase)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+    return MiUnmapViewInSystemSpace(&MmSession, MappedBase);
 }
 
 NTSTATUS
