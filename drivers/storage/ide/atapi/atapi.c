@@ -4570,11 +4570,14 @@ IdePortDispatchPower(
 NTSTATUS
 NTAPI
 IdePortStatusSuccessAndPassDownToNextDriver(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+
+    return IdePortPassDownToNextDriver(Fdo, Irp);
 }
 
 NTSTATUS
