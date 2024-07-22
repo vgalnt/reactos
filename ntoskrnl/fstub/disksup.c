@@ -2244,7 +2244,7 @@ FailOpen:
         Status = HalpQueryDriveLayout(&PartitionName, &DriveLayoutInfo);
         if (!NT_SUCCESS(Status))
         {
-            DPRINT1("IoAssignDriveLetters: Status %X\n", Status);
+            DPRINT("IoAssignDriveLetters: Status %X\n", Status);
             DriveLayoutInfo = NULL;
         }
 
@@ -2258,7 +2258,7 @@ FailOpen:
             Status = HalpQueryPartitionType(&PartitionName, DriveLayoutInfo, &PartitionType);
             if (!NT_SUCCESS(Status))
             {
-                DPRINT1("IoAssignDriveLetters: Status %X\n", Status);
+                DPRINT("IoAssignDriveLetters: Status %X\n", Status);
                 break;
             }
 
@@ -2289,7 +2289,7 @@ FailOpen:
             Status = HalpQueryPartitionType(&PartitionName, DriveLayoutInfo, &PartitionType);
             if (!NT_SUCCESS(Status))
             {
-                DPRINT1("IoAssignDriveLetters: Status %X\n", Status);
+                DPRINT("IoAssignDriveLetters: Status %X\n", Status);
                 break;
             }
 
@@ -2319,7 +2319,7 @@ FailOpen:
         Status = HalpQueryDriveLayout(&PartitionName, &DriveLayoutInfo);
         if (!NT_SUCCESS(Status))
         {
-            DPRINT1("IoAssignDriveLetters: Status %X\n", Status);
+            DPRINT("IoAssignDriveLetters: Status %X\n", Status);
             DriveLayoutInfo = NULL;
         }
 
@@ -2331,7 +2331,7 @@ FailOpen:
             Status = HalpQueryPartitionType(&PartitionName, DriveLayoutInfo, &PartitionType);
             if (!NT_SUCCESS(Status))
             {
-                DPRINT1("IoAssignDriveLetters: Status %X\n", Status);
+                DPRINT("IoAssignDriveLetters: Status %X\n", Status);
                 break;
             }
 
@@ -2358,7 +2358,7 @@ FailOpen:
         Status = HalpQueryDriveLayout(&PartitionName, &DriveLayoutInfo);
         if (!NT_SUCCESS(Status))
         {
-            DPRINT1("IoAssignDriveLetters: Status %X\n", Status);
+            DPRINT("IoAssignDriveLetters: Status %X\n", Status);
             DriveLayoutInfo = NULL;
         }
 
@@ -2370,14 +2370,14 @@ FailOpen:
             Status = HalpQueryPartitionType(&PartitionName, DriveLayoutInfo, &PartitionType);
             if (!NT_SUCCESS(Status))
             {
-                DPRINT1("IoAssignDriveLetters: Status %X\n", Status);
+                DPRINT("IoAssignDriveLetters: Status %X\n", Status);
                 break;
             }
 
             if ((PartitionType == 0) || (PartitionType == 1 && number == 0))
             {
                 number = PartitionNumber;
-                DPRINT1("IoAssignDriveLetters: number %X\n", number);
+                DPRINT("IoAssignDriveLetters: number %X\n", number);
             }
         }
 
@@ -2392,7 +2392,7 @@ FailOpen:
             Status = HalpQueryPartitionType(&PartitionName, DriveLayoutInfo, &PartitionType);
             if (!NT_SUCCESS(Status))
             {
-                DPRINT1("IoAssignDriveLetters: Status %X\n", Status);
+                DPRINT("IoAssignDriveLetters: Status %X\n", Status);
                 break;
             }
 
