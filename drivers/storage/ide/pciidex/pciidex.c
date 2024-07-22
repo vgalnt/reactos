@@ -1397,9 +1397,20 @@ NTAPI
 StatusSuccessAndPassDownToNextDriver(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+
+    PAGED_CODE();
+    DPRINT("StatusSuccessAndPassDownToNextDriver: %p, %p\n", Fdo, Irp);
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    IoSkipCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+
+    return IoCallDriver(FdoExtension->LowDevice, Irp);
 }
 
 NTSTATUS
