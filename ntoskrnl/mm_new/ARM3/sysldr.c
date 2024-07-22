@@ -1183,7 +1183,7 @@ MiEnablePagingOfDriver(
 
     if (MmDisablePagingExecutive)
     {
-        DPRINT1("MiEnablePagingOfDriver: MmDisablePagingExecutive ... return.\n");
+        DPRINT("MiEnablePagingOfDriver: MmDisablePagingExecutive ... return.\n");
         return;
     }
 
@@ -1509,7 +1509,7 @@ LoaderScan:
         /* Check if KD is enabled */
         if (KdDebuggerEnabled && !KdDebuggerNotPresent)
         {
-            DPRINT1("MmLoadSystemImage: FIXME: Attempt to get image from KD\n");
+            DPRINT("MmLoadSystemImage: FIXME: Attempt to get image from KD\n");
         }
 
         /* We don't have a valid entry */
