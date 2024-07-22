@@ -7668,14 +7668,55 @@ ChannelRemoveDevice(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+NTAPI
+ChannelDisableInterrupt(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 ChannelStopDevice(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS (NTAPI* IntControl)(PVOID Context, BOOLEAN IsDisconnectOrReconnect);
+    PFDO_DEVICE_EXTENSION FdoExtension;
+    NTSTATUS Status;
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    DPRINT("ChannelStopDevice: %p (%X) got a STOP device\n", Fdo->DeviceExtension, FdoExtension->ResourceData.CmdBlockBase);
+
+    ChannelDisableInterrupt(FdoExtension);
+
+    if (FdoExtension->InterruptObject)
+    {
+        if (FdoExtension->InterruptInterface.InterruptControl)
+        {
+            DPRINT("ChannelStopDevice: %p invoking reconnect\n", FdoExtension);
+
+            IntControl = FdoExtension->InterruptInterface.InterruptControl;
+            Status = IntControl(FdoExtension->InterruptInterface.Context, FALSE);
+            ASSERT(NT_SUCCESS(Status));
+        }
+
+        IoDisconnectInterrupt(FdoExtension->InterruptObject);
+        FdoExtension->InterruptObject = NULL;
+    }
+
+    if (FdoExtension->FdoState & 2)
+    {
+        FdoExtension->FdoState &= ~2;
+        FdoExtension->FdoState |= 4;
+    }
+
+    IoSkipCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+
+    return IoCallDriver(FdoExtension->LowDevice, Irp);
 }
 
 NTSTATUS
