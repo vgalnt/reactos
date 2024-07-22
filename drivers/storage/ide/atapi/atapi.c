@@ -4383,8 +4383,8 @@ IdePortSetFdoPowerState(
     POWER_STATE State;
     BOOLEAN SystemPowerContext = FALSE;
     BOOLEAN DevicePowerContext = FALSE;
+    BOOLEAN IsNeedChangeState = FALSE;
     NTSTATUS Status;
-    BOOLEAN IsNeedChangeState;
 
     DPRINT("IdePortSetFdoPowerState: %p, %p\n", Fdo, Irp);
 
@@ -4442,7 +4442,7 @@ IdePortSetFdoPowerState(
                 return STATUS_PENDING;
             }
 
-            IsNeedChangeState = 1;
+            IsNeedChangeState = TRUE;
         }
     }
     else if (IoStack->Parameters.Power.Type == 1)
@@ -4458,10 +4458,6 @@ IdePortSetFdoPowerState(
                 PoSetPowerState(Fdo, DevicePowerState, IoStack->Parameters.Power.State);
 
             IsNeedChangeState = TRUE;
-        }
-        else
-        {
-            IsNeedChangeState = FALSE;
         }
     }
     else 
