@@ -42,42 +42,42 @@ PipDumpCmResourceDescriptor(
 
     if (Descriptor == NULL)
     {
-        DPRINT1("Dump CmDescriptor: Descriptor == NULL\n");
+        DbgPrint("Dump CmDescriptor: Descriptor == NULL\n");
         return;
     }
 
     switch (Descriptor->Type)
     {
         case CmResourceTypePort:
-            DPRINT1("[%p:%X:%X] IO:  Start %X:%X, Len %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Port.Start.HighPart, Descriptor->u.Port.Start.LowPart, Descriptor->u.Port.Length);
+            DbgPrint("[%p:%X:%X] IO:  Start %X:%X, Len %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Port.Start.HighPart, Descriptor->u.Port.Start.LowPart, Descriptor->u.Port.Length);
             break;
 
         case CmResourceTypeInterrupt:
-            DPRINT1("[%p:%X:%X] INT: Lev %X Vec %X Aff %IX\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Interrupt.Level, Descriptor->u.Interrupt.Vector, Descriptor->u.Interrupt.Affinity);
+            DbgPrint("[%p:%X:%X] INT: Lev %X Vec %X Aff %IX\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Interrupt.Level, Descriptor->u.Interrupt.Vector, Descriptor->u.Interrupt.Affinity);
             break;
 
         case CmResourceTypeMemory:
-            DPRINT1("[%p:%X:%X] MEM: %X:%X Len %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Memory.Start.HighPart, Descriptor->u.Memory.Start.LowPart, Descriptor->u.Memory.Length);
+            DbgPrint("[%p:%X:%X] MEM: %X:%X Len %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Memory.Start.HighPart, Descriptor->u.Memory.Start.LowPart, Descriptor->u.Memory.Length);
             break;
 
         case CmResourceTypeDma:
-            DPRINT1("[%p:%X:%X] DMA: Channel %X Port %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Dma.Channel, Descriptor->u.Dma.Port);
+            DbgPrint("[%p:%X:%X] DMA: Channel %X Port %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.Dma.Channel, Descriptor->u.Dma.Port);
             break;
 
         case CmResourceTypeDeviceSpecific:
-            DPRINT1("[%p:%X:%X] DAT: DataSize %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.DeviceSpecificData.DataSize);
+            DbgPrint("[%p:%X:%X] DAT: DataSize %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.DeviceSpecificData.DataSize);
             break;
 
         case CmResourceTypeBusNumber:
-            DPRINT1("[%p:%X:%X] BUS: Start %X Len %X Reserv %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.BusNumber.Start, Descriptor->u.BusNumber.Length, Descriptor->u.BusNumber.Reserved);
+            DbgPrint("[%p:%X:%X] BUS: Start %X Len %X Reserv %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.BusNumber.Start, Descriptor->u.BusNumber.Length, Descriptor->u.BusNumber.Reserved);
             break;
 
         case CmResourceTypeDevicePrivate:
-            DPRINT1("[%p:%X:%X] PVT: D[0] %X D[1] %X D[2] %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.DevicePrivate.Data[0], Descriptor->u.DevicePrivate.Data[1], Descriptor->u.DevicePrivate.Data[2]);
+            DbgPrint("[%p:%X:%X] PVT: D[0] %X D[1] %X D[2] %X\n", Descriptor, Descriptor->ShareDisposition, Descriptor->Flags, Descriptor->u.DevicePrivate.Data[0], Descriptor->u.DevicePrivate.Data[1], Descriptor->u.DevicePrivate.Data[2]);
             break;
 
         default:
-            DPRINT1("[%p] Unknown type %X\n", Descriptor, Descriptor->Type);
+            DbgPrint("[%p] Unknown type %X\n", Descriptor, Descriptor->Type);
             break;
     }
 }
@@ -131,27 +131,27 @@ PipDumpCmResourceList(
 #endif
     }
 
-    DPRINT1("Dump CmList: CmResource %p\n", CmResource);
+    DbgPrint("Dump CmList: CmResource %p\n", CmResource);
 
     if (CmResource == NULL)
     {
-        DPRINT1("PipDumpCmResourceList: CmResource == NULL\n");
+        DbgPrint("PipDumpCmResourceList: CmResource == NULL\n");
         return;
     }
 
     if (CmResource->Count == 0)
     {
-        DPRINT1("PipDumpCmResourceList: CmResource->Count == 0\n");
+        DbgPrint("PipDumpCmResourceList: CmResource->Count == 0\n");
         return;
     }
 
-    DPRINT1("FullList Count %x\n", CmResource->Count);
+    DbgPrint("FullList Count %x\n", CmResource->Count);
 
     FullList = &CmResource->List[0];
 
     for (ix = 0; ix < CmResource->Count; ix++)
     {
-        DPRINT1("List #%X Iface %X Bus #%X Ver.%X Rev.%X Count %X\n",
+        DbgPrint("List #%X Iface %X Bus #%X Ver.%X Rev.%X Count %X\n",
                 ix,
                 FullList->InterfaceType,
                 FullList->BusNumber,
@@ -195,46 +195,46 @@ PipDumpIoResourceDescriptor(
 
     if (Descriptor == NULL)
     {
-        DPRINT1("DumpResourceDescriptor: Descriptor == 0\n");
+        DbgPrint("DumpResourceDescriptor: Descriptor == 0\n");
         return;
     }
 
     switch (Descriptor->Type)
     {
         case CmResourceTypeNull:
-            DPRINT1("[%p:%X:%X] O: Len %X Align %X Min %I64X, Max %I64X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Generic.Length, Descriptor->u.Generic.Alignment, Descriptor->u.Generic.MinimumAddress.QuadPart, Descriptor->u.Generic.MaximumAddress.QuadPart);
+            DbgPrint("[%p:%X:%X] O: Len %X Align %X Min %I64X, Max %I64X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Generic.Length, Descriptor->u.Generic.Alignment, Descriptor->u.Generic.MinimumAddress.QuadPart, Descriptor->u.Generic.MaximumAddress.QuadPart);
             break;
 
         case CmResourceTypePort:
-            DPRINT1("[%p:%X:%X] IO: Min %X:%X, Max %X:%X, Align %X Len %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Port.MinimumAddress.HighPart, Descriptor->u.Port.MinimumAddress.LowPart, Descriptor->u.Port.MaximumAddress.HighPart, Descriptor->u.Port.MaximumAddress.LowPart, Descriptor->u.Port.Alignment, Descriptor->u.Port.Length);
+            DbgPrint("[%p:%X:%X] IO: Min %X:%X, Max %X:%X, Align %X Len %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Port.MinimumAddress.HighPart, Descriptor->u.Port.MinimumAddress.LowPart, Descriptor->u.Port.MaximumAddress.HighPart, Descriptor->u.Port.MaximumAddress.LowPart, Descriptor->u.Port.Alignment, Descriptor->u.Port.Length);
             break;
 
         case CmResourceTypeInterrupt:
-            DPRINT1("[%p:%X:%X] INT: Min %X Max %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Interrupt.MinimumVector, Descriptor->u.Interrupt.MaximumVector);
+            DbgPrint("[%p:%X:%X] INT: Min %X Max %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Interrupt.MinimumVector, Descriptor->u.Interrupt.MaximumVector);
             break;
 
         case CmResourceTypeMemory:
-            DPRINT1("[%p:%X:%X] MEM: Min %X:%X, Max %X:%X, Align %X Len %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Memory.MinimumAddress.HighPart, Descriptor->u.Memory.MinimumAddress.LowPart, Descriptor->u.Memory.MaximumAddress.HighPart, Descriptor->u.Memory.MaximumAddress.LowPart, Descriptor->u.Memory.Alignment, Descriptor->u.Memory.Length);
+            DbgPrint("[%p:%X:%X] MEM: Min %X:%X, Max %X:%X, Align %X Len %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Memory.MinimumAddress.HighPart, Descriptor->u.Memory.MinimumAddress.LowPart, Descriptor->u.Memory.MaximumAddress.HighPart, Descriptor->u.Memory.MaximumAddress.LowPart, Descriptor->u.Memory.Alignment, Descriptor->u.Memory.Length);
             break;
 
         case CmResourceTypeDma:
-            DPRINT1("[%p:%X:%X] DMA: Min %X Max %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Dma.MinimumChannel, Descriptor->u.Dma.MaximumChannel);
+            DbgPrint("[%p:%X:%X] DMA: Min %X Max %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.Dma.MinimumChannel, Descriptor->u.Dma.MaximumChannel);
             break;
 
         case CmResourceTypeBusNumber:
-            DPRINT1("[%p:%X:%X] BUS: Min %X Max %X Len %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.BusNumber.MinBusNumber, Descriptor->u.BusNumber.MaxBusNumber, Descriptor->u.BusNumber.Length);
+            DbgPrint("[%p:%X:%X] BUS: Min %X Max %X Len %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.BusNumber.MinBusNumber, Descriptor->u.BusNumber.MaxBusNumber, Descriptor->u.BusNumber.Length);
             break;
 
         case CmResourceTypeConfigData:
-            DPRINT1("[%p:%X:%X] CFG: Priority %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.ConfigData.Priority);
+            DbgPrint("[%p:%X:%X] CFG: Priority %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.ConfigData.Priority);
             break;
 
         case CmResourceTypeDevicePrivate:
-            DPRINT1("[%p:%X:%X] DAT: %X %X %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.DevicePrivate.Data[0], Descriptor->u.DevicePrivate.Data[1], Descriptor->u.DevicePrivate.Data[2]);
+            DbgPrint("[%p:%X:%X] DAT: %X %X %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->u.DevicePrivate.Data[0], Descriptor->u.DevicePrivate.Data[1], Descriptor->u.DevicePrivate.Data[2]);
             break;
 
         default:
-            DPRINT1("[%p:%X:%X]. Unknown type %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->Type);
+            DbgPrint("[%p:%X:%X]. Unknown type %X\n", Descriptor, Descriptor->Option, Descriptor->ShareDisposition, Descriptor->Type);
             break;
     }
 }
@@ -266,12 +266,12 @@ PipDumpResourceRequirementsList(
 
     if (IoResource == NULL)
     {
-        DPRINT1("PipDumpResourceRequirementsList: IoResource == 0\n");
+        DbgPrint("PipDumpResourceRequirementsList: IoResource == 0\n");
         return;
     }
 
-    DPRINT1("Dump RequirementsList: IoResource %p\n", IoResource);
-    DPRINT1("Interface %X Bus %X Slot %X AlternativeLists %X\n",
+    DbgPrint("Dump RequirementsList: IoResource %p\n", IoResource);
+    DbgPrint("Interface %X Bus %X Slot %X AlternativeLists %X\n",
             IoResource->InterfaceType,
             IoResource->BusNumber,
             IoResource->SlotNumber,
@@ -281,13 +281,13 @@ PipDumpResourceRequirementsList(
 
     if (IoResource->AlternativeLists < 1)
     {
-        DPRINT1("PipDumpResourceRequirementsList: AlternativeLists < 1\n");
+        DbgPrint("PipDumpResourceRequirementsList: AlternativeLists < 1\n");
         return;
     }
 
     for (ix = 0; ix < IoResource->AlternativeLists; ix++)
     {
-        DPRINT1("AltList %p, AltList->Count %X\n", AltList, AltList->Count);
+        DbgPrint("AltList %p, AltList->Count %X\n", AltList, AltList->Count);
 
         for (jx = 0; jx < AltList->Count; jx++)
         {
@@ -296,7 +296,7 @@ PipDumpResourceRequirementsList(
         }
 
         AltList = (PIO_RESOURCE_LIST)(AltList->Descriptors + AltList->Count);
-        DPRINT1("End Descriptors %p\n", AltList);
+        DbgPrint("End Descriptors %p\n", AltList);
     }
 }
 
@@ -378,7 +378,7 @@ PipGetDeviceNodeStateName(
 
     if (State != MaxDeviceNodeState)
     {
-        DPRINT1("PipGetDeviceNodeStateName: Unknown State %X\n", State);
+        DbgPrint("PipGetDeviceNodeStateName: Unknown State %X\n", State);
     }
 
     return L"";
@@ -426,17 +426,17 @@ PipDumpDeviceNode(
 #endif
     }
 
-    DPRINT1("* Level %X DevNode %p for PDO %p\n", NodeLevel, DeviceNode, DeviceNode->PhysicalDeviceObject);
-    DPRINT1("Instance    %wZ\n", &DeviceNode->InstancePath);
+    DbgPrint("* Level %X DevNode %p for PDO %p\n", NodeLevel, DeviceNode, DeviceNode->PhysicalDeviceObject);
+    DbgPrint("Instance    %wZ\n", &DeviceNode->InstancePath);
 if (DeviceNode->ServiceName.Length)
-    DPRINT1("Service     %wZ\n", &DeviceNode->ServiceName);
+    DbgPrint("Service     %wZ\n", &DeviceNode->ServiceName);
 #if 0
     /* It is not used yet */
-    DPRINT1("State       %X %S\n", DeviceNode->State, PipGetDeviceNodeStateName(DeviceNode->State));
-    DPRINT1("Prev State  %X %S\n", DeviceNode->PreviousState, PipGetDeviceNodeStateName(DeviceNode->PreviousState));
+    DbgPrint("State       %X %S\n", DeviceNode->State, PipGetDeviceNodeStateName(DeviceNode->State));
+    DbgPrint("Prev State  %X %S\n", DeviceNode->PreviousState, PipGetDeviceNodeStateName(DeviceNode->PreviousState));
 #endif
 if (DeviceNode->Problem)
-    DPRINT1("Problem     %X\n", DeviceNode->Problem);
+    DbgPrint("Problem     %X\n", DeviceNode->Problem);
 #if 0
     /* It is not implemeted yet */
     PipDumpArbiters(DeviceNode, NodeLevel);
@@ -447,13 +447,13 @@ if (DeviceNode->Problem)
     {
         if (DeviceNode->ResourceList)
         {
-            DPRINT1("---------- ResourceList ----------\n");
+            DbgPrint("---------- ResourceList ----------\n");
             PipDumpCmResourceList(DeviceNode->ResourceList, DebugLevel);
         }
 
         if (DeviceNode->BootResources)
         {
-            DPRINT1("---------- BootResources ----------\n");
+            DbgPrint("---------- BootResources ----------\n");
             PipDumpCmResourceList(DeviceNode->BootResources, DebugLevel);
         }
     }
@@ -463,7 +463,7 @@ if (DeviceNode->Problem)
     {
         if (DeviceNode->ResourceRequirements)
         {
-            DPRINT1("---------- ResourceRequirements ----------\n");
+            DbgPrint("---------- ResourceRequirements ----------\n");
             PipDumpResourceRequirementsList(DeviceNode->ResourceRequirements, DebugLevel);
         }
     }
@@ -473,7 +473,7 @@ if (DeviceNode->Problem)
     {
         if (DeviceNode->ResourceListTranslated)
         {
-            DPRINT1("---------- ResourceListTranslated ----------\n");
+            DbgPrint("---------- ResourceListTranslated ----------\n");
             PipDumpCmResourceList(DeviceNode->ResourceListTranslated, DebugLevel);
         }
     }
@@ -522,7 +522,7 @@ PipDumpDeviceNodes(
 #endif
     }
 
-    DPRINT1("PipDumpDeviceNodes: [%X] Flags %X Level %X\n", DeviceNode, Flags, DebugLevel);
+    DbgPrint("PipDumpDeviceNodes: [%X] Flags %X Level %X\n", DeviceNode, Flags, DebugLevel);
 
     if (DeviceNode == NULL)
         DeviceNode = IopRootDeviceNode;
@@ -589,7 +589,7 @@ IopGetBusName(
          return L"Root";
 
        default:
-         DPRINT1("Invalid bus type: %d\n", IfType);
+         DbgPrint("Invalid bus type: %d\n", IfType);
          return NULL;
     }
 }
