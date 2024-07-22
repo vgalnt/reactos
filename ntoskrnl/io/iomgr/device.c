@@ -683,8 +683,8 @@ IopGetRelatedTargetDevice(
 #if DBG
         PDEVICE_NODE deviceNode = IopGetDeviceNode(DeviceObject);
 
-        DPRINT1("IopGetRelatedTargetDevice: TargetDeviceRelation\n");
-        DPRINT1("Device %p, Driver %p\n", DeviceObject, DeviceObject->DriverObject);
+        DPRINT("IopGetRelatedTargetDevice: TargetDeviceRelation\n");
+        DPRINT("Device %p, Driver %p\n", DeviceObject, DeviceObject->DriverObject);
 
         if (DeviceObject->DriverObject->DriverExtension->ServiceKeyName.Buffer)
         {
