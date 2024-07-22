@@ -4240,7 +4240,8 @@ FdoPowerCompletionRoutine(
     PATAPI_SET_POWER_CONTEXT Context = context;
     PFDO_DEVICE_EXTENSION FdoExtension;
     POWER_STATE State;
-    BOOLEAN IsSetSystemWorking = FALSE;
+    BOOLEAN IsCompleted = TRUE;
+    BOOLEAN IsLockedContext = TRUE;
     BOOLEAN IsSetDeviceSet;
     NTSTATUS Status;
 
@@ -4250,7 +4251,7 @@ FdoPowerCompletionRoutine(
 
     if (!NT_SUCCESS(Irp->IoStatus.Status))
     {
-        DPRINT("FdoPowerCompletionRoutine: devobj %p failed power irp %p\n", FdoExtension->LowDevice, Irp);
+        DPRINT1("FdoPowerCompletionRoutine: devobj %p failed power irp %p\n", FdoExtension->LowDevice, Irp);
 
         if (Context->Type == SystemPowerState)
         {
@@ -4262,96 +4263,109 @@ FdoPowerCompletionRoutine(
             ASSERT(FdoExtension->PendingDevicePowerIrp == Irp);
             FdoExtension->PendingDevicePowerIrp = NULL;
         }
-    }
-    else
-    {
-        if (Context->Type == SystemPowerState)
-        {
-            FdoExtension->SystemPowerState = Context->State.SystemState;
 
-            if (Context->State.SystemState == PowerSystemWorking)
-            {
-                ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
-                ASSERT(FdoExtension->PendingSystemPowerIrp == Irp);
-
-                IsSetSystemWorking = TRUE;
-                State.SystemState = PowerSystemWorking;
-
-                Status = PoRequestPowerIrp(FdoExtension->SelfDevice, IRP_MN_SET_POWER, State, FdoSystemPowerUpCompletionRoutine, Irp, NULL);
-                ASSERT(Status == STATUS_PENDING);
-
-                DPRINT("FdoPowerCompletionRoutine: New Fdo %X system power state %X\n", FdoExtension->ResourceData.CmdBlockBase, FdoExtension->SystemPowerState);
-
-                PoSetPowerState(Fdo, Context->Type, Context->State);
-                goto Exit;
-            }
-            else
-            {
-                FdoExtension->PendingSystemPowerIrp = NULL;
-
-                DPRINT("FdoPowerCompletionRoutine: New Fdo %X system power state %X\n", FdoExtension->ResourceData.CmdBlockBase, FdoExtension->SystemPowerState);
-
-                PoSetPowerState(Fdo, Context->Type, Context->State);
-            }
-        }
-        else if (Context->Type == DevicePowerState)
-        {
-            if (Context->State.DeviceState == PowerDeviceD0 && (FdoExtension->HackFlags & 1))
-            {
-                DPRINT1("FdoPowerCompletionRoutine: FIXME\n");
-                ASSERT(FALSE);
-            }
-
-            if (Context->State.DeviceState == PowerDeviceD0 && !Context->IsTimingsRestored)
-            {
-                Status = ChannelRestoreTiming(FdoExtension, ChannelRestoreTimingCompletionRoutine, Context);
-                if (!NT_SUCCESS(Status))
-                {
-                    DPRINT1("FdoPowerCompletionRoutine: FIXME\n");
-                    ASSERT(FALSE);
-                }
-
-                return STATUS_MORE_PROCESSING_REQUIRED;
-            }
-
-            ASSERT(FdoExtension->PendingDevicePowerIrp == Irp);
-            FdoExtension->PendingDevicePowerIrp = NULL;
-
-            if (FdoExtension->DevicePowerState == PowerDeviceD0)
-                IsSetDeviceSet = FALSE;
-            else
-                IsSetDeviceSet = TRUE;
-
-            FdoExtension->DevicePowerState = Context->State.DeviceState;
-
-            if (FdoExtension->DevicePowerState == PowerDeviceD0 && FdoExtension->FdoState & 2)
-                IoInvalidateDeviceRelations(FdoExtension->LowPdo, 0);
-
-            if (IsSetDeviceSet)
-            {
-                PoSetPowerState(Fdo, Context->Type, Context->State);
-
-                if (Context->Type == SystemPowerState && Context->State.SystemState == PowerSystemWorking)
-                    goto Exit;
-            }
-        }
+        goto Finish;
     }
 
     if (Context->Type == SystemPowerState)
-        ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
-    else
-        ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[1]), 0, 1) == 1);
-
-Exit:
-
-    if (IsSetSystemWorking)
     {
-        Status = STATUS_MORE_PROCESSING_REQUIRED;
+        FdoExtension->SystemPowerState = Context->State.SystemState;
+
+        if (Context->State.SystemState == PowerSystemWorking)
+        {
+            ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
+            IsLockedContext = FALSE;
+
+            ASSERT(FdoExtension->PendingSystemPowerIrp == Irp);
+            IsCompleted = FALSE;
+
+            State.SystemState = PowerSystemWorking;
+
+            Status = PoRequestPowerIrp(FdoExtension->SelfDevice,
+                                       IRP_MN_SET_POWER,
+                                       State,
+                                       FdoSystemPowerUpCompletionRoutine,
+                                       Irp,
+                                       NULL);
+
+            ASSERT(Status == STATUS_PENDING);
+        }
+
+        if (IsCompleted)
+            FdoExtension->PendingSystemPowerIrp = NULL;
+
+        DPRINT("FdoPowerCompletionRoutine: (%X) New system power state %X\n",
+               FdoExtension->ResourceData.CmdBlockBase, Context->State.SystemState);
+
+        PoSetPowerState(Fdo, Context->Type, Context->State);
+
+        goto Finish;
     }
+
+    if (Context->Type != DevicePowerState)
+    {
+        DPRINT1("FdoPowerCompletionRoutine: Context->Type %X\n", Context->Type);
+        ASSERT(FALSE);
+        goto Finish;
+    }
+
+    if (Context->State.DeviceState == PowerDeviceD0 && (FdoExtension->HackFlags & 1))
+    {
+        DPRINT1("FdoPowerCompletionRoutine: FIXME\n");
+        ASSERT(FALSE);
+    }
+
+    if (Context->State.DeviceState == PowerDeviceD0 && !Context->IsTimingsRestored)
+    {
+        Status = ChannelRestoreTiming(FdoExtension, ChannelRestoreTimingCompletionRoutine, Context);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("FdoPowerCompletionRoutine: FIXME\n");
+            ASSERT(FALSE);
+        }
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    ASSERT(FdoExtension->PendingDevicePowerIrp == Irp);
+    FdoExtension->PendingDevicePowerIrp = NULL;
+
+    if (FdoExtension->DevicePowerState == PowerDeviceD0)
+        IsSetDeviceSet = FALSE;
     else
+        IsSetDeviceSet = TRUE;
+
+    FdoExtension->DevicePowerState = Context->State.DeviceState;
+
+    if (FdoExtension->DevicePowerState == PowerDeviceD0 && (FdoExtension->FdoState & 2))
+        IoInvalidateDeviceRelations(FdoExtension->LowPdo, 0);
+
+    if (IsSetDeviceSet)
+    {
+        DPRINT("FdoPowerCompletionRoutine: (%X) New device power state %X\n",
+               FdoExtension->ResourceData.CmdBlockBase, Context->State.DeviceState);
+
+        PoSetPowerState(Fdo, Context->Type, Context->State);
+    }
+
+Finish:
+
+    if (IsLockedContext)
+    {
+        if (Context->Type == SystemPowerState)
+            ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[0]), 0, 1) == 1);
+        else
+            ASSERT(InterlockedCompareExchange(&(FdoExtension->PowerContextLock[1]), 0, 1) == 1);
+    }
+
+    if (IsCompleted)
     {
         PoStartNextPowerIrp(Irp);
         Status = Irp->IoStatus.Status;
+    }
+    else
+    {
+        Status = STATUS_MORE_PROCESSING_REQUIRED;
     }
 
     return Status;
