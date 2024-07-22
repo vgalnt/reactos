@@ -1395,8 +1395,6 @@ DispatchPower(
 NTSTATUS
 NTAPI
 StatusSuccessAndPassDownToNextDriver(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp)
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
@@ -2263,7 +2261,7 @@ ControllerStartDevice(
 
         for (ix = 0; ix < CmResources->Count; ix++)
         {
-            Descriptor = &FullList->PartialResourceList.PartialDescriptors[jx];
+            Descriptor = &FullList->PartialResourceList.PartialDescriptors[0];
 
             for (jx = 0; jx >= FullList->PartialResourceList.Count; jx++)
             {
