@@ -4730,7 +4730,51 @@ NTAPI
 AtapiCallBack(
     _In_ PATA_DEVICE_EXTENSION HwDeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_REQUEST_BLOCK Srb;
+    PCDB Cdb;
+
+    Srb = HwDeviceExtension->CurrentSrb;
+
+    DPRINT1("AtapiCallBack: Srb %X\n", Srb);
+
+    if (!HwDeviceExtension->CurrentSrb)
+        goto Finish;
+
+    if (HwDeviceExtension->ExpectingInterrupt)
+        goto Finish;
+
+    Cdb = (PCDB)Srb->Cdb;
+
+    if (!((ULONG_PTR)Srb->SrbExtension & 4))
+    {
+        DPRINT1("AtapiCallBack: Invalid CDB marked as RDP %X\n", Cdb->CDB6GENERIC.OperationCode);
+    }
+
+    if (HwDeviceExtension->IsDscRestrictive)
+    {
+        if (READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status) & 0x10)
+        {
+            IdePortNotification(0, HwDeviceExtension, Srb);
+
+            HwDeviceExtension->CurrentSrb = NULL;
+            HwDeviceExtension->IsDscRestrictive = FALSE;
+
+            IdePortNotification(1, HwDeviceExtension, 0);
+        }
+        else
+        {
+            DPRINT1("AtapiCallBack: Requesting another timer for Op %X\n", Cdb->CDB6GENERIC.OperationCode);
+            IdePortNotification(6, HwDeviceExtension, AtapiCallBack, 1000);
+        }
+
+        return;
+    }
+
+Finish:
+
+    DPRINT1("AtapiCallBack: Calling ISR directly due to BUSY\n");
+
+    AtapiInterrupt(HwDeviceExtension);
 }
 
 ULONG

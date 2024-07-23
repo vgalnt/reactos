@@ -646,4 +646,10 @@ IssueSyncAtaPassThroughSafe(
     _In_ BOOLEAN MustSucceed
 );
 
+BOOLEAN
+NTAPI
+AtapiInterrupt(
+    _In_ PATA_DEVICE_EXTENSION HwDeviceExtension
+);
+
 #endif /* _PCIIDEX_PCH_ */
