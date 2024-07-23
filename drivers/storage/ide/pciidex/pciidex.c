@@ -3276,11 +3276,41 @@ Exit:
 NTSTATUS
 NTAPI
 ChannelQueryStopRemoveDevice(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("ChannelQueryStopRemoveDevice: %p\n", Pdo);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelQueryStopRemoveDevice: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Finish;
+    }
+
+    if (PdoExtension->Paging)
+    {
+        DPRINT1("ChannelQueryStopRemoveDevice: STATUS_UNSUCCESSFUL\n");
+        Status = STATUS_UNSUCCESSFUL;
+        goto Finish;
+    }
+
+    if (PdoExtension->DumpFile)
+    {
+        DPRINT1("ChannelQueryStopRemoveDevice: STATUS_UNSUCCESSFUL\n");
+        Status = STATUS_UNSUCCESSFUL;
+    }
+
+Finish:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
