@@ -7673,7 +7673,16 @@ NTAPI
 ChannelDisableInterrupt(
     _In_ PFDO_DEVICE_EXTENSION FdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PATA_DEVICE_EXTENSION HwDeviceExtension;
+    ULONG Device;
+
+    HwDeviceExtension = FdoExtension->HwDeviceExtension;
+
+    for (Device = 0; Device < (HwDeviceExtension->MaxIdeDevice / 2); Device++)
+    {
+        WRITE_PORT_UCHAR(HwDeviceExtension->CtrlBlock.DeviceControl, 2);
+        HwDeviceExtension = FdoExtension->HwDeviceExtension;
+    }
 }
 
 NTSTATUS
