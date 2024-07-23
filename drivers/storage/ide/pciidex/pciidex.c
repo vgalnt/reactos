@@ -3339,8 +3339,14 @@ NTAPI
 ChannelStopChannel(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    Status = BusMasterUninitialize(PdoExtension);
+    ASSERT(NT_SUCCESS(Status));
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
