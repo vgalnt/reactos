@@ -6542,8 +6542,16 @@ IdePortCompletionDpc(
              PdoExtension;
              PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, 1, IdePortCompletionDpc))
         {
-            UNIMPLEMENTED_DBGBREAK();
-            IsDeadmeat = TRUE;
+            KeAcquireSpinLockAtDpcLevel(&PdoExtension->PdoLock);
+
+            PdoExtension->PdoState |= 0x40;
+
+            if (PdoExtension->PdoFlags & 0x8000)
+                IsDeadmeat = TRUE;
+
+            KeReleaseSpinLockFromDpcLevel(&PdoExtension->PdoLock);
+
+            UnrefPdo(PdoExtension, IdePortCompletionDpc);
         }
 
         if (IsDeadmeat)
