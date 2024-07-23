@@ -3329,6 +3329,16 @@ PciIdeXAlwaysStatusSuccessIrp(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    IoCompleteRequest(Irp, 0);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
+ChannelStopChannel(
+    _In_ PPDO_DEVICE_EXTENSION PdoExtension)
+{
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -3336,11 +3346,35 @@ PciIdeXAlwaysStatusSuccessIrp(
 NTSTATUS
 NTAPI
 ChannelStopDevice(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ChannelStopDevice: %p\n", Pdo);
+
+    PdoExtension = ChannelGetPdoExtension(Pdo);
+    if (!PdoExtension)
+    {
+        DPRINT1("ChannelStopDevice: STATUS_NO_SUCH_DEVICE (%p)\n", Pdo);
+        Status = STATUS_NO_SUCH_DEVICE;
+        goto Finish;
+    }
+
+    Status = ChannelStopChannel(PdoExtension);
+    ASSERT(NT_SUCCESS(Status));
+
+    ChannelUpdatePdoState(PdoExtension, 4, 1);
+    Status = STATUS_SUCCESS;
+
+Finish:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
