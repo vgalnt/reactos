@@ -4969,8 +4969,33 @@ AtapiInterrupt(
 
     if (IdeStatus & 0x80)
     {
-        DPRINT1("AtapiInterrupt: FIXME\n");
-        ASSERT(FALSE);
+        if (HwDeviceExtension->IsDriverMustPoll)
+        {
+            DPRINT1("AtapiInterrupt: Hit IdeStatus %X while polling during crashdump.\n", IdeStatus);
+            HwDeviceExtension->IsActiveDmaTransfer = 1;
+            return TRUE;
+        }
+
+        if (IsActiveDmaTransfer)
+        {
+            DPRINT("AtapiInterrupt: End of DMA transfer but device is still BUSY. IdeStatus %X\n", IdeStatus);
+            HwDeviceExtension->ExpectingInterrupt = 0;
+            return Result;
+        }
+
+        for (ix = 0; ix < 10; ix++)
+        {
+            IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+            if (!(IdeStatus & 0x80))
+                break;
+        }
+
+        if (ix == 10)
+        {
+            DPRINT1("AtapiInterrupt: BUSY on entry. Status %X, Base IO %X\n", IdeStatus, &HwDeviceExtension->CmdBlock);
+            IdePortNotification(6, HwDeviceExtension, AtapiCallBack, 500);
+            return Result;
+        }
     }
 
     if ((IdeStatus & 1) && CurrentSrb->Cdb[0] != 3)
