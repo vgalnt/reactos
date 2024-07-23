@@ -2775,8 +2775,33 @@ NTAPI
 BusMasterUninitialize(
     _In_ PPDO_DEVICE_EXTENSION PdoExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    KIRQL Irql;
+
+    ASSERT(PdoExtension->BmState == 0);//BmIdle
+
+    if (!PdoExtension->DmaAdapter)
+        return STATUS_SUCCESS;
+
+    if (PdoExtension->PhysicalRegionDescriptorTable.QuadPart)
+    {
+        PdoExtension->DmaAdapter->DmaOperations->
+            FreeCommonBuffer(PdoExtension->DmaAdapter,
+                             (PdoExtension->MaximumPhysicalPages * sizeof(PHYSICAL_REGION_DESCRIPTOR)),
+                             PdoExtension->PhysicalRegionDescriptorTable,
+                             PdoExtension->RegionDescriptors,
+                             FALSE);
+
+        PdoExtension->RegionDescriptors = NULL;
+        PdoExtension->PhysicalRegionDescriptorTable.QuadPart = 0;
+    }
+
+    KeRaiseIrql(DISPATCH_LEVEL, &Irql);
+    PdoExtension->DmaAdapter->DmaOperations->PutDmaAdapter(PdoExtension->DmaAdapter);
+    KeLowerIrql(Irql);
+
+    PdoExtension->DmaAdapter = NULL;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
