@@ -6949,7 +6949,24 @@ IdeMiniPortTimerDpc(
     _In_ PVOID SystemArgument1,
     _In_ PVOID SystemArgument2)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_OBJECT Fdo = DeferredContext;
+    PFDO_DEVICE_EXTENSION FdoExtension;
+
+    FdoExtension = Fdo->DeviceExtension;
+
+    KeAcquireSpinLockAtDpcLevel(&FdoExtension->SpinLock);
+
+    if (FdoExtension->TimerCallBack)
+    {
+        KeSynchronizeExecution(FdoExtension->InterruptObject,
+                               (PKSYNCHRONIZE_ROUTINE)FdoExtension->TimerCallBack,
+                               FdoExtension->HwDeviceExtension);
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+
+    if (FdoExtension->InterruptData.Flags & 4)
+        IdePortCompletionDpc(NULL, FdoExtension->SelfDevice, NULL, NULL);
 }
 
 NTSTATUS
