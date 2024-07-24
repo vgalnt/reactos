@@ -6518,6 +6518,7 @@ IdePortCompletionDpc(
     if (!KeSynchronizeExecution(FdoExtension->InterruptObject, IdeGetInterruptState, SynchronizeContext))
     {
         KeReleaseSpinLockFromDpcLevel(&FdoExtension->SpinLock);
+        return;
     }
 
     if (InterruptData.CompletedRequests)
