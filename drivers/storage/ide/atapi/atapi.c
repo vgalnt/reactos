@@ -924,7 +924,7 @@ IdePortNotification(
         }
         default:
         {
-            DPRINT("IdePortNotification: Unknown NotificationType %X\n", NotificationType);
+            DPRINT1("IdePortNotification: Unknown NotificationType %X\n", NotificationType);
             ASSERT(FALSE);
             break;
         }
@@ -3801,7 +3801,7 @@ IdePortDispatch(
                     {
                         if (StartIrql != KeGetCurrentIrql())
                         {
-                            DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+                            DPRINT1("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
                             ASSERT(FALSE);
                         }
 
@@ -3813,7 +3813,7 @@ IdePortDispatch(
                     {
                         if (StartIrql != KeGetCurrentIrql())
                         {
-                            DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+                            DPRINT1("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
                             ASSERT(FALSE);
                         }
 
@@ -3882,7 +3882,7 @@ IdePortDispatch(
 
             if (StartIrql != KeGetCurrentIrql())
             {
-                DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+                DPRINT1("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
                 ASSERT(FALSE);
             }
 
@@ -3898,7 +3898,7 @@ IdePortDispatch(
 
             if (StartIrql != KeGetCurrentIrql())
             {
-                DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+                DPRINT1("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
                 ASSERT(FALSE);
             }
 
@@ -3957,7 +3957,7 @@ IdePortDispatch(
 
         if (StartIrql != KeGetCurrentIrql())
         {
-            DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+            DPRINT1("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
             ASSERT(FALSE);
         }
 
@@ -3985,7 +3985,7 @@ IdePortDispatch(
 
         if (StartIrql != KeGetCurrentIrql())
         {
-            DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+            DPRINT1("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
             ASSERT(FALSE);
         }
 
@@ -4007,7 +4007,7 @@ Exit:
 
     if (StartIrql != KeGetCurrentIrql())
     {
-        DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+        DPRINT1("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
         ASSERT(FALSE);
     }
 
@@ -4017,7 +4017,7 @@ Exit:
 
     if (StartIrql != KeGetCurrentIrql())
     {
-        DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+        DPRINT1("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
         ASSERT(FALSE);
     }
 
@@ -4025,7 +4025,7 @@ Exit:
 
     if (StartIrql != KeGetCurrentIrql())
     {
-        DPRINT("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
+        DPRINT1("IdePortDispatch: StartIrql %X, CurrentIrql %X\n", StartIrql, KeGetCurrentIrql());
         ASSERT(FALSE);
     }
 
@@ -5762,7 +5762,7 @@ IdeTranslateSrbStatus(
             break;
 
         case 0xA:
-            DPRINT1("IdeTranslateSrbStatus: STATUS_DEVICE_NOT_CONNECTED\n");
+            DPRINT("IdeTranslateSrbStatus: STATUS_DEVICE_NOT_CONNECTED\n");
             Status = STATUS_DEVICE_NOT_CONNECTED;
             break;
 
@@ -5774,7 +5774,7 @@ IdeTranslateSrbStatus(
             break;
 
         case 0x12:
-            DPRINT1("IdeTranslateSrbStatus: STATUS_INVALID_DEVICE_REQUEST\n");
+            DPRINT("IdeTranslateSrbStatus: STATUS_INVALID_DEVICE_REQUEST\n");
             Status = STATUS_INVALID_DEVICE_REQUEST;
             break;
 
@@ -6624,7 +6624,7 @@ IdePortCompletionDpc(
 
     if (InterruptData.Flags & 0x40)
     {
-        DPRINT("IdePortCompletionDpc: FIXME LogErrorEntry()\n");
+        DPRINT1("IdePortCompletionDpc: FIXME LogErrorEntry()\n");
         ASSERT(FALSE);
         //LogErrorEntry(..);
     }
@@ -7041,7 +7041,7 @@ IdePortInitFdo(
 
     if (FdoExtension->InterruptData.Flags & 0x40)
     {
-        DPRINT("IdePortInitFdo: FIXME\n");
+        DPRINT1("IdePortInitFdo: FIXME\n");
         ASSERT(FALSE);
     }
 
