@@ -2080,7 +2080,7 @@ NTAPI
 OHCI_PollIsoEndpoint(IN POHCI_EXTENSION OhciExtension,
                      IN POHCI_ENDPOINT OhciEndpoint)
 {
-    DPRINT1("OHCI_PollAsyncEndpoint: UNIMPLEMENTED. FIXME \n");
+    DPRINT1("OHCI_PollIsoEndpoint: UNIMPLEMENTED. FIXME \n");
     ASSERT(FALSE);
 }
 
