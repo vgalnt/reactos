@@ -8810,6 +8810,7 @@ FreeNameSpaceObjects(
     PAMLI_NAME_SPACE_OBJECT ParentNsObject;
     PAMLI_NAME_SPACE_OBJECT NextNsObject;
     PAMLI_NAME_SPACE_OBJECT NsObject;
+    PAMLI_OP_REGION_OBJECT OpRegionObj;
 
     giIndent++;
 
@@ -8839,8 +8840,15 @@ FreeNameSpaceObjects(
 
         if (NsObject->ObjData.DataType == 0xA)
         {
-            DPRINT1("FreeNameSpaceObjects: FIXME\n");
-            ASSERT(FALSE);
+            OpRegionObj = (PAMLI_OP_REGION_OBJECT)NsObject->ObjData.DataBuff;
+
+            if (!OpRegionObj->RegionSpace)
+            {
+                ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
+
+                if (OpRegionObj->Len)
+                    MmUnmapIoSpace((PVOID)OpRegionObj->Offset, OpRegionObj->Len);
+            }
         }
 
         if (NsObject->Parent)
