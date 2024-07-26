@@ -1829,6 +1829,15 @@ ACPIInternalRegisterPowerCallBack(
     _In_ PCALLBACK_FUNCTION CallbackFunction
 );
 
+NTSTATUS
+NTAPI
+IsPciBusAsync(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ PVOID CallBack,
+    _In_ PVOID CallBackContext,
+    _In_ BOOLEAN* OutIsBusAsync
+);
+
 /* registry.c */
 VOID
 NTAPI

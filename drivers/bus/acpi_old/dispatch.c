@@ -3411,28 +3411,29 @@ ACPIBuildProcessRunMethodPhaseCheckBridge(
     if ((BuildRequest->RunMethod.Flags & 1) && (DeviceExtension->Flags & 2))
     {
         BuildRequest->BuildReserved1 = 0;
-        ACPIBuildCompleteMustSucceed(NULL, Status, 0, BuildRequest);
-        return Status;
+        goto Finish;
     }
 
     BuildRequest->BuildReserved1 = 5;
 
     if (!(BuildRequest->RunMethod.Flags & 0x40))
-    {
-        ACPIBuildCompleteMustSucceed(NULL, Status, 0, BuildRequest);
+        goto Finish;
+
+    BuildRequest->DataBuff = NULL;
+
+    Status = IsPciBusAsync(DeviceExtension->AcpiObject,
+                           ACPIBuildCompleteMustSucceed,
+                           BuildRequest,
+                           (BOOLEAN *)&BuildRequest->DataBuff);
+
+    DPRINT("ACPIBuildProcessRunMethodPhaseCheckBridge: Status %X\n", Status);
+
+    if (Status == 0x103)
         return Status;
-    }
 
-    BuildRequest->ListHeadForInsert = NULL;
+Finish:
 
-    DPRINT("ACPIBuildProcessRunMethodPhaseCheckBridge: FIXME\n");
-    ASSERT(FALSE);
-
-    if (Status != STATUS_PENDING)
-        ACPIBuildCompleteMustSucceed(NULL, Status, 0, BuildRequest);
-
-    DPRINT("ACPIBuildProcessRunMethodPhaseCheckBridge: ret Status %X\n", Status);
-
+    ACPIBuildCompleteMustSucceed(NULL, Status, 0, BuildRequest);
     return Status;
 }
 
@@ -3450,7 +3451,7 @@ ACPIBuildProcessRunMethodPhaseRunMethod(
 
     DPRINT("ACPIBuildProcessRunMethodPhaseRunMethod: %p\n", BuildRequest);
 
-    if (!((BuildRequest->RunMethod.Flags & 0x40) == 0) && BuildRequest->ListHeadForInsert)
+    if (!((BuildRequest->RunMethod.Flags & 0x40) == 0) && BuildRequest->DataBuff)
     {
         DPRINT("ACPIBuildProcessRunMethodPhaseRunMethod: Is PCI-PCI bridge\n");
         BuildRequest->BuildReserved1 = 0;
