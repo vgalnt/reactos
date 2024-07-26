@@ -992,8 +992,19 @@ PciBuildRequirementsList(
 
                 if (PciDeviceType == PciTypePciBridge)
                 {
-                    DPRINT1("PciBuildRequirementsList: FIXME\n");
-                    ASSERT(FALSE);
+                    if (IoDescriptor->Type == CmResourceTypeMemory)
+                    {
+                        PciBuildGraduatedWindow(IoDescriptor, 0x4000000, 7, NewIoDescriptor);
+                        NewIoDescriptor = &NewIoDescriptor[7];
+                        PciPrivateResourceInitialize(NewIoDescriptor, 1, ix);
+                        NewIoDescriptor++;
+                        continue;
+                    }
+                    else
+                    {
+                        Length = 0x1000;
+                        Alignment = 0x1000;
+                    }
                 }
                 else if (PciDeviceType == PciTypeCardbusBridge)
                 {
