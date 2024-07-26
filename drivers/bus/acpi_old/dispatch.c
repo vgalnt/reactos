@@ -15051,13 +15051,59 @@ ACPIDeviceIrpDeviceRequest(
 
 NTSTATUS
 NTAPI
+ACPIBuildRegRequest(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID CallBack)
+{
+    PDEVICE_EXTENSION DeviceExtension;
+    DEVICE_POWER_STATE DeviceState;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+
+    DeviceState = IoGetCurrentIrpStackLocation(Irp)->Parameters.Power.State.DeviceState;
+
+    DPRINT("ACPIBuildRegRequest: (%p) Handle D%d\n", Irp, (DeviceState - PowerDeviceD0));
+
+    if (Irp->PendingReturned)
+        IoMarkIrpPending(Irp);
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        if (CallBack)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+
+    KeAcquireSpinLock(&AcpiDeviceTreeLock, &Irql);
+
+    Status = ACPIBuildRunMethodRequest(DeviceExtension,
+                                       CallBack,
+                                       Irp,
+                                       ULongToPtr('GER_'),
+                                       (DeviceState == PowerDeviceD0 ? 0x15 : 0x25),
+                                       TRUE);
+
+    KeReleaseSpinLock(&AcpiDeviceTreeLock, Irql);
+
+    if (Status == STATUS_PENDING)
+        Status = STATUS_MORE_PROCESSING_REQUIRED;
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 ACPIBuildRegOnRequest(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp,
     _In_ PVOID CallBack)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ACPIBuildRegRequest(DeviceObject, Irp, CallBack);
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 VOID
