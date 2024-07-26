@@ -15051,6 +15051,49 @@ ACPIDeviceIrpDeviceRequest(
 
 NTSTATUS
 NTAPI
+ACPIBuildRegOnRequest(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID CallBack)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+ACPIDeviceIrpDelayedDeviceOnRequest(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PVOID Context,
+    _In_ NTSTATUS InStatus)
+{
+    PIRP Irp = Context;
+
+    DPRINT("ACPIDeviceIrpDelayedDeviceOnRequest: %p, %X\n", Irp, InStatus);
+
+    if (!NT_SUCCESS(InStatus))
+    {
+        PoStartNextPowerIrp(Irp);
+        Irp->IoStatus.Status = InStatus;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+        goto Exit;
+    }
+
+    InterlockedIncrement(&DeviceExtension->OutstandingIrpCount);
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    IoSetCompletionRoutine(Irp, ACPIBuildRegOnRequest, ACPIDeviceIrpCompleteRequest, TRUE, TRUE, TRUE);
+
+    ASSERT(DeviceExtension->TargetDeviceObject != NULL);
+    PoCallDriver(DeviceExtension->TargetDeviceObject, Irp);
+
+Exit:
+
+    ACPIInternalDecrementIrpReferenceCount(DeviceExtension);
+}
+
+NTSTATUS
+NTAPI
 ACPIFilterIrpSetPower(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
@@ -15087,9 +15130,7 @@ ACPIFilterIrpSetPower(
         if (!NsObject)
             Status = ACPIDeviceIrpDeviceRequest(DeviceObject, Irp, ACPIDeviceIrpForwardRequest);
         else
-        {
-            UNIMPLEMENTED_DBGBREAK();
-        }
+            Status = ACPIDeviceIrpDeviceRequest(DeviceObject, Irp, ACPIDeviceIrpDelayedDeviceOnRequest);
 
         if (Status != STATUS_MORE_PROCESSING_REQUIRED)
             return Status;
