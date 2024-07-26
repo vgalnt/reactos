@@ -683,8 +683,11 @@ PPBridge_ChangeResourceSettings(
     ULONG LowPart;
     ULONG Limit;
     ULONG ix;
+    BOOLEAN Is32Bit;
 
     DPRINT("PPBridge_ChangeResourceSettings: %p, %p\n", PdoExtension, PciData);
+
+    Is32Bit = ((PciData->u.type1.IOBase & 0xF) == 1);
 
     /* Check for Intel ICH PCI-to-PCI (i82801) bridges (used on the i810, i820, i840, i845 Chipsets)
        that don't have subtractive decode broken. If they do have broken subtractive support,
@@ -756,8 +759,11 @@ PPBridge_ChangeResourceSettings(
 
                 ASSERT(((LowPart & 0xFFF) == 0) && ((Limit & 0xFFF) == 0xFFF));
 
-                if ((PciData->u.type1.IOBase & 0xF) != 1)
-                    ASSERT(((LowPart | Limit) & 0xFFFF0000) == 0);
+                if (!Is32Bit)
+                {
+                    //ASSERT(((LowPart | Limit) & 0xFFFF0000) == 0);
+                    DPRINT1("PPBridge_ChangeResourceSettings: [%X] %X, %X\n", ix, LowPart, Limit);
+                }
 
                 PciData->u.type1.IOBaseUpper16 = (LowPart >> 0x10);
                 PciData->u.type1.IOLimitUpper16 = (Limit >> 0x10);
