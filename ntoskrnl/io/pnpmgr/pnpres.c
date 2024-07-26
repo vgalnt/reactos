@@ -4406,9 +4406,8 @@ IopAllocateResources(
                     !(DeviceNode->Flags & DNF_HAS_BOOT_CONFIG) &&
                     Current->ResourceRequirements)
                 {
-                    DPRINT("IopAllocateResources: Delaying non BOOT config device '%wZ'\n", &DeviceNode->InstancePath);
-
-                    ASSERT(FALSE);
+                    DPRINT1("IopAllocateResources: Delaying non BOOT config device '%wZ'\n", &DeviceNode->InstancePath);
+                    //ASSERT(FALSE);
 
                     Current->Flags |= 0x20;
                     Current->Status = STATUS_RETRY;
