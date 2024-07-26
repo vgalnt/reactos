@@ -4271,8 +4271,123 @@ NTSTATUS __cdecl Event(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT T
 }
 NTSTATUS __cdecl ExprOp1(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_OBJECT_DATA DataObj;
+    ULONG Result = 0;
+    ULONG Value;
+    ULONG ix;
+    NTSTATUS Status;
+  
+    DPRINT("ExprOp1(pctxt %X, pbOp %X, pterm %X)\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = ValidateArgTypes(TermContext->DataArgs, "I");
+    if (Status != STATUS_SUCCESS)
+    {
+        goto Exit;
+    }
+
+    Status = ValidateTarget((TermContext->DataArgs + 1), 0x87, &DataObj);
+    if (Status != STATUS_SUCCESS)
+    {
+        goto Exit;
+    }
+
+    switch (TermContext->AmliTerm->Opcode)
+    {
+        case 0x80:
+            DPRINT("Not(Value %X)\n", TermContext->DataArgs->DataValue);
+            giIndent++;
+
+            Value = (ULONG)TermContext->DataArgs->DataValue;
+
+            giIndent--;
+            DPRINT("Not 0, Result %X\n", ~Value);
+            break;
+
+        case 0x81:
+            DPRINT("FindSetLeftBit(Value %X)\n", TermContext->DataArgs->DataValue);
+            giIndent++;
+
+            Value = (ULONG)TermContext->DataArgs->DataValue;
+            for (ix = 0x1F; ix >= 0; ix--)
+            {
+                if (Value & (1 << ix))
+                {
+                    Result = ix + 1;
+                    break;
+                }
+            }
+
+            giIndent--;
+            DPRINT("FindSetLeftBit 0, Result %X\n", Result);
+            break;
+
+        case 0x82:
+            DPRINT("FindSetRightBit(Value %X)\n", TermContext->DataArgs->DataValue);
+            giIndent++;
+
+            Value = (ULONG)TermContext->DataArgs->DataValue;
+            for (ix = 0; ix <= 0x1F; ix++)
+            {
+                if (Value & (1 << ix))
+                {
+                    Result = ix + 1;
+                    break;
+                }
+            }
+
+            giIndent--;
+            DPRINT("FindSetRightBit 0, Result %X\n", Result);
+            break;
+
+        case 0x285B:
+            DPRINT("FromBCD(Value %X)\n", TermContext->DataArgs->DataValue);
+            giIndent++;
+
+            Value = (ULONG)TermContext->DataArgs->DataValue;
+            for (ix = 1; Value; ix *= 0xA)
+            {
+                Result += (ix * (Value & 0xF));
+                Value >>= 4;
+            }
+
+            giIndent--;
+            DPRINT("FromBCD 0, Result %X\n", Result);
+            break;
+
+        case 0x295B:
+            DPRINT("ToBCD(Value %X)\n", TermContext->DataArgs->DataValue);
+            giIndent++;
+
+            Value = (ULONG)TermContext->DataArgs->DataValue;
+            if (Value)
+            {
+                for (ix = 0; Value; ix += 4)
+                {
+                    Result |= ((Value % 0xA) << ix);
+                    Value /= 0xA;
+                }
+            }
+
+            giIndent--;
+            DPRINT("ToBCD 0, Result %X\n", Result);
+            break;
+
+        default:
+            break;
+    }
+
+    TermContext->DataResult->DataType = 1;
+    TermContext->DataResult->DataValue = ULongToPtr(Result);
+
+    Status = WriteObject(AmliContext, DataObj, TermContext->DataResult);
+ 
+Exit:
+
+    giIndent--;
+    DPRINT("ExprOp1 %X, Result %X\n", Status, Result);
+    return Status;
 }
 NTSTATUS __cdecl ExprOp2(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
@@ -8845,6 +8960,7 @@ FreeNameSpaceObjects(
             if (!OpRegionObj->RegionSpace)
             {
                 ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
+                OpRegionObj = (PAMLI_OP_REGION_OBJECT)NsObject->ObjData.DataBuff;
 
                 if (OpRegionObj->Len)
                     MmUnmapIoSpace((PVOID)OpRegionObj->Offset, OpRegionObj->Len);
