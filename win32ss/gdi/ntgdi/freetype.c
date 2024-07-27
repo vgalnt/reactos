@@ -949,6 +949,7 @@ IntLoadSystemFonts(VOID)
     BYTE *DirInfoBuffer;
     PFILE_DIRECTORY_INFORMATION DirInfo;
     BOOLEAN bRestartScan = TRUE;
+    INT Idx;
     NTSTATUS Status;
     INT i;
     static UNICODE_STRING SearchPatterns[] =
@@ -1022,12 +1023,24 @@ IntLoadSystemFonts(VOID)
                 DirInfo = (PFILE_DIRECTORY_INFORMATION)DirInfoBuffer;
                 while (1)
                 {
-                    TempString.Buffer = DirInfo->FileName;
-                    TempString.Length =
-                        TempString.MaximumLength = DirInfo->FileNameLength;
-                    RtlCopyUnicodeString(&FileName, &Directory);
-                    RtlAppendUnicodeStringToString(&FileName, &TempString);
-                    IntGdiAddFontResourceEx(&FileName, 0, AFRX_WRITE_REGISTRY);
+                    /* HACK: ZwQueryDirectoryFile() returns 'desktop.ini' too ... */
+                    Idx = ((DirInfo->FileNameLength / sizeof(WCHAR)) - 1);
+
+                    if (DirInfo->FileNameLength >= (8 + 2) && // L".***"
+                        (DirInfo->FileName[Idx] == L'f' ||    // *.tt[f], *.ot[f]
+                         DirInfo->FileName[Idx] == L'c' ||    // *.tt[c], *.ot[c]
+                         DirInfo->FileName[Idx] == L'n' ||    // *.fo[n]
+                         DirInfo->FileName[Idx] == L't'))     // *.fn[t]
+                    {
+                        TempString.Buffer = DirInfo->FileName;
+                        TempString.Length =
+                            TempString.MaximumLength = DirInfo->FileNameLength;
+                        RtlCopyUnicodeString(&FileName, &Directory);
+                        RtlAppendUnicodeStringToString(&FileName, &TempString);
+                        //DPRINT1("'%wZ' (%X)\n", &FileName, DirInfo->FileNameLength);
+                        IntGdiAddFontResourceEx(&FileName, 0, AFRX_WRITE_REGISTRY);
+                    }
+
                     if (DirInfo->NextEntryOffset == 0)
                         break;
                     DirInfo = (PFILE_DIRECTORY_INFORMATION)((ULONG_PTR)DirInfo + DirInfo->NextEntryOffset);
