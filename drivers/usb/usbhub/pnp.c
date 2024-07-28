@@ -14,7 +14,7 @@
 #define NDEBUG_USBHUB_ENUM
 #include "dbg_uhub.h"
 
-BOOLEAN IsWaitForBoot = TRUE;
+extern BOOLEAN IsWaitForBoot;
 
 NTSTATUS
 NTAPI
@@ -1066,7 +1066,9 @@ USBH_FdoQueryBusRelations(IN PUSBHUB_FDO_EXTENSION HubExtension,
 
     if (!(HubExtension->HubFlags & USBHUB_FDO_FLAG_DO_ENUMERATION))
     {
-        if (IsWaitForBoot) // ? FIXME - do it ONLY for bootable USB device
+      #ifdef __REACTOS__ // ... or WinPE | W.Embedded ?
+        /* Is MiniNT (livecd) or setup? */
+        if (IsWaitForBoot) // FIXME. Do it ONLY for bootable USB device? For setup: TXTMODE (1st stage) only?)
         {
             /* This delay makes devices discovery during early boot more reliable */
             Interval.QuadPart = -10000LL * 1000; // 1 sec.
@@ -1076,9 +1078,9 @@ USBH_FdoQueryBusRelations(IN PUSBHUB_FDO_EXTENSION HubExtension,
             IoInvalidateDeviceRelations(HubExtension->LowerPDO, BusRelations);
             KeDelayExecutionThread(KernelMode, FALSE, &Interval);
         }
+      #endif
 
         DPRINT_ENUM("USBH_FdoQueryBusRelations: Skip enumeration\n");
-
         Status = STATUS_SUCCESS;
         goto RelationsWorker;
     }

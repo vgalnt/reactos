@@ -17,6 +17,7 @@
 #include <ntddstor.h>
 
 PWSTR GenericUSBDeviceString = NULL;
+BOOLEAN IsWaitForBoot = FALSE;
 
 NTSTATUS
 NTAPI
@@ -5236,6 +5237,85 @@ USBH_GetRegistryValue(IN PWCHAR ValueName,
 
     return Status;
 }
+
+VOID
+NTAPI
+USBH_SetWaitForBoot(VOID)
+{
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    PWCHAR StartOptions = NULL;
+    HANDLE ControlSetKey = NULL;
+    HANDLE KeyHandle;
+    ULONG SetupInProgress = 0;
+    ULONG SetupType = 0;
+    ULONG ResultLength;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    /* Open the control set key */
+    if (USBH_OpenKey(L"\\Registry\\Machine\\System\\CurrentControlSet", NULL, KEY_READ, &ControlSetKey, &Status))
+    {
+        /* Read the command line */
+        Status = USBH_GetRegistryValue(L"SystemStartOptions", L"Control", ControlSetKey, REG_SZ, (PVOID *)&StartOptions, &ResultLength);
+
+        ZwClose(ControlSetKey);
+
+        if (NT_SUCCESS(Status) && wcsstr(StartOptions, L"MININT"))
+        {
+            DPRINT1("USBH_SetWaitForBoot: MiniNT Boot\n");
+            IsWaitForBoot = TRUE;
+        }
+
+        if (StartOptions)
+            ExFreePool(StartOptions);
+
+        if (IsWaitForBoot)
+            return;
+    }
+
+    if (!USBH_OpenKey(L"\\Registry\\Machine\\System\\Setup", NULL, KEY_READ, &KeyHandle, &Status))
+    {
+        DPRINT1("USBH_SetWaitForBoot: No 'System\\Setup' key!\n", Status);
+        return;
+    }
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].EntryContext = &SetupType;
+    QueryTable[0].DefaultData = &SetupType;
+    QueryTable[0].QueryRoutine = NULL;
+    QueryTable[0].Flags = 0x34;
+    QueryTable[0].Name = L"SetupType";
+    QueryTable[0].DefaultType = REG_DWORD;
+    QueryTable[0].DefaultLength = sizeof(SetupType);
+
+    RtlQueryRegistryValues(RTL_REGISTRY_HANDLE, KeyHandle, QueryTable, NULL, NULL);
+
+    if (SetupType)
+    {
+        DPRINT1("USBH_SetWaitForBoot: SetupType %X\n", SetupType);
+    }
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].EntryContext = &SetupInProgress;
+    QueryTable[0].DefaultData = &SetupInProgress;
+    QueryTable[0].QueryRoutine = NULL;
+    QueryTable[0].Flags = 0x34;
+    QueryTable[0].Name = L"SystemSetupInProgress";
+    QueryTable[0].DefaultType = REG_DWORD;
+    QueryTable[0].DefaultLength = sizeof(SetupInProgress);
+
+    RtlQueryRegistryValues(RTL_REGISTRY_HANDLE, KeyHandle, QueryTable, NULL, NULL);
+    ZwClose(KeyHandle);
+
+    if (SetupInProgress)
+    {
+        DPRINT1("USBH_SetWaitForBoot: SetupInProgress %X\n", SetupInProgress);
+        IsWaitForBoot = TRUE;
+    }
+}
 #endif
 
 NTSTATUS
@@ -5259,6 +5339,10 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject,
     DriverObject->MajorFunction[IRP_MJ_SYSTEM_CONTROL] = USBH_HubDispatch;
 
     USBH_RegQueryGenericUSBDeviceString(&GenericUSBDeviceString);
+
+  #ifdef __REACTOS__
+    USBH_SetWaitForBoot();
+  #endif
 
     return STATUS_SUCCESS;
 }
