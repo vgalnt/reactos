@@ -5139,6 +5139,103 @@ USBH_OpenKey(IN PWCHAR KeyName,
 
     return NT_SUCCESS(Status);
 }
+
+NTSTATUS
+NTAPI
+USBH_GetRegistryValue(IN PWCHAR ValueName,
+                      IN PWCHAR KeyName,
+                      IN HANDLE RootHandle,
+                      IN ULONG Type,
+                      OUT PVOID* OutputBuffer,
+                      OUT ULONG* OutputLength)
+{
+    PKEY_VALUE_PARTIAL_INFORMATION PartialInfo = NULL;
+    UNICODE_STRING ValueString;
+    HANDLE KeyHandle = NULL;
+    ULONG NeededLength;
+    ULONG ActualLength;
+    BOOLEAN Result;
+    NTSTATUS Status;
+
+    DPRINT("USBH_GetRegistryValue: '%S', '%S'\n", ValueName, KeyName);
+
+    do
+    {
+        /* Open the key by name, rooted off the handle passed */
+        Result = USBH_OpenKey(KeyName, RootHandle, KEY_QUERY_VALUE, &KeyHandle, &Status);
+        if (!Result)
+            break;
+
+        /* Query for the size that's needed for the value that was passed in */
+        RtlInitUnicodeString(&ValueString, ValueName);
+
+        Status = ZwQueryValueKey(KeyHandle, &ValueString, KeyValuePartialInformation, NULL, 0, &NeededLength);
+        ASSERT(!NT_SUCCESS(Status));
+        if (Status != STATUS_BUFFER_TOO_SMALL)
+        {
+            DPRINT("USBH_GetRegistryValue: Status %X\n", Status);
+            break;
+        }
+        ASSERT(NeededLength != 0);
+
+        /* Allocate an appropriate buffer for the size that was returned */
+        PartialInfo = ExAllocatePoolWithTag(PagedPool, NeededLength, USB_HUB_TAG);
+        if (!PartialInfo)
+        {
+            DPRINT1("USBH_GetRegistryValue: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
+
+        /* Query the actual value information now that the size is known */
+        Status = ZwQueryValueKey(KeyHandle, &ValueString, KeyValuePartialInformation, PartialInfo, NeededLength, &ActualLength);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("USBH_GetRegistryValue: Status %X\n", Status);
+            break;
+        }
+
+        /* Make sure it's of the type that the caller expects */
+        if (PartialInfo->Type != Type)
+        {
+            DPRINT1("USBH_GetRegistryValue: STATUS_INVALID_PARAMETER (%X-%X)\n", PartialInfo->Type, Type);
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        /* Subtract the registry-specific header, to get the data size */
+        ASSERT(NeededLength == ActualLength);
+        NeededLength -= sizeof(KEY_VALUE_PARTIAL_INFORMATION);
+
+        /* Allocate a buffer to hold the data and return it to the caller */
+        *OutputBuffer = ExAllocatePoolWithTag(PagedPool, NeededLength, USB_HUB_TAG);
+        if (!*OutputBuffer)
+        {
+            DPRINT1("USBH_GetRegistryValue: STATUS_INSUFFICIENT_RESOURCES\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
+
+        /* Copy the data into the buffer and return its length to the caller */
+        RtlCopyMemory(*OutputBuffer, PartialInfo->Data, NeededLength);
+
+        if (OutputLength)
+            *OutputLength = NeededLength;
+
+        Status = STATUS_SUCCESS;
+    }
+    while (FALSE);
+
+    /* Close any opened keys and free temporary allocations */
+
+    if (KeyHandle)
+        ZwClose(KeyHandle);
+
+    if (PartialInfo)
+        ExFreePoolWithTag(PartialInfo, USB_HUB_TAG);
+
+    return Status;
+}
 #endif
 
 NTSTATUS
