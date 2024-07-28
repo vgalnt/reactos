@@ -5106,6 +5106,41 @@ USBH_RegQueryGenericUSBDeviceString(PVOID USBDeviceString)
                                   NULL);
 }
 
+#ifdef __REACTOS__
+BOOLEAN
+NTAPI
+USBH_OpenKey(IN PWCHAR KeyName,
+             IN HANDLE RootKey,
+             IN ACCESS_MASK DesiredAccess,
+             OUT HANDLE* OutHandle,
+             OUT NTSTATUS* OutStatus)
+{
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING KeyString;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("USBH_OpenKey: '%S'\n", KeyName);
+
+    /* Initialize the object attributes */
+    RtlInitUnicodeString(&KeyString, KeyName);
+    InitializeObjectAttributes(&ObjectAttributes, &KeyString, OBJ_CASE_INSENSITIVE, RootKey, NULL);
+
+    /* Open the key, returning a boolean, and the status, if requested */
+    Status = ZwOpenKey(OutHandle, DesiredAccess, &ObjectAttributes);
+
+    if (OutStatus)
+        *OutStatus = Status;
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("USBH_OpenKey: Status %X for '%S'\n", Status, KeyName);
+    }
+
+    return NT_SUCCESS(Status);
+}
+#endif
+
 NTSTATUS
 NTAPI
 DriverEntry(IN PDRIVER_OBJECT DriverObject,
