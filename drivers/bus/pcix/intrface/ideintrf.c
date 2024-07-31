@@ -49,6 +49,33 @@ nativeIde_Initializer(
     return STATUS_UNSUCCESSFUL;
 }
 
+VOID
+NTAPI
+nativeIde_InterruptControl(
+    _In_ PVOID Context,
+    _In_ BOOLEAN IsEnableOrDisable)
+{
+    PPCI_PDO_EXTENSION PdoExtension = Context;
+    USHORT Command;
+
+    PdoExtension->IoSpaceUnderNativeIdeControl = 1;
+
+    PciReadDeviceConfig(PdoExtension, &Command, 4, 2);
+
+    if (IsEnableOrDisable)
+    {
+        Command |= 1;
+        PdoExtension->CommandEnables |= 1;
+    }
+    else
+    {
+        Command &= ~1;
+        PdoExtension->CommandEnables &= ~1;
+    }
+
+    PciWriteDeviceConfig(PdoExtension, &Command, 4, 2);
+}
+
 NTSTATUS
 NTAPI
 nativeIde_Constructor(
@@ -60,6 +87,7 @@ nativeIde_Constructor(
     _In_ PINTERFACE Interface)
 {
     PPCI_PDO_EXTENSION PdoExtension = DeviceExtension;
+    PPCI_NATIVE_IDE_INTERFACE IdeInterface = (PPCI_NATIVE_IDE_INTERFACE)Interface;
 
     DPRINT("nativeIde_Constructor: %p, %X\n", Interface, Version);
 
@@ -83,8 +111,15 @@ nativeIde_Constructor(
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    IdeInterface->StdInterface.Size = sizeof(PCI_NATIVE_IDE_INTERFACE);
+    IdeInterface->StdInterface.Context = DeviceExtension;
+    IdeInterface->StdInterface.Version = 1;
+    IdeInterface->StdInterface.InterfaceReference = pcicbintrf_Dereference;
+    IdeInterface->StdInterface.InterfaceDereference = pcicbintrf_Dereference;
+
+    IdeInterface->InterruptControl = nativeIde_InterruptControl;
+
+    return STATUS_SUCCESS;
 }
 
 /* EOF */
