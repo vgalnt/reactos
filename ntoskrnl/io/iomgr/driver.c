@@ -1404,7 +1404,7 @@ IopLoadDriver(
 
     /* Only probe (check) */
     NtHeader = RtlImageNtHeader(ImageBase);
-    DPRINT1("IopLoadDriver: DriverPath %wZ\n", &DriverPath);
+    DPRINT("IopLoadDriver: DriverPath %wZ\n", &DriverPath);
 
     Status = IopPrepareDriverLoading(&DriverPath, ServiceHandle, ImageBase, IsFilter);
     if (!NT_SUCCESS(Status))
