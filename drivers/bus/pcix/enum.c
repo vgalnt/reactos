@@ -1907,13 +1907,13 @@ NTAPI
 PcipGetFunctionLimits(
     _In_ PPCI_CONFIGURATOR_CONTEXT Context)
 {
-    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
     PPCI_PDO_EXTENSION PdoExtension;
     PPCI_CONFIGURATOR Configurator;
     PPCI_COMMON_HEADER PciData;
     PPCI_COMMON_HEADER Current;
     PCI_IPI_CONTEXT IpiContext;
     ULONG Offset;
+    ULONG ix;
 
     PAGED_CODE();
     DPRINT("PcipGetFunctionLimits: %p\n", Context);
@@ -2023,23 +2023,17 @@ PcipGetFunctionLimits(
     /* ...and then store the current resources being used */
     Configurator->SaveCurrentSettings(Context);
 
-    CmDescriptor = &PdoExtension->Resources->Current[0];
-
-    while (TRUE)
+    for (ix = 0; ix < 7; ix++)
     {
-        CmDescriptor -= 2;
-
-        if (CmDescriptor->ShareDisposition)
-            break;
-
-        if ((ULONG_PTR)CmDescriptor == (ULONG_PTR)PdoExtension->Resources)
-        {
-            /* No resources will be assigned for the device */
-            ExFreePoolWithTag(PdoExtension->Resources, 'BicP');
-            PdoExtension->Resources = NULL;
-            break;
-        }
+        if (PdoExtension->Resources->Limit[ix].Type != 0)
+            return STATUS_SUCCESS;
     }
+
+    /* No resources will be assigned for the device */
+    ExFreePoolWithTag(PdoExtension->Resources, 'BicP');
+    PdoExtension->Resources = NULL;
+
+    DPRINT("PcipGetFunctionLimits: No resources will be assigned for %p\n", PdoExtension);
 
     /* Return success here, even if the device has no assigned resources */
     return STATUS_SUCCESS;
