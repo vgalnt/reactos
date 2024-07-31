@@ -290,6 +290,8 @@ ario_StartArbiter(
         goto Exit;
     }
 
+    Status = STATUS_SUCCESS;
+
 Exit:
 
     KeSetEvent(Arbiter->MutexEvent, 0, FALSE);
