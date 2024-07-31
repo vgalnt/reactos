@@ -1283,7 +1283,8 @@ RtlFindRange(
     }
     while (Start >= Minimum);
 
-    DPRINT("RtlFindRange: return STATUS_UNSUCCESSFUL\n");
+    DPRINT1("RtlFindRange: [%X] %p, %X, [%I64X-%I64X], %X, %X\n", Flags, RangeList, RangeList->Count, Minimum, Maximum, Length, Alignment);
+    DPRINT1("RtlFindRange: return STATUS_UNSUCCESSFUL\n");
 
     return STATUS_UNSUCCESSFUL;
 }
