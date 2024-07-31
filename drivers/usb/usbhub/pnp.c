@@ -1584,8 +1584,26 @@ USBH_OsVendorCodeQueryRoutine(IN PWSTR ValueName,
                               IN PVOID Context,
                               IN PVOID EntryContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+
+    DPRINT1("USBH_OsVendorCodeQueryRoutine: ... \n");
+
+    if (ValueType != REG_BINARY)
+    {
+        DPRINT1("USBH_OsVendorCodeQueryRoutine: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (ValueLength != 2)
+    {
+        DPRINT1("USBH_OsVendorCodeQueryRoutine: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    *(PUCHAR)EntryContext = *(PUCHAR)ValueData;
+    *((PUCHAR)EntryContext + 1) = *((PUCHAR)ValueData + 1);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
