@@ -1047,7 +1047,9 @@
 @ stdcall -arch=i386,arm READ_REGISTER_ULONG(ptr)
 @ stdcall -arch=i386,arm READ_REGISTER_USHORT(ptr)
 @ stdcall RosDumpCmResources(ptr long) PipDumpCmResourceList
+@ stdcall RosDumpCmResourceDescriptor(ptr long) PipDumpCmResourceDescriptor
 @ stdcall RosDumpIoResources(ptr long) PipDumpResourceRequirementsList
+@ stdcall RosDumpIoResourceDescriptor(ptr long) PipDumpIoResourceDescriptor
 @ stdcall RosGetNextCmDescriptor(ptr) PipGetNextCmPartialDescriptor
 @ stdcall RtlAbsoluteToSelfRelativeSD(ptr ptr ptr)
 @ stdcall RtlAddAccessAllowedAce(ptr long long ptr)

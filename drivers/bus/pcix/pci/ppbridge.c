@@ -243,6 +243,8 @@ PPBridge_SaveCurrentSettings(IN PPCI_CONFIGURATOR_CONTEXT Context)
     Resources = PdoExtension->Resources;
     Current = Context->Current;
 
+    DPRINT("PPBridge_SaveCurrentSettings: %p (%X)\n", PdoExtension, PdoExtension->DeviceId);
+
     /* Check if decodes are disabled */
     if (!(Context->Command & (PCI_ENABLE_IO_SPACE | PCI_ENABLE_MEMORY_SPACE)))
     {
@@ -452,6 +454,12 @@ PPBridge_SaveCurrentSettings(IN PPCI_CONFIGURATOR_CONTEXT Context)
             if (SavedConfig) RtlCopyMemory(SavedConfig, Current, PCI_COMMON_HDR_LENGTH);
         }
     }
+
+  #if DBG
+    DPRINT("PPBridge_SaveCurrentSettings: Dump [Cm] %p\n", Resources->Current);
+    for (i = 0; i < 7; i++)
+        RosDumpCmResourceDescriptor(&Resources->Current[i], 1);
+  #endif
 }
 
 VOID
@@ -468,6 +476,8 @@ PPBridge_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
     /* Get the pointers from the context */
     Working = Context->PciData;
     PdoExtension = Context->PdoExtension;
+
+    DPRINT("PPBridge_SaveLimits: %p (%X)\n", PdoExtension, PdoExtension->DeviceId);
 
     /* Scan the BARs into the limit descriptors */
     BarArray = Working->u.type1.BaseAddresses;
@@ -569,6 +579,12 @@ PPBridge_SaveLimits(IN PPCI_CONFIGURATOR_CONTEXT Context)
                                           &Working->u.type1.ROMBaseAddress,
                                           TRUE);
     }
+
+  #if DBG
+    DPRINT("PPBridge_SaveLimits: Dump [Io] %p\n", Limit);
+    for (i = 0; i < 7; i++)
+        RosDumpIoResourceDescriptor(&Limit[i], 1);
+  #endif
 }
 
 VOID

@@ -1835,6 +1835,20 @@ PciCacheLegacyDeviceRouting(
     _Out_ PDEVICE_OBJECT* pFoundDeviceObject
 );
 
+VOID
+NTAPI
+RosDumpCmResourceDescriptor(
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor,
+    _In_ ULONG DebugLevel
+);
+
+VOID
+NTAPI
+RosDumpIoResourceDescriptor(
+    _In_ PIO_RESOURCE_DESCRIPTOR Descriptor,
+    _In_ ULONG DebugLevel
+);
+
 // External Resources
 
 extern SINGLE_LIST_ENTRY PciFdoExtensionListHead;
