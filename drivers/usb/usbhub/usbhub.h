@@ -218,6 +218,7 @@ typedef struct _USBHUB_PORT_PDO_EXTENSION {
   USB_CONFIGURATION_DESCRIPTOR ConfigDescriptor;
   USB_INTERFACE_DESCRIPTOR InterfaceDescriptor;
   USHORT Reserved1;
+  UCHAR OsVendorCode;
   PIRP IdleNotificationIrp;
   POWER_STATE CurrentPowerState;
   DEVICE_CAPABILITIES Capabilities;

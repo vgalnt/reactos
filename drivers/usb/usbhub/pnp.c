@@ -1567,6 +1567,109 @@ USBH_FdoSurpriseRemoveDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
     }
 }
 
+PVOID
+NTAPI
+USBH_GetExtConfigDesc(IN PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+NTSTATUS
+NTAPI
+USBH_OsVendorCodeQueryRoutine(IN PWSTR ValueName,
+                              IN ULONG ValueType,
+                              IN PVOID ValueData,
+                              IN ULONG ValueLength,
+                              IN PVOID Context,
+                              IN PVOID EntryContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+USBH_SyncResetDevice(IN PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+USBH_GetMsOsVendorCode(IN PDEVICE_OBJECT DeviceObject)
+{
+    PUSBHUB_PORT_PDO_EXTENSION PortExtension;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    OS_STRING OsString;
+    WCHAR Path[22];
+    UCHAR Osvc[2];
+    ULONG Length;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT1("USBH_GetMsOsVendorCode: %p\n", DeviceObject);
+
+    PortExtension = DeviceObject->DeviceExtension;
+    ASSERT(USBH_EXTENSION_TYPE_PORT == PortExtension->Common.ExtensionType);
+
+    swprintf(Path, L"usbflags\\%04X%04X%04X",
+             PortExtension->DeviceDescriptor.idVendor,
+             PortExtension->DeviceDescriptor.idProduct,
+             PortExtension->DeviceDescriptor.bcdDevice);
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].EntryContext = Osvc;
+    QueryTable[0].QueryRoutine = USBH_OsVendorCodeQueryRoutine;
+    QueryTable[0].Flags = 4;
+    QueryTable[0].Name = L"osvc";
+
+    Status = RtlQueryRegistryValues(RTL_REGISTRY_CONTROL, Path, QueryTable, NULL, NULL);
+    if (NT_SUCCESS(Status))
+    {
+        if (Osvc[0] == 1)
+        {
+            PortExtension->PortPdoFlags |= 0x200000;
+            PortExtension->OsVendorCode = Osvc[1];
+        }
+
+        return;
+    }
+
+    if (PortExtension->DeviceDescriptor.idVendor ||
+        PortExtension->DeviceDescriptor.iProduct ||
+        PortExtension->DeviceDescriptor.iSerialNumber)
+    {
+        Status = USBH_SyncGetStringDescriptor(DeviceObject, 0xEE, 0, (PVOID)&OsString, sizeof(OsString), &Length, TRUE);
+
+        if (NT_SUCCESS(Status) && Length == sizeof(OsString) &&
+            RtlCompareMemory(OsString.MicrosoftString, L"MSFT100", 0xE) == 0xE)
+        {
+            PortExtension->PortPdoFlags |= 0x200000;
+            PortExtension->OsVendorCode = OsString.bVendorCode;
+        }
+        else
+        {
+            USBH_SyncResetDevice(DeviceObject);
+        }
+    }
+
+    if (PortExtension->PortPdoFlags & 0x200000)
+    {
+        Osvc[0] = 1;
+        Osvc[1] = PortExtension->OsVendorCode;
+    }
+    else
+    {
+        Osvc[0] = 0;
+        Osvc[1] = 0;
+    }
+
+    RtlWriteRegistryValue(2, Path, L"osvc", 3, Osvc, sizeof(Osvc));
+}
+
 NTSTATUS
 NTAPI
 USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
@@ -1581,12 +1684,29 @@ USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
     NTSTATUS Status = STATUS_SUCCESS;
     PUSB_DEVICE_DESCRIPTOR DeviceDescriptor;
     PUSB_INTERFACE_DESCRIPTOR InterfaceDescriptor;
+    PVOID ExtConfigDesc;
 
     IdType = IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryId.IdType;
     DeviceDescriptor = &PortExtension->DeviceDescriptor;
     InterfaceDescriptor = &PortExtension->InterfaceDescriptor;
 
     RtlZeroMemory(Buffer, sizeof(Buffer));
+
+    if (!(PortExtension->PortPdoFlags & 0x00100000))
+    {
+        USBH_GetMsOsVendorCode(PortExtension->Common.SelfDevice);
+
+        PortExtension->PortPdoFlags |= 0x00100000;
+
+        ExtConfigDesc = USBH_GetExtConfigDesc(PortExtension->Common.SelfDevice);
+        DPRINT1("USBH_PdoQueryId: ExtConfigDesc %X\n", ExtConfigDesc);
+
+        if (ExtConfigDesc)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            ExFreePool(ExtConfigDesc);
+        }
+    }
 
     switch (IdType)
     {
