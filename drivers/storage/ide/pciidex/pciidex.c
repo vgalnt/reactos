@@ -2815,6 +2815,7 @@ BusMasterInitialize(
     ULONG IgnoreBusMasterStatusZeroBits;
     ULONG NumberOfMapRegisters;
     BOOLEAN IsNoBmBase = FALSE;
+    UCHAR BmStatus;
     NTSTATUS Status;
 
     PAGED_CODE();
@@ -2844,14 +2845,18 @@ BusMasterInitialize(
         ASSERT(FALSE);
     }
 
-    if (READ_PORT_UCHAR((PUCHAR)(PdoExtension->BusMasterBase + 2)) & 0x18)
+    BmStatus = READ_PORT_UCHAR((PUCHAR)(PdoExtension->BusMasterBase + 2));
+
+    if (BmStatus & 0x18)
     {
         IgnoreBusMasterStatusZeroBits = 0;
 
         Status = PciIdeXGetDeviceParameter(FdoExtension->LowPdo, L"IgnoreBusMasterStatusZeroBits", &IgnoreBusMasterStatusZeroBits);
         if (!IgnoreBusMasterStatusZeroBits)
         {
-            DPRINT1("BusMasterInitialize: bad busmaster status register value %X. Will never do busmastering ide\n");
+            DPRINT1("BusMasterInitialize: bad busmaster status register value %X (%X). Will never do busmastering ide\n",
+                    BmStatus, PdoExtension->BusMasterBase);
+
             PdoExtension->BusMasterBase = 0;
             IsNoBmBase = TRUE;
             Status = STATUS_INSUFFICIENT_RESOURCES;
