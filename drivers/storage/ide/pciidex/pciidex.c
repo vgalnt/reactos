@@ -2180,12 +2180,9 @@ ControllerStartDevice(
         DPRINT1("ControllerStartDevice: Starting with no resource\n");
     }
 
-    if (FdoExtension->NativeMode[0] && FdoExtension->NativeMode[1])
+    if (FdoExtension->NativeMode[0] && FdoExtension->NativeMode[1] && FdoExtension->PciNativeIdeInterface.InterruptControl)
     {
-        if (FdoExtension->PciNativeIdeInterface.InterruptControl)
-        {
-            UNIMPLEMENTED_DBGBREAK();
-        }
+        FdoExtension->PciNativeIdeInterface.InterruptControl(FdoExtension->PciNativeIdeInterface.StdInterface.Context, FALSE);
     }
 
     KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
