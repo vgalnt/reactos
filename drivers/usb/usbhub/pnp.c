@@ -1608,10 +1608,53 @@ USBH_OsVendorCodeQueryRoutine(IN PWSTR ValueName,
 
 NTSTATUS
 NTAPI
+USBH_SyncCompletionRoutine(IN PDEVICE_OBJECT DeviceObject,
+                           IN PIRP Irp,
+                           IN PVOID Context)
+{
+    PKEVENT Event = Context;
+    KeSetEvent(Event, IO_NO_INCREMENT, FALSE);
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
+NTSTATUS
+NTAPI
 USBH_SyncResetDevice(IN PDEVICE_OBJECT DeviceObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+    PIRP Irp;
+    KEVENT Event;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT1("USBH_SyncResetDevice: %p\n", DeviceObject);
+
+    Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
+    if (!Irp)
+    {
+        DPRINT1("USBH_SyncResetDevice: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+
+    IoStack->MajorFunction = IRP_MJ_INTERNAL_DEVICE_CONTROL;
+    IoStack->Parameters.DeviceIoControl.IoControlCode = IOCTL_INTERNAL_USB_RESET_PORT;
+
+    IoSetCompletionRoutineEx(DeviceObject, Irp, USBH_SyncCompletionRoutine, &Event, TRUE, TRUE, TRUE);
+
+    Status = IoCallDriver(DeviceObject, Irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = Irp->IoStatus.Status;
+    }
+
+    IoFreeIrp(Irp);
+
+    return Status;
 }
 
 VOID
