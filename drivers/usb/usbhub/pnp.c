@@ -1569,16 +1569,115 @@ USBH_FdoSurpriseRemoveDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
 
 NTSTATUS
 NTAPI
-USBH_GetMsOsFeatureDescriptor(PDEVICE_OBJECT DeviceObject,
-                              UCHAR FunctionVendorType,
-                              UCHAR Value,
-                              USHORT Index,
-                              PVOID Buffer,
-                              ULONG TransferLength,
-                              ULONG* OutLength)
+USBH_GetMsOsFeatureDescriptor(IN PDEVICE_OBJECT DeviceObject,
+                              IN UCHAR FunctionVendorType,
+                              IN UCHAR Value,
+                              IN USHORT Index,
+                              IN PVOID Buffer,
+                              IN ULONG TransferLength,
+                              OUT ULONG* OutLength)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBHUB_PORT_PDO_EXTENSION PortExtension;
+    PURB Urb;
+    ULONG BufferLength;
+    ULONG Length;
+    USHORT Function;
+    UCHAR ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("USBH_GetMsOsFeatureDescriptor: %X, %X, %X, %X\n", FunctionVendorType, Value, Index, TransferLength);
+
+    PortExtension = DeviceObject->DeviceExtension;
+
+    ASSERT(USBH_EXTENSION_TYPE_PORT == PortExtension->Common.ExtensionType);
+
+    *OutLength = 0;
+
+    if (!(PortExtension->PortPdoFlags))
+    {
+        DPRINT1("USBH_GetMsOsFeatureDescriptor: STATUS_INVALID_DEVICE_REQUEST\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    if (FunctionVendorType == 0)
+    {
+        Function = 0x17;
+    }
+    else if (FunctionVendorType == 1)
+    {
+        Function = 0x18;
+    }
+    else if (FunctionVendorType == 2)
+    {
+        Function = 0x19;
+    }
+    else
+    {
+        DPRINT1("USBH_GetMsOsFeatureDescriptor: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!TransferLength)
+    {
+        DPRINT1("USBH_GetMsOsFeatureDescriptor: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (TransferLength > 0xFEFF01)
+    {
+        DPRINT1("USBH_GetMsOsFeatureDescriptor: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    Urb = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Urb), 'BUHU');
+    if (!Urb)
+    {
+        DPRINT1("USBH_GetMsOsFeatureDescriptor: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    for (ix = 0, Length = 0; TransferLength ; ix++)
+    {
+        RtlZeroMemory(Urb, sizeof(*Urb));
+
+        Urb->UrbHeader.Function = Function;
+        Urb->UrbHeader.Length = sizeof(*Urb);
+
+        if (TransferLength < 0xFFFF)
+            BufferLength = TransferLength;
+        else
+            BufferLength = 0xFFFF;
+
+        Urb->UrbControlVendorClassRequest.TransferFlags = 1;
+        Urb->UrbControlVendorClassRequest.TransferBufferLength = BufferLength;
+        Urb->UrbControlVendorClassRequest.TransferBuffer = Buffer;
+
+        Urb->UrbControlVendorClassRequest.Request = PortExtension->OsVendorCode;
+        Urb->UrbControlVendorClassRequest.Value = ((Value << 8) | ix);
+        Urb->UrbControlVendorClassRequest.Index = Index;
+
+        Status = USBH_SyncSubmitUrb(DeviceObject, Urb);
+        if (!NT_SUCCESS(Status))
+        {
+            ExFreePoolWithTag(Urb, 'BUHU');
+            return Status;
+        }
+
+        Buffer = (PVOID)((ULONG_PTR)Buffer + Urb->UrbControlVendorClassRequest.TransferBufferLength);
+        TransferLength -= Urb->UrbControlVendorClassRequest.TransferBufferLength;
+
+        Length += Urb->UrbControlVendorClassRequest.TransferBufferLength;
+
+        if (Urb->UrbControlVendorClassRequest.TransferBufferLength < 0xFFFF)
+            break;
+    }
+
+    ExFreePoolWithTag(Urb, 'BUHU');
+
+    *OutLength = Length;
+
+    return Status;
 }
 
 PVOID
