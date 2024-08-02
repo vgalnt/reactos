@@ -1567,11 +1567,50 @@ USBH_FdoSurpriseRemoveDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
     }
 }
 
+NTSTATUS
+NTAPI
+USBH_GetMsOsFeatureDescriptor(PDEVICE_OBJECT DeviceObject,
+                              UCHAR FunctionVendorType,
+                              UCHAR Value,
+                              USHORT Index,
+                              PVOID Buffer,
+                              ULONG TransferLength,
+                              ULONG* OutLength)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 PVOID
 NTAPI
 USBH_GetExtConfigDesc(IN PDEVICE_OBJECT DeviceObject)
 {
+    OS_FEATURE_DESCRIPTOR_STUB Descriptor;
+    ULONG Length;
+    NTSTATUS Status;
+
+    DPRINT("USBH_GetExtConfigDesc: %p\n", DeviceObject);
+
+    RtlZeroMemory(&Descriptor, sizeof(Descriptor));
+
+    Status = USBH_GetMsOsFeatureDescriptor(DeviceObject,
+                                           0,
+                                           0,
+                                           4,
+                                           &Descriptor,
+                                           sizeof(Descriptor),
+                                           &Length);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("USBH_GetExtConfigDesc: ret NULL\n");
+        return NULL;
+    }
+
+
+    DPRINT1("USBH_GetExtConfigDesc: FIXME\n");
     UNIMPLEMENTED_DBGBREAK();
+
     return NULL;
 }
 
@@ -1670,7 +1709,7 @@ USBH_GetMsOsVendorCode(IN PDEVICE_OBJECT DeviceObject)
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT1("USBH_GetMsOsVendorCode: %p\n", DeviceObject);
+    DPRINT("USBH_GetMsOsVendorCode: %p\n", DeviceObject);
 
     PortExtension = DeviceObject->DeviceExtension;
     ASSERT(USBH_EXTENSION_TYPE_PORT == PortExtension->Common.ExtensionType);
