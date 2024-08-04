@@ -2669,14 +2669,6 @@ UhciFlushInterrupts(IN PVOID uhciExtension)
     DPRINT_IMPL("UhciFlushInterrupts: UNIMPLEMENTED. FIXME\n");
 }
 
-MPSTATUS
-NTAPI
-UhciUnload(IN PVOID uhciExtension)
-{
-    DPRINT_IMPL("UhciUnload: UNIMPLEMENTED. FIXME\n");
-    return MP_STATUS_SUCCESS;
-}
-
 NTSTATUS
 NTAPI
 DriverEntry(IN PDRIVER_OBJECT DriverObject,
