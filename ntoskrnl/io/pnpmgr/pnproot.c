@@ -730,13 +730,13 @@ IopGetRootDevices(
 
     if (!RelationContext.Count)
     {
-        DPRINT1("IopGetRootDevices: Status - STATUS_UNSUCCESSFUL\n");
+        DPRINT("IopGetRootDevices: Status - STATUS_UNSUCCESSFUL\n");
         Status = STATUS_UNSUCCESSFUL;
     }
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("IopGetRootDevices: Status - %X\n", Status);
+        DPRINT("IopGetRootDevices: Status - %X\n", Status);
         goto ErrorExit;
     }
 

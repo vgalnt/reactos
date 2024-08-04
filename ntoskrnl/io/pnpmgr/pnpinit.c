@@ -473,7 +473,7 @@ PipGetDriverTagPriority(
     Status = IopGetRegistryValue(ServiceHandle, L"Group", &ValueInfoGroup);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("PipGetDriverTagPriority: Status %X\n", Status);
+        DPRINT("PipGetDriverTagPriority: Status %X\n", Status);
         ZwClose(GroupOrderListHandle);
         return TagPriority;
     }
@@ -501,7 +501,15 @@ PipGetDriverTagPriority(
     Status = IopGetRegistryValue(ServiceHandle, L"Tag", &ValueInfoTag);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("PipGetDriverTagPriority: Status %X\n", Status);
+        if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
+        {
+            DPRINT("PipGetDriverTagPriority: STATUS_OBJECT_NAME_NOT_FOUND\n");
+        }
+        else
+        {
+            DPRINT1("PipGetDriverTagPriority: Status %X\n", Status);
+        }
+
         ZwClose(GroupOrderListHandle);
         ExFreePoolWithTag(ValueInfoGroup, 'uspP');
         return TagPriority;
@@ -530,7 +538,7 @@ PipGetDriverTagPriority(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("PipGetDriverTagPriority: Status %X\n", Status);
+        DPRINT("PipGetDriverTagPriority: Status %X\n", Status);
         return TagPriority;
     }
 
@@ -1153,9 +1161,17 @@ PipCreateMadeupNode(
     else
     {
         if (NT_SUCCESS(Status))
+        {
             DPRINT1("PipCreateMadeupNode: Not valid Type %X\n", ValueInfo->Type);
+        }
+        else if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
+        {
+            DPRINT("PipCreateMadeupNode: STATUS_OBJECT_NAME_NOT_FOUND\n");
+        }
         else
+        {
             DPRINT1("PipCreateMadeupNode: Status %X\n", Status);
+        }
     }
 
     ZwClose(ServiceHandle);

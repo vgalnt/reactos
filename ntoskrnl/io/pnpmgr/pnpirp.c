@@ -1007,7 +1007,15 @@ IoGetDmaAdapter(
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("IoGetDmaAdapter: Error. Status - %X\n", Status);
+        if (Status == STATUS_NOT_SUPPORTED)
+        {
+            DPRINT("IoGetDmaAdapter: STATUS_NOT_SUPPORTED\n");
+        }
+        else
+        {
+            DPRINT1("IoGetDmaAdapter: Status %X\n", Status);
+        }
+
         goto ExitError;
     }
 

@@ -2087,7 +2087,7 @@ IopDriverLoadingFailed(
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT1("Handle %X Service %wZ\n", ServiceKeyHandle, ServiceKeyName);
+    DPRINT1("IopDriverLoadingFailed: Handle %X Service %wZ\n", ServiceKeyHandle, ServiceKeyName);
 
     if (ServiceKeyHandle)
     {
