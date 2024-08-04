@@ -12382,10 +12382,8 @@ ChannelFilterResourceRequirements(
 
     IoStack = IoGetCurrentIrpStackLocation(Irp);
 
-    DPRINT("AtaFdoFilterResourceRequirements: %p, %p\n",
+    DPRINT("ChannelFilterResourceRequirements: %p, %p\n",
            Fdo, IoStack->Parameters.FilterResourceRequirements.IoResourceRequirementList);
-
-    RosDumpIoResources(IoStack->Parameters.FilterResourceRequirements.IoResourceRequirementList, 0);
 
     RtlZeroMemory(&ioStack, sizeof(ioStack));
 
@@ -12408,7 +12406,7 @@ ChannelFilterResourceRequirements(
 
     if (!NT_SUCCESS(Irp->IoStatus.Status))
     {
-        DPRINT1("AtaFdoFilterResourceRequirements: Irp->IoStatus.Status %X\n", Irp->IoStatus.Status);
+        DPRINT1("ChannelFilterResourceRequirements: Irp->IoStatus.Status %X\n", Irp->IoStatus.Status);
         IoResources = IoStack->Parameters.FilterResourceRequirements.IoResourceRequirementList;
     }
     else
@@ -12419,22 +12417,24 @@ ChannelFilterResourceRequirements(
 
     if (!IoResources)
     {
-        DPRINT("AtaFdoFilterResourceRequirements: IoResources is NULL\n");
+        DPRINT("ChannelFilterResourceRequirements: IoResources is NULL\n");
         goto Exit;
     }
 
     if (!IoResources->AlternativeLists)
     {
-        DPRINT("AtaFdoFilterResourceRequirements: IoResources->AlternativeLists is 0\n");
+        DPRINT("ChannelFilterResourceRequirements: IoResources->AlternativeLists is 0\n");
         goto Exit;
     }
+
+    RosDumpIoResources(IoResources, 0);
 
     Size = (IoResources->ListSize + (IoResources->AlternativeLists * sizeof(IO_RESOURCE_DESCRIPTOR)));
 
     NewIoResources = ExAllocatePoolWithTag(PagedPool, Size, 'PedI');
     if (!NewIoResources)
     {
-        DPRINT1("AtaFdoFilterResourceRequirements: Allocate failed\n");
+        DPRINT1("ChannelFilterResourceRequirements: Allocate failed\n");
         goto Exit;
     }
     RtlCopyMemory(NewIoResources, IoResources, sizeof(IO_RESOURCE_REQUIREMENTS_LIST));
