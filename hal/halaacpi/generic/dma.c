@@ -293,7 +293,7 @@ HalpAllocateAdapterEx(
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT1("HalpAllocateAdapterEx: %X, %X, %X\n", MapRegisters, AdapterBaseVa, IsDma32Bit);
+    DPRINT("HalpAllocateAdapterEx: %X, %X, %X\n", MapRegisters, AdapterBaseVa, IsDma32Bit);
 
     if (HalpPhysicalMemoryMayAppearAbove4GB && IsDma32Bit)
         pMasterAdapter = &MasterAdapter32;
@@ -393,17 +393,20 @@ HalpAllocateAdapterEx(
     AdapterObject->Dma32BitAddresses = IsDma32Bit;
 
     if (MapRegisters)
+    {
         AdapterObject->MasterAdapter = pMasterAdapter->MasterAdapter;
+        DPRINT1("HalpAllocateAdapterEx: MasterAdapter %p\n", AdapterObject->MasterAdapter);
+    }
     else
+    {
         AdapterObject->MasterAdapter = NULL;
-
-    DPRINT1("HalpAllocateAdapterEx: MasterAdapter %p\n", AdapterObject->MasterAdapter);
+    }
 
     KeInitializeDeviceQueue(&AdapterObject->ChannelWaitQueue);
 
     if (!IsMasterAdapter)
     {
-        DPRINT1("HalpAllocateAdapterEx: return %p\n", AdapterObject);
+        DPRINT("HalpAllocateAdapterEx: return %p\n", AdapterObject);
         return AdapterObject;
     }
 
