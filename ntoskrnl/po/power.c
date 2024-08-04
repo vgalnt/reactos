@@ -1973,7 +1973,8 @@ PoStartNextPowerIrp(IN PIRP Irp)
     }
     else
     {
-        DPRINT1("PoStartNextPowerIrp: Irp %p, MinorFunction %X\n", Irp, IoStack->MinorFunction);
+        DPRINT1("PoStartNextPowerIrp: %p (%X:%X) (%p:%p)\n", Irp, IoStack->MinorFunction,
+                IoStack->Parameters.Power.State.DeviceState, DeviceObject, DeviceObject->DeviceExtension);
     }
 
     KeReleaseSpinLock(&PopIrpSerialSpinLock, OldIrql);
