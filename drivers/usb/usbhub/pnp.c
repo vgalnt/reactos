@@ -1702,7 +1702,7 @@ USBH_GetExtConfigDesc(IN PDEVICE_OBJECT DeviceObject)
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("USBH_GetExtConfigDesc: ret NULL\n");
+        DPRINT("USBH_GetExtConfigDesc: ret NULL\n");
         return NULL;
     }
 
@@ -1765,7 +1765,7 @@ USBH_SyncResetDevice(IN PDEVICE_OBJECT DeviceObject)
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT1("USBH_SyncResetDevice: %p\n", DeviceObject);
+    DPRINT("USBH_SyncResetDevice: %p\n", DeviceObject);
 
     Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
     if (!Irp)
@@ -1898,10 +1898,9 @@ USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
         PortExtension->PortPdoFlags |= 0x00100000;
 
         ExtConfigDesc = USBH_GetExtConfigDesc(PortExtension->Common.SelfDevice);
-        DPRINT1("USBH_PdoQueryId: ExtConfigDesc %X\n", ExtConfigDesc);
-
         if (ExtConfigDesc)
         {
+            DPRINT1("USBH_PdoQueryId: ExtConfigDesc %X\n", ExtConfigDesc);
             UNIMPLEMENTED_DBGBREAK();
             ExFreePool(ExtConfigDesc);
         }

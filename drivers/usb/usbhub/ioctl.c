@@ -1333,7 +1333,7 @@ USBH_PdoInternalControl(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
             return USBH_PdoIoctlGetPortStatus(PortExtension, Irp);
 
         case IOCTL_INTERNAL_USB_RESET_PORT:
-            DPRINT1("USBH_PdoInternalControl: IOCTL_INTERNAL_USB_RESET_PORT\n");
+            DPRINT("USBH_PdoInternalControl: IOCTL_INTERNAL_USB_RESET_PORT\n");
             return USBH_PdoIoctlResetPort(PortExtension, Irp);
 
         case IOCTL_INTERNAL_USB_ENABLE_PORT:
