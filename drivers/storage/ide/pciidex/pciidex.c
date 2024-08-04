@@ -314,7 +314,7 @@ PciIdeXGetDeviceParameterEx(
                                          &DevInstRegKey);
         if (!NT_SUCCESS(Status))
         {
-            DPRINT1("PciIdeXGetDeviceParameterEx: Status %X\n", Status);
+            DPRINT("PciIdeXGetDeviceParameterEx: Status %X\n", Status);
             continue;
         }
 
@@ -530,7 +530,7 @@ ControllerAddDevice(
     Status = PciIdeXGetDeviceParameter(LowerPdo, L"DeviceControlFlags", &FdoExtension->DeviceControlFlags);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("ControllerAddDevice: Unable to get DeviceControlFlags from the registry\n");
+        DPRINT("ControllerAddDevice: Unable to get DeviceControlFlags from the registry\n");
         Status = STATUS_SUCCESS;
     }
 
@@ -936,7 +936,7 @@ DigestResourceList(
             Start = CmDescriptor[jx].u.Generic.Start;
             Length = CmDescriptor[jx].u.Generic.Length;
 
-            DPRINT1("DigestResourceList: %X %X %X\n", Type, Start, Length);
+            DPRINT("DigestResourceList: %X %X %X\n", Type, Start, Length);
 
             if ((Type == 1 || Type == 3) && Length == BaseIoAddress1Length && !IsFoundCmdBlockBase)
             {
@@ -2466,7 +2466,7 @@ PciIdeChannelEnabled(
     Status = PciIdeXGetDeviceParameter(FdoExtension->LowPdo, OnMaskStr[Channel], &Mask);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("PciIdeChannelEnabled: Unable to get OnMaskStr from the registry\n");
+        DPRINT("PciIdeChannelEnabled: Unable to get OnMaskStr from the registry\n");
         goto ErrorExit;
     }
 
@@ -4489,7 +4489,7 @@ ChannelQueryText(
     Status = RtlFindMessage(PdoExtension->DriverObject->DriverStart, 0xB, 0, 1, &MessageEntry);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("ChannelQueryText: %p, %p\n", Pdo, Irp);
+        DPRINT("ChannelQueryText: %p, %p\n", Pdo, Irp);
         DeviceText = NULL;
         goto Exit;
     }
@@ -4566,7 +4566,7 @@ ChannelFilterResourceRequirements(
 
     if (!PdoExtension->IsChannelEmpty)
     {
-        DPRINT1("ChannelFilterResourceRequirements: Channel not empty\n");
+        DPRINT("ChannelFilterResourceRequirements: Channel not empty\n");
         goto Exit;
     }
 
