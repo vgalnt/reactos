@@ -6987,7 +6987,15 @@ IdePortGetDeviceParameter(
     Status = IoOpenDeviceRegistryKey(FdoExtension->LowPdo, PLUGPLAY_REGKEY_DRIVER, KEY_READ, &DevInstRegKey);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("IdePortGetDeviceParameter: Status %X\n", Status);
+        if (Status != STATUS_OBJECT_NAME_NOT_FOUND)
+        {
+            DPRINT1("IdePortGetDeviceParameter: Status %X\n", Status);
+        }
+        else
+        {
+            DPRINT("IdePortGetDeviceParameter: Status %X\n", Status);
+        }
+
         return Status;
     }
 
@@ -7934,7 +7942,7 @@ DeviceQueryACPISettings(
 
             if (Status != STATUS_BUFFER_OVERFLOW)
             {
-                DPRINT1("DeviceQueryACPISettings: Status %X\n", Status);
+                DPRINT("DeviceQueryACPISettings: Status %X\n", Status);
                 break;
             }
         }
@@ -7973,7 +7981,7 @@ DeviceQueryChannelTimingSettings(
     Status = DeviceQueryACPISettings(FdoExtension->SelfDevice, Signature, &QueryResult);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("DeviceQueryChannelTimingSettings: Status %X\n", Status);
+        DPRINT("DeviceQueryChannelTimingSettings: Status %X\n", Status);
         goto ErrorExit;
     }
 
@@ -8547,7 +8555,15 @@ IdePortSaveDeviceParameter(
     Status = IoOpenDeviceRegistryKey(FdoExtension->LowPdo, PLUGPLAY_REGKEY_DRIVER, KEY_WRITE, &DevInstRegKey);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("IdePortSaveDeviceParameter: Status %X\n", Status);
+        if (Status != STATUS_OBJECT_NAME_NOT_FOUND)
+        {
+            DPRINT1("IdePortSaveDeviceParameter: Status %X\n", Status);
+        }
+        else
+        {
+            DPRINT("IdePortSaveDeviceParameter: Status %X\n", Status);
+        }
+
         return Status;
     }
 
@@ -8878,7 +8894,15 @@ IdePortOpenServiceSubKey(
     Status = ZwOpenKey(&DriverHandle, KEY_ALL_ACCESS, &ObjectAttributes);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("IdePortOpenServiceSubKey: Status %X\n", Status);
+        if (Status != STATUS_OBJECT_NAME_NOT_FOUND)
+        {
+            DPRINT1("IdePortOpenServiceSubKey: Status %X\n", Status);
+        }
+        else
+        {
+            DPRINT("IdePortOpenServiceSubKey: Status %X\n", Status);
+        }
+
         return NULL;
     }
 
@@ -8888,7 +8912,7 @@ IdePortOpenServiceSubKey(
     ZwClose(DriverHandle);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("IdePortOpenServiceSubKey: Status %X\n", Status);
+        DPRINT("IdePortOpenServiceSubKey: Status %X\n", Status);
         return NULL;
     }
 
@@ -8983,7 +9007,7 @@ IdePortSearchDeviceInRegMultiSzList(
 
     if (!ParameterData)
     {
-        DPRINT1("IdePortSearchDeviceInRegMultiSzList: ParameterData is NULL\n");
+        DPRINT("IdePortSearchDeviceInRegMultiSzList: ParameterData is NULL\n");
         return FALSE;
     }
 
@@ -13716,7 +13740,7 @@ ChannelDeviceIoControl(
 
     if (PropertyQuery->PropertyId != StorageAdapterProperty)
     {
-        DPRINT1("ChannelDeviceIoControl: STATUS_NOT_IMPLEMENTED\n");
+        DPRINT("ChannelDeviceIoControl: STATUS_NOT_IMPLEMENTED\n");
         Irp->IoStatus.Status = STATUS_NOT_IMPLEMENTED;
         goto Exit;
     }
