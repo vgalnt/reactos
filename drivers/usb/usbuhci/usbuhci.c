@@ -2621,13 +2621,6 @@ UhciSetEndpointDataToggle(IN PVOID uhciExtension,
     DPRINT_IMPL("UhciSetEndpointDataToggle: UNIMPLEMENTED. FIXME\n");
 }
 
-VOID
-NTAPI
-UhciResetController(IN PVOID uhciExtension)
-{
-    DPRINT_IMPL("UhciResetController: UNIMPLEMENTED. FIXME\n");
-}
-
 MPSTATUS
 NTAPI
 UhciStartSendOnePacket(IN PVOID uhciExtension,
