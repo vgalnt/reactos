@@ -192,8 +192,17 @@ PciComputeNewCurrentSettings(
         return FALSE;
 
     //if... // MISSING CODE
-    UNIMPLEMENTED;
-    DPRINT1("PciComputeNewCurrentSettings: Missing sanity checking code!\n");
+    do
+    {
+        static int bWarnedOnce = 0;
+        if (!bWarnedOnce)
+        {
+            bWarnedOnce++;
+            UNIMPLEMENTED;
+            DPRINT1("PciComputeNewCurrentSettings: Missing sanity checking code!\n");
+        }
+    }
+    while (FALSE);
 
     /* Loop all the PCI function resources */
     for (ix = 0; ix < 7; ix++)
