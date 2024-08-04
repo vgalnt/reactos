@@ -756,46 +756,38 @@ NTSTATUS
 NTAPI
 USBH_PdoPower(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
               IN PIRP Irp,
-              IN UCHAR Minor)
+              IN UCHAR MinorFunction)
 {
-    NTSTATUS Status = Irp->IoStatus.Status;
+    PUSBHUB_FDO_EXTENSION HubExtension;
 
-    DPRINT_PWR("USBH_FdoPower: PortExtension - %p, Irp - %p, Minor - %X\n",
-               PortExtension,
-               Irp,
-               Minor);
+    DPRINT1("USBH_PdoPower: %p, %p, %X\n", PortExtension, Irp, MinorFunction);
 
-    switch (Minor)
+    HubExtension = PortExtension->HubExtension;
+    if (!HubExtension)
     {
-      case IRP_MN_WAIT_WAKE:
-          DPRINT_PWR("USBHUB_PdoPower: IRP_MN_WAIT_WAKE\n");
-          PoStartNextPowerIrp(Irp);
-          break;
-
-      case IRP_MN_POWER_SEQUENCE:
-          DPRINT_PWR("USBHUB_PdoPower: IRP_MN_POWER_SEQUENCE\n");
-          PoStartNextPowerIrp(Irp);
-          break;
-
-      case IRP_MN_SET_POWER:
-          DPRINT_PWR("USBHUB_PdoPower: IRP_MN_SET_POWER\n");
-          PoStartNextPowerIrp(Irp);
-          break;
-
-      case IRP_MN_QUERY_POWER:
-          DPRINT_PWR("USBHUB_PdoPower: IRP_MN_QUERY_POWER\n");
-          PoStartNextPowerIrp(Irp);
-          break;
-
-      default:
-          DPRINT1("USBHUB_PdoPower: unknown IRP_MN_POWER!\n");
-          PoStartNextPowerIrp(Irp);
-          break;
+        UNIMPLEMENTED_DBGBREAK();
     }
 
-    Irp->IoStatus.Status = Status;
-    Irp->IoStatus.Information = 0;
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    InterlockedIncrement(&HubExtension->PendingRequestCount);
 
-    return Status;
+    if (MinorFunction == 2 || MinorFunction == 3)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (PortExtension->StateBehindD2)
+    {
+        DPRINT1("USBH_PdoPower: %X\n", PortExtension->StateBehindD2);
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (HubExtension->CurrentPowerState.DeviceState == 1 ||
+        (MinorFunction != 2 && MinorFunction != 3))
+    {
+        DPRINT1("USBH_PdoPower: %X\n", HubExtension->CurrentPowerState.DeviceState);
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
 }
