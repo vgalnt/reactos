@@ -11,7 +11,6 @@
 #include <debug.h>
 
 #define NDEBUG_UHCI_TRACE
-#define NDEBUG_UHCI_IMPLEMENT
 #include "dbg_uhci.h"
 
 USBPORT_REGISTRATION_PACKET RegPacket;
@@ -274,7 +273,9 @@ UhciReopenEndpoint(IN PVOID uhciExtension,
                    IN PUSBPORT_ENDPOINT_PROPERTIES EndpointProperties,
                    IN PVOID uhciEndpoint)
 {
-    DPRINT_IMPL("Uhci: UNIMPLEMENTED. FIXME\n");
+    //PUHCI_ENDPOINT UhciEndpoint = uhciEndpoint;
+    DPRINT1("UhciReopenEndpoint: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -352,7 +353,7 @@ UhciCloseEndpoint(IN PVOID uhciExtension,
                   IN PVOID uhciEndpoint,
                   IN BOOLEAN IsDoDisablePeriodic)
 {
-    DPRINT_IMPL("UhciCloseEndpoint: UNIMPLEMENTED. FIXME\n");
+    DPRINT("UhciCloseEndpoint()\n");
 }
 
 MPSTATUS
@@ -776,14 +777,16 @@ VOID
 NTAPI
 UhciSuspendController(IN PVOID uhciExtension)
 {
-    DPRINT_IMPL("UhciSuspendController: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciSuspendController: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 MPSTATUS
 NTAPI
 UhciResumeController(IN PVOID uhciExtension)
 {
-    DPRINT_IMPL("UhciResumeController: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciResumeController: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -1173,7 +1176,7 @@ UhciMapAsyncTransferToTDs(IN PUHCI_EXTENSION UhciExtension,
                     IsLastTd = FALSE;
 
                     DPRINT1("UhciMapAsyncTransferToTds: IsLastTd = FALSE. FIXME\n");
-                    ASSERT(FALSE);
+                    UNIMPLEMENTED_DBGBREAK();
                 }
 
                 BytesRemaining = 0;
@@ -1209,7 +1212,7 @@ UhciMapAsyncTransferToTDs(IN PUHCI_EXTENSION UhciExtension,
             TD->UhciTransfer = UhciTransfer;
 
             if (!IsLastTd)
-                ASSERT(FALSE);
+                UNIMPLEMENTED_DBGBREAK();
 
             PhysicalAddress += LengthThisTD;
             LengthMapped += LengthThisTD;
@@ -1639,7 +1642,8 @@ UhciProcessDoneNonIsoTD(IN PUHCI_EXTENSION UhciExtension,
         if (TD->HwTD.Token.PIDCode == UHCI_TD_PID_IN &&
             TD->Flags & UHCI_HCD_TD_FLAG_DATA_BUFFER)
         {
-            DPRINT_IMPL("UhciProcessDoneNonIsoTD: UNIMPLEMENTED. FIXME\n");
+            DPRINT1("UhciProcessDoneNonIsoTD: UNIMPLEMENTED. FIXME\n");
+            UNIMPLEMENTED_DBGBREAK();
         }
 
         if (USBDStatus != USBD_STATUS_SUCCESS)
@@ -1647,7 +1651,10 @@ UhciProcessDoneNonIsoTD(IN PUHCI_EXTENSION UhciExtension,
     }
 
     if (TD->Flags & UHCI_HCD_TD_FLAG_DATA_BUFFER)
-        DPRINT_IMPL("UhciProcessDoneNonIsoTD: UNIMPLEMENTED. FIXME\n");
+    {
+        DPRINT1("UhciProcessDoneNonIsoTD: UNIMPLEMENTED. FIXME\n");
+        UNIMPLEMENTED_DBGBREAK();
+    }
 
     UhciEndpoint->AllocatedTDs--;
 
@@ -1681,7 +1688,8 @@ UhciIsochTransfer(IN PVOID ehciExtension,
                   IN PVOID ehciTransfer,
                   IN PVOID isoParameters)
 {
-    DPRINT_IMPL("UhciIsochTransfer: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciIsochTransfer: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -1691,7 +1699,8 @@ UhciAbortIsoTransfer(IN PUHCI_EXTENSION UhciExtension,
                      IN PUHCI_ENDPOINT UhciEndpoint,
                      IN PUHCI_TRANSFER UhciTransfer)
 {
-    DPRINT_IMPL("UhciAbortIsoTransfer: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciAbortIsoTransfer: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 VOID
@@ -1731,7 +1740,10 @@ UhciAbortNonIsoTransfer(IN PUHCI_EXTENSION UhciExtension,
         if (TD->HwTD.ControlStatus.Status & UHCI_TD_STS_ACTIVE)
         {
             if (TD->Flags & UHCI_HCD_TD_FLAG_DATA_BUFFER)
-                DPRINT_IMPL("UhciAbortNonIsoTransfer: UNIMPLEMENTED. FIXME\n");
+            {
+                DPRINT1("UhciAbortNonIsoTransfer: UNIMPLEMENTED. FIXME\n");
+                UNIMPLEMENTED_DBGBREAK();
+            }
 
             UhciEndpoint->AllocatedTDs--;
 
@@ -1840,7 +1852,8 @@ NTAPI
 UhciGetEndpointState(IN PVOID uhciExtension,
                      IN PVOID uhciEndpoint)
 {
-    DPRINT_IMPL("UhciGetEndpointState: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciGetEndpointState: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return 0;
 }
 
@@ -2069,7 +2082,8 @@ NTAPI
 UhciPollIsoEndpoint(IN PUHCI_EXTENSION UhciExtension,
                     IN PUHCI_ENDPOINT UhciEndpoint)
 {
-    DPRINT_IMPL("UhciPollIsoEndpoint: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciPollIsoEndpoint: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 VOID
@@ -2618,7 +2632,8 @@ UhciSetEndpointDataToggle(IN PVOID uhciExtension,
                           IN PVOID uhciEndpoint,
                           IN ULONG DataToggle)
 {
-    DPRINT_IMPL("UhciSetEndpointDataToggle: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciSetEndpointDataToggle: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 MPSTATUS
@@ -2632,7 +2647,8 @@ UhciStartSendOnePacket(IN PVOID uhciExtension,
                        IN ULONG BufferLength,
                        IN USBD_STATUS * pUSBDStatus)
 {
-    DPRINT_IMPL("UhciStartSendOnePacket: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciStartSendOnePacket: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -2647,7 +2663,8 @@ UhciEndSendOnePacket(IN PVOID uhciExtension,
                      IN ULONG BufferLength,
                      IN USBD_STATUS * pUSBDStatus)
 {
-    DPRINT_IMPL("UhciEndSendOnePacket: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciEndSendOnePacket: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -2658,7 +2675,8 @@ UhciPassThru(IN PVOID uhciExtension,
              IN ULONG ParameterLength,
              IN PVOID pParameters)
 {
-    DPRINT_IMPL("UhciPassThru: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciPassThru: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -2666,7 +2684,8 @@ VOID
 NTAPI
 UhciFlushInterrupts(IN PVOID uhciExtension)
 {
-    DPRINT_IMPL("UhciFlushInterrupts: UNIMPLEMENTED. FIXME\n");
+    DPRINT1("UhciFlushInterrupts: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 NTSTATUS
