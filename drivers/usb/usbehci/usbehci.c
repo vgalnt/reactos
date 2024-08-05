@@ -3516,13 +3516,6 @@ EHCI_SetEndpointStatus(IN PVOID ehciExtension,
     }
 }
 
-VOID
-NTAPI
-EHCI_ResetController(IN PVOID ehciExtension)
-{
-    DPRINT1("EHCI_ResetController: UNIMPLEMENTED. FIXME\n");
-}
-
 MPSTATUS
 NTAPI
 EHCI_StartSendOnePacket(IN PVOID ehciExtension,
