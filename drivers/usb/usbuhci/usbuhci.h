@@ -174,6 +174,9 @@ typedef struct _UHCI_EXTENSION {
   UHCI_USB_STATUS HcStatus;
   UCHAR SOF_Modify;
   UCHAR Padded2[3];
+  USHORT OldHcCommand;
+  USHORT OldFrameNumber;
+  ULONG OldFrameAddress;
 } UHCI_EXTENSION, *PUHCI_EXTENSION;
 
 /* roothub.c */

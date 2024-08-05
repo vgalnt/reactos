@@ -777,8 +777,53 @@ VOID
 NTAPI
 UhciSuspendController(IN PVOID uhciExtension)
 {
-    DPRINT1("UhciSuspendController: UNIMPLEMENTED. FIXME\n");
-    UNIMPLEMENTED_DBGBREAK();
+    PUHCI_EXTENSION UhciExtension = uhciExtension;
+    PUHCI_HW_REGISTERS BaseRegister = UhciExtension->BaseRegister;
+    ULONG ix;
+    USHORT HcCommand;
+    USHORT HcStatus;
+
+    UhciExtension->Flags |= 2;
+
+  #if DBG
+    DPRINT1("UhciSuspendController: 'HC regs before suspend\n");
+    DPRINT1("'cmd register = %x\n", READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT));
+    DPRINT1("'status register = %x\n", READ_PORT_USHORT(&BaseRegister->HcStatus.AsUSHORT));
+    DPRINT1("'interrupt enable register = %x\n", READ_PORT_USHORT(&BaseRegister->HcInterruptEnable.AsUSHORT));
+    DPRINT1("'frame list base = %x\n", READ_PORT_ULONG(&BaseRegister->FrameAddress));
+    DPRINT1("'port1 = %x\n", READ_PORT_USHORT(&BaseRegister->PortControl[0].AsUSHORT));
+    DPRINT1("'port2 = %x\n", READ_PORT_USHORT(&BaseRegister->PortControl[1].AsUSHORT));
+  #endif
+
+    UhciExtension->OldFrameAddress = (READ_PORT_ULONG(&BaseRegister->FrameAddress) & 0xFFFFF000);
+    UhciExtension->OldFrameNumber = (READ_PORT_USHORT(&BaseRegister->FrameNumber) & 0x7FF);
+    UhciExtension->OldHcCommand = READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT);
+
+    HcCommand = (UhciExtension->OldHcCommand & ~1);
+    WRITE_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT, HcCommand);
+
+    for (ix = 0; ix < 10; ix++)
+    {
+        HcStatus = READ_PORT_USHORT(&BaseRegister->HcStatus.AsUSHORT);
+        if (HcStatus & 0x20)
+            break;
+
+        RegPacket.UsbPortWait(UhciExtension, 1);
+    }
+
+    if (!(HcStatus & 0x20))
+    {
+        HcCommand |= 4;
+        WRITE_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT, HcCommand);
+
+        RegPacket.UsbPortWait(UhciExtension, 10);
+        WRITE_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT, HcCommand & ~4);
+
+        WRITE_PORT_USHORT(&BaseRegister->HcInterruptEnable.AsUSHORT, UhciExtension->StatusMask.AsUSHORT);
+    }
+
+    HcCommand = ((READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT) & ~0x10) | 8);
+    WRITE_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT, HcCommand);
 }
 
 MPSTATUS
