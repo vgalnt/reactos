@@ -476,6 +476,7 @@ EHCI_OpenHsIsoEndpoint(IN PEHCI_EXTENSION EhciExtension,
                        IN PEHCI_ENDPOINT EhciEndpoint)
 {
     DPRINT1("EHCI_OpenHsIsoEndpoint: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_NOT_SUPPORTED;
 }
 
@@ -486,6 +487,7 @@ EHCI_OpenIsoEndpoint(IN PEHCI_EXTENSION EhciExtension,
                      IN PEHCI_ENDPOINT EhciEndpoint)
 {
     DPRINT1("EHCI_OpenIsoEndpoint: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_NOT_SUPPORTED;
 }
 
@@ -579,11 +581,13 @@ EHCI_ReopenEndpoint(IN PVOID ehciExtension,
             if (EndpointProperties->DeviceSpeed == UsbHighSpeed)
             {
                 DPRINT1("EHCI_ReopenEndpoint: HS Iso. UNIMPLEMENTED. FIXME\n");
+                UNIMPLEMENTED_DBGBREAK();
                 MPStatus = MP_STATUS_NOT_SUPPORTED;
             }
             else
             {
                 DPRINT1("EHCI_ReopenEndpoint: Iso. UNIMPLEMENTED. FIXME\n");
+                UNIMPLEMENTED_DBGBREAK();
                 MPStatus = MP_STATUS_NOT_SUPPORTED;
             }
 
@@ -1149,7 +1153,7 @@ VOID
 NTAPI
 EHCI_GetRegistryParameters(IN PEHCI_EXTENSION EhciExtension)
 {
-    DPRINT1("EHCI_GetRegistryParameters: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_ONCE; // "EnIdleEndpointSupportEx"
 }
 
 MPSTATUS
@@ -1283,6 +1287,7 @@ EHCI_StopController(IN PVOID ehciExtension,
                     IN BOOLEAN DisableInterrupts)
 {
     DPRINT1("EHCI_StopController: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 VOID
@@ -2444,6 +2449,7 @@ EHCI_SubmitIsoTransfer(IN PVOID ehciExtension,
                        IN PVOID isoParameters)
 {
     DPRINT1("EHCI_SubmitIsoTransfer: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -2454,6 +2460,7 @@ EHCI_AbortIsoTransfer(IN PEHCI_EXTENSION EhciExtension,
                       IN PEHCI_TRANSFER EhciTransfer)
 {
     DPRINT1("EHCI_AbortIsoTransfer: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 VOID
@@ -2621,6 +2628,7 @@ EHCI_GetEndpointState(IN PVOID ehciExtension,
                       IN PVOID ehciEndpoint)
 {
     DPRINT1("EHCI_GetEndpointState: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return 0;
 }
 
@@ -2822,6 +2830,7 @@ EHCI_SetIsoEndpointState(IN PEHCI_EXTENSION EhciExtension,
                          IN ULONG EndpointState)
 {
     DPRINT1("EHCI_SetIsoEndpointState: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 VOID
@@ -3322,6 +3331,7 @@ EHCI_PollIsoEndpoint(IN PEHCI_EXTENSION EhciExtension,
                      IN PEHCI_ENDPOINT EhciEndpoint)
 {
     DPRINT1("EHCI_PollIsoEndpoint: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 VOID
@@ -3528,6 +3538,7 @@ EHCI_StartSendOnePacket(IN PVOID ehciExtension,
                         IN USBD_STATUS * pUSBDStatus)
 {
     DPRINT1("EHCI_StartSendOnePacket: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -3543,6 +3554,7 @@ EHCI_EndSendOnePacket(IN PVOID ehciExtension,
                       IN USBD_STATUS * pUSBDStatus)
 {
     DPRINT1("EHCI_EndSendOnePacket: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -3554,6 +3566,7 @@ EHCI_PassThru(IN PVOID ehciExtension,
               IN PVOID pParameters)
 {
     DPRINT1("EHCI_PassThru: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
     return MP_STATUS_SUCCESS;
 }
 
@@ -3564,6 +3577,7 @@ EHCI_RebalanceEndpoint(IN PVOID ohciExtension,
                        IN PVOID ohciEndpoint)
 {
     DPRINT1("EHCI_RebalanceEndpoint: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 VOID
@@ -3587,6 +3601,7 @@ NTAPI
 EHCI_TakePortControl(IN PVOID ohciExtension)
 {
     DPRINT1("EHCI_TakePortControl: UNIMPLEMENTED. FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 VOID
