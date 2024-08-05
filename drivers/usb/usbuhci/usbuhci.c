@@ -830,8 +830,101 @@ MPSTATUS
 NTAPI
 UhciResumeController(IN PVOID uhciExtension)
 {
-    DPRINT1("UhciResumeController: UNIMPLEMENTED. FIXME\n");
-    UNIMPLEMENTED_DBGBREAK();
+    PUHCI_EXTENSION UhciExtension = uhciExtension;
+    PUHCI_HW_REGISTERS BaseRegister = UhciExtension->BaseRegister;
+    UHCI_PORT_STATUS_CONTROL PortControl;
+    ULONG FrameNumber1;
+    ULONG FrameNumber2;
+    ULONG ix;
+    ULONG Port;
+    USHORT HcCommand;
+
+    UhciExtension->Flags &= ~2;
+
+    if (READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT) == 0xFFFF)
+    {
+        DPRINT1("'Command register is toast.\n");
+        return MP_STATUS_HW_ERROR;
+    }
+
+    if (!(READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT) & 8))
+    {
+        DPRINT1("'RESUME> controller is toast (not in suspend).\n");
+        return MP_STATUS_HW_ERROR;
+    }
+
+  #if DBG
+    DPRINT1("'<HC regs after suspend>\n");
+    DPRINT1("'cmd register = %x\n", READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT));
+    DPRINT1("'status register = %x\n", READ_PORT_USHORT(&BaseRegister->HcStatus.AsUSHORT));
+    DPRINT1("'interrupt enable register = %x\n", READ_PORT_USHORT(&BaseRegister->HcInterruptEnable.AsUSHORT));
+    DPRINT1("'frame list base = %x\n", READ_PORT_ULONG(&BaseRegister->FrameAddress));
+    DPRINT1("'port1 = %x\n", READ_PORT_USHORT(&BaseRegister->PortControl[0].AsUSHORT));
+    DPRINT1("'port2 = %x\n", READ_PORT_USHORT(&BaseRegister->PortControl[1].AsUSHORT));
+  #endif
+
+    DPRINT1("'restoring FLBA\n");
+    WRITE_PORT_USHORT(&BaseRegister->FrameNumber, UhciExtension->OldFrameNumber);
+    WRITE_PORT_ULONG(&BaseRegister->FrameAddress, UhciExtension->OldFrameAddress);
+
+    HcCommand = READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT);
+    WRITE_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT, (HcCommand | 0x10));
+
+    RegPacket.UsbPortWait(uhciExtension, 20);
+
+    HcCommand = (READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT) & ~0x18);
+    WRITE_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT, HcCommand);
+    HcCommand = READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT);
+
+    for (ix = 0; (HcCommand & 0x10) && ix < 10; ix++)
+    {
+        if (!(HcCommand & 0x10))
+            break;
+
+        KeStallExecutionProcessor(50);
+        HcCommand = READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT);
+    }
+
+    if (HcCommand & 0x10)
+    {
+        DPRINT1("<UHCI TEST_TRAP>\n");
+        DbgBreakPoint();
+        return MP_STATUS_HW_ERROR;
+    }
+
+    WRITE_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT, (UhciExtension->OldHcCommand | 1));
+
+    FrameNumber1 = (READ_PORT_USHORT(&BaseRegister->FrameNumber) & 0x7FF);
+    RegPacket.UsbPortWait(UhciExtension, 5);
+    FrameNumber2 = (READ_PORT_USHORT(&BaseRegister->FrameNumber) & 0x7FF);
+
+    if (FrameNumber2 == FrameNumber1)
+        return MP_STATUS_HW_ERROR;
+
+    if (UhciExtension->HcFlavor != 201 && UhciExtension->HcFlavor < 250)
+    {
+        for (Port = 0; Port < 2; Port++)
+        {
+            PortControl.AsUSHORT = READ_PORT_USHORT(&BaseRegister->PortControl[Port].AsUSHORT);
+
+            if (!(PortControl.AsUSHORT & 1) || !(PortControl.AsUSHORT & 4))
+            {
+                WRITE_PORT_USHORT(&BaseRegister->PortControl[Port].AsUSHORT, (PortControl.AsUSHORT & ~0x100A));
+                DPRINT1("'<resume port %d>\n", Port);
+            }
+        }
+    }
+
+  #if DBG
+    DPRINT1("'<HC regs after resume>\n");
+    DPRINT1("'cmd register = %x\n", READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT));
+    DPRINT1("'status register = %x\n", READ_PORT_USHORT(&BaseRegister->HcStatus.AsUSHORT));
+    DPRINT1("'interrupt enable register = %x\n", READ_PORT_USHORT(&BaseRegister->HcInterruptEnable.AsUSHORT));
+    DPRINT1("'frame list base = %x\n", READ_PORT_ULONG(&BaseRegister->FrameAddress));
+    DPRINT1("'port1 = %x\n", READ_PORT_USHORT(&BaseRegister->PortControl[0].AsUSHORT));
+    DPRINT1("'port2 = %x\n", READ_PORT_USHORT(&BaseRegister->PortControl[1].AsUSHORT));
+  #endif
+
     return MP_STATUS_SUCCESS;
 }
 
