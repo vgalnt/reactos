@@ -22,6 +22,16 @@ CmCheckRegistry(IN PCMHIVE RegistryHive,
                 IN ULONG Flags)
 {
     /* FIXME: HACK! */
-    DPRINT1("CmCheckRegistry(0x%p, %lu) is UNIMPLEMENTED!\n", RegistryHive, Flags);
+    do
+    {
+        static int bWarnedOnce = 0;
+        if (!bWarnedOnce)
+        {
+            bWarnedOnce++;
+            DPRINT1("CmCheckRegistry(0x%p, %lu) is UNIMPLEMENTED!\n", RegistryHive, Flags);
+        }
+    }
+    while (FALSE);
+
     return 0;
 }
