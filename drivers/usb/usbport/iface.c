@@ -633,7 +633,7 @@ USBHI_SetDeviceHandleData(IN PVOID BusContext,
                           IN PVOID DeviceHandle,
                           IN PDEVICE_OBJECT UsbDevicePdo)
 {
-    DPRINT1("USBHI_SetDeviceHandleData: UNIMPLEMENTED. FIXME. \n");
+    UNIMPLEMENTED_ONCE;
 }
 
 /* USB bus driver Interface functions */
