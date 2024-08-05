@@ -854,7 +854,7 @@ USBSTOR_FillInquiryData(
     DPRINT("Length %x\n", InquiryData->AdditionalLength);
     DPRINT("Reserved %p\n", InquiryData->Reserved);
     DPRINT("VendorId %c%c%c%c%c%c%c%c\n", InquiryData->VendorId[0], InquiryData->VendorId[1], InquiryData->VendorId[2], InquiryData->VendorId[3], InquiryData->VendorId[4], InquiryData->VendorId[5], InquiryData->VendorId[6], InquiryData->VendorId[7]);
-    DPRINT("ProductId %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\n", InquiryData->ProductId[0], InquiryData->ProductId[1], InquiryData->ProductId[2], InquiryData->ProductId[3],
+    DPRINT1("ProductId %c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c\n", InquiryData->ProductId[0], InquiryData->ProductId[1], InquiryData->ProductId[2], InquiryData->ProductId[3],
                                                            InquiryData->ProductId[4], InquiryData->ProductId[5], InquiryData->ProductId[6], InquiryData->ProductId[7],
                                                            InquiryData->ProductId[8], InquiryData->ProductId[9], InquiryData->ProductId[10], InquiryData->ProductId[11],
                                                            InquiryData->ProductId[12], InquiryData->ProductId[13], InquiryData->ProductId[14], InquiryData->ProductId[15]);

@@ -27,7 +27,7 @@ USBSTOR_DumpDeviceDescriptor(PUSB_DEVICE_DESCRIPTOR DeviceDescriptor)
     DPRINT("bDeviceSubClass %x\n", DeviceDescriptor->bDeviceSubClass);
     DPRINT("bDeviceProtocol %x\n", DeviceDescriptor->bDeviceProtocol);
     DPRINT("bMaxPacketSize0 %x\n", DeviceDescriptor->bMaxPacketSize0);
-    DPRINT("idVendor %x\n", DeviceDescriptor->idVendor);
+    DPRINT1("idVendor %x\n", DeviceDescriptor->idVendor);
     DPRINT("idProduct %x\n", DeviceDescriptor->idProduct);
     DPRINT("bcdDevice %x\n", DeviceDescriptor->bcdDevice);
     DPRINT("iManufacturer %x\n", DeviceDescriptor->iManufacturer);
