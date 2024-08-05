@@ -988,7 +988,7 @@ USB2_Rebalance(IN PDEVICE_OBJECT FdoDevice,
         switch (TransferType)
         {
             case USBPORT_TRANSFER_TYPE_ISOCHRONOUS:
-                DPRINT("USBPORT_Rebalance: USBPORT_TRANSFER_TYPE_ISOCHRONOUS. FIXME\n");
+                DPRINT1("USBPORT_Rebalance: USBPORT_TRANSFER_TYPE_ISOCHRONOUS. FIXME\n");
                 ASSERT(FALSE);
                 break;
 
