@@ -2499,7 +2499,16 @@ USBH_PdoStartDevice(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
 
     PortExtension->CurrentPowerState.DeviceState = PowerDeviceD0;
 
-    DPRINT1("USBH_PdoStartDevice: call IoWMIRegistrationControl UNIMPLEMENTED. FIXME\n");
+    do
+    {
+        static int bWarnedOnce = 0;
+        if (!bWarnedOnce)
+        {
+            bWarnedOnce++;
+            DPRINT1("USBH_PdoStartDevice: call IoWMIRegistrationControl UNIMPLEMENTED. FIXME\n");
+        }
+    }
+    while (FALSE);
 
     return Status;
 }
