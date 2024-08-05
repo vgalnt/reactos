@@ -528,7 +528,7 @@ ACPIRegReadAMLRegistryEntry(
     _In_ PDESCRIPTION_HEADER* OutTableHeader,
     _In_ BOOLEAN IsNeedUnmap)
 {
-    UNIMPLEMENTED;
+    UNIMPLEMENTED_ONCE;
     return FALSE;
 }
 

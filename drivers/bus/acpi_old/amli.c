@@ -1472,7 +1472,7 @@ ValidateMemoryOpregionRange(
     _In_ ULONG_PTR Base,
     _In_ ULONG Length)
 {
-    UNIMPLEMENTED;
+    UNIMPLEMENTED_ONCE;
 }
 
 /* CALLBACKS TERM HANDLERS **************************************************/
