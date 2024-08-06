@@ -168,6 +168,12 @@ typedef struct _CM_RESOURCE_LIST {
 
 #define CX_TYPECOLUMN_WIDTH 120
 
+#define CONFIG_TYPE_ALLOC   1
+#define CONFIG_TYPE_FORCED  2
+#define CONFIG_TYPE_BOOT    3
+
+const WCHAR* ValueName[4] = {L"AllocConfig", L"ForcedConfig", L"BootConfig"};
+
 static VOID
 InitializeDevicesList(
     IN HWND hWndDevList)
@@ -352,7 +358,6 @@ ResourcesProcDriverDlgProc(IN HWND hwndDlg,
     return Ret;
 }
 
-
 PVOID
 GetResourceList(
     LPWSTR pszDeviceID)
@@ -361,25 +366,66 @@ GetResourceList(
     PCM_RESOURCE_LIST pResourceList = NULL;
     HKEY hKey = NULL;
     DWORD dwError, dwSize;
+    DWORD ConfigType = CONFIG_TYPE_ALLOC; // preffered
+    PWCHAR valueName;
 
-    wsprintf(szBuffer, L"SYSTEM\\CurrentControlSet\\Enum\\%s\\LogConf", pszDeviceID);
+    /* First, let's try to open the "Control" key for the read value "AllocConfig" (REG_OPTION_VOLATILE). */
+    wsprintf(szBuffer, L"SYSTEM\\CurrentControlSet\\Enum\\%s\\Control", pszDeviceID);
+
     dwError = RegOpenKeyExW(HKEY_LOCAL_MACHINE, szBuffer, 0, KEY_READ, &hKey);
     if (dwError != ERROR_SUCCESS)
     {
-        /* failed to open device instance log conf dir */
-        return NULL;
+        /* Second, let's try to open the "LogConf" key for the read
+           value of "ForcedConfig" or "BootConfig" (REG_OPTION_NON_VOLATILE).
+        */
+        wsprintf(szBuffer, L"SYSTEM\\CurrentControlSet\\Enum\\%s\\LogConf", pszDeviceID);
+
+        dwError = RegOpenKeyExW(HKEY_LOCAL_MACHINE, szBuffer, 0, KEY_READ, &hKey);
+        if (dwError != ERROR_SUCCESS)
+        {
+            /* failed to open device instance log conf dir */
+            return NULL;
+        }
+
+        /* The lowest priority is (probably) "BootConfig". */
+        valueName = (PWCHAR)ValueName[CONFIG_TYPE_FORCED - 1];
+
+        dwSize = 0;
+        RegQueryValueExW(hKey, valueName, NULL, NULL, NULL, &dwSize);
+        if (dwSize == 0)
+        {
+            valueName = (PWCHAR)ValueName[CONFIG_TYPE_BOOT - 1];
+
+            RegQueryValueExW(hKey, valueName, NULL, NULL, NULL, &dwSize);
+            if (dwSize == 0)
+                goto done;
+
+            ConfigType == CONFIG_TYPE_BOOT;
+            valueName = (PWCHAR)ValueName[ConfigType - 1];
+        }
+        else
+        {
+            ConfigType == CONFIG_TYPE_FORCED;
+            valueName = (PWCHAR)ValueName[ConfigType - 1];
+        }
     }
 
-    dwSize = 0;
-    RegQueryValueExW(hKey, L"BootConfig", NULL, NULL, NULL, &dwSize);
-    if (dwSize == 0)
-        goto done;
+    valueName = (PWCHAR)ValueName[ConfigType - 1];
+
+    /* For CONFIG_TYPE_BOOT dwSize is already known. */
+    if (ConfigType != CONFIG_TYPE_BOOT)
+    {
+        dwSize = 0;
+        RegQueryValueExW(hKey, valueName, NULL, NULL, NULL, &dwSize);
+        if (dwSize == 0)
+            goto done;
+    }
 
     pResourceList = static_cast<PCM_RESOURCE_LIST>(HeapAlloc(GetProcessHeap(), 0, dwSize));
     if (pResourceList == NULL)
         goto done;
 
-    dwError = RegQueryValueExW(hKey, L"BootConfig", NULL, NULL, (LPBYTE)pResourceList, &dwSize);
+    dwError = RegQueryValueExW(hKey, valueName, NULL, NULL, (LPBYTE)pResourceList, &dwSize);
     if (dwError != ERROR_SUCCESS)
     {
         HeapFree(GetProcessHeap(), 0, pResourceList);
