@@ -1203,10 +1203,13 @@ CDeviceView::RefreshDeviceList()
 
         // create a new device node and add it to the list
         DeviceNode = new CDeviceNode(DeviceInfoData.DevInst, &m_ImageListData);
+
+      #if 0
         /* FIXME: Start of Hack for CORE-5643 */
         if (!DeviceNode->IsInstalled())
             continue;
         /* FIXME: End of Hack for CORE-5643 */
+      #endif
 
         if (DeviceNode->SetupNode())
         {
