@@ -439,20 +439,20 @@ PiGetRelatedDevice(
         case 1: // Parent
         {
             DeviceNode = DeviceNode->Parent;
-            DPRINT1("PiGetRelatedDevice: Parent Node %X\n", DeviceNode);
+            DPRINT("PiGetRelatedDevice: Parent Node %X\n", DeviceNode);
             break;
         }
         case 2: // Child
         {
             DeviceNode = DeviceNode->Child;
-            DPRINT1("PiGetRelatedDevice: Child Node %X\n", DeviceNode);
-            goto NextNode;
+            DPRINT("PiGetRelatedDevice: Child Node %X\n", DeviceNode);
+            goto CheckNode;
         }
         case 3: // Sibling
         {
             DeviceNode = DeviceNode->Sibling;
-            DPRINT1("PiGetRelatedDevice: Sibling Node %X\n", DeviceNode);
-NextNode:
+            DPRINT("PiGetRelatedDevice: Sibling Node %X\n", DeviceNode);
+CheckNode:
             while (DeviceNode &&
                    DeviceNode->Flags & DNF_HAS_PROBLEM &&
                    DeviceNode->Problem == CM_PROB_DEVICE_NOT_THERE &&
@@ -487,7 +487,7 @@ NextNode:
         }
         default:
         {
-            DPRINT("PiGetRelatedDevice: STATUS_INVALID_PARAMETER\n");
+            DPRINT1("PiGetRelatedDevice: STATUS_INVALID_PARAMETER\n");
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
@@ -502,14 +502,14 @@ NextNode:
 
     if (*OutInstanceSize <= DeviceNode->InstancePath.Length)
     {
-        DPRINT1("PiGetRelatedDevice: STATUS_BUFFER_TOO_SMALL\n");
+        DPRINT("PiGetRelatedDevice: STATUS_BUFFER_TOO_SMALL\n");
         Status = STATUS_BUFFER_TOO_SMALL;
         *OutInstanceSize = (DeviceNode->InstancePath.Length + sizeof(WCHAR));
     }
     else
     {
         RtlCopyMemory(OutInstancePath, DeviceNode->InstancePath.Buffer, DeviceNode->InstancePath.Length);
-        DPRINT1("PiGetRelatedDevice: '%S', %X\n", DeviceNode->InstancePath.Buffer, DeviceNode->InstancePath.Length);
+        DPRINT("PiGetRelatedDevice: '%S', %X\n", DeviceNode->InstancePath.Buffer, DeviceNode->InstancePath.Length);
 
         OutInstancePath[DeviceNode->InstancePath.Length / sizeof(WCHAR)] = 0;
         *OutInstanceSize = DeviceNode->InstancePath.Length;
