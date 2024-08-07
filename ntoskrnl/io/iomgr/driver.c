@@ -865,7 +865,11 @@ IoCreateDriver(
     }
 
     /* Copy the name and set it in the driver extension */
-    RtlCopyUnicodeString(&ServiceKeyName, &LocalDriverName);
+    ServiceKeyName.Length = LocalDriverName.Length;
+    ServiceKeyName.MaximumLength = (LocalDriverName.Length + sizeof(WCHAR));
+
+    RtlCopyMemory(ServiceKeyName.Buffer, LocalDriverName.Buffer, LocalDriverName.Length);
+    ServiceKeyName.Buffer[ServiceKeyName.Length / sizeof(WCHAR)] = 0;
 
     DriverObject->DriverExtension->ServiceKeyName = ServiceKeyName;
 
@@ -891,12 +895,13 @@ IoCreateDriver(
     ZwClose(Handle);
 
     /* Make a copy of the driver name to store in the driver object */
-    DriverObject->DriverName.MaximumLength = LocalDriverName.Length;
-
-    DriverObject->DriverName.Buffer = ExAllocatePoolWithTag(PagedPool, DriverObject->DriverName.MaximumLength, TAG_IO);
+    DriverObject->DriverName.Buffer = ExAllocatePoolWithTag(PagedPool, LocalDriverName.MaximumLength, TAG_IO);
     if (DriverObject->DriverName.Buffer)
     {
-        RtlCopyUnicodeString(&DriverObject->DriverName, &LocalDriverName);
+        DriverObject->DriverName.MaximumLength = LocalDriverName.MaximumLength;
+        DriverObject->DriverName.Length = LocalDriverName.Length;
+
+        RtlCopyMemory(DriverObject->DriverName.Buffer, LocalDriverName.Buffer, LocalDriverName.MaximumLength);
     }
 
     /* Finally, call its init function */
