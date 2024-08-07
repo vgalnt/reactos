@@ -50,6 +50,7 @@ HKR, , Icon,           0, "-28"
 %IntelMProcessor.DeviceDesc%      = Processr_Inst,ACPI\GenuineIntel_-_x86_Family_6_Model_9
 %IntelP3Processor.DeviceDesc%     = Processr_Inst,ACPI\GenuineIntel_-_x86_Family_6_Model_10
 %IntelP3Processor.DeviceDesc%     = Processr_Inst,ACPI\GenuineIntel_-_x86_Family_6_Model_11
+%IntelCoreProcessor.DeviceDesc%   = Processr_Inst,ACPI\GenuineIntel_-_x86_Family_6_Model_12
 %IntelMProcessor.DeviceDesc%      = Processr_Inst,ACPI\GenuineIntel_-_x86_Family_6_Model_13
 %IntelCoreProcessor.DeviceDesc%   = Processr_Inst,ACPI\GenuineIntel_-_x86_Family_6_Model_14
 %IntelCoreProcessor.DeviceDesc%   = Processr_Inst,ACPI\GenuineIntel_-_x86_Family_6_Model_15
@@ -102,7 +103,7 @@ AddService = Processor, 0x00000002, Processr_Service_Inst
 [Processr_Service_Inst]
 DisplayName    = %Processor.ServiceDesc%
 ServiceType    = 1
-StartType      = 1
+StartType      = 3
 ErrorControl   = 1
 ServiceBinary  = %12%\processr.sys
 LoadOrderGroup = Extended Base
