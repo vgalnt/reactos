@@ -124,13 +124,13 @@ VOID
 NTAPI
 USBPORT_SuspendController(IN PDEVICE_OBJECT FdoDevice)
 {
-    PUSBPORT_DEVICE_EXTENSION  FdoExtension;
+    PUSBPORT_DEVICE_EXTENSION FdoExtension;
     PUSBPORT_REGISTRATION_PACKET Packet;
-
-    DPRINT1("USBPORT_SuspendController \n");
 
     FdoExtension = FdoDevice->DeviceExtension;
     Packet = &FdoExtension->MiniPortInterface->Packet;
+
+    DPRINT1("USBPORT_SuspendController: %p, %p, %p\n", FdoDevice, FdoExtension, FdoExtension->MiniPortExt);
 
     FdoExtension->TimerFlags |= USBPORT_TMFLAG_RH_SUSPENDED;
 

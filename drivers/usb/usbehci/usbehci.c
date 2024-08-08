@@ -1301,7 +1301,7 @@ EHCI_SuspendController(IN PVOID ehciExtension)
     EHCI_INTERRUPT_ENABLE IntrEn;
     ULONG ix;
 
-    DPRINT("EHCI_SuspendController: ... \n");
+    DPRINT1("EHCI_SuspendController: (%p)\n", EhciExtension);
 
     OperationalRegs = EhciExtension->OperationalRegs;
 
