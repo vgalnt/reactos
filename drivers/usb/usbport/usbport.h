@@ -310,6 +310,7 @@ typedef struct _USBPORT_DEVICE_EXTENSION {
   KSPIN_LOCK MiniportSpinLock;
   /* Bus Interface */
   BUS_INTERFACE_STANDARD BusInterface;
+  USB_CONTROLLER_FLAVOR HcFlavor;
   USHORT VendorID;
   USHORT DeviceID;
   UCHAR RevisionID;
@@ -393,7 +394,7 @@ typedef struct _USBPORT_DEVICE_EXTENSION {
 
   /* Miniport extension should be aligned on 0x100 */
 #if !defined(_M_X64)
-  ULONG Padded[64];
+  ULONG Padded[63];
 #else
   ULONG Padded[30];
 #endif

@@ -493,6 +493,17 @@ USBPORT_StopDevice(IN PDEVICE_OBJECT FdoDevice)
     return STATUS_SUCCESS;
 }
 
+USB_CONTROLLER_FLAVOR
+NTAPI
+USBPORT_GetHcFlavor(IN PDEVICE_OBJECT FdoDevice,
+                    IN USHORT VendorID,
+                    IN USHORT DeviceID,
+                    IN UCHAR RevisionID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
 NTSTATUS
 NTAPI
 USBPORT_StartDevice(IN PDEVICE_OBJECT FdoDevice,
@@ -549,6 +560,10 @@ USBPORT_StartDevice(IN PDEVICE_OBJECT FdoDevice,
     FdoExtension->ProgIf = PciConfig.ProgIf;
     FdoExtension->SubClass = PciConfig.SubClass;
     FdoExtension->BaseClass = PciConfig.BaseClass;
+
+    HcFlavor = USBPORT_GetHcFlavor(FdoDevice, PciConfig.VendorID, PciConfig.DeviceID, PciConfig.RevisionID);
+    FdoExtension->HcFlavor = HcFlavor;
+    UsbPortResources->HcFlavor = HcFlavor;
 
     RtlZeroMemory(&DeviceDescription, sizeof(DeviceDescription));
 
