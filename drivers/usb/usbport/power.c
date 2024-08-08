@@ -259,17 +259,15 @@ USBPORT_PdoDevicePowerState(IN PDEVICE_OBJECT PdoDevice,
 
     State = IoStack->Parameters.Power.State;
 
-    DPRINT1("USBPORT_PdoDevicePowerState: Irp - %p, State - %x\n",
-            Irp,
-            State.DeviceState);
+    DPRINT("USBPORT_PdoDevicePowerState: %p, %x PDO (%X:%X) FDO (%X:%X)\n", Irp, State.DeviceState, PdoDevice, PdoExtension, FdoDevice, FdoExtension);
 
     if (State.DeviceState == PowerDeviceD0)
     {
         if (FdoExtension->CommonExtension.DevicePowerState == PowerDeviceD0)
         {
-            // FIXME FdoExtension->Flags
             while (FdoExtension->SetPowerLockCounter)
             {
+                UNIMPLEMENTED_DBGBREAK(); // FIXME FdoExtension->Flags
                 USBPORT_Wait(FdoDevice, 10);
             }
 
