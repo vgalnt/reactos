@@ -814,7 +814,7 @@ USBPORT_StartDevice(IN PDEVICE_OBJECT FdoDevice,
     {
         Status = USBPORT_IsCompanionController(FdoDevice, &IsCompanion);
 
-        if (!NT_SUCCESS(Status))
+        if (NT_SUCCESS(Status))
         {
             if (IsCompanion)
             {
