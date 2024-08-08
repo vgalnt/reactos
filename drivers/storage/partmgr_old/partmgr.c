@@ -942,6 +942,7 @@ PmQueryDeviceRelations(
     PPM_PARTITION_DATA PartitionData;
     PPM_NOTIFICATION_DATA NotifyData;
     PDEVICE_RELATIONS DeviceRelation;
+    PLIST_ENTRY PrevEntry;
     PLIST_ENTRY Entry;
     KEVENT Event;
     ULONG ix;
@@ -985,9 +986,15 @@ PmQueryDeviceRelations(
         if (ix < DeviceRelation->Count)
             continue;
 
-        DPRINT1("PmQueryDeviceRelations: FIXME\n");
-        ASSERT(FALSE);
+        PmTakePartition(PartitionData->NotifyData, PartitionData->PartitionPdo, PartitionData->WholeDiskPdo);
+        PmRemovePartition(PartitionData);
 
+        PrevEntry = Entry->Blink;
+        RemoveEntryList(Entry);
+        Entry = PrevEntry;
+
+        ObDereferenceObject(PartitionData->PartitionPdo);
+        ExFreePool(PartitionData);
     }
 
     DPRINT("PmQueryDeviceRelations: DeviceRelation->Count %X\n", DeviceRelation->Count);
