@@ -786,7 +786,7 @@ UhciSuspendController(IN PVOID uhciExtension)
     UhciExtension->Flags |= 2;
 
   #if DBG
-    DPRINT1("UhciSuspendController: 'HC regs before suspend\n");
+    DPRINT1("UhciSuspendController: 'HC (%p) regs before suspend\n", UhciExtension);
     DPRINT1("'cmd register = %x\n", READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT));
     DPRINT1("'status register = %x\n", READ_PORT_USHORT(&BaseRegister->HcStatus.AsUSHORT));
     DPRINT1("'interrupt enable register = %x\n", READ_PORT_USHORT(&BaseRegister->HcInterruptEnable.AsUSHORT));
@@ -854,7 +854,7 @@ UhciResumeController(IN PVOID uhciExtension)
     }
 
   #if DBG
-    DPRINT1("'<HC regs after suspend>\n");
+    DPRINT1("'<HC (%p) regs after suspend>\n", UhciExtension);
     DPRINT1("'cmd register = %x\n", READ_PORT_USHORT(&BaseRegister->HcCommand.AsUSHORT));
     DPRINT1("'status register = %x\n", READ_PORT_USHORT(&BaseRegister->HcStatus.AsUSHORT));
     DPRINT1("'interrupt enable register = %x\n", READ_PORT_USHORT(&BaseRegister->HcInterruptEnable.AsUSHORT));
