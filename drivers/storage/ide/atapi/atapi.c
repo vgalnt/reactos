@@ -1730,6 +1730,7 @@ IdeSendSmartCommand(
 {
     PSENDCMDOUTPARAMS OutParameters;
     SENDCMDINPARAMS inParameters;
+    ULONG TransferDataBytes;
     ULONG ix;
     ULONG jx;
     UCHAR IdeStatus;
@@ -1763,7 +1764,58 @@ IdeSendSmartCommand(
 
     if (Features == 0xD0 || Features == 0xD1 || Features == 0xD5)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        for (ix = 0; ix < 10; ix++)
+        {
+            for (jx = 0; jx < 25000; jx++)
+            {
+                IdeStatus = READ_PORT_UCHAR(HwDeviceExtension->CmdBlock.Status);
+                if (!(IdeStatus & 0x80))
+                    break;
+
+                KeStallExecutionProcessor(40);
+            }
+
+            if (!(IdeStatus & 0x80))
+                break;
+
+            DPRINT("AtapiSetTransferMode: after 1 sec wait, device is still busy with %X IdeStatus %X\n",
+                   HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+        }
+
+        if (IdeStatus & 0x80)
+        {
+            DPRINT("AtapiSetTransferMode: WaitOnBusy failed. %X IdeStatus %X\n",
+                   HwDeviceExtension->CmdBlock.CmdBlockBase, IdeStatus);
+        }
+
+        if (IdeStatus & 0x80)
+        {
+            DPRINT1("IdeSendSmartCommand: Returning BUSY status\n");
+            return 5;
+        }
+
+        if (inParameters.irDriveRegs.bFeaturesReg == 0xD5)
+            TransferDataBytes = (inParameters.irDriveRegs.bSectorCountReg * 0x200);
+        else
+            TransferDataBytes = 0x200;
+
+        if (TransferDataBytes != 0xFFFFFFF0)
+            RtlZeroMemory(OutParameters, ((sizeof(*OutParameters) - 1) + TransferDataBytes));
+
+        HwDeviceExtension->TransferDataBuffer = (PUCHAR)OutParameters->bBuffer;
+        HwDeviceExtension->TransferDataBytes = TransferDataBytes;
+
+        HwDeviceExtension->ExpectingInterrupt = 1;
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT));
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Features, inParameters.irDriveRegs.bFeaturesReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.SectorCount, inParameters.irDriveRegs.bSectorCountReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaLow, inParameters.irDriveRegs.bSectorNumberReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesLow, inParameters.irDriveRegs.bCylLowReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.BytesHigh, inParameters.irDriveRegs.bCylHighReg);
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.Command, 0xB0);
+
         return 0;
     }
 
