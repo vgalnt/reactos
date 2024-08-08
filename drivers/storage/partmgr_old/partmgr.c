@@ -842,6 +842,59 @@ PmGivePartition(
     return Status;
 }
 
+VOID
+NTAPI
+PmTakePartition(
+    _In_ PPM_NOTIFICATION_DATA NotifyData,
+    _In_ PDEVICE_OBJECT PartitionPdo,
+    _In_ PDEVICE_OBJECT WholeDiskPdo)
+{
+    PDEVICE_OBJECT InputBuffer[2];
+    IO_STATUS_BLOCK IoStatusBlock;
+    KEVENT Event;
+    PIRP Irp;
+
+    DPRINT("PmTakePartition: %p, %p, %p\n", NotifyData, PartitionPdo, WholeDiskPdo);
+
+    if (!NotifyData)
+    {
+        DPRINT("PmTakePartition: NotifyData is NULL\n");
+        return;
+    }
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    InputBuffer[0] = PartitionPdo;
+    InputBuffer[1] = WholeDiskPdo;
+
+    Irp = IoBuildDeviceIoControlRequest(0x760004,
+                                        NotifyData->DeviceObject,
+                                        InputBuffer,
+                                        sizeof(InputBuffer),
+                                        NULL,
+                                        0,
+                                        TRUE,
+                                        &Event,
+                                        &IoStatusBlock);
+    if (!Irp)
+    {
+        DPRINT1("PmTakePartition: Irp is NULL!\n");
+        return;
+    }
+
+    if (IoCallDriver(NotifyData->DeviceObject, Irp) == STATUS_PENDING)
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+    NotifyData->Counter--;
+    if (NotifyData->Counter)
+        return;
+
+    NotifyData->DeviceObject = NULL;
+
+    ObDereferenceObject(NotifyData->FileObject);
+    NotifyData->FileObject = NULL;
+}
+
 NTSTATUS
 NTAPI
 PmQueryDeviceRelations(
