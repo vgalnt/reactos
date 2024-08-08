@@ -897,6 +897,44 @@ PmTakePartition(
 
 NTSTATUS
 NTAPI
+PmRemovePartition(
+    _In_ PPM_PARTITION_DATA PartitionData)
+{
+    PIO_STACK_LOCATION IoStack;
+    KEVENT Event;
+    PIRP Irp;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PmRemovePartition: %p\n", PartitionData);
+
+    Irp = IoAllocateIrp(PartitionData->PartitionPdo->StackSize, 0);
+    if (!Irp)
+    {
+        DPRINT1("PmRemovePartition: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MajorFunction = IRP_MJ_PNP;
+    IoStack->MinorFunction = IRP_MN_REMOVE_DEVICE;
+
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+    IoSetCompletionRoutine(Irp, PmSignalCompletion, &Event, TRUE, TRUE, TRUE);
+
+    IoCallDriver(PartitionData->PartitionPdo, Irp);
+    KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+    Status = Irp->IoStatus.Status;
+    IoFreeIrp(Irp);
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 PmQueryDeviceRelations(
     _In_ PPM_DEVICE_EXTENSION Extension,
     _In_ PIRP Irp)
