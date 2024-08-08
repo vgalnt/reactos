@@ -500,8 +500,82 @@ USBPORT_GetHcFlavor(IN PDEVICE_OBJECT FdoDevice,
                     IN USHORT DeviceID,
                     IN UCHAR RevisionID)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PUSBPORT_DEVICE_EXTENSION FdoExtension;
+    PUSBPORT_REGISTRATION_PACKET Packet;
+    USB_CONTROLLER_FLAVOR HcFlavor;
+
+    PAGED_CODE();
+
+    FdoExtension = FdoDevice->DeviceExtension;
+    Packet = &FdoExtension->MiniPortInterface->Packet;
+
+    switch (Packet->MiniPortVersion)
+    {
+        case USB_MINIPORT_VERSION_OHCI:
+            HcFlavor = OHCI_Generic;
+            break;
+
+        case USB_MINIPORT_VERSION_UHCI:
+            HcFlavor = UHCI_Generic;
+            break;
+
+        case USB_MINIPORT_VERSION_EHCI:
+            HcFlavor = EHCI_Generic;
+            break;
+
+        default:
+            HcFlavor = USB_HcGeneric;
+            break;
+    }
+
+    if (VendorID == 0x1045 && DeviceID == 0xC861)
+        HcFlavor = OHCI_Hydra;
+
+    if (VendorID == 0x8086)
+    {
+        if (DeviceID == 0x2442)
+            HcFlavor = UHCI_Ich2;
+        else if (DeviceID == 0x2444)
+            HcFlavor = UHCI_Reserved204;
+        else if (DeviceID == 0x2412)
+            HcFlavor = UHCI_Ich1;
+    }
+
+    if (VendorID == 0x1106 && DeviceID == 0x3038)
+        HcFlavor = (UHCI_VIA + RevisionID);
+
+    if (HcFlavor == UHCI_Generic)
+        HcFlavor = UHCI_Piix4;
+
+    if (HcFlavor == EHCI_Generic && VendorID == 0x1033)
+        HcFlavor = EHCI_NEC;
+
+    if (VendorID == 0x1033 && DeviceID == 0x35 && RevisionID == 0x41)
+    {
+        FdoExtension->Flags |= USBPORT_FLAG_COMPANION_HC;
+        //FdoExtension->unknown = 2;
+    }
+
+    if (VendorID == 0x1106 && DeviceID == 0x3038 && RevisionID == 0x50)
+    {
+        FdoExtension->Flags |= USBPORT_FLAG_COMPANION_HC; 
+        //FdoExtension->unknown = 2;
+    }
+
+    if (VendorID == 0x8086 && (DeviceID == 0x24C2 || DeviceID == 0x24C4 || DeviceID == 0x24C7))
+    {
+        FdoExtension->Flags |= USBPORT_FLAG_COMPANION_HC;
+        //FdoExtension->unknown = 7;
+    }
+
+    USBPORT_GetRegistryKeyValueFullInfo(FdoExtension->CommonExtension.SelfDevice,
+                                        FdoExtension->RootHubPdo,
+                                        TRUE,
+                                        L"HcFlavor",
+                                        sizeof(L"HcFlavor"),
+                                        &HcFlavor,
+                                        sizeof(HcFlavor));
+    return HcFlavor;
 }
 
 NTSTATUS
@@ -518,6 +592,7 @@ USBPORT_StartDevice(IN PDEVICE_OBJECT FdoDevice,
     PDMA_ADAPTER DmaAdapter = NULL;
     ULONG MiniPortStatus;
     PUSBPORT_COMMON_BUFFER_HEADER HeaderBuffer;
+    USB_CONTROLLER_FLAVOR HcFlavor;
     ULONG ResultLength;
     ULONG DisableSelectiveSuspend = 0;
     ULONG DisableCcDetect = 0;
@@ -564,6 +639,9 @@ USBPORT_StartDevice(IN PDEVICE_OBJECT FdoDevice,
     HcFlavor = USBPORT_GetHcFlavor(FdoDevice, PciConfig.VendorID, PciConfig.DeviceID, PciConfig.RevisionID);
     FdoExtension->HcFlavor = HcFlavor;
     UsbPortResources->HcFlavor = HcFlavor;
+
+    DPRINT("USBPORT_StartDevice: FDO (%p:%p) VEN %X, DEV %X, REV %X, HcFlavor %X (%d)\n", FdoDevice, FdoExtension,
+           PciConfig.VendorID, PciConfig.DeviceID, PciConfig.RevisionID, HcFlavor, HcFlavor);
 
     RtlZeroMemory(&DeviceDescription, sizeof(DeviceDescription));
 
