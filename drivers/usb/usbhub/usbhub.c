@@ -3316,7 +3316,7 @@ USBH_FdoSubmitWaitWakeIrp(IN PUSBHUB_FDO_EXTENSION HubExtension)
     PIRP Irp = NULL;
     KIRQL Irql;
 
-    DPRINT("USBH_FdoSubmitWaitWakeIrp: ... \n");
+    DPRINT("USBH_FdoSubmitWaitWakeIrp: %p %p\n", HubExtension, HubExtension->LowerPDO);
 
     PowerState.SystemState = HubExtension->SystemWake;
     HubExtension->HubFlags |= USBHUB_FDO_FLAG_PENDING_WAKE_IRP;
@@ -4422,7 +4422,7 @@ USBH_CreateDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
     NTSTATUS Status;
     UNICODE_STRING DestinationString;
 
-    DPRINT1("USBH_CreateDevice: %X, %X\n", Port, UsbPortStatus.AsUshort16);
+    DPRINT1("USBH_CreateDevice: %p, %X, %X\n", HubExtension, Port, UsbPortStatus.AsUshort16);
 
     do
     {
@@ -4601,7 +4601,7 @@ Exit:
 
     ASSERT(Port > 0);
     HubExtension->PortData[Port-1].DeviceObject = DeviceObject;
-    DPRINT1("USBH_CreateDevice: %X, %X exit %X\n", Port, UsbPortStatus.AsUshort16, Status);
+    DPRINT1("USBH_CreateDevice: %p, %X, %X exit %X\n", HubExtension, Port, UsbPortStatus.AsUshort16, Status);
     return Status;
 }
 

@@ -1073,7 +1073,8 @@ USBH_FdoQueryBusRelations(IN PUSBHUB_FDO_EXTENSION HubExtension,
             /* This delay makes devices discovery during early boot more reliable */
             Interval.QuadPart = -10000LL * 1000; // 1 sec.
 
-            DPRINT1("USBH_FdoQueryBusRelations: Wait for bootable %p\n", HubExtension);
+            DPRINT1("USBH_FdoQueryBusRelations: Wait for bootable %p (%X:%X)\n",
+                    HubExtension, HubExtension->LowerPDO, HubExtension->LowerPDO->DeviceExtension);
 
             IoInvalidateDeviceRelations(HubExtension->LowerPDO, BusRelations);
             KeDelayExecutionThread(KernelMode, FALSE, &Interval);
@@ -1083,6 +1084,11 @@ USBH_FdoQueryBusRelations(IN PUSBHUB_FDO_EXTENSION HubExtension,
         DPRINT_ENUM("USBH_FdoQueryBusRelations: Skip enumeration\n");
         Status = STATUS_SUCCESS;
         goto RelationsWorker;
+    }
+    else
+    {
+        DPRINT("USBH_FdoQueryBusRelations: %p (%X:%X)\n",
+               HubExtension, HubExtension->LowerPDO, HubExtension->LowerPDO->DeviceExtension);
     }
 
     InterlockedIncrement(&HubExtension->PendingRequestCount);
