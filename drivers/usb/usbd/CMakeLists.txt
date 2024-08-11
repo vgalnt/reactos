@@ -6,6 +6,6 @@ add_library(usbd MODULE
     usbd.rc
     ${CMAKE_CURRENT_BINARY_DIR}/usbd.def)
 
-set_module_type(usbd kernelmodedriver)
+set_module_type(usbd wdmdriver)
 add_importlibs(usbd ntoskrnl hal)
 add_cd_file(TARGET usbd DESTINATION reactos/system32/drivers NO_CAB FOR all)

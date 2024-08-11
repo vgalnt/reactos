@@ -11,7 +11,7 @@ add_library(cmbatt MODULE
     guid.c
     cmbatt.rc)
 
-set_module_type(cmbatt kernelmodedriver)
+set_module_type(cmbatt wdmdriver)
 add_importlibs(cmbatt ntoskrnl hal battc wmilib)
 add_pch(cmbatt cmbatt.h SOURCE)
 add_cd_file(TARGET cmbatt DESTINATION reactos/system32/drivers NO_CAB FOR all)

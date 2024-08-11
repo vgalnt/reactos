@@ -7,6 +7,6 @@ add_library(battc MODULE
             battc.rc
             ${CMAKE_CURRENT_BINARY_DIR}/battc.def)
 
-set_module_type(battc kernelmodedriver)
+set_module_type(battc wdmdriver)
 add_importlibs(battc ntoskrnl hal)
 add_cd_file(TARGET battc DESTINATION reactos/system32/drivers NO_CAB FOR all)
