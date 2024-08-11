@@ -358,6 +358,11 @@ DeviceInstallThread(LPVOID lpParameter)
 {
     PLIST_ENTRY ListEntry;
     DeviceInstallParams* Params;
+    ULONG devListSize;
+    PWSTR deviceList;
+    BOOL showWizard;
+    PWSTR currentDev;
+    DWORD status;
 
     UNREFERENCED_PARAMETER(lpParameter);
 
@@ -365,12 +370,9 @@ DeviceInstallThread(LPVOID lpParameter)
 
     DPRINT("Step 1: Installing devices configured during the boot\n");
 
-    PWSTR deviceList;
-
     while (TRUE)
     {
-        ULONG devListSize;
-        DWORD status = PNP_GetDeviceListSize(NULL, NULL, &devListSize, 0);
+        status = PNP_GetDeviceListSize(NULL, NULL, &devListSize, 0);
         if (status != CR_SUCCESS)
         {
             goto Step2;
@@ -398,7 +400,7 @@ DeviceInstallThread(LPVOID lpParameter)
         }
     }
 
-    for (PWSTR currentDev = deviceList;
+    for (currentDev = deviceList;
          currentDev[0] != UNICODE_NULL;
          currentDev += lstrlenW(currentDev) + 1)
     {
@@ -415,7 +417,7 @@ Step2:
 
     WaitForSingleObject(hInstallEvent, INFINITE);
 
-    BOOL showWizard = !SetupIsActive() && !IsConsoleBoot();
+    showWizard = !SetupIsActive() && !IsConsoleBoot();
 
     while (TRUE)
     {
