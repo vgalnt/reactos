@@ -3279,26 +3279,26 @@ FtpPnpFdo(
         }
         case IRP_MN_QUERY_PNP_DEVICE_STATE:
         {
-              KeInitializeEvent(&Event, NotificationEvent, FALSE);
+            KeInitializeEvent(&Event, NotificationEvent, FALSE);
 
-              IoCopyCurrentIrpStackLocationToNext(Irp);
-              IoSetCompletionRoutine(Irp, FtpSignalCompletion, &Event, TRUE, TRUE, TRUE);
+            IoCopyCurrentIrpStackLocationToNext(Irp);
+            IoSetCompletionRoutine(Irp, FtpSignalCompletion, &Event, TRUE, TRUE, TRUE);
 
-              IoCallDriver(AttachedToDevice, Irp);
-              KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+            IoCallDriver(AttachedToDevice, Irp);
+            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
 
-              Status = Irp->IoStatus.Status;
+            Status = Irp->IoStatus.Status;
 
-              /* Do not show device in device manager. */
-              if (!NT_SUCCESS(Status))
-              {
-                  Status = STATUS_SUCCESS;
-                  Irp->IoStatus.Information = (PNP_DEVICE_DONT_DISPLAY_IN_UI | PNP_DEVICE_NOT_DISABLEABLE);
-              }
-              else
-              {
-                  Irp->IoStatus.Information |= (PNP_DEVICE_DONT_DISPLAY_IN_UI | PNP_DEVICE_NOT_DISABLEABLE);
-              }
+            /* Do not show device in device manager. */
+            if (!NT_SUCCESS(Status))
+            {
+                Status = STATUS_SUCCESS;
+                Irp->IoStatus.Information = (PNP_DEVICE_DONT_DISPLAY_IN_UI | PNP_DEVICE_NOT_DISABLEABLE);
+            }
+            else
+            {
+                Irp->IoStatus.Information |= (PNP_DEVICE_DONT_DISPLAY_IN_UI | PNP_DEVICE_NOT_DISABLEABLE);
+            }
 
             break;
         }
