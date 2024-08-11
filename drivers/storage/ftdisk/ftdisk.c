@@ -3300,7 +3300,7 @@ FtpPnpFdo(
                   Irp->IoStatus.Information |= (PNP_DEVICE_DONT_DISPLAY_IN_UI | PNP_DEVICE_NOT_DISABLEABLE);
               }
 
-              return Status;
+            break;
         }
         case IRP_MN_QUERY_STOP_DEVICE:
         {
