@@ -48,7 +48,7 @@ ProcessTargetDeviceEvent(
     {
 //        DWORD dwRecipient;
 
-        DPRINT("Device arrival: %S\n", PnpEvent->TargetDevice.DeviceIds);
+        DPRINT("Device arrival: %S\n", PnpEvent->u.TargetDevice.DeviceIds);
 
 //       dwRecipient = BSM_ALLDESKTOPS | BSM_APPLICATIONS;
 //       BroadcastSystemMessageW(BSF_POSTMESSAGE,
@@ -60,17 +60,17 @@ ProcessTargetDeviceEvent(
     }
     else if (UuidEqual(&PnpEvent->EventGuid, (UUID*)&GUID_DEVICE_EJECT_VETOED, &RpcStatus))
     {
-        DPRINT1("Eject vetoed: %S\n", PnpEvent->TargetDevice.DeviceIds);
+        DPRINT1("Eject vetoed: %S\n", PnpEvent->u.TargetDevice.DeviceIds);
     }
     else if (UuidEqual(&PnpEvent->EventGuid, (UUID*)&GUID_DEVICE_KERNEL_INITIATED_EJECT, &RpcStatus))
     {
-        DPRINT1("Kernel initiated eject: %S\n", PnpEvent->TargetDevice.DeviceIds);
+        DPRINT1("Kernel initiated eject: %S\n", PnpEvent->u.TargetDevice.DeviceIds);
     }
     else if (UuidEqual(&PnpEvent->EventGuid, (UUID*)&GUID_DEVICE_SAFE_REMOVAL, &RpcStatus))
     {
 //        DWORD dwRecipient;
 
-        DPRINT1("Safe removal: %S\n", PnpEvent->TargetDevice.DeviceIds);
+        DPRINT1("Safe removal: %S\n", PnpEvent->u.TargetDevice.DeviceIds);
 
 //        dwRecipient = BSM_ALLDESKTOPS | BSM_APPLICATIONS;
 //        BroadcastSystemMessageW(BSF_POSTMESSAGE,
@@ -84,7 +84,7 @@ ProcessTargetDeviceEvent(
     {
 //        DWORD dwRecipient;
 
-        DPRINT1("Surprise removal: %S\n", PnpEvent->TargetDevice.DeviceIds);
+        DPRINT1("Surprise removal: %S\n", PnpEvent->u.TargetDevice.DeviceIds);
 
 //        dwRecipient = BSM_ALLDESKTOPS | BSM_APPLICATIONS;
 //        BroadcastSystemMessageW(BSF_POSTMESSAGE,
@@ -96,11 +96,11 @@ ProcessTargetDeviceEvent(
     }
     else if (UuidEqual(&PnpEvent->EventGuid, (UUID*)&GUID_DEVICE_REMOVAL_VETOED, &RpcStatus))
     {
-        DPRINT1("Removal vetoed: %S\n", PnpEvent->TargetDevice.DeviceIds);
+        DPRINT1("Removal vetoed: %S\n", PnpEvent->u.TargetDevice.DeviceIds);
     }
     else if (UuidEqual(&PnpEvent->EventGuid, (UUID*)&GUID_DEVICE_REMOVE_PENDING, &RpcStatus))
     {
-        DPRINT1("Removal pending: %S\n", PnpEvent->TargetDevice.DeviceIds);
+        DPRINT1("Removal pending: %S\n", PnpEvent->u.TargetDevice.DeviceIds);
     }
     else
     {
@@ -119,12 +119,12 @@ ProcessDeviceClassChangeEvent(
     _In_ PPLUGPLAY_EVENT_BLOCK PnpEvent)
 {
     DPRINT("ProcessDeviceClassChangeEvent(%p)\n", PnpEvent);
-    DPRINT("SymbolicLink: %S\n", PnpEvent->DeviceClass.SymbolicLinkName);
+    DPRINT("SymbolicLink: %S\n", PnpEvent->u.DeviceClass.SymbolicLinkName);
     DPRINT("ClassGuid: {%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}\n",
-           PnpEvent->DeviceClass.ClassGuid.Data1, PnpEvent->DeviceClass.ClassGuid.Data2, PnpEvent->DeviceClass.ClassGuid.Data3,
-           PnpEvent->DeviceClass.ClassGuid.Data4[0], PnpEvent->DeviceClass.ClassGuid.Data4[1], PnpEvent->DeviceClass.ClassGuid.Data4[2],
-           PnpEvent->DeviceClass.ClassGuid.Data4[3], PnpEvent->DeviceClass.ClassGuid.Data4[4], PnpEvent->DeviceClass.ClassGuid.Data4[5],
-           PnpEvent->DeviceClass.ClassGuid.Data4[6], PnpEvent->DeviceClass.ClassGuid.Data4[7]);
+           PnpEvent->u.DeviceClass.ClassGuid.Data1, PnpEvent->u.DeviceClass.ClassGuid.Data2, PnpEvent->u.DeviceClass.ClassGuid.Data3,
+           PnpEvent->u.DeviceClass.ClassGuid.Data4[0], PnpEvent->u.DeviceClass.ClassGuid.Data4[1], PnpEvent->u.DeviceClass.ClassGuid.Data4[2],
+           PnpEvent->u.DeviceClass.ClassGuid.Data4[3], PnpEvent->u.DeviceClass.ClassGuid.Data4[4], PnpEvent->u.DeviceClass.ClassGuid.Data4[5],
+           PnpEvent->u.DeviceClass.ClassGuid.Data4[6], PnpEvent->u.DeviceClass.ClassGuid.Data4[7]);
 }
 
 
@@ -139,9 +139,9 @@ ProcessDeviceInstallEvent(
 //    DWORD dwRecipient;
 
     DPRINT("ProcessDeviceInstallEvent(%p)\n", PnpEvent);
-    DPRINT("Device enumerated: %S\n", PnpEvent->InstallDevice.DeviceId);
+    DPRINT("Device enumerated: %S\n", PnpEvent->u.InstallDevice.DeviceId);
 
-    DeviceIdLength = lstrlenW(PnpEvent->InstallDevice.DeviceId);
+    DeviceIdLength = lstrlenW(PnpEvent->u.InstallDevice.DeviceId);
     if (DeviceIdLength)
     {
         /* Allocate a new device-install event */
@@ -149,7 +149,7 @@ ProcessDeviceInstallEvent(
         Params = HeapAlloc(GetProcessHeap(), 0, len);
         if (Params)
         {
-            wcscpy(Params->DeviceIds, PnpEvent->InstallDevice.DeviceId);
+            wcscpy(Params->DeviceIds, PnpEvent->u.InstallDevice.DeviceId);
 
             /* Queue the event (will be dequeued by DeviceInstallThread) */
             WaitForSingleObject(hDeviceInstallListMutex, INFINITE);
