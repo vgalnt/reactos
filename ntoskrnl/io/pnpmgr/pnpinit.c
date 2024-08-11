@@ -1174,6 +1174,25 @@ PipCreateMadeupNode(
         }
     }
 
+    if (!TmpString.Length && ServiceName)
+    {
+        TmpString.Length = ServiceKeyName->Length;
+        TmpString.MaximumLength = (ServiceKeyName->Length + sizeof(WCHAR));
+        TmpString.Buffer = ServiceName;
+    }
+
+    if (TmpString.Length)
+    {
+        RtlInitUnicodeString(&ValueName, L"DeviceDesc");
+
+        ZwSetValueKey(InstanceHandle,
+                      &ValueName,
+                      0,
+                      REG_SZ,
+                      TmpString.Buffer,
+                      (TmpString.Length + sizeof(WCHAR)));
+    }
+
     ZwClose(ServiceHandle);
 
     if (ValueInfo)
