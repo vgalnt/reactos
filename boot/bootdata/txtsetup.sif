@@ -278,7 +278,11 @@ mouclass = mouclass.sys
 mouhid = mouhid.sys
 
 [BusExtenders.Load]
+intelide = intelide.sys
 pciide = pciide.sys
+ftdisk = ftdisk.sys
+mountmgr = mountmgr.sys
+partmgr = partmgr.sys
 usbehci = usbehci.sys
 usbohci = usbohci.sys
 usbuhci = usbuhci.sys

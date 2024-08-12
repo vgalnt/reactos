@@ -47,7 +47,9 @@ HKR, , Icon,           0, "-27"
 %*PNP0C0E.DeviceDesc% = NO_DRV,*PNP0C0E
 %*PNP0C0F.DeviceDesc% = NO_DRV,*PNP0C0F
 %*PNP0C15.DeviceDesc% = NO_DRV,*PNP0C15
-%SWENUM.DeviceDesc%   = SWENUM_Inst, ROOT\SWENUM
+;%Root\FTDISK.DeviceDesc% = FTDISK_Inst, Root\FTDISK ; FIXME (? volsnap (STORAGE#Volume))
+%Root\FTDISK.DeviceDesc% = NO_DRV, Root\FTDISK
+%SWENUM.DeviceDesc%  = SWENUM_Inst, ROOT\SWENUM
 
 %ACPI\FixedButton.DeviceDesc% = NO_DRV,ACPI\FixedButton
 %ISAPNP\ReadDataPort.DeviceDesc% = NO_DRV,ISAPNP\ReadDataPort
@@ -78,6 +80,24 @@ AddService = , 0x00000002
 
 [NO_DRV.HW]
 
+;-------------------------- VOLUME MANAGER DRIVER ----------------------
+
+[FTDISK_Inst.NT]
+CopyFiles = FTDISK_CopyFiles.NT
+
+[FTDISK_CopyFiles.NT]
+ftdisk.sys
+
+[FTDISK_Inst.NT.Services]
+AddService = ftdisk, 0x00000002, FTDISK_Service_Inst
+
+[FTDISK_Service_Inst]
+ServiceType    = 1
+StartType      = 0
+ErrorControl   = 1
+ServiceBinary  = %12%\ftdisk.sys
+LoadOrderGroup = "System Bus Extender"
+DisplayName    = "Volume Manager Driver"
 
 ;-------------------------- SWENUM BUS DRIVER --------------------------
 
@@ -181,6 +201,7 @@ PCI\CC_0604.DeviceDesc = "Standard PCI to PCI bridge"
 *ThermalZone.DeviceDesc = "ACPI thermal zone"
 PCI\CC_0C05.DeviceDesc = "SMBus Controller"
 SWENUM.DeviceDesc  = "Plug & Play Software Bus Enumerator"
+Root\FTDISK.DeviceDesc = "Volume Manager"
 
 IntelMfg = "Intel"
 *INT0800.DeviceDesc = "Intel 82802 Firmware Hub Device"

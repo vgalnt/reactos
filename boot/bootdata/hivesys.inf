@@ -112,12 +112,16 @@ HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0C0310","Se
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0C0310","ClassGUID",0x00000000,"{36FC9E60-C465-11CF-8056-444553540000}"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0C0320","Service",0x00000000,"usbehci"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#CC_0C0320","ClassGUID",0x00000000,"{36FC9E60-C465-11CF-8056-444553540000}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\Root#COMPOSITE_BATTERY","Service",0x00000000,"Compbatt"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\Root#COMPOSITE_BATTERY","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
 ;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\ROOT#DMIO","Service",0x00000000,"dmio"
 ;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\ROOT#DMIO","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\ROOT#FTDISK","Service",0x00000000,"ftdisk"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\ROOT#FTDISK","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\ROOT#SWENUM","Service",0x00000000,"swenum"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\ROOT#SWENUM","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\ROOT#SYSTEM","Service",0x00000000,"swenum"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\ROOT#SYSTEM","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
 ;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\STORAGE#Volume",Service,0x00000000,"volsnap"
 ;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\STORAGE#Volume",ClassGUID,0x00000000,{71A27CDD-812A-11D0-BEC7-08002BE2092F}
 ;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\STORAGE#RemovableMedia",Service,0x00000000,"volsnap"
@@ -2197,7 +2201,7 @@ HKLM,"SYSTEM\CurrentControlSet\Services\atapi","DisplayName",0x00000000,"Standar
 ;HKLM,"SYSTEM\CurrentControlSet\Services\AHCIX","Tag",0x00010001,0x00000010
 
 ; PCIIde miniport driver
-HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","ErrorControl",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","ErrorControl",0x00010001,00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","Group",0x00000000,"System Bus Extender"
 HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","ImagePath",0x00020000,"system32\drivers\pciide.sys"
 HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","Start",0x00010001,0x00000000
@@ -2205,7 +2209,7 @@ HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","Type",0x00010001,0x00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\PCIIde","Tag",0x00010001,0x00000007
 
 ; Intel PCI IDE miniport driver
-HKLM,"SYSTEM\CurrentControlSet\Services\IntelIde","ErrorControl",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\IntelIde","ErrorControl",0x00010001,00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\IntelIde","Group",0x00000000,"System Bus Extender"
 HKLM,"SYSTEM\CurrentControlSet\Services\IntelIde","ImagePath",0x00020000,"system32\drivers\intelide.sys"
 HKLM,"SYSTEM\CurrentControlSet\Services\IntelIde","Start",0x00010001,0x00000000
@@ -2248,13 +2252,13 @@ HKLM,"SYSTEM\CurrentControlSet\Services\MountMgr","Type",0x00010001,0x00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\MountMgr","NoAutoMount", 0x00010001,0x00000000
 
 ; FtDisk driver
-HKLM,"SYSTEM\CurrentControlSet\Services\ftdisk","Group",0x00000000,"System Bus Extender"
-HKLM,"SYSTEM\CurrentControlSet\Services\ftdisk","ErrorControl",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\ftdisk","ErrorControl",0x00010001,0x00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\ftdisk","Group",0x00000000,"System Bus Extender"
 HKLM,"SYSTEM\CurrentControlSet\Services\ftdisk","ImagePath",0x00020000,"system32\drivers\ftdisk.sys"
 HKLM,"SYSTEM\CurrentControlSet\Services\ftdisk","Start",0x00010001,0x00000000
 HKLM,"SYSTEM\CurrentControlSet\Services\ftdisk","Tag",0x00010001,0x00000009
 HKLM,"SYSTEM\CurrentControlSet\Services\ftdisk","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\ftdisk","DisplayName",0x00000000,"Volume Manager Driver"
 
 ; PartMgr driver
 HKLM,"SYSTEM\CurrentControlSet\Services\partmgr","ErrorControl",0x00010001,0x00000001
