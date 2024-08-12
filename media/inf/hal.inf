@@ -18,15 +18,29 @@ DefaultDestDir = 12
 AddReg = ComputerClass.NT.AddReg
 
 [ComputerClass.NT.AddReg]
-HKR, , ,               0, %ComputerClassName%
-HKR, , Icon,           0, "-27"
+HKR, ,               , 0, %ComputerClassName%
+HKR, , Installer32   , 0, "SysSetup.dll, ComputerClassInstaller"
+HKR, , NoInstallClass, 0, 1
+HKR, , Icon          , 0, "-27"
 
 [Manufacturer]
 %GenericMfg% = GenericMfg
 
 [GenericMfg]
-%acpipic_up.DeviceDesc% = NO_DRV,acpipic_up
-%e_isa_up.DeviceDesc% = NO_DRV,e_isa_up
+;%acpiapic_mp.DeviceDesc% = NO_DRV,acpiapic_mp,acpipic_up
+
+%acpiapic_up.DeviceDesc% = NO_DRV,acpiapic_up
+;%acpiapic_up.DeviceDesc% = NO_DRV,acpiapic_up,acpiapic_mp
+
+%acpipic_up.DeviceDesc% = NO_DRV,acpipic_up,acpiapic_up
+;%acpipic_up.DeviceDesc% = NO_DRV,acpipic_up,acpiapic_up,acpiapic_mp
+
+;%mps_mp.DeviceDesc% = NO_DRV,mps_mp,mps_up,acpiapic_mp,acpipic_up
+;%mps_up.DeviceDesc% = NO_DRV,mps_up,acpipic_up
+
+%e_isa_up.DeviceDesc% = NO_DRV,e_isa_up,acpipic_up,acpiapic_up
+;%e_isa_up.DeviceDesc% = NO_DRV,e_isa_up,mps_up,mps_mp, acpipic_up,acpiapic_up,acpiapic_mp
+
 %xbox.DeviceDesc% = NO_DRV,xbox
 
 ;------------------------------ NO DRIVER -----------------------------
@@ -44,8 +58,12 @@ ReactOS = "ReactOS Team"
 ComputerClassName = "Computer"
 
 GenericMfg = "(Generic computers)"
-acpipic_up.DeviceDesc = "ACPI Uniprocessor PC"
 e_isa_up.DeviceDesc = "Standard Uniprocessor PC"
+acpipic_up.DeviceDesc = "ACPI PC"
+acpiapic_up.DeviceDesc = "ACPI Uniprocessor PC"
+;acpiapic_mp.DeviceDesc = "ACPI Multiprocessor PC"
+;mps_up.DeviceDesc = "MPS Uniprocessor PC"
+;mps_mp.DeviceDesc = "MPS Multiprocessor PC"
 xbox.DeviceDesc = "Original Xbox (x86 based)"
 
 [Strings.0405]
