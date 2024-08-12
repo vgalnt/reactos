@@ -2549,22 +2549,6 @@ PiProcessNewDeviceNode(
                                   Description,
                                   sizeof(WCHAR) * wcslen(Description) + sizeof(WCHAR));
                 }
-                else
-                {
-                    DPRINT("PiProcessNewDeviceNode: HACK!!! Description == 0. FIXME\n");
-
-                    RtlInitUnicodeString(&ValueName, L"DeviceDesc");
-
-                    DPRINT("PiProcessNewDeviceNode: Description - %S, size - %X\n",
-                           L"Unknown device", sizeof(WCHAR) * wcslen(L"Unknown device") + sizeof(WCHAR));
-
-                    ZwSetValueKey(KeyHandle,
-                                  &ValueName,
-                                  0,
-                                  REG_SZ,
-                                  L"Unknown device",
-                                  sizeof(WCHAR) * wcslen(L"Unknown device") + sizeof(WCHAR));
-                }
             }
             else
             {
