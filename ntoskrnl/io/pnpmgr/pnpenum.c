@@ -217,6 +217,7 @@ PpSaveDeviceCapabilities(
 {
     UNICODE_STRING ValueName;
     HANDLE KeyHandle = NULL;
+    ULONG Data = 0;
     NTSTATUS Status;
 
     PAGED_CODE();
@@ -248,14 +249,38 @@ PpSaveDeviceCapabilities(
     DeviceNode->CapabilityFlags = *(PULONG)((ULONG_PTR)&DeviceCapabilities->Version +
                                             sizeof(DeviceCapabilities->Version));
 
-    RtlInitUnicodeString(&ValueName, L"Capabilities");
+    if (DeviceCapabilities->LockSupported)
+        Data = 0x00000001;//CM_DEVCAP_LOCKSUPPORTED
 
-    ZwSetValueKey(KeyHandle,
-                  &ValueName,
-                  0,
-                  REG_DWORD,
-                  &DeviceNode->CapabilityFlags,
-                  sizeof(DeviceNode->CapabilityFlags));
+    if (DeviceCapabilities->EjectSupported | DeviceCapabilities->WarmEjectSupported)
+        Data |= 0x00000002;//CM_DEVCAP_EJECTSUPPORTED
+
+    if (DeviceCapabilities->Removable)
+        Data |= 0x00000004;//CM_DEVCAP_REMOVABLE
+
+    if (DeviceCapabilities->DockDevice)
+        Data |= 0x00000008;//CM_DEVCAP_DOCKDEVICE
+
+    if (DeviceCapabilities->UniqueID)
+        Data |= 0x00000010;//CM_DEVCAP_UNIQUEID
+
+    if (DeviceCapabilities->SilentInstall)
+        Data |= 0x00000020;//CM_DEVCAP_SILENTINSTALL
+
+    if (DeviceCapabilities->RawDeviceOK)
+        Data |= 0x00000040;//CM_DEVCAP_RAWDEVICEOK
+
+    if (DeviceCapabilities->SurpriseRemovalOK)
+        Data |= 0x00000080;//CM_DEVCAP_SURPRISEREMOVALOK
+
+    if (DeviceCapabilities->HardwareDisabled)
+        Data |= 0x00000100;//CM_DEVCAP_HARDWAREDISABLED
+
+    if (DeviceCapabilities->NonDynamic)
+        Data |= 0x00000200;//CM_DEVCAP_NONDYNAMIC
+
+    RtlInitUnicodeString(&ValueName, L"Capabilities");
+    ZwSetValueKey(KeyHandle, &ValueName, 0, REG_DWORD, &Data, sizeof(Data));
 
     RtlInitUnicodeString(&ValueName, L"UINumber");
 
