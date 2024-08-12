@@ -689,6 +689,8 @@ DevInstallW(
     }
 
     SetLastError(ERROR_GEN_FAILURE);
+
+#if 0
     ret = SetupDiGetDeviceRegistryProperty(
         DevInstData->hDevInfo,
         &DevInstData->devInfoData,
@@ -722,6 +724,7 @@ DevInstallW(
             GetLastError(), debugstr_w(InstanceId));
         goto cleanup;
     }
+#endif
 
     if (SetupDiGetDeviceRegistryPropertyW(
         DevInstData->hDevInfo,
@@ -741,7 +744,8 @@ DevInstallW(
         }
     }
 
-    TRACE("Installing %s (%s)\n", debugstr_w((PCWSTR)DevInstData->buffer), debugstr_w(InstanceId));
+    //TRACE("Installing %s (%s)\n", debugstr_w((PCWSTR)DevInstData->buffer), debugstr_w(InstanceId));
+    TRACE("Installing '%s'\n", debugstr_w(InstanceId));
 
     /* Search driver in default location and removable devices */
     if (!PrepareFoldersToScan(DevInstData, FALSE, FALSE, NULL))
@@ -797,7 +801,7 @@ cleanup:
             if (!SetupDiDestroyDeviceInfoList(DevInstData->hDevInfo))
                 TRACE("SetupDiDestroyDeviceInfoList() failed with error 0x%lx\n", GetLastError());
         }
-        HeapFree(GetProcessHeap(), 0, DevInstData->buffer);
+        //HeapFree(GetProcessHeap(), 0, DevInstData->buffer);
         HeapFree(GetProcessHeap(), 0, DevInstData);
     }
 
