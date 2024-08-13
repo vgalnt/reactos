@@ -754,40 +754,93 @@ USBH_FdoPower(IN PUSBHUB_FDO_EXTENSION HubExtension,
 
 NTSTATUS
 NTAPI
+USBH_PdoWaitWake(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
+                 IN PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+USBH_PdoSetPower(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
+                 IN PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 USBH_PdoPower(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
               IN PIRP Irp,
               IN UCHAR MinorFunction)
 {
     PUSBHUB_FDO_EXTENSION HubExtension;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
 
-    DPRINT1("USBH_PdoPower: %p, %p, %X\n", PortExtension, Irp, MinorFunction);
+    DPRINT("USBH_PdoPower: %p, %p, %X\n", PortExtension, Irp, MinorFunction);
 
     HubExtension = PortExtension->HubExtension;
     if (!HubExtension)
     {
+        DPRINT1("USBH_PdoPower: %p, %p, %X\n", PortExtension, Irp, MinorFunction);
         UNIMPLEMENTED_DBGBREAK();
     }
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
 
     InterlockedIncrement(&HubExtension->PendingRequestCount);
 
     if (MinorFunction == 2 || MinorFunction == 3)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        if (IoStack->Parameters.Power.Type == 0)
+            InterlockedIncrement(&PortExtension->PendingSystemPoRequest);
+        else if (IoStack->Parameters.Power.Type == 1)
+            InterlockedIncrement(&PortExtension->PendingDevicePoRequest);
     }
 
     if (PortExtension->StateBehindD2)
     {
-        DPRINT1("USBH_PdoPower: %X\n", PortExtension->StateBehindD2);
-        UNIMPLEMENTED_DBGBREAK();
+        if (PortExtension->StateBehindD2 == 1)
+        {
+            if (MinorFunction == 2 &&
+                IoStack->Parameters.Power.Type == 1 &&
+                IoStack->Parameters.Power.State.DeviceState == 3)
+            {
+                InterlockedCompareExchange(&PortExtension->StateBehindD2, 2, PortExtension->StateBehindD2);
+            }
+        }
+        else if (PortExtension->StateBehindD2 == 2)
+        {
+            DPRINT1("USBH_PdoPower: %p, %p, %X, %X\n", PortExtension, Irp, MinorFunction, PortExtension->StateBehindD2);
+            UNIMPLEMENTED_DBGBREAK();
+        }
     }
 
     if (HubExtension->CurrentPowerState.DeviceState == 1 ||
         (MinorFunction != 2 && MinorFunction != 3))
     {
-        DPRINT1("USBH_PdoPower: %X\n", HubExtension->CurrentPowerState.DeviceState);
-        UNIMPLEMENTED_DBGBREAK();
+        if (MinorFunction == 0)
+            return USBH_PdoWaitWake(PortExtension, Irp);
+
+        if (MinorFunction == 2)
+            return USBH_PdoSetPower(PortExtension, Irp);
+
+        if (MinorFunction == 3)
+        {
+            DPRINT1("USBH_PdoPower: %X\n", HubExtension->CurrentPowerState.DeviceState);
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        Status = Irp->IoStatus.Status;
+        USBH_CompletePowerIrp(HubExtension, Irp, Status);
+
+        return Status;
     }
 
+    DPRINT1("USBH_PdoPower: %X\n", HubExtension->CurrentPowerState.DeviceState);
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
 }
