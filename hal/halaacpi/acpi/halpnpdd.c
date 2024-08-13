@@ -417,7 +417,11 @@ HalpQueryIdFdo(
             break;
 
         case BusQueryInstanceID:
-            DPRINT1("HalpQueryIdFdo: BusQueryInstanceID\n");
+            DPRINT1("HalpQueryIdFdo: BusQueryInstanceID not support\n");
+            return STATUS_NOT_SUPPORTED;
+
+        case BusQueryCompatibleIDs:
+            DPRINT1("HalpQueryIdFdo: BusQueryCompatibleIDs\n");
             Id = L"0";
             break;
 
