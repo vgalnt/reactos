@@ -10,7 +10,6 @@ list(APPEND INF_FILES
     fdc.inf
     flpydisk.inf
     hal.inf
-    hdc.inf
     input.inf
     keyboard.inf
     ks.inf
@@ -19,6 +18,7 @@ list(APPEND INF_FILES
     machine.inf
     monitor.inf
     msmouse.inf
+    mshdc.inf
     NET_NIC.inf
     nettcpip.inf
     ports.inf
