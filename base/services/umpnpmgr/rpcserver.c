@@ -3415,8 +3415,12 @@ PNP_GetDeviceStatus(
     DWORD *pulProblem,
     DWORD ulFlags)
 {
+    WCHAR szEnumerator[MAX_DEVICE_ID_LEN];
+    WCHAR szDevice[MAX_DEVICE_ID_LEN];
+    WCHAR szInstance[MAX_DEVICE_ID_LEN];
     DWORD ulDataType, ulTransferLength, ulLength;
     DWORD ulCapabilities, ulConfigFlags;
+    size_t DeviceIdLen;
     CONFIGRET ret;
 
     UNREFERENCED_PARAMETER(hBinding);
@@ -3434,9 +3438,24 @@ PNP_GetDeviceStatus(
     if (!IsValidDeviceInstanceID(pDeviceID))
         return CR_INVALID_DEVINST;
 
+    if (FAILED(StringCchLengthW(pDeviceID, MAX_DEVICE_ID_LEN, &DeviceIdLen)))
+        return CR_INVALID_DEVINST;
+
     ret = GetDeviceStatus(pDeviceID, pulStatus, pulProblem);
     if (ret != CR_SUCCESS)
         return ret;
+
+    ASSERT(DeviceIdLen < MAX_DEVICE_ID_LEN);
+
+    SplitDeviceInstanceID(pDeviceID, szEnumerator, szDevice, szInstance);
+
+    if (CompareStringW(0x7F, 1, szEnumerator, -1, L"Root", -1) == 2)
+    {
+        if (DeviceIdLen < 0x16)//22
+            *pulStatus |= DN_ROOT_ENUMERATED;
+        else if (CompareStringW(0x7F, 1, &pDeviceID[0xE], 8, L"PnPBIOS__", 8) != 2)
+            *pulStatus |= DN_ROOT_ENUMERATED;
+    }
 
     /* Check for DN_REMOVABLE */
     ulTransferLength = sizeof(ulCapabilities);

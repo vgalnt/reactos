@@ -20,6 +20,8 @@
 #include <winreg.h>
 #include <winsvc.h>
 #include <winuser.h>
+#include <winnls.h>
+#include <strsafe.h>
 #include <dbt.h>
 #include <stdio.h>
 #include <cmfuncs.h>
