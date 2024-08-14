@@ -684,6 +684,7 @@ USBH_StartHubFdoDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
     HubExtension->ResetRequestCount = 0;
     HubExtension->PendingIdleIrp = NULL;
     HubExtension->PendingWakeIrp = NULL;
+    HubExtension->WaitWakeCouter = 0;
 
     InitializeListHead(&HubExtension->PdoList);
 

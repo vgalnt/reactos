@@ -752,13 +752,80 @@ USBH_FdoPower(IN PUSBHUB_FDO_EXTENSION HubExtension,
     return Status;
 }
 
+VOID
+NTAPI
+USBH_WaitWakeCancel(IN PDEVICE_OBJECT DeviceObject,
+                    IN PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 USBH_PdoWaitWake(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
                  IN PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBHUB_FDO_EXTENSION HubExtension;
+    PDRIVER_CANCEL CancelRoutine;
+    LONG WaitWakeCouter;
+    KIRQL Irql;
+
+    DPRINT("USBH_PdoWaitWake: %p, %p\n", PortExtension, Irp);
+
+    HubExtension = PortExtension->HubExtension;
+
+    if (PortExtension->CurrentPowerState.DeviceState != PowerDeviceD0 ||
+        (HubExtension->HubFlags & 4))
+    {
+        DPRINT1("USBH_PdoWaitWake: STATUS_INVALID_DEVICE_STATE\n");
+        USBH_CompletePowerIrp(HubExtension, Irp, STATUS_INVALID_DEVICE_STATE);
+        return STATUS_INVALID_DEVICE_STATE;
+    }
+
+    if (!(PortExtension->PortPdoFlags & 0x10))
+    {
+        DPRINT1("USBH_PdoWaitWake: STATUS_NOT_SUPPORTED\n");
+        USBH_CompletePowerIrp(HubExtension, Irp, STATUS_NOT_SUPPORTED);
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    IoAcquireCancelSpinLock(&Irql);
+
+    if (PortExtension->PdoWaitWakeIrp)
+    {
+        DPRINT1("USBH_PdoWaitWake: STATUS_DEVICE_BUSY\n");
+        IoReleaseCancelSpinLock(Irql);
+        USBH_CompletePowerIrp(HubExtension, Irp, STATUS_DEVICE_BUSY);
+        return STATUS_DEVICE_BUSY;
+    }
+
+    CancelRoutine = IoSetCancelRoutine(Irp, USBH_WaitWakeCancel);
+    ASSERT(CancelRoutine == NULL);
+
+    if (Irp->Cancel)
+    {
+        DPRINT1("USBH_PdoWaitWake: Irp->Cancel FIXME\n");
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_PENDING;
+    }
+
+    PortExtension->PortPdoFlags |= 0x20;
+    PortExtension->PdoWaitWakeIrp = Irp;
+
+    Irp->IoStatus.Information = (ULONG_PTR)PortExtension;
+    IoMarkIrpPending(Irp);
+
+    WaitWakeCouter = InterlockedIncrement(&HubExtension->WaitWakeCouter);
+
+    IoReleaseCancelSpinLock(Irql);
+
+    if (!(HubExtension->HubFlags & 0x80))
+    {
+        DPRINT1("USBH_PdoWaitWake: %p, %X\n", PortExtension, WaitWakeCouter);
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return STATUS_PENDING;
 }
 
 NTSTATUS

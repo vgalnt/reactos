@@ -192,6 +192,7 @@ typedef struct _USBHUB_FDO_EXTENSION {
   PIRP PendingIdleIrp;
   PIRP PendingWakeIrp;
   LONG FdoWaitWakeLock;
+  LONG WaitWakeCouter;
   LIST_ENTRY WorkItemList;
   KSPIN_LOCK WorkItemSpinLock;
   KSPIN_LOCK CheckIdleSpinLock;
