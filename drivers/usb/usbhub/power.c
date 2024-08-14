@@ -830,11 +830,69 @@ USBH_PdoWaitWake(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
 
 NTSTATUS
 NTAPI
-USBH_PdoSetPower(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
-                 IN PIRP Irp)
+USBH_SetPowerD1orD2(IN PIRP Irp,
+                    IN PUSBHUB_PORT_PDO_EXTENSION PortExtension)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+USBH_PdoSetPower(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
+                 IN PIRP Irp)
+{
+    PUSBHUB_FDO_EXTENSION HubExtension;
+    PIO_STACK_LOCATION IoStack;
+    DEVICE_POWER_STATE DeviceState;
+
+    HubExtension = PortExtension->HubExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    DPRINT1("USBH_PdoSetPower: %p, %p, %X, %X\n",
+            PortExtension, Irp, IoStack->Parameters.Power.Type, IoStack->Parameters.Power.State.DeviceState);
+
+    if (IoStack->Parameters.Power.Type == SystemPowerState)
+    {
+        InterlockedDecrement(&PortExtension->PendingSystemPoRequest);
+        USBH_CompletePowerIrp(HubExtension, Irp, STATUS_SUCCESS);
+        return STATUS_SUCCESS;
+    }
+
+    if (IoStack->Parameters.Power.Type != DevicePowerState)
+    {
+        DPRINT1("USBH_PdoSetPower: STATUS_INVALID_PARAMETER (%X)\n", IoStack->Parameters.Power.Type);
+        USBH_CompletePowerIrp(HubExtension, Irp, STATUS_INVALID_PARAMETER);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    DeviceState = IoStack->Parameters.Power.State.DeviceState;
+
+    if (PortExtension->CurrentPowerState.DeviceState == DeviceState)
+    {
+        InterlockedDecrement(&PortExtension->PendingDevicePoRequest);
+        USBH_CompletePowerIrp(HubExtension, Irp, STATUS_SUCCESS);
+        return STATUS_SUCCESS;
+    }
+
+    if (DeviceState == PowerDeviceD0)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (DeviceState == PowerDeviceD1 || DeviceState == PowerDeviceD2)
+    {
+        return USBH_SetPowerD1orD2(Irp, PortExtension);
+    }
+    else if (DeviceState == PowerDeviceD3)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    InterlockedDecrement(&PortExtension->PendingDevicePoRequest);
+
+    DPRINT1("USBH_PdoSetPower: STATUS_INVALID_PARAMETER (%X)\n", DeviceState);
+    USBH_CompletePowerIrp(HubExtension, Irp, STATUS_INVALID_PARAMETER);
+    return STATUS_INVALID_PARAMETER;
 }
 
 NTSTATUS
