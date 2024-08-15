@@ -833,8 +833,30 @@ NTAPI
 USBH_SyncSuspendPort(IN PUSBHUB_FDO_EXTENSION HubExtension,
                      IN USHORT PortNumber)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBHUB_PORT_DATA PortData;
+    BM_REQUEST_TYPE RequestType;
+    NTSTATUS Status;
+
+    DPRINT1("USBH_SyncSuspendPort: %p, %X\n", HubExtension, PortNumber);
+
+    PortData = &HubExtension->PortData[PortNumber - 1];
+
+    RequestType.B = 0x23;
+
+    Status = USBH_Transact(HubExtension,
+                           NULL,
+                           0,
+                           BMREQUEST_DEVICE_TO_HOST,
+                           URB_FUNCTION_CLASS_OTHER,
+                           RequestType,
+                           USB_REQUEST_SET_FEATURE,
+                           2,
+                           PortNumber);
+
+    if (NT_SUCCESS(Status))
+        PortData->PortStatus.AsUlong32 |= 4;
+
+    return Status;
 }
 
 VOID

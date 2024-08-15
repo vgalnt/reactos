@@ -657,6 +657,19 @@ USBH_ResetDevice(
 
 NTSTATUS
 NTAPI
+USBH_Transact(
+  IN PUSBHUB_FDO_EXTENSION HubExtension,
+  IN PVOID TransferBuffer,
+  IN ULONG BufferLen,
+  IN BOOLEAN IsDeviceToHost,
+  IN USHORT Function,
+  IN BM_REQUEST_TYPE RequestType,
+  IN UCHAR Request,
+  IN USHORT RequestValue,
+  IN USHORT RequestIndex);
+
+NTSTATUS
+NTAPI
 DriverEntry(
   IN PDRIVER_OBJECT DriverObject,
   IN PUNICODE_STRING RegistryPath);
