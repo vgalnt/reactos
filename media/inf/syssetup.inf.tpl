@@ -22,12 +22,12 @@ disk.inf
 display.inf
 fdc.inf
 hal.inf
-hdc.inf
 input.inf
 keyboard.inf
 legcydrv.inf
 machine.inf
 monitor.inf
+mshdc.inf
 msmouse.inf
 NET_NIC.inf
 ports.inf
