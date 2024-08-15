@@ -845,7 +845,59 @@ USBH_SyncFeatureRequest(IN PDEVICE_OBJECT DeviceObject,
                         IN USHORT Recipient,
                         IN BOOLEAN IsClearOrSet)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PURB Urb;
+    USHORT Function;
+
+    DPRINT1("USBH_SyncFeatureRequest: %p, %X, %X, %X, %X\n",
+            DeviceObject, FeatureSelector, IsClearOrSet, Index, Recipient);
+
+    Urb = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Urb), 'BUHU');
+    if (!Urb)
+    {
+        DPRINT1("USBH_SyncFeatureRequest: allocate failed\n");
+        return;
+    }
+
+    if (IsClearOrSet)
+    {
+        if (Recipient == 0)
+            Function = URB_FUNCTION_CLEAR_FEATURE_TO_DEVICE;
+        else if (Recipient == 1)
+            Function = URB_FUNCTION_CLEAR_FEATURE_TO_INTERFACE;
+        else if (Recipient == 2)
+            Function = URB_FUNCTION_CLEAR_FEATURE_TO_ENDPOINT;
+        else
+        {
+            DPRINT1("USBH_SyncFeatureRequest: !? Recipient %X\n", Recipient);
+            ASSERT(FALSE);
+        }
+    }
+    else
+    {
+        if (Recipient == 0)
+            Function = URB_FUNCTION_SET_FEATURE_TO_DEVICE;
+        else if (Recipient == 1)
+            Function = URB_FUNCTION_SET_FEATURE_TO_INTERFACE;
+        else if (Recipient == 2)
+            Function = URB_FUNCTION_SET_FEATURE_TO_ENDPOINT;
+        else
+        {
+            DPRINT1("USBH_SyncFeatureRequest: !? Recipient %X\n", Recipient);
+            ASSERT(FALSE);
+        }
+    }
+
+    Urb->UrbHeader.Function = Function;
+    Urb->UrbHeader.Length = sizeof(*Urb);
+
+    Urb->UrbControlFeatureRequest.FeatureSelector = FeatureSelector;
+    Urb->UrbControlFeatureRequest.Index = Index;
+
+    Urb->UrbControlDescriptorRequest.UrbLink = NULL;
+
+    USBH_SyncSubmitUrb(DeviceObject, Urb);
+
+    ExFreePoolWithTag(Urb, 'BUHU');
 }
 
 NTSTATUS
