@@ -830,11 +830,73 @@ USBH_PdoWaitWake(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
 
 NTSTATUS
 NTAPI
-USBH_SetPowerD1orD2(IN PIRP Irp,
-                    IN PUSBHUB_PORT_PDO_EXTENSION PortExtension)
+USBH_SyncSuspendPort(IN PUSBHUB_FDO_EXTENSION HubExtension,
+                     IN USHORT PortNumber)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+USBH_SyncFeatureRequest(IN PDEVICE_OBJECT DeviceObject,
+                        IN USHORT FeatureSelector,
+                        IN USHORT Index,
+                        IN USHORT Recipient,
+                        IN BOOLEAN IsClearOrSet)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+USBH_SetPowerD1orD2(IN PIRP Irp,
+                    IN PUSBHUB_PORT_PDO_EXTENSION PortExtension)
+{
+    PIO_STACK_LOCATION IoStack;
+    PUSBHUB_FDO_EXTENSION HubExtension;
+    NTSTATUS Status;
+
+    HubExtension = PortExtension->HubExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (PortExtension->CurrentPowerState.DeviceState == PowerDeviceD1 ||
+        PortExtension->CurrentPowerState.DeviceState == PowerDeviceD2)
+    {
+        InterlockedDecrement(&PortExtension->PendingDevicePoRequest);
+        USBH_CompletePowerIrp(HubExtension, Irp, STATUS_SUCCESS);
+        return STATUS_SUCCESS;
+    }
+
+    if (PortExtension->PortPdoFlags & 0x20)
+    {
+        DPRINT1("USBH_SetPowerD1orD2: Device is Enabled for REMOTE WAKEUP\n");
+        USBH_SyncFeatureRequest(PortExtension->Common.SelfDevice, 1, 0, 0, FALSE);
+        PortExtension->PortPdoFlags |= 0x01000000;
+    }
+
+    Status = USBH_SyncSuspendPort(HubExtension, PortExtension->PortNumber);
+
+    PortExtension->PortPdoFlags |= 0x2000;
+    PortExtension->CurrentPowerState = IoStack->Parameters.Power.State;
+
+    DPRINT1("USBH_SetPowerD1orD2: CurrentPowerState %X\n", PortExtension->CurrentPowerState);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("USBH_SetPowerD1orD2: Set D1/D2 Failure, Status %x\n", Status);
+        Status = STATUS_SUCCESS;
+    }
+
+    DPRINT1("USBH_SetPowerD1orD2: Setting HU (%p) to D%d, Status %X\n",
+           HubExtension->Common.SelfDevice, (PortExtension->CurrentPowerState.DeviceState - 1), Status);
+
+    InterlockedDecrement(&PortExtension->PendingDevicePoRequest);
+
+    DPRINT1("USBH_SetPowerD1orD2: (%p, %p) TransitCount %X\n", PortExtension, Irp, PortExtension->PendingDevicePoRequest);
+
+    USBH_CompletePowerIrp(HubExtension, Irp, Status);
+    return Status;
 }
 
 NTSTATUS
