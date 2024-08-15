@@ -334,8 +334,8 @@ NTSTATUS NTAPI PiControlInitializeDevice(ULONG PnPControlClass, PVOID PnPControl
 NTSTATUS NTAPI PiControlStartDevice(ULONG PnPControlClass, PVOID PnPControlData, ULONG PnPControlDataLength, KPROCESSOR_MODE AccessMode)
 {
     UNIMPLEMENTED;
-    //ASSERT(FALSE); // IoDbgBreakPointEx();
-    return 0;//STATUS_NOT_IMPLEMENTED;
+    ASSERT(FALSE); // IoDbgBreakPointEx();
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 NTSTATUS NTAPI PiControlQueryAndRemoveDevice(ULONG PnPControlClass, PVOID PnPControlData, ULONG PnPControlDataLength, KPROCESSOR_MODE AccessMode)

@@ -3241,7 +3241,7 @@ SetupDeviceInstance(
             pszDeviceInstance, ulMinorAction);
 
     if (IsRootDeviceInstanceID(pszDeviceInstance))
-        return CR_INVALID_DEVINST;
+        return CR_SUCCESS;
 
     if (ulMinorAction & ~CM_SETUP_BITS)
         return CR_INVALID_FLAG;
@@ -3249,6 +3249,10 @@ SetupDeviceInstance(
     if ((ulMinorAction == CM_SETUP_DOWNLOAD) ||
         (ulMinorAction == CM_SETUP_WRITE_LOG_CONFS))
         return CR_SUCCESS;
+
+    if ((ulMinorAction != CM_SETUP_DEVNODE_READY) &&
+        (ulMinorAction != CM_SETUP_DEVNODE_RESET))
+        return CR_INVALID_FLAG;
 
     dwError = RegOpenKeyExW(hEnumKey,
                             pszDeviceInstance,
@@ -3259,17 +3263,14 @@ SetupDeviceInstance(
         return CR_INVALID_DEVNODE;
 
     dwSize = sizeof(dwDisableCount);
-    dwError = RegQueryValueExW(hDeviceKey,
-                               L"DisableCount",
-                               NULL,
-                               NULL,
-                               (LPBYTE)&dwDisableCount,
-                               &dwSize);
-    if ((dwError == ERROR_SUCCESS) &&
-        (dwDisableCount > 0))
-    {
+    RegQueryValueExW(hDeviceKey,
+                     L"DisableCount",
+                     NULL,
+                     NULL,
+                     (LPBYTE)&dwDisableCount,
+                     &dwSize);
+    if (dwDisableCount > 0)
         goto done;
-    }
 
     GetDeviceStatus(pszDeviceInstance,
                     &ulStatus,
@@ -3293,11 +3294,14 @@ SetupDeviceInstance(
     /* Start the device */
     RtlInitUnicodeString(&ControlData.DeviceInstance,
                          pszDeviceInstance);
-    Status = NtPlugPlayControl(PlugPlayControlStartDevice,
-                               &ControlData,
-                               sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA));
+
+    if (ulMinorAction == CM_SETUP_DEVNODE_READY)
+        Status = NtPlugPlayControl(PlugPlayControlStartDevice, &ControlData, sizeof(ControlData));
+    else
+        Status = NtPlugPlayControl(PlugPlayControlResetDevice, &ControlData, sizeof(ControlData));
+
     if (!NT_SUCCESS(Status))
-        ret = NtStatusToCrError(Status);
+        ret = CR_FAILURE;
 
 done:
     if (hDeviceKey != NULL)
@@ -3311,16 +3315,81 @@ static CONFIGRET
 EnableDeviceInstance(
     _In_ LPWSTR pszDeviceInstance)
 {
-    PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA ControlData;
+    HKEY hControlKey = NULL;
+    WCHAR szControl[260];
+    DWORD dwDisableCount, dwSize;
+    DWORD ulStatus, ulProblem;
+    DWORD dwError;
     CONFIGRET ret = CR_SUCCESS;
-    NTSTATUS Status;
 
     DPRINT("Enable device instance %S\n", pszDeviceInstance);
 
-    RtlInitUnicodeString(&ControlData.DeviceInstance, pszDeviceInstance);
-    Status = NtPlugPlayControl(PlugPlayControlStartDevice, &ControlData, sizeof(ControlData));
-    if (!NT_SUCCESS(Status))
-        ret = NtStatusToCrError(Status);
+    if (IsRootDeviceInstanceID(pszDeviceInstance))
+    {
+        DPRINT1("EnableDeviceInstance CR_INVALID_DEVINST\n");
+        return CR_INVALID_DEVINST;
+    }
+
+    if (FAILED(StringCchPrintfW(szControl,
+                                260,
+                                L"%s\\%s",
+                                pszDeviceInstance,
+                                L"Control")))
+    {
+        DPRINT1("EnableDeviceInstance CR_FAILURE\n");
+        return CR_FAILURE;
+    }
+
+    dwError = RegOpenKeyExW(hEnumKey,
+                            szControl,
+                            0,
+                            KEY_READ,
+                            &hControlKey);
+    if (dwError != ERROR_SUCCESS)
+    {
+        DPRINT1("EnableDeviceInstance CR_INVALID_DEVINST\n");
+        return CR_INVALID_DEVINST;
+    }
+
+    dwSize = sizeof(dwDisableCount);
+    if (RegQueryValueExW(hControlKey,
+                         L"DisableCount",
+                         NULL,
+                         NULL,
+                         (LPBYTE)&dwDisableCount,
+                         &dwSize) != ERROR_SUCCESS)
+    {
+        dwDisableCount = 0;
+    }
+
+    if (dwDisableCount > 0)
+    {
+        dwDisableCount--;
+        RegSetValueExW(hControlKey,
+                       L"DisableCount",
+                       0,
+                       REG_DWORD,
+                       (LPBYTE)&dwDisableCount,
+                       sizeof(dwDisableCount));
+        if (dwDisableCount > 0)
+        {
+            goto done;
+        }
+    }
+
+    if (GetDeviceStatus(pszDeviceInstance, &ulStatus, &ulProblem) != CR_SUCCESS)
+    {
+        ret = CR_SUCCESS;
+        goto done;
+    }
+
+    if ((ulStatus & DN_HAS_PROBLEM) && ulProblem == CM_PROB_DISABLED)
+        ret = SetupDeviceInstance(pszDeviceInstance, CM_SETUP_DEVNODE_READY);
+
+done:
+
+    if (hControlKey)
+      RegCloseKey(hControlKey);
 
     return ret;
 }
