@@ -195,8 +195,8 @@ typedef struct _PCI_FDO_EXTENSION
     struct
     {
         BOOLEAN Acquired;
-        BOOLEAN CacheLineSize;
-        BOOLEAN LatencyTimer;
+        UCHAR CacheLineSize;
+        UCHAR LatencyTimer;
         BOOLEAN EnablePERR;
         BOOLEAN EnableSERR;
     } HotPlugParameters;

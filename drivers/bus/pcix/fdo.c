@@ -438,7 +438,9 @@ PciGetHotPlugParameters(
 {
     ACPI_EVAL_INPUT_BUFFER InputBuffer;
     PACPI_EVAL_OUTPUT_BUFFER OutputBuffer;
+    ULONG Argument;
     ULONG Length;
+    ULONG ix;
     NTSTATUS Status;
 
     PAGED_CODE();
@@ -488,11 +490,38 @@ PciGetHotPlugParameters(
         if (OutputBuffer->Count != 4)
             break;
 
-        /* HotPlug PCI Support not yet implemented */
-        UNIMPLEMENTED_DBGBREAK();
+        for (ix = 0; ix < 4; ix++)
+        {
+            if (OutputBuffer->Argument[ix].Type)
+                goto Exit;
+
+            Argument = OutputBuffer->Argument[ix].Argument;
+
+            if (ix == 0 || ix == 1)
+            {
+                if (Argument <= 0xFF)
+                    break;
+
+                goto Exit;
+            }
+            else if (ix == 2 || ix == 3)
+            {
+                if (Argument <= 1)
+                    break;
+
+                goto Exit;
+            }
+        }
+
+        FdoExtension->HotPlugParameters.CacheLineSize = (OutputBuffer->Argument[0].Argument & 0xFF);
+        FdoExtension->HotPlugParameters.LatencyTimer = (OutputBuffer->Argument[1].Argument & 0xFF);
+        FdoExtension->HotPlugParameters.EnableSERR = (OutputBuffer->Argument[2].Argument & 1);
+        FdoExtension->HotPlugParameters.EnablePERR = (OutputBuffer->Argument[3].Argument & 1);
+        FdoExtension->HotPlugParameters.Acquired = TRUE;
     }
     while (FALSE);
 
+Exit:
     /* Free the buffer and return */
     ExFreePoolWithTag(OutputBuffer, PCI_POOL_TAG);
 }
