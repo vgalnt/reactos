@@ -9821,7 +9821,38 @@ AnalyzeDeviceCapabilities(
             DPRINT("AnalyzeDeviceCapabilities: [%X] SingleWordDMAActive %X\n",
                    ix, HwDeviceExtension->IdentifyData[ix].SingleWordDMAActive);
 
-            UNIMPLEMENTED_DBGBREAK();
+            TempMode = HwDeviceExtension->IdentifyData[ix].SingleWordDMASupport;
+            ASSERT(TempMode);
+
+            for (BestXferMode = 0; TempMode; BestXferMode++)
+                TempMode >>= 1;
+
+            BestXferMode--;
+
+            if (BestXferMode > 2)
+                BestXferMode = 2;
+
+            CycleTime = TransferModeTimingTable[BestXferMode + 5];
+            ASSERT(CycleTime);
+
+            Mode = (0xFFFFFFFF >> (0x1F - BestXferMode));
+            XferMode |= (Mode << 5);
+
+            if (HwDeviceExtension->IdentifyData[ix].SingleWordDMAActive)
+            {
+                TempMode = HwDeviceExtension->IdentifyData[ix].SingleWordDMAActive;
+                ASSERT(TempMode);
+
+                for (CurrentMode = 0; TempMode; CurrentMode++)
+                    TempMode >>= 1;
+
+                CurrentMode--;
+
+                if (CurrentMode > 2)
+                    CurrentMode = 2;
+
+                CurrentMode = (1 << (CurrentMode + 5));
+            }
         }
 
         DeviceParameters->BestSwDmaCycleTime = CycleTime;
