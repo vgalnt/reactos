@@ -613,6 +613,17 @@ typedef struct _IS_PCI_BUS_CONTEXT
     UCHAR Buffer[0x40]; // FIXME
 } IS_PCI_BUS_CONTEXT, *PIS_PCI_BUS_CONTEXT;
 
+typedef struct _ACPI_PSW_CONTEXT
+{
+    LIST_ENTRY Link;
+    PDEVICE_EXTENSION DeviceExtension;
+    BOOLEAN IsEnable;
+    BOOLEAN Pad[3];
+    ULONG Unknown;
+    PVOID CallBack;
+    PVOID Context;
+} ACPI_PSW_CONTEXT, *PACPI_PSW_CONTEXT;
+
 /* PM_DISPATCH STRUCTURES ***************************************************/
 
 typedef struct _HALP_STATE_DATA

@@ -925,6 +925,7 @@ WMIGUIDREGINFO ACPIThermalGuidList =
 
 extern NPAGED_LOOKASIDE_LIST BuildRequestLookAsideList;
 extern NPAGED_LOOKASIDE_LIST RequestLookAsideList;
+extern NPAGED_LOOKASIDE_LIST PswContextLookAsideList;
 extern KSPIN_LOCK AcpiDeviceTreeLock;
 extern KSPIN_LOCK AcpiBuildQueueLock;
 extern KSPIN_LOCK AcpiPowerQueueLock;
@@ -5926,6 +5927,135 @@ ACPIDeviceInternalQueueRequest(
     KeInsertQueueDpc(&AcpiPowerDpc, NULL, NULL);
 }
 
+VOID
+NTAPI
+ACPIWakeEnableDisablePciDevice(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ BOOLEAN PmeEnable)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+__cdecl
+ACPIWakeEnableDisableAsyncCallBack(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ NTSTATUS InStatus,
+    _In_ PAMLI_OBJECT_DATA Data,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+ACPIWakeEnableDisableAsync(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ BOOLEAN IsEnable,
+    _In_ PAMLI_FN_ASYNC_CALLBACK CallBack,
+    _In_ PACPI_POWER_REQUEST Request)
+{
+    PAMLI_NAME_SPACE_OBJECT PowerObject = NULL;
+    PACPI_PSW_CONTEXT PswContext;
+    AMLI_OBJECT_DATA Data;
+    KIRQL Irql;
+    BOOLEAN IsWakeListEmpty = FALSE;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("ACPIWakeEnableDisableAsync: %p, %X\n", DeviceExtension, IsEnable);
+
+    if (IsEnable)
+    {
+        DeviceExtension->PowerInfo.WakeSupportCount++;
+
+        DPRINT("ACPIWakeEnableDisableAsync: Count %X (+)\n", DeviceExtension->PowerInfo.WakeSupportCount);
+
+        if (DeviceExtension->PowerInfo.WakeSupportCount != 1)
+        {
+            if (DeviceExtension->Flags & 0x800000000000000)
+                ACPIWakeEnableDisablePciDevice(DeviceExtension, TRUE);
+
+            goto Exit;
+        }
+    }
+    else
+    {
+        ASSERT(DeviceExtension->PowerInfo.WakeSupportCount);
+        DeviceExtension->PowerInfo.WakeSupportCount--;
+
+        DPRINT("ACPIWakeEnableDisableAsync: Count %d (-)\n", DeviceExtension->PowerInfo.WakeSupportCount);
+
+        if (DeviceExtension->PowerInfo.WakeSupportCount)
+        {
+            if (DeviceExtension->Flags & 0x800000000000000)
+                ACPIWakeEnableDisablePciDevice(DeviceExtension, TRUE);
+
+            goto Exit;
+        }
+    }
+
+    PowerObject = DeviceExtension->PowerInfo.PowerObject[0];
+    if (!PowerObject)
+    {
+        if (DeviceExtension->Flags & 0x800000000000000)
+            ACPIWakeEnableDisablePciDevice(DeviceExtension, TRUE);
+
+        goto Exit;
+    }
+
+    PswContext = ExAllocateFromNPagedLookasideList(&PswContextLookAsideList);
+    if (PswContext)
+    {
+        PswContext->IsEnable = IsEnable;
+        PswContext->CallBack = CallBack;
+        PswContext->Context = Request;
+        PswContext->DeviceExtension = DeviceExtension;
+        PswContext->Unknown = 1;
+
+        KeAcquireSpinLock(&AcpiPowerLock, &Irql);
+
+        if (IsListEmpty(&DeviceExtension->PowerInfo.WakeSupportList))
+            IsWakeListEmpty = TRUE;
+
+        InsertTailList(&DeviceExtension->PowerInfo.WakeSupportList, &PswContext->Link);
+
+        KeReleaseSpinLock(&AcpiPowerLock, Irql);
+
+        if (!IsWakeListEmpty)
+        {
+            DPRINT("ACPIWakeEnableDisableAsync: ret STATUS_PENDING\n", STATUS_PENDING);
+            return STATUS_PENDING;
+        }
+
+        if ((DeviceExtension->Flags & 0x800000000000000) && !PswContext->IsEnable)
+            ACPIWakeEnableDisablePciDevice(DeviceExtension, FALSE);
+
+        RtlZeroMemory(&Data, sizeof(Data));
+
+        Data.DataType = 1;
+        Data.DataValue = ULongToPtr(IsEnable != 0);
+
+        Status = AMLIAsyncEvalObject(PowerObject, NULL, 1, &Data, ACPIWakeEnableDisableAsyncCallBack, PswContext);
+
+        DPRINT("ACPIWakeEnableDisableAsync: Status %X\n", Status);
+
+        if (Status != STATUS_PENDING)
+            ACPIWakeEnableDisableAsyncCallBack(PowerObject, Status, NULL, PswContext);
+
+        return STATUS_PENDING;
+    }
+
+    Status = STATUS_INSUFFICIENT_RESOURCES;
+
+Exit:
+
+    DPRINT("ACPIWakeEnableDisableAsync: Status %X\n", Status);
+
+    CallBack(PowerObject, Status, NULL, Request);
+
+    return STATUS_PENDING;
+}
+
 NTSTATUS
 NTAPI
 ACPIDeviceInitializePowerRequest(
@@ -5939,6 +6069,9 @@ ACPIDeviceInitializePowerRequest(
 {
     PACPI_POWER_REQUEST Request;
     KIRQL OldIrql;
+    NTSTATUS Status;
+
+    DPRINT1("ACPIDeviceInitializePowerRequest: %p, %X\n", DeviceExtension, State.DeviceState);
 
     Request = ExAllocateFromNPagedLookasideList(&RequestLookAsideList);
     if (!Request)
@@ -6008,8 +6141,13 @@ ACPIDeviceInitializePowerRequest(
 
         KeReleaseSpinLock(&AcpiPowerQueueLock, OldIrql);
 
-        DPRINT1("ACPIDeviceInitializePowerRequest: FIXME\n");
-        ASSERT(FALSE);
+        Status = ACPIWakeEnableDisableAsync(DeviceExtension, 1, ACPIDeviceIrpWaitWakeRequestPending, Request);
+        if (Status == STATUS_PENDING)
+        {
+            return STATUS_MORE_PROCESSING_REQUIRED;
+        }
+
+        return Status;
     }
 
     if (RequestType == AcpiPowerRequestWarmEject)
