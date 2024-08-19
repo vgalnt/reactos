@@ -8,7 +8,7 @@
 #include "acpi.h"
 
 #define NDEBUG
-#include <debug.h>
+#include "debug.h"
 
 #ifdef ALLOC_PRAGMA
   #pragma alloc_text(INIT, ACPIInitHalDispatchTable)
