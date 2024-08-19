@@ -12784,42 +12784,42 @@ ACPIBusIrpQueryResourceRequirements(
     CrsStatus = ACPIGet(DeviceExtension, 'SRC_', 0x20010008, NULL, 0, NULL, NULL, &CrsDataBuff, &CrsDataLen);
     PrsStatus = ACPIGet(DeviceExtension, 'SRP_', 0x20010008, NULL, 0, NULL, NULL, &PrsDataBuff, &PrsDataLen);
 
-    if (NT_SUCCESS(CrsStatus))
+    if (!NT_SUCCESS(CrsStatus) && !NT_SUCCESS(PrsStatus))
+    {
+        if (PrsStatus == STATUS_INSUFFICIENT_RESOURCES || CrsStatus == STATUS_INSUFFICIENT_RESOURCES)
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+
+        DPRINT("ACPIBusIrpQueryResourceRequirements: Status %X\n", Status);
+        goto Exit;
+    }
+
+    if (NT_SUCCESS(PrsStatus))
+    {
+        Status = PnpDeviceBiosResourcesToNtResources(DeviceExtension, PrsDataBuff, 0, &IoResource);
+
+        ASSERTMSG("The BIOS has reported inconsistent resources (_PRS). Please upgrade your BIOS.", NT_SUCCESS(Status));
+        DPRINT("ACPIBusIrpQueryResourceRequirements: Status %X\n", Status);
+
+        ExFreePool(PrsDataBuff);
+    }
+    else if (NT_SUCCESS(CrsStatus))
     {
         Status = STATUS_NOT_SUPPORTED;
-
-        if (!NT_SUCCESS(PrsStatus))
-        {
-            Status = PnpDeviceBiosResourcesToNtResources(DeviceExtension,
-                                                         CrsDataBuff,
-                                                         ((DeviceExtension->Flags & 0x0000000002000000) != 0),
-                                                         &IoResource);
-        
-            ASSERTMSG("The BIOS has reported inconsistent resources (_PRS). Please upgrade your BIOS.", NT_SUCCESS(Status));
-            DPRINT("ACPIBusIrpQueryResourceRequirements: Status %X\n", Status);
-
-            if (NT_SUCCESS(CrsStatus))
-                ExFreePool(CrsDataBuff);
-        }
-        else
-        {
-            DPRINT1("ACPIBusIrpQueryResourceRequirements: FIXME\n");
-            ASSERT(FALSE);
-        }
     }
-    else
+
+    if (!NT_SUCCESS(Status) && NT_SUCCESS(CrsStatus))
     {
-        if (!NT_SUCCESS(PrsStatus))
-        {
-            if (PrsStatus == STATUS_INSUFFICIENT_RESOURCES || CrsStatus == STATUS_INSUFFICIENT_RESOURCES)
-                Status = STATUS_INSUFFICIENT_RESOURCES;
+        Status = PnpDeviceBiosResourcesToNtResources(DeviceExtension,
+                                                     CrsDataBuff,
+                                                     ((DeviceExtension->Flags & 0x0000000002000000) != 0),
+                                                     &IoResource);
 
-            goto Exit;
-        }
-
-        DPRINT1("ACPIBusIrpQueryResourceRequirements: CrsStatus %X\n", CrsStatus);
-        ASSERT(FALSE);
+        ASSERTMSG("The BIOS has reported inconsistent resources (_CRS). Please upgrade your BIOS.", NT_SUCCESS(Status));
+        DPRINT("ACPIBusIrpQueryResourceRequirements: Status %X\n", Status);
     }
+
+    if (NT_SUCCESS(CrsStatus))
+        ExFreePool(CrsDataBuff);
 
     if (!IoResource)
     {
