@@ -2081,8 +2081,8 @@ ACPIGetConvertToCompatibleID(
     _In_  ULONG* OutDataLen)
 {
     PAMLI_PACKAGE_OBJECT PackageObject;
-    PCHAR* buffer1;
-    PULONG buffer2;
+    PCHAR* buffer1;//Array PCHAR`s (id)
+    PULONG buffer2;//Array ULONG`s (id len)
     PCHAR buffer;
     PVOID DataBuff;
     POOL_TYPE PoolType;
@@ -2169,14 +2169,45 @@ ACPIGetConvertToCompatibleID(
         Status = ACPIGetConvertToString(DeviceExtension, InStatus, AmliData, GetFlags, (PVOID *)buffer1, buffer2);
         NumberOfBytes = *buffer2;
     }
-    else if (AmliData->DataType == 4)
+    else if (AmliData->DataType == 4)//OBJTYPE_PKGDATA
     {
-        ix = 0;
-
-        if (Count)
+        for (ix = 0; ix < Count; ix++)
         {
-            DPRINT1("ACPIGetConvertToCompatibleID: FIXME\n");
-            ASSERT(FALSE);
+            if (PackageObject->Data[ix].DataType == 1)
+            {
+                Status = ACPIGetConvertToPnpID(DeviceExtension,
+                                               InStatus,
+                                               &PackageObject->Data[ix],
+                                               GetFlags,
+                                               (PVOID *)&buffer1[ix],
+                                               &buffer2[ix]);
+            }
+            else if (PackageObject->Data[ix].DataType == 2)
+            {
+                Status = ACPIGetConvertToString(DeviceExtension,
+                                                InStatus,
+                                                &PackageObject->Data[ix],
+                                                GetFlags,
+                                                (PVOID *)&buffer1[ix],
+                                                &buffer2[ix]);
+            }
+            else
+            {
+                DPRINT1("ACPIGetConvertToCompatibleID: Error! DataType %X\n", PackageObject->Data[ix].DataType);
+                ASSERT(FALSE);
+                //ACPIInternalError(..);
+            }
+
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("ACPIGetConvertToCompatibleID: Status %X\n", Status);
+                break;
+            }
+
+            if (buffer2[ix] == 1)
+                buffer2[ix] = 0;
+
+            NumberOfBytes += buffer2[ix];
         }
     }
 
