@@ -978,6 +978,8 @@ extern ULONG gdwcCTObjsMax;
 extern PUCHAR GpeWakeEnable;
 extern PUCHAR GpeCurEnable;
 extern PUCHAR GpePending;
+extern PUCHAR GpeIsLevel;
+extern PUCHAR GpeMap;
 extern WORK_QUEUE_ITEM ACPIWorkItem;
 
 /* FUNCTIOS *****************************************************************/
@@ -16173,6 +16175,17 @@ ACPIInternalRegisterPowerCallBack(
     ExRegisterCallback(CallbackObject, CallbackFunction, DeviceExtension);
 
     return Status;
+}
+
+ULONG
+NTAPI
+ACPIGpeIndexToByteIndex(
+    _In_ ULONG GpeIndex)
+{
+    if (GpeIndex < AcpiInformation->GP1_Base_Index)
+        return GpeIndex;
+
+    return (GpeIndex - AcpiInformation->GP1_Base_Index + AcpiInformation->Gpe0Size);
 }
 
 VOID
