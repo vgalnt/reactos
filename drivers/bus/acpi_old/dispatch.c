@@ -28,6 +28,7 @@
 
 /* GLOBALS *******************************************************************/
 DEFINE_GUID(GUID_PCI_PME_INTERFACE, 0xAAC7E6AC, 0xBB0B, 0x11D2, 0xB4, 0x84, 0x00, 0xC0, 0x4F, 0x72, 0xDE, 0x8B); // FIXME
+SYSTEM_POWER_STATE AcpiMostRecentSleepState = PowerSystemWorking;
 
 PAMLI_NAME_SPACE_OBJECT ProcessorList[0x20];
 ACPI_INTERFACE_STANDARD ACPIInterfaceTable;
@@ -5925,6 +5926,71 @@ ACPIDeviceInternalQueueRequest(
         return;
 
     KeInsertQueueDpc(&AcpiPowerDpc, NULL, NULL);
+}
+
+VOID
+NTAPI
+ACPIDeviceIrpWaitWakeRequestComplete(
+    _In_ PACPI_POWER_REQUEST Request)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+ACPIDeviceCancelWaitWakeIrp(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+__cdecl
+ACPIDeviceIrpWaitWakeRequestPending(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ NTSTATUS InStatus,
+    _In_ PAMLI_OBJECT_DATA Data,
+    _In_ PVOID Context)
+{
+    PACPI_POWER_REQUEST Request = Context;
+    PDEVICE_EXTENSION DeviceExtension;
+    PIRP Irp;
+    KIRQL Irql;
+
+    DPRINT("ACPIDeviceIrpWaitWakeRequestPending: %p, %X\n", Request, InStatus);
+
+    Irp = Request->Context;
+    DeviceExtension = Request->DeviceExtension;
+
+    if (!NT_SUCCESS(InStatus))
+    {
+        DPRINT1("ACPIDeviceIrpWaitWakeRequestPending: %p, %X\n", Request, InStatus);
+        Request->Status = InStatus;
+        ACPIDeviceIrpWaitWakeRequestComplete(Request);
+        return;
+    }
+
+    IoAcquireCancelSpinLock(&Irql);
+    KeAcquireSpinLockAtDpcLevel(&AcpiPowerLock);
+
+    InsertTailList(&AcpiPowerWaitWakeList, &Request->ListEntry);
+
+    if (Irp->Cancel)
+    {
+        KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
+        ACPIDeviceCancelWaitWakeIrp(DeviceExtension->DeviceObject, Irp);
+        return;
+    }
+
+    Request->u.WaitWakeRequest.Flags |= 0x40;
+
+    ACPIWakeRemoveDevicesAndUpdate(NULL, NULL);
+
+    IoSetCancelRoutine(Irp, ACPIDeviceCancelWaitWakeIrp);
+
+    KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
+    IoReleaseCancelSpinLock(Irql);
 }
 
 VOID

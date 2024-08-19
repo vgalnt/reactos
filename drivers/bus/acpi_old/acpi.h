@@ -1849,6 +1849,13 @@ IsPciBusAsync(
     _In_ BOOLEAN* OutIsBusAsync
 );
 
+VOID
+NTAPI
+ACPIWakeRemoveDevicesAndUpdate(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PLIST_ENTRY InList
+);
+
 /* registry.c */
 VOID
 NTAPI
