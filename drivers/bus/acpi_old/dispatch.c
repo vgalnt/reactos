@@ -2072,6 +2072,20 @@ ACPIGetConvertToString(
 
 NTSTATUS
 NTAPI
+ACPIGetConvertToStringWide(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ NTSTATUS InStatus,
+    _In_ PAMLI_OBJECT_DATA AmliData,
+    _In_ ULONG GetFlags,
+    _Out_ PVOID* OutDataBuff,
+    _Out_ ULONG* OutDataLen)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ACPIGetConvertToCompatibleID(
     _In_ PDEVICE_EXTENSION DeviceExtension,
     _In_ NTSTATUS InStatus,
@@ -2740,6 +2754,7 @@ ACPIGetConvertToCompatibleIDWide(
     _Out_ PVOID* OutDataBuff,
     _Out_ ULONG* OutDataLen)
 {
+    PAMLI_PACKAGE_OBJECT PackageObject;
     PWCHAR CompatibleId;
     PWCHAR Id;
     PWCHAR* OutPnpId;
@@ -2799,8 +2814,8 @@ ACPIGetConvertToCompatibleIDWide(
     }
     else if (AmliData->DataType == 4)
     {
-        DPRINT1("ACPIGetConvertToCompatibleIDWide: FIXME\n");
-        ASSERT(FALSE);
+        PackageObject = AmliData->DataBuff;
+        Count = PackageObject->Elements;
     }
 
     OutPnpId = ExAllocatePoolWithTag(NonPagedPool, (Count * 4), 'MpcA');
@@ -2832,8 +2847,38 @@ ACPIGetConvertToCompatibleIDWide(
     }
     else if (AmliData->DataType == 4)
     {
-        DPRINT1("ACPIGetConvertToCompatibleIDWide: FIXME\n");
-        ASSERT(FALSE);
+        for (ix = 0; ix < Count; ix++)
+        {
+            if (PackageObject->Data[ix].DataType == 1)
+            {
+                Status = ACPIGetConvertToPnpIDWide(DeviceExtension,
+                                                   Status,
+                                                   &PackageObject->Data[ix],
+                                                   GetFlags,
+                                                   (PVOID *)&OutPnpId[ix],
+                                                   &OutPnpIdLen[ix]);
+            }
+            else if (PackageObject->Data[ix].DataType == 2)
+            {
+                Status = ACPIGetConvertToStringWide(DeviceExtension,
+                                                    Status,
+                                                    &PackageObject->Data[ix],
+                                                    GetFlags,
+                                                    (PVOID *)&OutPnpId[ix],
+                                                    &OutPnpIdLen[ix]);
+            }
+
+            if (!NT_SUCCESS(Status))
+                break;
+
+            if (OutPnpIdLen[ix] == 1)
+                OutPnpIdLen[ix] = 0;
+
+            Len += OutPnpIdLen[ix];
+        }
+
+        if (!NT_SUCCESS(Status))
+            Count = ix;
     }
 
     if (!NT_SUCCESS(Status))
