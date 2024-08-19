@@ -12091,14 +12091,20 @@ PnpBiosResourcesToNtResources(
                 }
                 case 0x06:
                 {
-                    DPRINT1("PnpBiosResourcesToNtResources: FIXME! (TagName %X)\n", TagName);
-                    ASSERT(FALSE);
+                    MaxIndex++;
+                    Index = MaxIndex;
+
+                    DPRINT("PnpBiosResourcesToNtResources: TAG_START_DEPEND(Index %X)\n", Index);
+
+                    if (Index == ResourceListArraySize)
+                        Status = PnpiGrowResourceList(&ResourceListArray, &ResourceListArraySize);
+
                     break;
                 }
                 case 0x07:
                 {
-                    DPRINT1("PnpBiosResourcesToNtResources: FIXME! (TagName %X)\n", TagName);
-                    ASSERT(FALSE);
+                    DPRINT("PnpBiosResourcesToNtResources: TAG_END_DEPEND(Index %X)\n", Index);
+                    Index = 0;
                     break;
                 }
                 case 0x08:
