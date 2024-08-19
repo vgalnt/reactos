@@ -16188,6 +16188,17 @@ ACPIGpeIndexToByteIndex(
     return (GpeIndex - AcpiInformation->GP1_Base_Index + AcpiInformation->Gpe0Size);
 }
 
+ULONG
+NTAPI
+ACPIGpeIndexToGpeRegister(
+    _In_ ULONG GpeIndex)
+{
+    if (GpeIndex < AcpiInformation->GP1_Base_Index)
+        return (GpeIndex >> 3);
+
+    return (((GpeIndex - AcpiInformation->GP1_Base_Index) >> 3) + AcpiInformation->Gpe0Size);
+}
+
 VOID
 NTAPI
 ACPIWakeRemoveDevicesAndUpdate(
