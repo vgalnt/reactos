@@ -1856,6 +1856,13 @@ ACPIWakeRemoveDevicesAndUpdate(
     _In_ PLIST_ENTRY InList
 );
 
+VOID
+NTAPI
+ACPIWriteGpeStatusRegister(
+    _In_ ULONG Size,
+    _In_ UCHAR Value
+);
+
 /* registry.c */
 VOID
 NTAPI

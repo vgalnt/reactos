@@ -16203,14 +16203,20 @@ VOID
 NTAPI
 ACPIWakeRemoveDevicesAndUpdate(
     _In_ PDEVICE_EXTENSION DeviceExtension,
-    _In_ PLIST_ENTRY InList)
+    _In_ PLIST_ENTRY OutList)
 {
+    PDEVICE_EXTENSION Extension;
+    PACPI_POWER_REQUEST Request;
+    PLIST_ENTRY Entry;
+    PIRP Irp;
+    ULONG GpeIndex;
+    ULONG Index;
+    ULONG Mask;
     ULONG ix;
 
-    DPRINT("ACPIWakeRemoveDevicesAndUpdate: %X, %X", DeviceExtension, InList);
+    DPRINT("ACPIWakeRemoveDevicesAndUpdate: %X, %X", DeviceExtension, OutList);
 
     ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
-
     KeAcquireSpinLockAtDpcLevel(&GpeTableLock);
 
     for (ix = 0; ix < AcpiInformation->GpeSize; ix++)
@@ -16218,12 +16224,58 @@ ACPIWakeRemoveDevicesAndUpdate(
         GpeCurEnable[ix] &= (GpeSpecialHandler[ix] | ~(GpeWakeEnable[ix] | GpeWakeHandler[ix]));
     }
 
-    RtlZeroMemory(GpeWakeEnable, AcpiInformation->GpeSize * sizeof(UCHAR));
+    RtlZeroMemory(GpeWakeEnable, AcpiInformation->GpeSize);
 
-    if (!IsListEmpty(&AcpiPowerWaitWakeList))
+    Entry = AcpiPowerWaitWakeList.Flink;
+    while (Entry != &AcpiPowerWaitWakeList)
     {
-        DPRINT1("ACPIWakeRemoveDevicesAndUpdate: FIXME");
-        ASSERT(FALSE);
+        Request = CONTAINING_RECORD(Entry, ACPI_POWER_REQUEST, ListEntry);
+        Entry = Entry->Flink;
+
+        Extension = Request->DeviceExtension;
+        if (Extension == DeviceExtension)
+        {
+            Irp = Request->Context;
+            IoSetCancelRoutine(Irp, NULL);
+
+            RemoveEntryList(&Request->ListEntry);
+            InsertTailList(OutList, &Request->ListEntry);
+
+            continue;
+        }
+
+        if (Request->u.WaitWakeRequest.SystemPowerState < AcpiMostRecentSleepState)
+            continue;
+
+        GpeIndex = Extension->PowerInfo.WakeBit;
+        Index = ACPIGpeIndexToByteIndex(GpeIndex);
+
+        if (GpeMap[Index])
+        {
+            DPRINT("ACPIWakeRemoveDevicesAndUpdate: %X cannot be used as awake pin\n", GpeIndex);
+            continue;
+        }
+
+        ix = ACPIGpeIndexToGpeRegister(GpeIndex);
+        Mask = (1 << ((UCHAR)GpeIndex % 8));
+
+        if (Mask & GpeWakeEnable[ix])
+            continue;
+
+        GpeWakeEnable[ix] |= Mask;
+        ACPIWriteGpeStatusRegister(ix, Mask);
+
+        if ((Mask & GpeEnable[ix]) && !(Mask & GpeSpecialHandler[ix]))
+        {
+            GpeWakeHandler[ix] |= Mask;
+            continue;
+        }
+
+        if (Mask & GpeCurEnable[ix])
+            continue;
+
+        GpeIsLevel[ix] |= Mask;
+        GpeCurEnable[ix] |= Mask;
     }
 
     for (ix = 0; ix < AcpiInformation->GpeSize; ix++)
