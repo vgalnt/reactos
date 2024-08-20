@@ -16578,11 +16578,15 @@ ACPIIoctlCalculateOutputBufferSize(
     _In_ PAMLI_OBJECT_DATA DataResult,
     _Out_ PULONG OutLength,
     _Out_ PULONG OutCount,
-    _In_ BOOLEAN Param4)
+    _In_ BOOLEAN IsAllowSelfCall)
 {
+    PAMLI_PACKAGE_OBJECT PackageObject;
     ULONG Length;
+    ULONG dummy;
+    ULONG ix;
+    NTSTATUS Status;
 
-    DPRINT1("ACPIIoctlCalculateOutputBufferSize: %p (%X), %X\n", DataResult, DataResult->DataType, Param4);
+    DPRINT1("ACPIIoctlCalculateOutputBufferSize: %p (%X), %X\n", DataResult, DataResult->DataType, IsAllowSelfCall);
 
     if (DataResult->DataType == 0)
     {
@@ -16607,14 +16611,36 @@ ACPIIoctlCalculateOutputBufferSize(
 
     if (DataResult->DataType != 4)
     {
-        DPRINT1("ACPIIoctlCalculateOutputBufferSize: %p (%X), %X\n", DataResult, DataResult->DataType, Param4);
+        DPRINT1("ACPIIoctlCalculateOutputBufferSize: %p (%X), %X\n", DataResult, DataResult->DataType, IsAllowSelfCall);
         ASSERT(FALSE);
         return STATUS_ACPI_INVALID_DATA;
     }
 
-    // DataResult->DataType == 4
-    DPRINT1("ACPIIoctlCalculateOutputBufferSize: FIXME\n");
-    ASSERT(FALSE);
+    // DataResult->DataType == 4 (OBJTYPE_PKGDATA)
+
+    PackageObject = DataResult->DataBuff;
+
+    if (!IsAllowSelfCall)
+    {
+        Length = 4;
+        *OutCount = 1;
+    }
+    else
+    {
+        Length = 0;
+        *OutCount = PackageObject->Elements;
+    }
+
+    for (ix = 0; ix < PackageObject->Elements; ix++)
+    {
+        Status = ACPIIoctlCalculateOutputBufferSize(&PackageObject->Data[ix], OutLength, &dummy, FALSE);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ACPIIoctlCalculateOutputBufferSize: %p (%X), %X\n", DataResult, DataResult->DataType, IsAllowSelfCall);
+            ASSERT(FALSE);
+            return Status;
+        }
+    }
 
 Exit:
 
