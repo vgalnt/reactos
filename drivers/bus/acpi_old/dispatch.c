@@ -16656,9 +16656,16 @@ NTAPI
 ACPIIoctlCalculateOutputBuffer(
     _In_ PAMLI_OBJECT_DATA DataResult,
     _In_ PACPI_METHOD_ARGUMENT Argument,
-    _In_ BOOLEAN Param3)
+    _In_ BOOLEAN IsAllowSelfCall)
 {
-    DPRINT1("ACPIIoctlCalculateOutputBuffer: %p (%X), %X\n", DataResult, DataResult->DataType, Param3);
+    PAMLI_PACKAGE_OBJECT PackageObject;
+    PAMLI_OBJECT_DATA Data;
+    ULONG Length = 0;
+    ULONG Count = 0;
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT1("ACPIIoctlCalculateOutputBuffer: %p (%X), %X\n", DataResult, DataResult->DataType, IsAllowSelfCall);
 
     ASSERT(Argument);
 
@@ -16670,17 +16677,46 @@ ACPIIoctlCalculateOutputBuffer(
     }
     else if (DataResult->DataType == 2 || DataResult->DataType == 3)
     {
-        DPRINT1("ACPIIoctlCalculateOutputBufferSize: FIXME\n");
+        DPRINT1("ACPIIoctlCalculateOutputBuffer: FIXME\n");
         ASSERT(FALSE);
     }
     else if (DataResult->DataType == 4)
     {
-        DPRINT1("ACPIIoctlCalculateOutputBufferSize: FIXME\n");
-        ASSERT(FALSE);
+        PackageObject = DataResult->DataBuff;
+
+        Status = ACPIIoctlCalculateOutputBufferSize(DataResult, &Length, &Count, TRUE);
+        if (!NT_SUCCESS(Status))
+        {
+            return Status;
+        }
+
+        ASSERT(Count == PackageObject->Elements);
+
+        if (!IsAllowSelfCall)
+        {
+            Argument->Type = 3;
+            Argument->DataLength = (USHORT)Length;
+            Argument = Add2Ptr(Argument, FIELD_OFFSET(ACPI_METHOD_ARGUMENT, Argument));
+        }
+
+        for (ix = 0; ix < PackageObject->Elements; ix++)
+        {
+            Data = &PackageObject->Data[ix];
+
+            Status = ACPIIoctlCalculateOutputBuffer(Data, Argument, FALSE);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("ACPIIoctlCalculateOutputBuffer: %p (%X), %X\n", DataResult, DataResult->DataType, IsAllowSelfCall);
+                ASSERT(FALSE);
+                return Status;
+            }
+
+            Argument = ACPI_METHOD_NEXT_ARGUMENT(Argument);
+        }
     }
     else
     {
-        DPRINT1("ACPIIoctlCalculateOutputBufferSize: %p (%X), %X\n", DataResult, DataResult->DataType, Param3);
+        DPRINT1("ACPIIoctlCalculateOutputBuffer: %p (%X), %X\n", DataResult, DataResult->DataType, IsAllowSelfCall);
         ASSERT(FALSE);
         return STATUS_ACPI_INVALID_DATA;
     }
