@@ -1577,7 +1577,7 @@ USBH_FdoSurpriseRemoveDevice(IN PUSBHUB_FDO_EXTENSION HubExtension,
 NTSTATUS
 NTAPI
 USBH_GetMsOsFeatureDescriptor(IN PDEVICE_OBJECT DeviceObject,
-                              IN UCHAR FunctionVendorType,
+                              IN UCHAR Recipient,
                               IN UCHAR Value,
                               IN USHORT Index,
                               IN PVOID Buffer,
@@ -1593,7 +1593,7 @@ USBH_GetMsOsFeatureDescriptor(IN PDEVICE_OBJECT DeviceObject,
     NTSTATUS Status;
 
     PAGED_CODE();
-    DPRINT("USBH_GetMsOsFeatureDescriptor: %X, %X, %X, %X\n", FunctionVendorType, Value, Index, TransferLength);
+    DPRINT("USBH_GetMsOsFeatureDescriptor: %X, %X, %X, %X\n", Recipient, Value, Index, TransferLength);
 
     PortExtension = DeviceObject->DeviceExtension;
 
@@ -1607,15 +1607,15 @@ USBH_GetMsOsFeatureDescriptor(IN PDEVICE_OBJECT DeviceObject,
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
-    if (FunctionVendorType == 0)
+    if (Recipient == 0)
     {
         Function = 0x17;
     }
-    else if (FunctionVendorType == 1)
+    else if (Recipient == 1)
     {
         Function = 0x18;
     }
-    else if (FunctionVendorType == 2)
+    else if (Recipient == 2)
     {
         Function = 0x19;
     }
@@ -1691,7 +1691,8 @@ PVOID
 NTAPI
 USBH_GetExtConfigDesc(IN PDEVICE_OBJECT DeviceObject)
 {
-    OS_FEATURE_DESCRIPTOR_STUB Descriptor;
+    USBH_OS_FEATURE_DESCRIPTOR_STUB Descriptor;
+    PVOID ExtConfigDesc;
     ULONG Length;
     NTSTATUS Status;
 
@@ -1713,9 +1714,56 @@ USBH_GetExtConfigDesc(IN PDEVICE_OBJECT DeviceObject)
         return NULL;
     }
 
+    if (Length != sizeof(Descriptor))
+    {
+        DPRINT1("USBH_GetExtConfigDesc: ret NULL\n");
+        return NULL;
+    }
 
-    DPRINT1("USBH_GetExtConfigDesc: FIXME\n");
-    UNIMPLEMENTED_DBGBREAK();
+    if (Descriptor.Field1 != 0x100)
+    {
+        DPRINT1("USBH_GetExtConfigDesc: ret NULL\n");
+        return NULL;
+    }
+
+    if (Descriptor.Field2 != 4)
+    {
+        DPRINT1("USBH_GetExtConfigDesc: ret NULL\n");
+        return NULL;
+    }
+
+    if (Descriptor.Count == 0)
+    {
+        DPRINT1("USBH_GetExtConfigDesc: ret NULL\n");
+        return NULL;
+    }
+
+    if (Descriptor.Size != (sizeof(Descriptor) + (Descriptor.Count * sizeof(USBH_OS_DESCRIPTOR))))
+    {
+        DPRINT1("USBH_GetExtConfigDesc: ret NULL\n");
+        return NULL;
+    }
+
+    ExtConfigDesc = ExAllocatePoolWithTag(NonPagedPool, Descriptor.Size, USB_HUB_TAG);
+    if (!ExtConfigDesc)
+    {
+        DPRINT1("USBH_GetExtConfigDesc: allocate failed\n");
+        return NULL;
+    }
+    RtlZeroMemory(ExtConfigDesc, Descriptor.Size);
+
+    Status = USBH_GetMsOsFeatureDescriptor(DeviceObject, 0, 0, 4, ExtConfigDesc, Descriptor.Size, &Length);
+
+    if (NT_SUCCESS(Status) &&
+        Length == Descriptor.Size &&
+        RtlCompareMemory(&Descriptor, ExtConfigDesc, sizeof(Descriptor)) == sizeof(Descriptor))
+    {
+        return ExtConfigDesc;
+    }
+
+    ExFreePoolWithTag(ExtConfigDesc, USB_HUB_TAG);
+
+    DPRINT1("USBH_GetExtConfigDesc: ret NULL\n");
 
     return NULL;
 }
