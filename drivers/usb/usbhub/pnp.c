@@ -1924,11 +1924,21 @@ USBH_GetMsOsVendorCode(IN PDEVICE_OBJECT DeviceObject)
     RtlWriteRegistryValue(2, Path, L"osvc", 3, Osvc, sizeof(Osvc));
 }
 
+BOOLEAN
+NTAPI
+USBH_ValidateExtConfigDesc(IN PUSBH_OS_FEATURE_DESCRIPTOR_STUB ExtConfigDesc,
+                           IN PUSB_CONFIGURATION_DESCRIPTOR ConfigDescriptor)
+{
+    UNIMPLEMENTED_ONCE;
+    return TRUE;
+}
+
 NTSTATUS
 NTAPI
 USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
                 IN PIRP Irp)
 {
+    ULONG ix;
     ULONG IdType;
     WCHAR Buffer[200];
     PWCHAR EndBuffer;
@@ -1938,7 +1948,7 @@ USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
     NTSTATUS Status = STATUS_SUCCESS;
     PUSB_DEVICE_DESCRIPTOR DeviceDescriptor;
     PUSB_INTERFACE_DESCRIPTOR InterfaceDescriptor;
-    PVOID ExtConfigDesc;
+    PUSBH_OS_FEATURE_DESCRIPTOR_STUB ExtConfigDesc;
 
     IdType = IoGetCurrentIrpStackLocation(Irp)->Parameters.QueryId.IdType;
     DeviceDescriptor = &PortExtension->DeviceDescriptor;
@@ -1955,8 +1965,20 @@ USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
         ExtConfigDesc = USBH_GetExtConfigDesc(PortExtension->Common.SelfDevice);
         if (ExtConfigDesc)
         {
-            DPRINT1("USBH_PdoQueryId: ExtConfigDesc %X\n", ExtConfigDesc);
-            UNIMPLEMENTED_DBGBREAK();
+            DPRINT1("USBH_PdoQueryId: ExtConfigDesc %X (%X,%X,%X) \n", ExtConfigDesc, ExtConfigDesc->Count,
+                    ExtConfigDesc->Descriptors[0].Field1, ExtConfigDesc->Descriptors[0].Field2);
+
+            if (USBH_ValidateExtConfigDesc(ExtConfigDesc, &PortExtension->ConfigDescriptor) && 
+                ExtConfigDesc->Count == 1 &&
+                !ExtConfigDesc->Descriptors[0].Field1 &&
+                ExtConfigDesc->Descriptors[0].Field2 == PortExtension->ConfigDescriptor.bNumInterfaces)
+            {
+                RtlCopyMemory(PortExtension->MsComp, ExtConfigDesc->Descriptors[0].MsComp, sizeof(PortExtension->MsComp));
+                RtlCopyMemory(PortExtension->MsSubcomp, ExtConfigDesc->Descriptors[0].MsSubcomp, sizeof(PortExtension->MsSubcomp));
+
+                PortExtension->PortPdoFlags &= ~2;
+            }
+ 
             ExFreePool(ExtConfigDesc);
         }
     }
@@ -1991,9 +2013,9 @@ USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
             Length = sizeof(Buffer) - (Remaining - sizeof(UNICODE_NULL));
 
             Id = ExAllocatePoolWithTag(PagedPool, Length, USB_HUB_TAG);
-
             if (!Id)
             {
+                DPRINT1("USBH_PdoQueryId: STATUS_INSUFFICIENT_RESOURCES\n");
                 break;
             }
 
@@ -2043,9 +2065,9 @@ USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
             Length = sizeof(Buffer) - (Remaining - 2 * sizeof(UNICODE_NULL));
 
             Id = ExAllocatePoolWithTag(PagedPool, Length, USB_HUB_TAG);
-
             if (!Id)
             {
+                DPRINT1("USBH_PdoQueryId: STATUS_INSUFFICIENT_RESOURCES\n");
                 break;
             }
 
@@ -2123,6 +2145,49 @@ USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
             }
             else
             {
+                if (PortExtension->MsComp[0] || PortExtension->MsSubcomp[0])
+                {
+                    RtlStringCbPrintfExW(Buffer,
+                                         Remaining,
+                                         &EndBuffer,
+                                         &Remaining,
+                                         0,
+                                         L"USB\\MS_COMP_");
+
+                    for (ix = 0; ix < 8; ix++, EndBuffer++)
+                    {
+                        if (!PortExtension->MsComp[ix])
+                             break;
+
+                        *EndBuffer = PortExtension->MsComp[ix];
+
+                        Remaining -= sizeof(UNICODE_NULL);
+                    }
+
+                    if (PortExtension->MsSubcomp[0])
+                    {
+                        RtlStringCbPrintfExW(Buffer,
+                                             Remaining,
+                                             &EndBuffer,
+                                             &Remaining,
+                                             0,
+                                             L"&MS_SUBCOMP_");
+
+                        for (ix = 0; ix < 8; ix++, EndBuffer++)
+                        {
+                            if (!PortExtension->MsSubcomp[ix])
+                                 break;
+
+                            *EndBuffer = PortExtension->MsSubcomp[ix];
+
+                            Remaining -= sizeof(UNICODE_NULL);
+                        }
+                    }
+
+                    EndBuffer++;
+                    Remaining -= sizeof(UNICODE_NULL);
+                }
+
                 RtlStringCbPrintfExW(Buffer,
                                      Remaining,
                                      &EndBuffer,
@@ -2160,9 +2225,9 @@ USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
             Length = sizeof(Buffer) - (Remaining - 2 * sizeof(UNICODE_NULL));
 
             Id = ExAllocatePoolWithTag(PagedPool, Length, USB_HUB_TAG);
-
             if (!Id)
             {
+                DPRINT1("USBH_PdoQueryId: STATUS_INSUFFICIENT_RESOURCES\n");
                 break;
             }
 
@@ -2187,31 +2252,32 @@ USBH_PdoQueryId(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
                 Id = ExAllocatePoolWithTag(PagedPool,
                                            PortExtension->SN_DescriptorLength,
                                            USB_HUB_TAG);
-
-                if (Id)
+                if (!Id)
                 {
-                    RtlZeroMemory(Id, PortExtension->SN_DescriptorLength);
-
-                    RtlCopyMemory(Id,
-                                  PortExtension->SerialNumber,
-                                  PortExtension->SN_DescriptorLength);
+                    DPRINT1("USBH_PdoQueryId: STATUS_INSUFFICIENT_RESOURCES\n");
+                    break;
                 }
+                RtlZeroMemory(Id, PortExtension->SN_DescriptorLength);
+
+                RtlCopyMemory(Id,
+                              PortExtension->SerialNumber,
+                              PortExtension->SN_DescriptorLength);
             }
             else
             {
-                 Length = sizeof(PortExtension->InstanceID) +
-                          sizeof(UNICODE_NULL);
+                 Length = sizeof(PortExtension->InstanceID) + sizeof(UNICODE_NULL);
 
                  Id = ExAllocatePoolWithTag(PagedPool, Length, USB_HUB_TAG);
-
-                 if (Id)
+                 if (!Id)
                  {
-                     RtlZeroMemory(Id, Length);
-
-                     RtlCopyMemory(Id,
-                                   PortExtension->InstanceID,
-                                   sizeof(PortExtension->InstanceID));
+                     DPRINT1("USBH_PdoQueryId: STATUS_INSUFFICIENT_RESOURCES\n");
+                     break;
                  }
+                 RtlZeroMemory(Id, Length);
+
+                 RtlCopyMemory(Id,
+                               PortExtension->InstanceID,
+                               sizeof(PortExtension->InstanceID));
             }
 
             DPRINT("USBH_PdoQueryId: BusQueryInstanceID - %S\n", Id);

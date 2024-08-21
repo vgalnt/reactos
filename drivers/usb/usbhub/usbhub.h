@@ -251,6 +251,8 @@ typedef struct _USBHUB_PORT_PDO_EXTENSION {
   PIRP PdoWaitWakeIrp;
   LIST_ENTRY PortPowerList;
   KSPIN_LOCK PortPowerListSpinLock;
+  CHAR MsComp[8];
+  CHAR MsSubcomp[8];
 } USBHUB_PORT_PDO_EXTENSION, *PUSBHUB_PORT_PDO_EXTENSION;
 
 typedef struct _USBHUB_URB_TIMEOUT_CONTEXT {
