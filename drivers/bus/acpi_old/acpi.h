@@ -537,7 +537,7 @@ typedef struct _ACPI_BUILD_REQUEST
     LONG WorkDone;
     ULONG BuildReserved0;
     ULONG BuildReserved1;
-    PDEVICE_EXTENSION DeviceExtension;
+    PVOID Context;
     NTSTATUS Status;
     PAMLI_NAME_SPACE_OBJECT ChildObject;
     PVOID CallBack;

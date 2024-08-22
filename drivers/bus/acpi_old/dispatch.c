@@ -1045,12 +1045,12 @@ ACPIBuildProcessGenericComplete(
 
     if (Entry->CallBack)
     {
-        ((VOID (NTAPI *)(PDEVICE_EXTENSION, PVOID, NTSTATUS))Entry->CallBack)(Entry->DeviceExtension, Entry->CallBackContext, Entry->Status);
+        ((VOID (NTAPI *)(PVOID, PVOID, NTSTATUS))Entry->CallBack)(Entry->Context, Entry->CallBackContext, Entry->Status);
     }
 
     if (Entry->Flags & 8)
     {
-        DeviceExtension = Entry->DeviceExtension;
+        DeviceExtension = Entry->Context;
 
         KeAcquireSpinLockAtDpcLevel(&AcpiDeviceTreeLock);
         InterlockedDecrement(&DeviceExtension->ReferenceCount);
@@ -3443,7 +3443,7 @@ ACPIBuildProcessRunMethodPhaseCheckSta(
 
     DPRINT("ACPIBuildProcessRunMethodPhaseCheckSta: %p\n", BuildRequest);
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
     BuildRequest->BuildReserved1 = 4;
 
     if (DeviceExtension->Flags & 0x0008000000000000)
@@ -3483,7 +3483,7 @@ NTAPI
 ACPIBuildProcessRunMethodPhaseCheckBridge(
     _In_ PACPI_BUILD_REQUEST BuildRequest)
 {
-    PDEVICE_EXTENSION DeviceExtension = BuildRequest->DeviceExtension;
+    PDEVICE_EXTENSION DeviceExtension = BuildRequest->Context;
     NTSTATUS Status = STATUS_SUCCESS;
 
     DPRINT("ACPIBuildProcessRunMethodPhaseCheckBridge: %p\n", BuildRequest);
@@ -3522,7 +3522,7 @@ NTAPI
 ACPIBuildProcessRunMethodPhaseRunMethod(
     _In_ PACPI_BUILD_REQUEST BuildRequest)
 {
-    PDEVICE_EXTENSION DeviceExtension = BuildRequest->DeviceExtension;
+    PDEVICE_EXTENSION DeviceExtension = BuildRequest->Context;
     PAMLI_NAME_SPACE_OBJECT NsObject = NULL;
     AMLI_OBJECT_DATA amliData[2];
     PAMLI_OBJECT_DATA AmliData = NULL;
@@ -3722,7 +3722,7 @@ ACPIBuildProcessRunMethodPhaseRecurse(
     if (!(BuildRequest->RunMethod.Flags & 4))
         goto Finish;
 
-    ExtList.List = &BuildRequest->DeviceExtension->ChildDeviceList;
+    ExtList.List = &(((PDEVICE_EXTENSION)BuildRequest->Context)->ChildDeviceList);
     ExtList.SpinLock = &AcpiDeviceTreeLock;
     ExtList.Offset = FIELD_OFFSET(DEVICE_EXTENSION, SiblingDeviceList);
     ExtList.ExtListEnum2 = 2;
@@ -3766,7 +3766,7 @@ NTAPI
 ACPIBuildProcessDevicePhaseAdrOrHid(
     _In_ PACPI_BUILD_REQUEST BuildRequest)
 {
-    PDEVICE_EXTENSION DeviceExtension = BuildRequest->DeviceExtension;
+    PDEVICE_EXTENSION DeviceExtension = BuildRequest->Context;
     PAMLI_NAME_SPACE_OBJECT ChildObject;
     PAMLI_NAME_SPACE_OBJECT HidChild;
     PAMLI_NAME_SPACE_OBJECT AdrChild;
@@ -3844,9 +3844,9 @@ ACPIBuildProcessDevicePhaseAdr(
     PDEVICE_EXTENSION DeviceExtension;
     NTSTATUS Status;
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
 
-    ACPIInternalUpdateFlags(BuildRequest->DeviceExtension, 0x0000100000000000, FALSE);
+    ACPIInternalUpdateFlags(BuildRequest->Context, 0x0000100000000000, FALSE);
     BuildRequest->BuildReserved1 = 8;
 
     Status = ACPIGet(DeviceExtension,
@@ -3882,7 +3882,7 @@ ACPIBuildProcessDevicePhaseHid(
     BOOLEAN IsMatch = FALSE;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
 
     for (ix = 0; AcpiInternalDeviceFlagTable[ix].StringId; ix++)
     {
@@ -3930,9 +3930,9 @@ ACPIBuildProcessDevicePhaseUid(
     PAMLI_NAME_SPACE_OBJECT NsChild;
     NTSTATUS Status;
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
 
-    ACPIInternalUpdateFlags(BuildRequest->DeviceExtension, 0x0000400000000000, FALSE);
+    ACPIInternalUpdateFlags(BuildRequest->Context, 0x0000400000000000, FALSE);
 
     NsChild = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, 'DIH_');
     if (!NsChild)
@@ -3974,7 +3974,7 @@ ACPIBuildProcessDevicePhaseCid(
     ULONG ix;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
 
     for (Cid = BuildRequest->DataBuff; Cid && *Cid; )
     {
@@ -4108,7 +4108,7 @@ ACPIBuildProcessDevicePhaseSta(
 
     DPRINT("ACPIBuildProcessDevicePhaseSta: BuildRequest %X\n", BuildRequest);
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
     BuildRequest->BuildReserved1 = 9;
 
     ACPIDetectDuplicateHID(DeviceExtension);
@@ -4130,7 +4130,7 @@ ACPIBuildProcessDeviceGenericEvalStrict(
 
     DPRINT("ACPIBuildProcessDeviceGenericEvalStrict: BuildRequest %X\n", BuildRequest);
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
 
     RtlZeroMemory(&BuildRequest->Device.Data, sizeof(BuildRequest->Device.Data));
 
@@ -4406,7 +4406,7 @@ ACPIBuildProcessDevicePhaseEjd(
 
     DPRINT("ACPIBuildProcessDevicePhaseEjd: BuildRequest %X\n", BuildRequest);
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
 
     if ((DeviceExtension->Flags & 0000000000000002) || !(DeviceExtension->Flags & 0x0000000004000000))
         BuildRequest->BuildReserved1 = 0x0B;
@@ -4592,7 +4592,7 @@ ACPIBuildProcessDevicePhasePrw(
 
     DPRINT("ACPIBuildProcessDevicePhasePrw: BuildRequest %X\n", BuildRequest);
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
     BuildRequest->BuildReserved1 = 0xD;
 
     DeviceExtension->PowerInfo.PowerObject[0] = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, 'WSP_');
@@ -4700,7 +4700,7 @@ ACPIBuildProcessDevicePhasePr0(
     PDEVICE_EXTENSION DeviceExtension;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
     BuildRequest->BuildReserved1 = 0x0F;
 
     DeviceExtension->PowerInfo.PowerObject[1] = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, '0SP_');
@@ -4734,7 +4734,7 @@ ACPIBuildProcessDevicePhasePr1(
     PDEVICE_EXTENSION DeviceExtension;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
     BuildRequest->BuildReserved1 = 0x11;
 
     DeviceExtension->PowerInfo.PowerObject[2] = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, '1SP_');
@@ -4771,7 +4771,7 @@ ACPIBuildProcessDevicePhasePr2(
     PDEVICE_EXTENSION DeviceExtension;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
 
     DeviceExtension->PowerInfo.PowerObject[3] = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, '2SP_');
 
@@ -4961,7 +4961,7 @@ ACPIBuildProcessDevicePhaseCrs(
 
     DPRINT("ACPIBuildProcessDevicePhaseCrs: BuildRequest %X\n", BuildRequest);
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
     BuildRequest->BuildReserved1 = 0xB;
 
     if (BuildRequest->ChildObject)
@@ -4996,7 +4996,7 @@ ACPIBuildProcessDeviceGenericEval(
 
     RtlZeroMemory(&BuildRequest->Device.Data, sizeof(BuildRequest->Device.Data));
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
     Idx = BuildRequest->BuildReserved0;
     NameSeg = AcpiBuildDevicePowerNameLookup[Idx];
     BuildRequest->BuildReserved1 = (Idx + 1);
@@ -6275,7 +6275,7 @@ ACPIBuildProcessDevicePhasePsc(
     DEVICE_POWER_STATE State;
     NTSTATUS Status;
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
     BuildRequest->BuildReserved1 = 0;
 
     DeviceExtension->PowerInfo.PowerObject[4] = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, '3SP_');
@@ -7053,7 +7053,7 @@ ACPIBuildSynchronizationRequest(
     BuildRequest->Flags = 0x100A;
     BuildRequest->WorkDone = 3;
     BuildRequest->BuildReserved1 = 0;
-    BuildRequest->DeviceExtension = DeviceExtension;
+    BuildRequest->Context = DeviceExtension;
     BuildRequest->Status = 0;
     BuildRequest->CallBack = CallBack;
     BuildRequest->CallBackContext = Event;
@@ -14408,7 +14408,7 @@ ACPIBuildProcessThermalZonePhase0(
 
     DPRINT("ACPIBuildProcessThermalZonePhase0: %p\n", BuildRequest);
 
-    DeviceExtension = BuildRequest->DeviceExtension;
+    DeviceExtension = BuildRequest->Context;
     BuildRequest->BuildReserved1 = 0;
 
     Child = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, 'PMT_');

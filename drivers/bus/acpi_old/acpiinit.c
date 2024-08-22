@@ -1444,7 +1444,7 @@ ACPIBuildRunMethodRequest(
     RunMethodRequest->Signature = '_SGP';
     RunMethodRequest->Status = STATUS_SUCCESS;
     RunMethodRequest->Flags = 0x100C;
-    RunMethodRequest->DeviceExtension = DeviceExtension;
+    RunMethodRequest->Context = DeviceExtension;
     RunMethodRequest->ListHeadForInsert = &AcpiBuildRunMethodList;
     RunMethodRequest->WorkDone = 3;
     RunMethodRequest->RunMethod.Context = Context;
@@ -1457,7 +1457,7 @@ ACPIBuildRunMethodRequest(
         SynchronizationRequest->Signature = '_SGP';
         SynchronizationRequest->Status = STATUS_SUCCESS;
         SynchronizationRequest->Flags = 0x100A;
-        SynchronizationRequest->DeviceExtension = DeviceExtension;
+        SynchronizationRequest->Context = DeviceExtension;
         SynchronizationRequest->CallBack = CallBack;
         SynchronizationRequest->CallBackContext = CallBackContext;
         SynchronizationRequest->ListHeadForInsert = &AcpiBuildSynchronizationList;
@@ -1711,7 +1711,7 @@ ACPIBuildDeviceRequest(
 
     RtlZeroMemory(BuildRequest, sizeof(*BuildRequest));
 
-    BuildRequest->DeviceExtension = DeviceExtension;
+    BuildRequest->Context = DeviceExtension;
     BuildRequest->CallBack = CallBack;
     BuildRequest->Signature = '_SGP';
     BuildRequest->ListHeadForInsert = &AcpiBuildDeviceList;
@@ -2080,7 +2080,7 @@ ACPIBuildThermalZoneRequest(
     BuildRequest->Signature = '_SGP';
     BuildRequest->Flags = 0x1008;
     BuildRequest->WorkDone = 3;
-    BuildRequest->DeviceExtension = DeviceExtension;
+    BuildRequest->Context = DeviceExtension;
     BuildRequest->Status = STATUS_SUCCESS;
     BuildRequest->CallBack = CallBack;
     BuildRequest->CallBackContext = CallBackContext;
