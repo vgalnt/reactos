@@ -188,8 +188,12 @@ USBH_HubQueuePortWakeIrps(IN PUSBHUB_FDO_EXTENSION HubExtension,
 
             if (WakeIrp)
             {
-                DPRINT1("USBH_HubQueuePortWakeIrps: UNIMPLEMENTED. FIXME\n");
-                DbgBreakPoint();
+                IoSetCancelRoutine(WakeIrp, NULL);
+
+                PortExtension->PortPdoFlags &= ~0x20;
+                InterlockedDecrement(&HubExtension->WaitWakeCouter);
+
+                InsertTailList(ListIrps, &WakeIrp->Tail.Overlay.ListEntry);
             }
         }
     }
