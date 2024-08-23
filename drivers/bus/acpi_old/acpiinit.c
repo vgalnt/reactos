@@ -2127,6 +2127,52 @@ OSNotifyCreateThermalZone(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+ACPIBuildPowerResourceExtension(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _Out_ PACPI_POWER_DEVICE_NODE* OutPowerNode)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ACPIBuildPowerResourceRequest(
+    _In_ PACPI_POWER_DEVICE_NODE PowerNode)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+OSNotifyCreatePowerResource(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject)
+{
+    PACPI_POWER_DEVICE_NODE PowerNode;
+    NTSTATUS Status;
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+    ASSERT(NsObject != NULL);
+
+    Status = ACPIBuildPowerResourceExtension(NsObject, &PowerNode);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("OSNotifyCreatePowerResource: (%p) Status %X\n", NsObject, Status);
+        return Status;
+    }
+
+    Status = ACPIBuildPowerResourceRequest(PowerNode);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("OSNotifyCreatePowerResource: (%p) Status %X\n", PowerNode, Status);
+    }
+
+    return Status;
+}
+
 static CHAR NameObject[8];
 
 PCHAR
@@ -2171,8 +2217,7 @@ OSNotifyCreate(
             break;
 
         case 0xB:
-            DPRINT("OSNotifyCreate: FIXME\n");
-            ASSERT(FALSE);
+            Status = OSNotifyCreatePowerResource(NsObject);
             break;
 
         case 0xC:
