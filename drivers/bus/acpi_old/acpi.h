@@ -1669,7 +1669,7 @@ NTSTATUS NTAPI ACPIDevicePowerProcessPhase5DeviceSubPhase6(_In_ PACPI_POWER_REQU
 ULONGLONG
 NTAPI
 ACPIInternalUpdateFlags(
-    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ ULONGLONG* FlagsForUpdating,
     _In_ ULONGLONG InputFlags,
     _In_ BOOLEAN IsResetFlags
 );

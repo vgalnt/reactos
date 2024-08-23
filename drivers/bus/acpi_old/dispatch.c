@@ -1139,11 +1139,11 @@ ACPIInternalUpdateDeviceStatus(
 
     //DPRINT("ACPIInternalUpdateDeviceStatus: %p, %X\n", DeviceExtension, DeviceStatus);
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0080000000000000, (DeviceStatus & 8));
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0000000020000000, (DeviceStatus & 4));
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0040000000000000, !(DeviceStatus & 2));
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0080000000000000, (DeviceStatus & 8));
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000020000000, (DeviceStatus & 4));
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0040000000000000, !(DeviceStatus & 2));
 
-    RetFlagValue = ACPIInternalUpdateFlags(DeviceExtension, 2, (DeviceStatus & 1));
+    RetFlagValue = ACPIInternalUpdateFlags(&DeviceExtension->Flags, 2, (DeviceStatus & 1));
 
     if (RetFlagValue & 2)
         return;
@@ -3548,7 +3548,7 @@ ACPIBuildProcessRunMethodPhaseRunMethod(
 
     if (BuildRequest->RunMethod.Flags & 2)
     {
-        if ((ACPIInternalUpdateFlags(DeviceExtension, 0x0020000000000000, FALSE) >> 0x20) & 0x200000)
+        if ((ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0020000000000000, FALSE) >> 0x20) & 0x200000)
             goto Exit;
     }
 
@@ -3846,7 +3846,7 @@ ACPIBuildProcessDevicePhaseAdr(
 
     DeviceExtension = BuildRequest->Context;
 
-    ACPIInternalUpdateFlags(BuildRequest->Context, 0x0000100000000000, FALSE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000100000000000, FALSE);
     BuildRequest->BuildReserved1 = 8;
 
     Status = ACPIGet(DeviceExtension,
@@ -3888,13 +3888,13 @@ ACPIBuildProcessDevicePhaseHid(
     {
         if (strstr(DeviceExtension->DeviceID, AcpiInternalDeviceFlagTable[ix].StringId))
         {
-            ACPIInternalUpdateFlags(DeviceExtension, AcpiInternalDeviceFlagTable[ix].Flags, FALSE);
+            ACPIInternalUpdateFlags(&DeviceExtension->Flags, AcpiInternalDeviceFlagTable[ix].Flags, FALSE);
             IsMatch = TRUE;
             break;
         }
     }
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0000200000000000, FALSE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000200000000000, FALSE);
 
     NsObject = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, 'DIC_');
     if (!NsObject || IsMatch)
@@ -3932,7 +3932,7 @@ ACPIBuildProcessDevicePhaseUid(
 
     DeviceExtension = BuildRequest->Context;
 
-    ACPIInternalUpdateFlags(BuildRequest->Context, 0x0000400000000000, FALSE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000400000000000, FALSE);
 
     NsChild = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, 'DIH_');
     if (!NsChild)
@@ -3992,7 +3992,7 @@ ACPIBuildProcessDevicePhaseCid(
     {
         if (strstr(Cid, AcpiInternalDeviceFlagTable[ix].StringId))
         {
-            ACPIInternalUpdateFlags(DeviceExtension, AcpiInternalDeviceFlagTable[ix].Flags, FALSE);
+            ACPIInternalUpdateFlags(&DeviceExtension->Flags, AcpiInternalDeviceFlagTable[ix].Flags, FALSE);
             break;
         }
     }
@@ -4341,7 +4341,7 @@ ACPIBuildDockExtension(
     DockExtension->Dock.ProfileDepartureStyle = 4;
     DockExtension->Dock.IsolationState = 0;
 
-    ACPIInternalUpdateFlags(DockExtension, 0x0209E00000020008, FALSE);
+    ACPIInternalUpdateFlags(&DockExtension->Flags, 0x0209E00000020008, FALSE);
 
     DPRINT("ACPIBuildDockExtension: Status %X\n", Status);
 
@@ -4353,19 +4353,19 @@ ErrorExit:
 
     if (InstanceID)
     {
-        ACPIInternalUpdateFlags(DockExtension, 0x0000A00000000000, TRUE);
+        ACPIInternalUpdateFlags(&DockExtension->Flags, 0x0000A00000000000, TRUE);
         ExFreePoolWithTag(InstanceID, 0);
         DockExtension->InstanceID = 0;
     }
 
     if (DockExtension)
     {
-        ACPIInternalUpdateFlags(DockExtension, 0x0000A00000000000, TRUE);
+        ACPIInternalUpdateFlags(&DockExtension->Flags, 0x0000A00000000000, TRUE);
         ExFreePoolWithTag(DockExtension, 0);
         DockExtension->Address = 0;
     }
 
-    ACPIInternalUpdateFlags(DockExtension, 0x0002000000000000, TRUE);
+    ACPIInternalUpdateFlags(&DockExtension->Flags, 0x0002000000000000, TRUE);
 
     return Status;
 }
@@ -4643,7 +4643,7 @@ ACPIBuildProcessDevicePhasePrw(
 
         DeviceExtension->PowerInfo.SystemWakeLevel = SystemWakeLevel;
 
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0000000000010000, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000000010000, FALSE);
     }
 
     KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
@@ -4938,7 +4938,7 @@ ACPIMatchKernelPorts(
         if ((kdComPortInUse && Port == (ULONG_PTR)KdAddress) ||
             (TerminalPortBaseAddress && Port == (ULONG_PTR)TerminalPortBaseAddress))
         {
-            ACPIInternalUpdateFlags(DeviceExtension, 0x0000000000680003, FALSE);
+            ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000000680003, FALSE);
 
             if (kdComPortInUse && Port == (ULONG_PTR)KdAddress)
                 DPRINT("ACPIMatchKernelPorts - Found KD Port at %X\n", Port);
@@ -7442,8 +7442,8 @@ ACPIBuildPdo(
 
     InterlockedIncrement(&DeviceExtension->ReferenceCount);
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x00000000000001FF, TRUE);
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0000000000000020, FALSE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x00000000000001FF, TRUE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000000000020, FALSE);
 
     DeviceExtension->PreviousState = DeviceExtension->DeviceState;
     DeviceExtension->DeviceState = 0;
@@ -7453,7 +7453,7 @@ ACPIBuildPdo(
     {
         DeviceExtension->TargetDeviceObject = FilterDO;
 
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0000000000000040, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000000000040, FALSE);
 
         DeviceExtension->DispatchTable = &AcpiBusFilterIrpDispatch;
 
@@ -7576,7 +7576,7 @@ ACPIDetectPdoDevices(
         if (!Extension)
             break;
 
-        ACPIInternalUpdateFlags(Extension, 0x100, FALSE);
+        ACPIInternalUpdateFlags(&Extension->Flags, 0x100, FALSE);
 
         Status = ACPIGet(Extension, 'ATS_', 0x20040802, NULL, 0, NULL, NULL, (PVOID *)&dummyData, NULL);
         if (NT_SUCCESS(Status))
@@ -7598,7 +7598,7 @@ ACPIDetectPdoDevices(
                                 if (ix >= InDeviceRelation->Count)
                                 {
                                     count++;
-                                    ACPIInternalUpdateFlags(Extension, 0x100, 1);
+                                    ACPIInternalUpdateFlags(&Extension->Flags, 0x100, 1);
                                     break;
                                 }
                             }
@@ -7606,7 +7606,7 @@ ACPIDetectPdoDevices(
                         else
                         {
                             count++;
-                            ACPIInternalUpdateFlags(Extension, 0x100, 1);
+                            ACPIInternalUpdateFlags(&Extension->Flags, 0x100, 1);
                         }
                     }
                 }
@@ -7696,7 +7696,7 @@ ACPIDetectPdoDevices(
                 if (!(Extension->Flags & 0x0002000000000002))
                 {
                     DeviceRelation->Objects[ix] = Extension->DeviceObject;
-                    ACPIInternalUpdateFlags(Extension, 0x0000000000000100, TRUE);
+                    ACPIInternalUpdateFlags(&Extension->Flags, 0x0000000000000100, TRUE);
                     ix++;
                 }
             }
@@ -7976,7 +7976,7 @@ ACPIDetectFilterMatch(
     for (ix = 0; ix < DeviceRelation->Count; ix++)
     {
         if (DeviceExtension->PhysicalDeviceObject == DeviceRelation->Objects[ix])
-            ACPIInternalUpdateFlags(DeviceExtension, 0x0000000000000100, TRUE);
+            ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000000000100, TRUE);
     }
 
     return STATUS_SUCCESS;
@@ -8021,8 +8021,8 @@ ACPIBuildFilter(
 
     InterlockedIncrement(&DeviceExtension->ReferenceCount);
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x00000000000001FF, 1);
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0000000000000040, 0);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x00000000000001FF, 1);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000000000040, 0);
 
     DeviceExtension->PreviousState = DeviceExtension->DeviceState;
     DeviceExtension->DeviceState = 0;
@@ -8070,7 +8070,7 @@ ACPIDetectFilterDevices(
 
     if (DeviceExtension->Flags & 0x0000020000000000)
     {
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0000020000000000, TRUE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000020000000000, TRUE);
         ACPIBuildMissingChildren(DeviceExtension);
     }
 
@@ -8584,7 +8584,7 @@ ACPISystemPowerInitializeRootMapping(
         goto Finish;
     }
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0400000000000000, FALSE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0400000000000000, FALSE);
 
     KeAcquireSpinLock(&AcpiPowerLock, &Irql);
     RtlCopyMemory(DeviceExtension->PowerInfo.DevicePowerMatrix, deviceStates, sizeof(DeviceExtension->PowerInfo.DevicePowerMatrix));
@@ -10422,7 +10422,7 @@ Finish:
     KeReleaseSpinLock(&AcpiPowerLock, Irql);
 
     if (!(DeviceExtension->Flags & 0x0008000000000000))
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0100000000000000, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0100000000000000, FALSE);
 
     return STATUS_SUCCESS;
 }
@@ -10470,7 +10470,7 @@ ACPISystemPowerQueryDeviceCapabilities(
             return Status;
         }
 
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0400000000000000, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0400000000000000, FALSE);
     }
 
     RtlCopyMemory(Capabilities->DeviceState, DeviceExtension->PowerInfo.DevicePowerMatrix, (7 * sizeof(DEVICE_POWER_STATE)));
@@ -13643,9 +13643,9 @@ ACPICMLidPowerStateCallBack(
     }
 
     if (OutputBuffer.LidClose.Action != 0 && OutputBuffer.LidClose.Action != 1)
-        ACPIInternalUpdateFlags(DeviceExtension, 0x1000000000000000, TRUE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x1000000000000000, TRUE);
     else
-        ACPIInternalUpdateFlags(DeviceExtension, 0x1000000000000000, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x1000000000000000, FALSE);
 }
 
 VOID
@@ -14727,7 +14727,7 @@ ACPIWakeInitializePciDevice(
 
             if (PmeCapable)
             {
-                ACPIInternalUpdateFlags(DeviceExtension, 0x0800000000000000, 0);
+                ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0800000000000000, 0);
 
                 if (PmeEnable)
                     PciPmeInterface->UpdateEnable(DeviceExtension->PhysicalDeviceObject, FALSE);
@@ -14762,7 +14762,7 @@ ACPIInternalIsPci(
 
     if (IsPciBus(DeviceExtension->DeviceObject))
     {
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0000000002000000, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000002000000, FALSE);
         return STATUS_SUCCESS;
     }
 
@@ -14778,7 +14778,7 @@ ACPIInternalIsPci(
     }
 
     if (NT_SUCCESS(Status) && isPciDevice)
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0000000100000000, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000100000000, FALSE);
 
     return Status;
 }
@@ -16158,7 +16158,7 @@ ACPIInternalRegisterPowerCallBack(
     if (DeviceExtension->Flags & 0x4000000000000000)
         return STATUS_SUCCESS;
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x4000000000000000, FALSE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x4000000000000000, FALSE);
 
     RtlInitUnicodeString( &NameString, L"\\Callback\\PowerState" );
 
@@ -16168,7 +16168,7 @@ ACPIInternalRegisterPowerCallBack(
     if (!NT_SUCCESS(Status))
     {
         DPRINT1("ACPIInternalRegisterPowerCallBack: Failed to register callback %X", Status);
-        ACPIInternalUpdateFlags(DeviceExtension, 0x4000000000000000, TRUE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x4000000000000000, TRUE);
         return STATUS_SUCCESS;
     }
 
@@ -17417,7 +17417,7 @@ ACPIBusIrpUnhandled(
 ULONGLONG
 NTAPI
 ACPIInternalUpdateFlags(
-    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ ULONGLONG* FlagsForUpdating,
     _In_ ULONGLONG InputFlags,
     _In_ BOOLEAN IsResetFlags)
 {
@@ -17427,25 +17427,25 @@ ACPIInternalUpdateFlags(
 
     if (IsResetFlags)
     {
-        ReturnFlags = DeviceExtension->Flags;
+        ReturnFlags = *FlagsForUpdating;
         do
         {
             Comperand = ReturnFlags;
             ExChange = Comperand & ~InputFlags;
 
-            ReturnFlags = ExInterlockedCompareExchange64((PLONGLONG)&DeviceExtension->Flags, (PLONGLONG)&ExChange, (PLONGLONG)&Comperand, NULL);
+            ReturnFlags = ExInterlockedCompareExchange64((PLONGLONG)FlagsForUpdating, (PLONGLONG)&ExChange, (PLONGLONG)&Comperand, NULL);
         }
         while (Comperand != ReturnFlags);
     }
     else
     {
-        ReturnFlags = DeviceExtension->Flags;
+        ReturnFlags = *FlagsForUpdating;
         do
         {
             Comperand = ReturnFlags;
             ExChange = Comperand | InputFlags;
 
-            ReturnFlags = ExInterlockedCompareExchange64((PLONGLONG)&DeviceExtension->Flags, (PLONGLONG)&ExChange, (PLONGLONG)&Comperand, NULL);
+            ReturnFlags = ExInterlockedCompareExchange64((PLONGLONG)FlagsForUpdating, (PLONGLONG)&ExChange, (PLONGLONG)&Comperand, NULL);
         }
         while (Comperand != ReturnFlags);
     }

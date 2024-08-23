@@ -1351,7 +1351,7 @@ ACPIBuildFixedButtonExtension(
 
     DeviceExtension = *OutDeviceExtension;
 
-    ACPIInternalUpdateFlags(*OutDeviceExtension, 0x0018000000360000, FALSE);
+    ACPIInternalUpdateFlags(&(*OutDeviceExtension)->Flags, 0x0018000000360000, FALSE);
 
     KeInitializeSpinLock(&DeviceExtension->Button.SpinLock);
 
@@ -1360,14 +1360,14 @@ ACPIBuildFixedButtonExtension(
     DeviceExtension->Address = ExAllocatePoolWithTag(NonPagedPool, (strlen(ACPIFixedButtonId) + 1), 'SpcA');
     if (!DeviceExtension->Address)
     {
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0002000000000000, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0002000000000000, FALSE);
         *OutDeviceExtension = NULL;
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     strcpy(DeviceExtension->Address, ACPIFixedButtonId);
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0000A00000000000, FALSE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000A00000000000, FALSE);
 
     return STATUS_SUCCESS;
 }
@@ -1768,7 +1768,7 @@ OSNotifyCreateDevice(
 
     InterlockedIncrement(&Destination->ReferenceCount);
 
-    ACPIInternalUpdateFlags(Destination, FlagValue, FALSE);
+    ACPIInternalUpdateFlags(&Destination->Flags, FlagValue, FALSE);
 
     Status = ACPIBuildDeviceRequest(Destination, NULL, NULL, FALSE);
     if (!NT_SUCCESS(Status))
@@ -1823,7 +1823,7 @@ ACPIBuildProcessorExtension(
         return Status;
     }
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0010001000300000, FALSE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0010001000300000, FALSE);
 
     DeviceExtension->Processor.ProcessorIndex = ProcessorIndex;
 
@@ -1857,7 +1857,7 @@ ACPIBuildProcessorExtension(
     if (DeviceExtension->InstanceID)
     {
         sprintf(DeviceExtension->InstanceID, "%2d", (int)ProcessorIndex);
-        ACPIInternalUpdateFlags(DeviceExtension, 0x8001E00000000000, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x8001E00000000000, FALSE);
         DPRINT("ACPIBuildProcessorExtension: Status %X\n", Status);
         return Status;
     }
@@ -1869,26 +1869,26 @@ ErrorExit:
 
     if (DeviceExtension->InstanceID)
     {
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0001400000000000, TRUE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0001400000000000, TRUE);
         ExFreePoolWithTag(DeviceExtension->InstanceID, 'SpcA');
         DeviceExtension->InstanceID = NULL;
     }
 
     if (DeviceExtension->DeviceID)
     {
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0000A00000000000, TRUE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000A00000000000, TRUE);
         ExFreePoolWithTag(DeviceExtension->DeviceID, 'SpcA');
         DeviceExtension->DeviceID = NULL;
     }
 
     if (DeviceExtension->Processor.CompatibleID)
     {
-        ACPIInternalUpdateFlags(DeviceExtension, 0x8000000000000000, TRUE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x8000000000000000, TRUE);
         ExFreePoolWithTag(DeviceExtension->Processor.CompatibleID, 'SpcA');
         DeviceExtension->Processor.CompatibleID = NULL;
     }
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0002000000000000, TRUE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0002000000000000, TRUE);
 
     return Status;
 }
@@ -1943,7 +1943,7 @@ OSNotifyCreateProcessor(
 
     InterlockedIncrement(&ProcessorExt->ReferenceCount);
 
-    ACPIInternalUpdateFlags(ProcessorExt, FlagValue, FALSE);
+    ACPIInternalUpdateFlags(&ProcessorExt->Flags, FlagValue, FALSE);
 
     Status = ACPIBuildProcessorRequest(ProcessorExt, 0, 0, 0);
     if (!NT_SUCCESS(Status))
@@ -1980,7 +1980,7 @@ ACPIBuildThermalZoneExtension(
         return Status;
     }
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0010000008320000, 0);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0010000008320000, 0);
 
     DeviceExtension->Thermal.Info = ExAllocatePoolWithTag(NonPagedPool, sizeof(*DeviceExtension->Thermal.Info), 'TpcA');
     if (!DeviceExtension->Thermal.Info)
@@ -2011,7 +2011,7 @@ ACPIBuildThermalZoneExtension(
     *DeviceExtension->InstanceID = DeviceExtension->AcpiObject->NameSeg;
     DeviceExtension->InstanceID[4] = 0;
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0001E00000000000, 0);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0001E00000000000, 0);
 
     DPRINT("ACPIBuildThermalZoneExtension: Status %X\n", Status);
 
@@ -2023,14 +2023,14 @@ ErrorExit:
 
     if (DeviceExtension->InstanceID)
     {
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0001400000000000, 1);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0001400000000000, 1);
         ExFreePoolWithTag(DeviceExtension->InstanceID, 'SpcA');
         DeviceExtension->InstanceID = NULL;
     }
 
     if (DeviceExtension->Address)
     {
-        ACPIInternalUpdateFlags(DeviceExtension, 0x0000A00000000000, 1);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000A00000000000, 1);
         ExFreePoolWithTag(DeviceExtension->DeviceID, 'SpcA');
         DeviceExtension->Address = NULL;
     }
@@ -2041,7 +2041,7 @@ ErrorExit:
         DeviceExtension->Thermal.Info = NULL;
     }
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0002000000000000, 1);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0002000000000000, 1);
 
     return Status;
 }
@@ -2116,7 +2116,7 @@ OSNotifyCreateThermalZone(
 
     InterlockedIncrement(&DeviceExtension->ReferenceCount);
 
-    ACPIInternalUpdateFlags(DeviceExtension, FlagValue, 0);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, FlagValue, 0);
 
     Status = ACPIBuildThermalZoneRequest(DeviceExtension, NULL, NULL);
     if (!NT_SUCCESS(Status))
@@ -4755,7 +4755,7 @@ ACPIDispatchAddDevice(
     PowerInfo->SystemWakeLevel = 0;
     PowerInfo->DeviceWakeLevel = 0;
 
-    ACPIInternalUpdateFlags(DeviceExtension, 0x0001E00000200010, FALSE);
+    ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0001E00000200010, FALSE);
 
     InitializeListHead(&DeviceExtension->ChildDeviceList);
     InitializeListHead(&DeviceExtension->SiblingDeviceList);
