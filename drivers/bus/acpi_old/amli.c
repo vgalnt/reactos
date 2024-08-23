@@ -5351,8 +5351,71 @@ Exit:
 }
 NTSTATUS __cdecl PowerRes(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    PAMLI_POWER_RES_OBJECT PowerResObject;
+    PAMLI_FN_HANDLER FnHandler;
+    NTSTATUS Status;
+
+    DPRINT("PowerRes: %p, %X, %p\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = CreateNameSpaceObject(AmliContext->HeapCurrent,
+                                   (PCHAR)TermContext->DataArgs->DataBuff,
+                                   AmliContext->Scope,
+                                   AmliContext->Owner,
+                                   &TermContext->NsObject,
+                                   0);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("PowerRes: Status %X\n", Status);
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    NsObject = TermContext->NsObject;
+
+    NsObject->ObjData.DataType = 0xB;
+    NsObject->ObjData.DataLen = 2;
+
+    gdwcPRObjs++;
+
+    NsObject->ObjData.DataBuff = HeapAlloc(AmliContext->HeapCurrent, 'SRPH', NsObject->ObjData.DataLen);
+    if (!NsObject->ObjData.DataBuff)
+    {
+        DPRINT1("PowerRes: failed to allocate PowerRes object\n");
+        ASSERT(FALSE);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    RtlZeroMemory(NsObject->ObjData.DataBuff, NsObject->ObjData.DataLen);
+
+    PowerResObject = NsObject->ObjData.DataBuff;
+    PowerResObject->SystemLevel = (UCHAR)(ULONG)TermContext->DataArgs[1].DataValue;
+    PowerResObject->ResOrder = (UCHAR)(ULONG)TermContext->DataArgs[2].DataValue;
+
+    if (ghCreate.Handler)
+    {
+        FnHandler = ghCreate.Handler;
+        FnHandler(0xB, NsObject);
+    }
+
+    Status = PushScope(AmliContext,
+                       AmliContext->Op,
+                       TermContext->OpEnd,
+                       NULL,
+                       NsObject,
+                       AmliContext->Owner,
+                       AmliContext->HeapCurrent,
+                       TermContext->DataResult);
+Exit:
+
+    giIndent--;
+
+    DPRINT("PowerRes: Status %X (%p)\n", Status, NsObject);
+
+    return Status;
 }
 NTSTATUS __cdecl Processor(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
