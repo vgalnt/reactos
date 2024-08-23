@@ -2133,8 +2133,55 @@ ACPIBuildPowerResourceExtension(
     _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
     _Out_ PACPI_POWER_DEVICE_NODE* OutPowerNode)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_POWER_RES_OBJECT PowerResObject;
+    PACPI_POWER_DEVICE_NODE PowerNode;
+    PACPI_POWER_DEVICE_NODE Node;
+    PLIST_ENTRY Entry;
+ 
+    PowerNode = ExAllocatePoolWithTag(NonPagedPool, sizeof(*PowerNode), 'DpcA');
+    if (!PowerNode)
+    {
+        DPRINT("ACPIBuildPowerResourceExtension: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(PowerNode, sizeof(*PowerNode));
+
+    PowerResObject = NsObject->ObjData.DataBuff;
+
+    PowerNode->Flags = 4;
+    PowerNode->PowerObject = NsObject;
+    PowerNode->ResourceOrder = PowerResObject->ResOrder;
+    PowerNode->WorkDone = 3;
+
+    if (PowerResObject->SystemLevel < 6)
+        PowerNode->SystemLevel = SystemPowerStateTranslation[PowerResObject->SystemLevel];
+    else
+        PowerNode->SystemLevel = 0;
+
+    InitializeListHead(&PowerNode->DevicePowerListHead);
+
+    *OutPowerNode = PowerNode;
+    NsObject->Context = PowerNode;
+
+    KeAcquireSpinLockAtDpcLevel(&AcpiPowerLock);
+
+    for (Entry = AcpiPowerNodeList.Flink; Entry != &AcpiPowerNodeList; Entry = Entry->Flink)
+    {
+        Node = CONTAINING_RECORD(Entry, ACPI_POWER_DEVICE_NODE, ListEntry);
+
+        if (Node->ResourceOrder >= PowerNode->ResourceOrder)
+        {
+            InsertTailList(Entry, &PowerNode->ListEntry);
+            break;
+        }
+    }
+
+    if (Entry == &AcpiPowerNodeList)
+        InsertTailList(Entry, &PowerNode->ListEntry);
+
+    KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
+ 
+    return STATUS_PENDING;
 }
 
 NTSTATUS
