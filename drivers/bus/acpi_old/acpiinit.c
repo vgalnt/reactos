@@ -2008,7 +2008,7 @@ ACPIBuildThermalZoneExtension(
         goto ErrorExit;
     }
 
-    *DeviceExtension->InstanceID = DeviceExtension->AcpiObject->NameSeg;
+    RtlCopyMemory(DeviceExtension->InstanceID, (PCHAR)&DeviceExtension->AcpiObject->NameSeg, 4);
     DeviceExtension->InstanceID[4] = 0;
 
     ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0001E00000000000, 0);
