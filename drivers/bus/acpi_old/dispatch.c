@@ -4375,7 +4375,7 @@ __cdecl
 ACPIBuildCompleteGeneric(
     _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
     _In_ NTSTATUS InStatus,
-    _In_ ULONG Param3,
+    _In_ PAMLI_OBJECT_DATA Data,
     _In_ PVOID Context)
 {
     PACPI_BUILD_REQUEST BuildRequest = Context;
@@ -4457,7 +4457,7 @@ Finish:
 
     DPRINT("ACPIBuildProcessDevicePhaseEjd: Status %X\n", Status);
 
-    ACPIBuildCompleteGeneric(NULL, Status, 0, BuildRequest);
+    ACPIBuildCompleteGeneric(NULL, Status, NULL, BuildRequest);
 
     return Status;
 }
@@ -5006,14 +5006,14 @@ ACPIBuildProcessDeviceGenericEval(
     {
         Status = STATUS_SUCCESS;
 
-        ACPIBuildCompleteGeneric(BuildRequest->ChildObject, Status, (ULONG)&BuildRequest->Device.Data, BuildRequest);
+        ACPIBuildCompleteGeneric(BuildRequest->ChildObject, Status, &BuildRequest->Device.Data, BuildRequest);
         goto Exit;
     }
 
     Status = AMLIAsyncEvalObject(BuildRequest->ChildObject, &BuildRequest->Device.Data, 0, NULL, (PVOID)ACPIBuildCompleteGeneric, BuildRequest);
     if (Status != STATUS_PENDING)
     {
-        ACPIBuildCompleteGeneric(BuildRequest->ChildObject, Status, (ULONG)&BuildRequest->Device.Data, BuildRequest);
+        ACPIBuildCompleteGeneric(BuildRequest->ChildObject, Status, &BuildRequest->Device.Data, BuildRequest);
         goto Exit;
     }
 
@@ -6370,7 +6370,7 @@ Finish:
 
     DPRINT("ACPIBuildProcessDevicePhasePsc: Status %X\n", Status);
 
-    ACPIBuildCompleteGeneric(NULL, Status, 0, BuildRequest);
+    ACPIBuildCompleteGeneric(NULL, Status, NULL, BuildRequest);
 
     return Status;
 }
@@ -14420,7 +14420,7 @@ ACPIBuildProcessThermalZonePhase0(
         KeBugCheckEx(0xA5, 0xD, (ULONG_PTR)DeviceExtension, 'PMT_', 0);
     }
 
-    ACPIBuildCompleteGeneric(NULL, STATUS_SUCCESS, 0, BuildRequest);
+    ACPIBuildCompleteGeneric(NULL, STATUS_SUCCESS, NULL, BuildRequest);
 
     DPRINT("ACPIBuildProcessThermalZonePhase0: STATUS_SUCCESS\n");
 
