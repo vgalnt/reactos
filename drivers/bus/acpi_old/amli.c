@@ -3934,12 +3934,78 @@ ProcessEvalObj(
 
 NTSTATUS
 __cdecl
+ProcessSleep(
+    _In_ PAMLI_CONTEXT AmliContext,
+    _In_ PAMLI_SLEEP_QUEUE_CONTEXT SleepContext,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+__cdecl
 SleepQueueRequest(
     _In_ PAMLI_CONTEXT AmliContext,
     _In_ ULONG SleepTime)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_SLEEP_QUEUE_CONTEXT CurrentContext;
+    PAMLI_SLEEP_QUEUE_CONTEXT PrevContext;
+    PLIST_ENTRY Entry;
+    ULONGLONG CurrentTime;
+    LARGE_INTEGER Timeout;
+    BOOLEAN Result = FALSE;
+    NTSTATUS Status;
+
+    DPRINT("SleepQueueRequest: %p, %d\n", AmliContext, SleepTime);
+
+    giIndent++;
+
+    Status = PushFrame(AmliContext, 'PELS', sizeof(*CurrentContext), ProcessSleep, (PVOID *)&CurrentContext);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SleepQueueRequest: %X\n", Status);
+        goto Exit;
+    }
+
+    AcquireMutex(&gmutSleep);
+
+    CurrentTime = KeQueryInterruptTime();
+
+    CurrentContext->InterruptTime = (CurrentTime + (SleepTime * 10000));
+    CurrentContext->AmliContext = AmliContext;
+
+    Entry = &SleepQueue;
+    while (Entry->Blink != &SleepQueue)
+    {
+        PrevContext = CONTAINING_RECORD(Entry->Blink, AMLI_SLEEP_QUEUE_CONTEXT, Link);
+
+        if (CurrentContext->InterruptTime >= PrevContext->InterruptTime)
+        {
+            InsertHeadList(&PrevContext->Link, &CurrentContext->Link);
+            break;
+        }
+
+        Entry = Entry->Blink;
+    }
+
+    if (Entry->Blink == &SleepQueue)
+    {
+        InsertHeadList(&SleepQueue, &CurrentContext->Link);
+
+        Timeout.QuadPart = (CurrentTime - CurrentContext->InterruptTime);
+        Result = KeSetTimer(&SleepTimer, Timeout, &SleepDpc);
+    }
+
+    ReleaseMutex(&gmutSleep);
+
+Exit:
+
+    giIndent--;
+
+    DPRINT("SleepQueueRequest: %X, %X, %X\n", Status, CurrentContext, Result);
+
+    return Status;
 }
 
 /* TERM HANDLERS ************************************************************/
