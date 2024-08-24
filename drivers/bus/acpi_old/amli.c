@@ -30,6 +30,9 @@ AMLI_MUTEX gmutCtxtList;
 AMLI_MUTEX gmutOwnerList;
 AMLI_MUTEX gmutHeap;
 AMLI_MUTEX gmutSleep;
+LIST_ENTRY SleepQueue;
+KTIMER SleepTimer;
+KDPC SleepDpc;
 PAMLI_LIST gplistCtxtHead;
 PAMLI_LIST gplistObjOwners;
 
@@ -1473,6 +1476,56 @@ ValidateMemoryOpregionRange(
     _In_ ULONG Length)
 {
     UNIMPLEMENTED_ONCE;
+}
+
+VOID
+NTAPI
+SleepQueueDpc(
+    _In_ PKDPC Dpc,
+    _In_ PVOID DeferredContext,
+    _In_ PVOID SystemArgument1,
+    _In_ PVOID SystemArgument2)
+{
+    PAMLI_SLEEP_QUEUE_CONTEXT SleepContext;
+    LARGE_INTEGER Timeout;
+    ULONGLONG CurrentTime;
+    PLIST_ENTRY Entry;
+    LIST_ENTRY list;
+
+    DPRINT("SleepQueueDpc()\n");
+
+    InitializeListHead(&list);
+
+    AcquireMutex(&gmutSleep);
+
+    CurrentTime = KeQueryInterruptTime();
+
+    while (!IsListEmpty(&SleepQueue))
+    {
+        SleepContext = CONTAINING_RECORD(SleepQueue.Flink, AMLI_SLEEP_QUEUE_CONTEXT, Link);
+
+        if (SleepContext->InterruptTime > CurrentTime)
+        {
+            Timeout.QuadPart = (CurrentTime - SleepContext->InterruptTime);
+            KeSetTimer(&SleepTimer, Timeout, &SleepDpc);
+            break;
+        }
+
+        Entry = RemoveHeadList(&SleepQueue);
+        InsertTailList(&list, Entry);
+    }
+
+    ReleaseMutex(&gmutSleep);
+
+    while (!IsListEmpty(&list))
+    {
+        Entry = RemoveHeadList(&list);
+        SleepContext = CONTAINING_RECORD(Entry, AMLI_SLEEP_QUEUE_CONTEXT, Link);
+
+        RestartContext(SleepContext->AmliContext, ((SleepContext->AmliContext->Flags & 0x100) == 0));
+    }
+
+    DPRINT("SleepQueueDpc: exit\n");
 }
 
 /* CALLBACKS TERM HANDLERS **************************************************/
@@ -11655,8 +11708,9 @@ AMLIInitialize(
         KeInitializeDpc(&gReadyQueue.DpcStartTimeSlice, StartTimeSlice, &gReadyQueue);
         KeInitializeDpc(&gReadyQueue.DpcExpireTimeSlice, ExpireTimeSlice, &gReadyQueue);
 
-        DPRINT("AMLIInitialize: FIXME - initialize DPC and timer\n");
-        //ASSERT(FALSE);
+        KeInitializeDpc(&SleepDpc, SleepQueueDpc, NULL);
+        KeInitializeTimer(&SleepTimer);
+        InitializeListHead(&SleepQueue);
 
         break;
     }

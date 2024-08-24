@@ -560,6 +560,15 @@ typedef struct _AMLI_PRESERVE_WRITE_CONTEXT
     ULONG PrevData;
 } AMLI_PRESERVE_WRITE_CONTEXT, *PAMLI_PRESERVE_WRITE_CONTEXT;
 
+typedef struct _AMLI_SLEEP_QUEUE_CONTEXT
+{
+    AMLI_FRAME_HEADER FrameHeader;
+    LIST_ENTRY Link;
+    ULONGLONG InterruptTime;
+    PAMLI_CONTEXT AmliContext;
+    ULONG Unknown;
+} AMLI_SLEEP_QUEUE_CONTEXT, *PAMLI_SLEEP_QUEUE_CONTEXT;
+
 /* FUNCTIONS ****************************************************************/
 
 #if 1
