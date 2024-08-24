@@ -118,6 +118,7 @@ extern KSPIN_LOCK NotifyHandlerLock;
 extern PPM_DISPATCH_TABLE PmHalDispatchTable;
 extern ULONG InterruptModel;
 extern BOOLEAN PciInterfacesInstantiated;
+extern SYSTEM_POWER_STATE SystemPowerStateTranslation[6];
 
 /* ACPI TABLES FUNCTIONS ****************************************************/
 
@@ -2189,8 +2190,30 @@ NTAPI
 ACPIBuildPowerResourceRequest(
     _In_ PACPI_POWER_DEVICE_NODE PowerNode)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_BUILD_REQUEST BuildRequest;
+
+    ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
+
+    BuildRequest = ExAllocateFromNPagedLookasideList(&BuildRequestLookAsideList);
+    if (!BuildRequest)
+    {
+        DPRINT1("ACPIBuildPowerResourceRequest: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(BuildRequest, sizeof(*BuildRequest));
+
+    BuildRequest->Signature = '_SGP';
+    BuildRequest->Flags = 0x1000;
+    BuildRequest->WorkDone = 3;
+    BuildRequest->Context = PowerNode;
+    BuildRequest->Status = STATUS_SUCCESS;
+    BuildRequest->ListHeadForInsert = &AcpiBuildPowerResourceList;
+
+    KeAcquireSpinLockAtDpcLevel(&AcpiBuildQueueLock);
+    InsertTailList(&AcpiBuildQueueList, &BuildRequest->Link);
+    KeReleaseSpinLockFromDpcLevel(&AcpiBuildQueueLock);
+
+    return STATUS_PENDING;
 }
 
 NTSTATUS

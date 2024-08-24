@@ -104,7 +104,7 @@ RtlAssert(
     #ifndef NDEBUG
 
         #define DPRINT(fmt, ...) do { \
-            if (DbgPrint("(%s:%d) " fmt, __RELFILE__, __LINE__, ##__VA_ARGS__))  \
+            if (DbgPrint("(%s:%d) " fmt, "[ACPI]", __LINE__, ##__VA_ARGS__))  \
                 DbgPrint("(%s:%d) DbgPrint() failed!\n", __RELFILE__, __LINE__); \
         } while (0)
 
