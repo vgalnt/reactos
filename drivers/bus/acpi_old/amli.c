@@ -3939,8 +3939,18 @@ ProcessSleep(
     _In_ PAMLI_SLEEP_QUEUE_CONTEXT SleepContext,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    DPRINT("ProcessSleep: %p, %X, %p, %X)\n", AmliContext, AmliContext->Op, SleepContext, InStatus);
+
+    giIndent++;
+
+    ASSERT(SleepContext->FrameHeader.Signature == 'PELS');//SIG_SLEEP
+    PopFrame(AmliContext);
+
+    giIndent--;
+
+    DPRINT("ProcessSleep: %X\n", InStatus);
+
+    return InStatus;
 }
 
 NTSTATUS
