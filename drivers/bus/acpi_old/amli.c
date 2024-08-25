@@ -4289,8 +4289,39 @@ NTSTATUS __cdecl CreateDWordField(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TER
 }
 NTSTATUS __cdecl CreateField(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_BUFF_FIELD_OBJECT Field;
+    NTSTATUS Status;
+
+    DPRINT("CreateField: %p, %X, %p\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    if (TermContext->DataArgs[2].DataType != 1)
+    {
+        DPRINT1("CreateField: STATUS_ACPI_INVALID_ARGTYPE");
+        Status = STATUS_ACPI_INVALID_ARGTYPE;
+        goto Exit;
+    }
+
+    Status = CreateXField(AmliContext, TermContext, (TermContext->DataArgs + 3), &Field);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("CreateField: NoBits must be evaluated to integer type");
+        goto Exit;
+    }
+
+    Field->FieldDesc.ByteOffset = ((ULONG)TermContext->DataArgs[1].DataValue >> 3);
+    Field->FieldDesc.StartBitPos = (ULONG)((ULONG_PTR)TermContext->DataArgs[1].DataValue - (Field->FieldDesc.ByteOffset * 8));
+    Field->FieldDesc.NumBits = (ULONG)TermContext->DataArgs[2].DataValue;
+    Field->FieldDesc.FieldFlags = 0x10001;
+
+Exit:
+
+    giIndent--;
+
+    DPRINT("CreateField: Status %X (%p)\n", Status, TermContext->NsObject);
+
+    return Status;
 }
 NTSTATUS __cdecl CreateWordField(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
