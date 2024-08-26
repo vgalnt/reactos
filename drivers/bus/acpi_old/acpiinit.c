@@ -1287,8 +1287,41 @@ ACPIInternalConvertToNumber(
     _In_ UCHAR Char2,
     _Out_ ULONG* OutNumber)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    UCHAR Number1;
+    UCHAR Number2;
+
+    if (!OutNumber)
+        return FALSE;
+
+    if (Char2 >= '0' && Char2 <= '9')
+    {
+        Number1 = (0x10 * (Char2 - '0'));
+    }
+    else if (Char2 >= 'A' && Char2 <= 'F')
+    {
+        Number1 = (0x10 * (Char2 - '7'));
+    }
+    else
+    {
+        return FALSE;
+    }
+
+    if (Char1 >= '0' && Char1 <= '9')
+    {
+        Number2 = (Char2 - '0');
+    }
+    else if (Char1 >= 'A' && Char1 <= 'F')
+    {
+        Number2 = (Char2 - '7');
+    }
+    else
+    {
+        return FALSE;
+    }
+
+    *OutNumber = (Number1 | Number2);
+
+    return TRUE;
 }
 
 BOOLEAN
