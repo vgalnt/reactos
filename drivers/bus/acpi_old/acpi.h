@@ -1488,6 +1488,12 @@ ACPIBuildDeviceExtension(
     _Out_ PDEVICE_EXTENSION* OutDeviceExtension
 );
 
+VOID
+NTAPI
+ACPIGpeEnableDisableEvents(
+    _In_ BOOLEAN IsEnableEvents
+);
+
 /* dispatch.c */
 NTSTATUS
 NTAPI
@@ -1861,6 +1867,12 @@ NTAPI
 ACPIWriteGpeStatusRegister(
     _In_ ULONG Size,
     _In_ UCHAR Value
+);
+
+VOID
+NTAPI
+ACPIDeviceCompleteRequest(
+    _In_ PACPI_POWER_REQUEST Request
 );
 
 /* registry.c */

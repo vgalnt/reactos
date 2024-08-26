@@ -1280,12 +1280,111 @@ ACPIGpeClearEventMasks(VOID)
     KeReleaseSpinLock(&GpeTableLock, Irql);
 }
 
+BOOLEAN
+NTAPI
+ACPIInternalConvertToNumber(
+    _In_ UCHAR Char1,
+    _In_ UCHAR Char2,
+    _Out_ ULONG* OutNumber)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+ACPIGpeValidIndex(
+    _In_ ULONG Index)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+ACPIGpeInstallRemoveIndex(
+    _In_ ULONG Index,
+    _In_ ULONG OperationType,
+    _In_ ULONG SetHandlerType,
+    _Out_ BOOLEAN* OutIsEnabled)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+ACPIVectorBuildVectorMasks(VOID)
+{
+    ULONG ix;
+
+    for (ix = 0; ix < GpeVectorTableSize; ix++)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+}
+
 VOID
 NTAPI
 ACPIGpeBuildEventMasks(VOID)
 {
-    //UNIMPLEMENTED_DBGBREAK();
-    UNIMPLEMENTED;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    PAMLI_NAME_SPACE_OBJECT Child;
+    ULONG OperationType;
+    ULONG Index;
+    KIRQL Irql;
+    BOOLEAN IsEnabled;
+    NTSTATUS Status;
+
+    DPRINT("ACPIGpeBuildEventMasks()\n");
+
+    KeAcquireSpinLock(&AcpiDeviceTreeLock, &Irql);
+    KeAcquireSpinLockAtDpcLevel(&GpeTableLock);
+
+    Status = AMLIGetNameSpaceObject("\\_GPE", NULL, &NsObject, 0);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("ACPIGpeBuildEventMasks: Could not find \\_GPE object (%X)\n", Status);
+        goto Finish;
+    }
+
+    for (Child = NsObject->FirstChild; Child; )
+    {
+        if (Child->ObjData.DataType == 8)
+        {
+            if (ACPIInternalConvertToNumber((Child->NameSeg >> 24),
+                                            ((Child->NameSeg & 0xFF0000) >> 16),
+                                            &Index))
+            {
+                if ((Child->NameSeg & 0xFF00) == 0x4C00) // 'L'
+                {
+                    OperationType = 1;
+                    ACPIGpeInstallRemoveIndex(Index, OperationType, 1, &IsEnabled);
+                }
+                else if ((Child->NameSeg & 0xFF00) == 0x4500) // 'E'
+                {
+                    OperationType = 0;
+                    ACPIGpeInstallRemoveIndex(Index, OperationType, 1, &IsEnabled);
+                }
+            }
+        }
+
+        if (!Child->Parent)
+            break;
+
+        Child = (PAMLI_NAME_SPACE_OBJECT)Child->List.Next;
+
+        if (Child->Parent->FirstChild == Child)
+            break;
+    }
+
+Finish:
+
+    ACPIVectorBuildVectorMasks();
+    ACPIGpeEnableDisableEvents(TRUE);
+
+    KeReleaseSpinLockFromDpcLevel(&GpeTableLock);
+    KeReleaseSpinLock(&AcpiDeviceTreeLock, Irql);
 }
 
 VOID
