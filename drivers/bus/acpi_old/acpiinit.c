@@ -1257,8 +1257,27 @@ VOID
 NTAPI
 ACPIGpeClearEventMasks(VOID)
 {
-    //UNIMPLEMENTED_DBGBREAK();
-    UNIMPLEMENTED;
+    KIRQL Irql;
+
+    DPRINT("ACPIGpeClearEventMasks()\n");
+
+    KeAcquireSpinLock(&GpeTableLock, &Irql);
+
+    ACPIGpeEnableDisableEvents(FALSE);
+    ACPIGpeClearRegisters();
+
+    RtlZeroMemory(GpeCurEnable, AcpiInformation->GpeSize);
+    RtlZeroMemory(GpeEnable, AcpiInformation->GpeSize);
+    RtlZeroMemory(GpeWakeEnable, AcpiInformation->GpeSize);
+    RtlZeroMemory(GpeWakeHandler, AcpiInformation->GpeSize);
+    RtlZeroMemory(GpeSpecialHandler, AcpiInformation->GpeSize);
+    RtlZeroMemory(GpeRunMethod, AcpiInformation->GpeSize);
+    RtlZeroMemory(GpePending, AcpiInformation->GpeSize);
+    RtlZeroMemory(GpeComplete, AcpiInformation->GpeSize);
+    RtlZeroMemory(GpeIsLevel, AcpiInformation->GpeSize);
+    RtlZeroMemory(GpeHandlerType, AcpiInformation->GpeSize);
+
+    KeReleaseSpinLock(&GpeTableLock, Irql);
 }
 
 VOID
