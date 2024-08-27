@@ -1329,8 +1329,10 @@ NTAPI
 ACPIGpeValidIndex(
     _In_ ULONG Index)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    if (Index < AcpiInformation->GP1_Base_Index)
+        return (Index < (AcpiInformation->Gpe0Size << 3));
+
+    return (Index < (AcpiInformation->GP1_Base_Index + (AcpiInformation->Gpe1Size << 3)));
 }
 
 BOOLEAN
