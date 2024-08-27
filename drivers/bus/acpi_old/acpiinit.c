@@ -39,6 +39,7 @@ PDEVICE_OBJECT AcpiArbiterDeviceObject;
 PACPI_VECTOR_BLOCK IrqHashTable;
 KDPC AcpiBuildDpc;
 KDPC AcpiPowerDpc;
+KDPC AcpiGpeDpc;
 PVOID ACPIThread;
 
 PUCHAR GpeEnable;
@@ -54,6 +55,7 @@ PUCHAR GpeComplete;
 PUCHAR GpeSavedWakeMask;
 PUCHAR GpeSavedWakeStatus;
 PUCHAR GpeMap;
+ULONG GpeVectorTableSize;
 
 NPAGED_LOOKASIDE_LIST DeviceExtensionLookAsideList;
 NPAGED_LOOKASIDE_LIST BuildRequestLookAsideList;
@@ -107,6 +109,9 @@ BOOLEAN AcpiPowerDpcRunning;
 BOOLEAN AcpiArbCardbusPresent;
 BOOLEAN AcpiInterruptRoutingFailed = FALSE;
 BOOLEAN ACPIWorkerBusy;
+BOOLEAN AcpiGpeWorkDone;
+BOOLEAN AcpiGpeDpcRunning;
+BOOLEAN AcpiGpeDpcScheduled;
 
 extern IRP_DISPATCH_TABLE AcpiFdoIrpDispatch;
 extern PACPI_INFORMATION AcpiInformation;
@@ -1174,7 +1179,7 @@ ACPIEnableInitializeACPI(
     if (IsNotRevertAffinity)
     {
         ACPIGpeClearRegisters();
-        ACPIGpeEnableDisableEvents(1);
+        ACPIGpeEnableDisableEvents(TRUE);
     }
 
     pm1_control = READ_PM1_CONTROL();
@@ -5320,6 +5325,7 @@ DriverEntry(
 
     KeInitializeDpc(&AcpiBuildDpc, ACPIBuildDeviceDpc, NULL);
     KeInitializeDpc(&AcpiPowerDpc, ACPIDevicePowerDpc, NULL);
+    KeInitializeDpc(&AcpiGpeDpc, ACPIInterruptDispatchEventDpc, NULL);
 
     KeInitializeSpinLock(&AcpiDeviceTreeLock);
     KeInitializeSpinLock(&AcpiBuildQueueLock);
@@ -5355,6 +5361,9 @@ DriverEntry(
     AcpiBuildWorkDone = FALSE;
     AcpiPowerWorkDone = FALSE;
     AcpiPowerDpcRunning = FALSE;
+    AcpiGpeWorkDone = FALSE;
+    AcpiGpeDpcRunning = FALSE;
+    AcpiGpeDpcScheduled = FALSE;
 
     ExInitializeNPagedLookasideList(&DeviceExtensionLookAsideList, NULL, NULL, 0, sizeof(DEVICE_EXTENSION), 'DpcA', 0x40);
     ExInitializeNPagedLookasideList(&BuildRequestLookAsideList, NULL, NULL, 0, sizeof(ACPI_BUILD_REQUEST), 'DpcA', 0x38);

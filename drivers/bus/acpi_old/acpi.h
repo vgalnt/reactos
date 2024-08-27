@@ -1875,6 +1875,28 @@ ACPIDeviceCompleteRequest(
     _In_ PACPI_POWER_REQUEST Request
 );
 
+ULONG
+NTAPI
+ACPIGpeIndexToGpeRegister(
+    _In_ ULONG GpeIndex
+);
+
+ULONG
+NTAPI
+ACPIGpeRegisterToGpeIndex(
+    _In_ ULONG ix,
+    _In_ ULONG Bit
+);
+
+VOID
+NTAPI
+ACPIInterruptDispatchEventDpc(
+    _In_ PKDPC Dpc,
+    _In_ PVOID DeferredContext,
+    _In_ PVOID SystemArgument1,
+    _In_ PVOID SystemArgument2
+);
+
 /* registry.c */
 VOID
 NTAPI

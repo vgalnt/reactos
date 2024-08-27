@@ -980,6 +980,12 @@ extern PUCHAR GpeCurEnable;
 extern PUCHAR GpePending;
 extern PUCHAR GpeIsLevel;
 extern PUCHAR GpeMap;
+extern PUCHAR GpeRunMethod;
+extern PUCHAR GpeComplete;
+extern PUCHAR GpeHandlerType;
+extern BOOLEAN AcpiGpeWorkDone;
+extern BOOLEAN AcpiGpeDpcRunning;
+extern BOOLEAN AcpiGpeDpcScheduled;
 extern WORK_QUEUE_ITEM ACPIWorkItem;
 
 /* FUNCTIOS *****************************************************************/
@@ -6832,6 +6838,17 @@ ACPISetDeviceWorker(
 
     if (IsNotBusy)
         ExQueueWorkItem(&ACPIWorkItem, DelayedWorkQueue);
+}
+
+VOID
+NTAPI
+ACPIInterruptDispatchEventDpc(
+    _In_ PKDPC Dpc,
+    _In_ PVOID DeferredContext,
+    _In_ PVOID SystemArgument1,
+    _In_ PVOID SystemArgument2)
+{
+    UNIMPLEMENTED_DBGBREAK();
 }
 
 /* HAL FUNCTIOS *************************************************************/
@@ -15641,6 +15658,39 @@ ACPIEnablePMInterruptOnly(VOID)
 
 VOID
 NTAPI
+ACPIInterruptDispatchEvents(VOID)
+{
+    ULONG ix;
+    UCHAR GpeStatus;
+
+    KeAcquireSpinLockAtDpcLevel(&GpeTableLock);
+
+    for (ix = 0; ix < AcpiInformation->GpeSize; ix++)
+    {
+        GpeStatus = (ACPIReadGpeStatusRegister(ix) & GpeCurEnable[ix]);
+
+        GpePending[ix] |= GpeStatus;
+        GpeRunMethod[ix] |= GpeStatus;
+        GpeCurEnable[ix] &= ~GpeStatus;
+
+        GpeStatus &= ~GpeIsLevel[ix];
+        if (GpeStatus)
+            ACPIWriteGpeStatusRegister(ix, GpeStatus);
+    }
+
+    AcpiGpeWorkDone = TRUE;
+
+    if (!AcpiGpeDpcRunning && !AcpiGpeDpcScheduled)
+    {
+        AcpiGpeDpcScheduled = TRUE;
+        KeInsertQueueDpc(&AcpiGpeDpc, NULL, NULL);
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&GpeTableLock);
+}
+
+VOID
+NTAPI
 ACPIInterruptServiceRoutineDPC(
     _In_ PKDPC Dpc,
     _In_ PVOID DeferredContext,
@@ -15699,9 +15749,7 @@ ACPIInterruptServiceRoutineDPC(
         }
 
         if (Pm1Status & 0x10000)
-        {
-            UNIMPLEMENTED_DBGBREAK();
-        }
+            ACPIInterruptDispatchEvents();
     }
 }
 
@@ -15774,10 +15822,7 @@ ACPIInterruptServiceRoutine(
         Pm1Status |= 0x10000;
 
     if (Pm1Status & 0x10000)
-    {
-        DPRINT1("ACPIInterruptServiceRoutine: FIXME. Pm1Status %X\n", Pm1Status);
-        UNIMPLEMENTED_DBGBREAK();
-    }
+        ACPIGpeEnableDisableEvents(FALSE);
 
     CLEAR_PM1_STATUS_BITS(Pm1Status);
 
