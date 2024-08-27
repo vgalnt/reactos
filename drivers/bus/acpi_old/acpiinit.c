@@ -1343,8 +1343,77 @@ ACPIGpeInstallRemoveIndex(
     _In_ ULONG SetHandlerType,
     _Out_ BOOLEAN* OutIsEnabled)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    ULONG GpeMask;
+    ULONG ix;
+
+    DPRINT("ACPIGpeInstallRemoveIndex: %X, %X, %X\n", Index, OperationType, SetHandlerType);
+
+    if (!AcpiInformation->GP0_LEN)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return FALSE;
+    }
+
+    if (!ACPIGpeValidIndex(Index))
+        return FALSE;
+
+    GpeMask = (1 << (Index & 7));
+
+    ix = ACPIGpeIndexToGpeRegister(Index);
+    ASSERT(ix < (ULONG) AcpiInformation->GpeSize);
+
+    if (ix >= AcpiInformation->GpeSize)
+        return FALSE;
+
+    if (OperationType == 2)
+    {
+        if (*OutIsEnabled)
+        {
+            GpeEnable[ix] |= GpeMask;
+            GpeCurEnable[ix] |= GpeMask;
+            GpeHandlerType[ix] |= GpeMask;
+        }
+        else
+        {
+            GpeEnable[ix] &= ~GpeMask;
+            GpeCurEnable[ix] &= ~GpeMask;
+            GpeHandlerType[ix] &= ~GpeMask;
+
+            ASSERT(!(GpeWakeEnable[ix] & GpeMask));
+        }
+
+        DPRINT("ACPIGpeInstallRemoveIndex: Removing GPE #%X - Byte %X, bit %X\n", Index, ix, (Index & 7));
+        return TRUE;
+    }
+
+    if (!(GpeEnable[ix] & GpeMask))
+    {
+        *OutIsEnabled = FALSE;
+    }
+    else if (!(GpeHandlerType[ix] & GpeMask))
+    {
+        return FALSE;
+    }
+    else
+    {
+        *OutIsEnabled = TRUE;
+    }
+
+    GpeEnable[ix] |= GpeMask;
+    GpeCurEnable[ix] |= GpeMask;
+
+    if (OperationType == 1)
+        GpeIsLevel[ix] |= GpeMask;
+    else
+        GpeIsLevel[ix] &= ~GpeMask;
+
+    if (SetHandlerType == 1)
+        GpeHandlerType[ix] |= GpeMask;
+    else
+        GpeHandlerType[ix] &= ~GpeMask;
+
+    DPRINT("ACPIGpeInstallRemoveIndex: Setting GPE #%X - Byte %X, bit %X\n", Index, ix, (Index & 7));
+    return TRUE;
 }
 
 VOID
