@@ -6922,8 +6922,12 @@ ACPIBuildDeviceDpc(
 
         if (!IsListEmpty(&AcpiBuildPowerResourceList))
         {
-            DPRINT1("ACPIBuildDeviceDpc: FIXME\n");
-            ASSERT(FALSE);
+            Status = ACPIBuildProcessGenericList(&AcpiBuildPowerResourceList, AcpiBuildPowerResourceDispatch);
+            if (Status == STATUS_PENDING)
+            {
+                KeAcquireSpinLockAtDpcLevel(&AcpiBuildQueueLock);
+                continue;
+            }
         }
 
         if (!IsListEmpty(&AcpiBuildDeviceList))
