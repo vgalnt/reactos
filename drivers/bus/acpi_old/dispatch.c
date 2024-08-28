@@ -5444,17 +5444,25 @@ NTSTATUS
 NTAPI
 ACPIDevicePowerProcessPhase4(VOID)
 {
-    PLIST_ENTRY Entry;
+    PACPI_POWER_DEVICE_NODE PowerNode;
+    PLIST_ENTRY PowerNodeEntry;
 
     DPRINT("ACPIDevicePowerProcessPhase4()\n");
 
     KeAcquireSpinLockAtDpcLevel(&AcpiPowerLock);
 
-    Entry = AcpiPowerNodeList.Flink;
-    while (Entry != &AcpiPowerNodeList)
+    for (PowerNodeEntry = AcpiPowerNodeList.Flink; PowerNodeEntry != &AcpiPowerNodeList; )
     {
+        PowerNode = CONTAINING_RECORD(PowerNodeEntry, ACPI_POWER_DEVICE_NODE, ListEntry);
+        PowerNodeEntry = PowerNodeEntry->Flink;
+
+        if (!(PowerNode->Flags & 0x10000))
+            continue;
+
+        ACPIInternalUpdateFlags(&PowerNode->Flags, 0x10000, TRUE);
+
         DPRINT1("ACPIDevicePowerProcessPhase4: FIXME\n");
-        ASSERT(FALSE);
+        UNIMPLEMENTED_DBGBREAK();
     }
 
     KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
@@ -6236,7 +6244,7 @@ ACPIDeviceInitializePowerRequest(
     KIRQL OldIrql;
     NTSTATUS Status;
 
-    DPRINT1("ACPIDeviceInitializePowerRequest: %p, %X\n", DeviceExtension, State.DeviceState);
+    DPRINT("ACPIDeviceInitializePowerRequest: %p, %X\n", DeviceExtension, State.DeviceState);
 
     Request = ExAllocateFromNPagedLookasideList(&RequestLookAsideList);
     if (!Request)
