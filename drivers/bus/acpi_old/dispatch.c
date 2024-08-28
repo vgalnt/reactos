@@ -6492,10 +6492,47 @@ ACPIBuildProcessPowerResourceFailure(
 NTSTATUS
 NTAPI
 ACPIBuildProcessPowerResourcePhase0(
-    _In_ PACPI_BUILD_REQUEST Entry)
+    _In_ PACPI_BUILD_REQUEST BuildRequest)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    PACPI_POWER_DEVICE_NODE Node;
+    NTSTATUS Status;
+
+    Node = BuildRequest->Context;
+    BuildRequest->BuildReserved1 = 4;
+
+    NsObject = ACPIAmliGetNamedChild(Node->PowerObject, 'FFO_');
+    if (!NsObject)
+    {
+        DPRINT1("ACPIBuildProcessPowerResourcePhase0: KeBugCheckEx()\n");
+        KeBugCheckEx(0xA5, 0xE, (ULONG_PTR)Node->PowerObject, 'FFO_', 0);
+    }
+    Node->PowerOffObject = NsObject;
+
+    NsObject = ACPIAmliGetNamedChild(Node->PowerObject, '_NO_');
+    if (!NsObject)
+    {
+        DPRINT1("ACPIBuildProcessPowerResourcePhase0: KeBugCheckEx()\n");
+        KeBugCheckEx(0xA5, 0xE, (ULONG_PTR)Node->PowerObject, '_NO_', 0);
+    }
+    Node->PowerOnObject = NsObject;
+
+    NsObject = ACPIAmliGetNamedChild(Node->PowerObject, 'ATS_');
+    if (!NsObject)
+    {
+        DPRINT1("ACPIBuildProcessPowerResourcePhase0: KeBugCheckEx()\n");
+        KeBugCheckEx(0xA5, 0xE, (ULONG_PTR)Node->PowerObject, 'ATS_', 0);
+    }
+
+    RtlZeroMemory(&BuildRequest->Device.Data, sizeof(BuildRequest->Device.Data));
+
+    BuildRequest->ChildObject = NsObject;
+
+    Status = AMLIAsyncEvalObject(NsObject, &BuildRequest->Device.Data, 0, NULL, ACPIBuildCompleteGeneric, BuildRequest);
+    if (Status != STATUS_PENDING)
+        ACPIBuildCompleteGeneric(NsObject, Status, &BuildRequest->Device.Data, BuildRequest);
+
+    return Status;
 }
 
 NTSTATUS
