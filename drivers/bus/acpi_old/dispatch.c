@@ -6538,10 +6538,33 @@ ACPIBuildProcessPowerResourcePhase0(
 NTSTATUS
 NTAPI
 ACPIBuildProcessPowerResourcePhase1(
-    _In_ PACPI_BUILD_REQUEST Entry)
+    _In_ PACPI_BUILD_REQUEST BuildRequest)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_POWER_DEVICE_NODE Node;
+
+    Node = BuildRequest->Context;
+    BuildRequest->BuildReserved1 = 0;
+
+    if (BuildRequest->Device.Data.DataType != 1)
+    {
+        KeBugCheckEx(0xA5,
+                     8,
+                     (ULONG_PTR)Node->PowerObject,
+                     (ULONG_PTR)BuildRequest->ChildObject,
+                     BuildRequest->Device.Data.DataType);
+    }
+
+    KeAcquireSpinLockAtDpcLevel(&AcpiPowerLock);
+
+    ACPIInternalUpdateFlags(&Node->Flags, 2, FALSE);
+    ACPIInternalUpdateFlags(&Node->Flags, 1, (((ULONG_PTR)BuildRequest->Device.Data.DataValue & 1) == 0));
+
+    KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
+
+    AMLIFreeDataBuffs(&BuildRequest->Device.Data, 1);
+    ACPIBuildCompleteGeneric(NULL, STATUS_SUCCESS, NULL, BuildRequest);
+
+    return STATUS_SUCCESS;
 }
 
 VOID
