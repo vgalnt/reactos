@@ -5326,7 +5326,21 @@ ACPIDeviceCompletePhase3On(
     _In_ PAMLI_OBJECT_DATA Data,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PACPI_POWER_DEVICE_NODE PowerNode = Context;
+    KIRQL Irql;
+
+    DPRINT("ACPIDeviceCompletePhase3On: (ON) PowerNode %p, InStatus %X\n", PowerNode, InStatus);
+
+    KeAcquireSpinLock(&AcpiPowerLock, &Irql);
+
+    if (NT_SUCCESS(InStatus))
+        ACPIInternalUpdateFlags(&PowerNode->Flags, 0x10, 0);
+    else
+        ACPIInternalUpdateFlags(&PowerNode->Flags, 0x10000, 0);
+
+    KeReleaseSpinLock(&AcpiPowerLock, Irql);
+
+    ACPIDeviceCompleteCommon(&PowerNode->WorkDone, 0);
 }
 
 NTSTATUS
