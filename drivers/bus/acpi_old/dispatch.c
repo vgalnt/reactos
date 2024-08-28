@@ -956,6 +956,7 @@ extern LIST_ENTRY ACPIDeviceWorkQueue;
 extern LIST_ENTRY AcpiThermalList;
 extern KDPC AcpiBuildDpc;
 extern KDPC AcpiPowerDpc;
+extern KDPC AcpiGpeDpc;
 extern BOOLEAN AcpiBuildDpcRunning;
 extern BOOLEAN AcpiBuildWorkDone;
 extern BOOLEAN AcpiPowerWorkDone;
@@ -5317,31 +5318,107 @@ NTSTATUS NTAPI ACPIDevicePowerProcessPhase2SystemSubPhase3(_In_ PACPI_POWER_REQU
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+__cdecl
+ACPIDeviceCompletePhase3On(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ NTSTATUS InStatus,
+    _In_ PAMLI_OBJECT_DATA Data,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 ACPIDevicePowerProcessPhase3(VOID)
 {
-    PLIST_ENTRY Entry;
+    PDEVICE_EXTENSION DeviceExtension;
+    PACPI_POWER_DEVICE_NODE PowerNode;
+    PACPI_DEVICE_POWER_NODE DeviceNode;
+    PLIST_ENTRY PowerNodeEntry;
+    PLIST_ENTRY DeviceNodeEntry;
+    ULONG WakeSupportCount;
+    ULONG UseCounts;
+    ULONG WorkDone;
     BOOLEAN Result = FALSE;
+    NTSTATUS Status;
 
     DPRINT("ACPIDevicePowerProcessPhase3()\n");
 
     KeAcquireSpinLockAtDpcLevel(&AcpiPowerLock);
 
-    Entry = AcpiPowerNodeList.Flink;
-
-    while (Entry != &AcpiPowerNodeList)
+    for (PowerNodeEntry = AcpiPowerNodeList.Flink; PowerNodeEntry != &AcpiPowerNodeList; )
     {
-        DPRINT1("ACPIDevicePowerProcessPhase3: FIXME\n");
-        ASSERT(FALSE);
+        PowerNode = CONTAINING_RECORD(PowerNodeEntry, ACPI_POWER_DEVICE_NODE, ListEntry);
+        PowerNodeEntry = PowerNodeEntry->Flink;
+
+        if (!(PowerNode->Flags & 2))
+            continue;
+
+        if (InterlockedCompareExchange((PLONG)&PowerNode->WorkDone, 4, 3) != 3)
+            continue;
+
+        UseCounts = 0;
+
+        for (DeviceNodeEntry = PowerNode->DevicePowerListHead.Flink; DeviceNodeEntry != &PowerNode->DevicePowerListHead; )
+        {
+            DeviceNode = CONTAINING_RECORD(DeviceNodeEntry, ACPI_DEVICE_POWER_NODE, DevicePowerListEntry);
+            DeviceNodeEntry = DeviceNodeEntry->Flink;
+
+            DeviceExtension = DeviceNode->DeviceExtension;
+
+            WakeSupportCount = InterlockedCompareExchange((PLONG)&DeviceExtension->PowerInfo.WakeSupportCount, 0, 0);
+
+            if (DeviceExtension->PowerInfo.DesiredPowerState == DeviceNode->AssociatedDeviceState ||
+                (WakeSupportCount && DeviceNode->WakePowerResource))
+            {
+                UseCounts++;
+            }
+        }
+
+        InterlockedExchange((PLONG)&PowerNode->UseCounts, UseCounts);
+
+        if (PowerNode->Flags & 0x440)
+            continue;
+
+        if (!(PowerNode->Flags & 0x220) && !UseCounts)
+            continue;
+
+        WorkDone = InterlockedCompareExchange((PLONG)&PowerNode->WorkDone, 1, 4);
+
+        KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
+
+        Status = AMLIAsyncEvalObject(PowerNode->PowerOnObject, NULL, 0, NULL, ACPIDeviceCompletePhase3On, PowerNode);
+
+        DPRINT("ACPIDevicePowerProcessPhase3: (ON) PowerNode %X, Status %X\n", PowerNode, Status);
+
+        if (Status != STATUS_PENDING)
+            ACPIDeviceCompletePhase3On(PowerNode->PowerOnObject, Status, NULL, PowerNode);
+        else
+            Result = TRUE;
+
+        KeAcquireSpinLockAtDpcLevel(&AcpiPowerLock);
     }
 
-    Entry = AcpiPowerNodeList.Blink;
-
-    while (Entry != &AcpiPowerNodeList)
+    for (PowerNodeEntry = AcpiPowerNodeList.Blink; PowerNodeEntry != &AcpiPowerNodeList; )
     {
-        DPRINT1("ACPIDevicePowerProcessPhase3: FIXME\n");
-        ASSERT(FALSE);
+        PowerNode = CONTAINING_RECORD(PowerNodeEntry, ACPI_POWER_DEVICE_NODE, ListEntry);
+        PowerNodeEntry = PowerNodeEntry->Blink;
+
+        if (!(PowerNode->Flags & 2))
+            continue;
+
+        WorkDone = InterlockedCompareExchange((PLONG)&PowerNode->WorkDone, 1, 4);
+        if (WorkDone == 4)
+        {
+            DPRINT1("ACPIDevicePowerProcessPhase3: FIXME\n");
+            UNIMPLEMENTED_DBGBREAK();
+            continue;
+        }
+
+        if (WorkDone)
+            Result = TRUE;
     }
 
     KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
