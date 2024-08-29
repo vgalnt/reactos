@@ -22,6 +22,7 @@ VOID
 NTAPI
 MiInitializeDriverVerifierList(VOID)
 {
+    //FIXME
     InitializeListHead(&MiVerifierDriverAddedThunkListHead);
 }
 
@@ -58,8 +59,20 @@ NTAPI
 MmIsVerifierEnabled(
     _Out_ PULONG VerifierFlags)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    /* Check if we've actually added anything to the list */
+    if (MiVerifierDriverAddedThunkListHead.Flink)
+    {
+        UNIMPLEMENTED;
+
+        /* We have, read the verifier level */
+
+        //*VerifierFlags = MmVerifierData.Level;
+        //return STATUS_SUCCESS;
+    }
+
+    /* Otherwise, we're disabled */
+    *VerifierFlags = 0;
+    return STATUS_NOT_SUPPORTED;
 }
 
 PVOID
