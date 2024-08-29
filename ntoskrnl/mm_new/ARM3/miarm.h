@@ -1920,6 +1920,13 @@ MiInitMachineDependent(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
+/* ARM3\drvmgmt.c */
+VOID
+NTAPI
+MiInitializeDriverVerifierList(
+    VOID
+);
+
 /* ARM3\expool.c */
 INIT_FUNCTION
 VOID

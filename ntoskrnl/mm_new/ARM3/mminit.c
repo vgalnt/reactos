@@ -1610,6 +1610,8 @@ MmArmInitSystem(
         /* Initialize the working set lock */
         ExInitializePushLock(&MmSystemCacheWs.WorkingSetMutex);
 
+        MiInitializeDriverVerifierList();
+
         /* Set commit limit */
         MmTotalCommitLimit = (2 * _1GB) >> PAGE_SHIFT;
         MmTotalCommitLimitMaximum = MmTotalCommitLimit;

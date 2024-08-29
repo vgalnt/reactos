@@ -8,6 +8,7 @@
 /* GLOBALS ********************************************************************/
 
 MM_DRIVER_VERIFIER_DATA MmVerifierData;
+LIST_ENTRY MiVerifierDriverAddedThunkListHead;
 WCHAR MmVerifyDriverBuffer[512] = {0};
 ULONG MmVerifyDriverBufferLength = sizeof(MmVerifyDriverBuffer);
 ULONG MmVerifyDriverBufferType = REG_NONE;
@@ -17,6 +18,12 @@ PVOID KernelVerifier;
 
 /* FUNCTIONS ******************************************************************/
 
+VOID
+NTAPI
+MiInitializeDriverVerifierList(VOID)
+{
+    InitializeListHead(&MiVerifierDriverAddedThunkListHead);
+}
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 
