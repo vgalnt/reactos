@@ -7005,6 +7005,16 @@ ACPISetDeviceWorker(
 
 VOID
 NTAPI
+ACPIGpeUpdateCurrentEnable(
+    _In_ ULONG ix,
+    _In_ ULONG Complete)
+{
+    GpePending[ix] &= ~Complete;
+    GpeCurEnable[ix] |= (Complete & (GpeWakeEnable[ix] | GpeEnable[ix]) & ~(~GpeWakeEnable[ix] & GpeWakeHandler[ix]));
+}
+
+VOID
+NTAPI
 ACPIInterruptDispatchEventDpc(
     _In_ PKDPC Dpc,
     _In_ PVOID DeferredContext,
