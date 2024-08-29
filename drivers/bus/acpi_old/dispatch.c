@@ -7014,6 +7014,43 @@ ACPIGpeUpdateCurrentEnable(
 }
 
 VOID
+__cdecl
+ACPIInterruptEventCompletion(
+    _In_ PAMLI_NAME_SPACE_OBJECT Object,
+    _In_ NTSTATUS InStatus,
+    _In_ PAMLI_OBJECT_DATA Data,
+    _In_ PVOID InContext)
+{
+    ULONG Context = (ULONG)InContext;
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&GpeTableLock, &Irql);
+
+    if (NT_SUCCESS(InStatus))
+    {
+        AcpiGpeWorkDone = TRUE;
+
+        GpeComplete[Context & 0xFF] |= ((Context & 0xFF00) >> 8);
+
+        if (!AcpiGpeDpcRunning)
+            KeInsertQueueDpc(&AcpiGpeDpc, NULL, NULL);
+
+        goto Exit;
+    }
+
+    GpeRunMethod[Context & 0xFF] |= ((Context & 0xFF00) >> 8);
+
+    if (!AcpiGpeDpcScheduled)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+Exit:
+
+    KeReleaseSpinLock(&GpeTableLock, Irql);
+}
+
+VOID
 NTAPI
 ACPIInterruptDispatchEventDpc(
     _In_ PKDPC Dpc,
