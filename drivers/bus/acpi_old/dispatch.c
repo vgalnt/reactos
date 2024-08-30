@@ -924,6 +924,22 @@ WMIGUIDREGINFO ACPIThermalGuidList =
     &THERMAL_ZONE_GUID, 1, 0
 };
 
+UCHAR FirstSetLeftBit[] =
+{
+     0, 0,
+     1, 1,
+     2, 2, 2, 2,
+     3, 3, 3, 3, 3, 3, 3, 3,
+     4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+     5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+     6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+     6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+     7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+     7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+     7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+     7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+};
+
 extern NPAGED_LOOKASIDE_LIST BuildRequestLookAsideList;
 extern NPAGED_LOOKASIDE_LIST RequestLookAsideList;
 extern NPAGED_LOOKASIDE_LIST PswContextLookAsideList;
@@ -7058,7 +7074,144 @@ ACPIInterruptDispatchEventDpc(
     _In_ PVOID SystemArgument1,
     _In_ PVOID SystemArgument2)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    NTSTATUS Status;
+    ULONG GpeIndex;
+    ULONG GpeSize;
+    ULONG ix;
+    UCHAR gpeRunMethod[32];
+    UCHAR gpeWakeEnable[32];
+    UCHAR gpeIsLevel[32];
+    UCHAR gpeComplete[32];
+    UCHAR GpeStatus;
+    UCHAR RunMethod;
+    UCHAR Complete;
+    UCHAR GpeMask;
+    UCHAR Bit;
+    UCHAR Context[4];
+    CHAR HexDigit[] = "0123456789ABCDEF";
+    static CHAR ObjPath[11] = "\\_GPE._L00";
+
+    GpeSize = AcpiInformation->GpeSize;
+
+    KeAcquireSpinLockAtDpcLevel(&GpeTableLock);
+
+    AcpiGpeDpcScheduled = FALSE;
+
+    if (AcpiGpeDpcRunning)
+        goto Exit;
+
+    AcpiGpeDpcRunning = TRUE;
+
+    RtlZeroMemory(gpeComplete, sizeof(gpeComplete));
+
+    do
+    {
+        static int bWarnedOnce = 0;
+        if (!bWarnedOnce)
+        {
+            bWarnedOnce++;
+            DPRINT1("ACPIInterruptDispatchEventDpc: AcpiGpeDpcRunning %X\n", AcpiGpeDpcRunning);
+        }
+    } while (0);
+
+    do
+    {
+        AcpiGpeWorkDone = FALSE;
+
+        for (ix = 0; ix < GpeSize; )
+        {
+            gpeIsLevel[ix] = GpeIsLevel[ix];
+            gpeRunMethod[ix] = GpeRunMethod[ix];
+            gpeComplete[ix] |= GpeComplete[ix];
+
+            ix++;
+
+            GpeRunMethod[ix] = 0;
+            GpeComplete[ix] = 0;
+        }
+
+        RtlCopyMemory(gpeWakeEnable, GpeWakeEnable, GpeSize);
+
+        KeReleaseSpinLockFromDpcLevel(&GpeTableLock);
+
+        for (ix = 0; ix < GpeSize; ix++)
+        {
+            Complete = 0;
+
+            for (RunMethod = gpeRunMethod[ix]; RunMethod; )
+            {
+                Bit = FirstSetLeftBit[RunMethod];
+                GpeMask = (1 << Bit);
+                RunMethod &= ~GpeMask;
+                GpeIndex = ACPIGpeRegisterToGpeIndex(ix, Bit);
+
+                if (!(GpeMask & GpeHandlerType[ix]))
+                {
+                    if (GpeMask & (UCHAR)gpeWakeEnable[ix])
+                    {
+                        UNIMPLEMENTED_DBGBREAK();
+                    }
+                    else
+                    {
+                        UNIMPLEMENTED_DBGBREAK();
+                    }
+                }
+                else
+                {
+                    ObjPath[7] = (GpeMask & gpeIsLevel[ix]) != 0 ? 'L' : 'E'; // 0x4C : 0x45
+                    ObjPath[8] = HexDigit[GpeIndex >> 4];
+                    ObjPath[9] = HexDigit[GpeIndex & 0xF];
+
+                    Status = AMLIGetNameSpaceObject(ObjPath, NULL, &NsObject, 0);
+                    if (!NT_SUCCESS(Status))
+                    {
+                        DPRINT1("ACPIInterruptDispatchEventDpc: Status %X\n", Status);
+                        continue;
+                    }
+
+                    Context[0] = ix;
+                    Context[1] = GpeMask;
+                    Context[2] = gpeIsLevel[ix];
+
+                    Status = AMLIAsyncEvalObject(NsObject, NULL, 0, NULL, ACPIInterruptEventCompletion, (PVOID)Context);
+                    if (NT_SUCCESS(Status))
+                    {
+                        if (Status != 0x103)
+                            Complete |= GpeMask;
+
+                        continue;
+                    }
+
+                    DPRINT1("ACPIInterruptDispatchEventDpc: Status %X\n", Status);
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+            }
+
+            gpeComplete[ix] |= Complete;
+        }
+
+        KeAcquireSpinLockAtDpcLevel(&GpeTableLock);
+    }
+    while (AcpiGpeWorkDone);
+
+    for (ix = 0; ix < GpeSize; ix++)
+    {
+        Complete = gpeComplete[ix];
+
+        GpeStatus = (Complete & gpeIsLevel[ix]);
+        if (GpeStatus)
+            ACPIWriteGpeStatusRegister(ix, GpeStatus);
+
+        ACPIGpeUpdateCurrentEnable(ix, Complete);
+    }
+
+    AcpiGpeDpcRunning = FALSE;
+    ACPIGpeEnableDisableEvents(1);
+
+Exit:
+
+    KeReleaseSpinLockFromDpcLevel(&GpeTableLock);
 }
 
 /* HAL FUNCTIOS *************************************************************/
@@ -13153,7 +13306,7 @@ ACPIBusIrpQueryId(
     DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
     IdType = IoStack->Parameters.QueryId.IdType;
 
-    if (IdType == 0)
+    if (IdType == BusQueryDeviceID)
     {
         Status = ACPIGet(DeviceExtension, 'DIH_', 0x20080036, NULL, 0, NULL, NULL, &DataBuff, &dummy);
         if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
@@ -13172,7 +13325,7 @@ ACPIBusIrpQueryId(
         goto Finish;
     }
 
-    if (IdType == 1)
+    if (IdType == BusQueryHardwareIDs)
     {
         Status = ACPIGet(DeviceExtension, 'DIH_', 0x20080056, NULL, 0, NULL, NULL, &DataBuff, &dummy);
         if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
@@ -13191,7 +13344,7 @@ ACPIBusIrpQueryId(
         goto Finish;
     }
 
-    if (IdType == 2)
+    if (IdType == BusQueryCompatibleIDs)
     {
         Status = ACPIGet(DeviceExtension, 'DIC_', 0x20080117, NULL, 0, NULL, NULL, &DataBuff, &dummy);
         if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
@@ -13210,7 +13363,7 @@ ACPIBusIrpQueryId(
         goto Finish;
     }
 
-    if (IdType == 3)
+    if (IdType == BusQueryInstanceID)
     {
         Status = ACPIGet(DeviceExtension, 'DIU_', 0x20080096, NULL, 0, NULL, NULL, &DataBuff, &dummy);
         if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
