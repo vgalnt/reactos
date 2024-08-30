@@ -13807,8 +13807,52 @@ ACPIButtonCompletePendingIrps(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ ULONG Event)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PLIST_ENTRY Entry;
+    PIRP Irp;
+    LIST_ENTRY list;
+    KIRQL Irql;
+    BOOLEAN Result = FALSE;
+
+    DPRINT("ACPIButtonCompletePendingIrps: %X, %X", DeviceObject, Event);
+
+    InitializeListHead(&list);
+
+    KeAcquireSpinLock(&AcpiButtonLock, &Irql);
+
+    for (Entry = AcpiButtonList.Flink; Entry != &AcpiButtonList; )
+    {
+        Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
+        Entry = Entry->Flink;
+
+        if (IoGetCurrentIrpStackLocation(Irp)->DeviceObject != DeviceObject)
+            continue;
+
+        if (!IoSetCancelRoutine(Irp, NULL))
+            continue;
+
+        *(ULONG *)Irp->AssociatedIrp.SystemBuffer = Event;
+
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+        Irp->IoStatus.Information = sizeof(Event);
+
+        RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
+        InsertTailList(&list, &Irp->Tail.Overlay.ListEntry);
+    }
+
+    KeReleaseSpinLock(&AcpiButtonLock, Irql);
+
+    for (Entry = list.Flink; Entry != &list; )
+    {
+        Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
+        Entry = Entry->Flink;
+
+        RemoveEntryList(&Irp->Tail.Overlay.ListEntry);
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+        Result = TRUE;
+    }
+
+    return Result;
 }
 
 NTSTATUS
@@ -14236,7 +14280,7 @@ ACPIThermalEvent(
 
     Time = KeQueryInterruptTime();
 
-    DPRINT1("ACPIThermalEvent: (%I64X) Notify %X\n", Time, NotifyCode);
+    DPRINT("ACPIThermalEvent: (%I64X) Notify %X\n", Time, NotifyCode);
 
     if (NotifyCode == 0x80)
         Flags = 0x20000002;
@@ -14305,7 +14349,16 @@ ACPIThermalTempatureRead(
 
     Time = KeQueryInterruptTime();
 
-    DPRINT1("ACPIThermalTempatureRead: (%I64X) Current Temperature is %d.%dK\n", Time, (Info->Header.CurrentTemperature / 0xA));
+    do
+    {
+        static int bWarnedOnce = 0;
+        if (bWarnedOnce < 4)
+        {
+            bWarnedOnce++;
+            DPRINT1("ACPIThermalTempatureRead: (%I64X) Current Temperature is %d.%dK\n",
+                    Time, (Info->Header.CurrentTemperature / 0xA), (Info->Header.CurrentTemperature % 0xA));
+        }
+    } while (0);
 
 Finish:
 
