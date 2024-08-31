@@ -49,6 +49,8 @@ PCI_CONFIGURATOR PciConfigurators[] =
     }
 };
 
+extern KEVENT PciBusLock;
+
 /* FUNCTIONS ******************************************************************/
 
 BOOLEAN
@@ -2086,6 +2088,40 @@ PciGetFunctionLimits(
     ExFreePoolWithTag(PciData, 'BicP');
 
     return Status;
+}
+
+VOID
+NTAPI
+PciSetBusNumbers(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ UCHAR Primary,
+    _In_ UCHAR Secondary,
+    _In_ UCHAR Subordinate)
+{
+    UCHAR BusNumbers[3];
+
+    PAGED_CODE();
+    DPRINT("PciSetBusNumbers: %p (%X,%X,%X)\n", PdoExtension, Primary, Secondary, Subordinate);
+
+    ASSERT(Primary < Secondary || (Primary == 0 && Secondary == 0));
+    ASSERT(Secondary <= Subordinate);
+
+    BusNumbers[0] = Primary;
+    BusNumbers[1] = Secondary;
+    BusNumbers[2] = Subordinate;
+
+    KeEnterCriticalRegion();
+    KeWaitForSingleObject(&PciBusLock, Executive, KernelMode, FALSE, NULL);
+
+    PdoExtension->Dependent.type1.WeChangedBusNumbers = 1;
+    PdoExtension->Dependent.type1.PrimaryBus = Primary;
+    PdoExtension->Dependent.type1.SecondaryBus = Secondary;
+    PdoExtension->Dependent.type1.SubordinateBus = Subordinate;
+
+    PciWriteDeviceConfig(PdoExtension, BusNumbers, 0x18, 3);
+
+    KeSetEvent(&PciBusLock, IO_NO_INCREMENT, FALSE);
+    KeLeaveCriticalRegion();
 }
 
 VOID
