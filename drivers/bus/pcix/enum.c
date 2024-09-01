@@ -2138,6 +2138,67 @@ PciDisableBridge(
     PciDecodeEnable(Bridge, FALSE, NULL);
 }
 
+UCHAR
+NTAPI
+PciFindBridgeNumberLimitWorker(
+    _In_ PPCI_FDO_EXTENSION BridgeParent,
+    _In_ PPCI_FDO_EXTENSION Parent,
+    _In_ UCHAR BaseBus,
+    _Out_ BOOLEAN* OutIsConstraint)
+{
+    PPCI_PDO_EXTENSION Bridge;
+    UCHAR SecondaryBus;
+    UCHAR NumberLimit = 0;
+
+    PAGED_CODE();
+    DPRINT("PciFindBridgeNumberLimitWorker: %p, %p, %X\n", BridgeParent, Parent, BaseBus);
+
+    if (BridgeParent != Parent)
+    {
+        KeEnterCriticalRegion();
+        KeWaitForSingleObject(&Parent->ChildListLock, Executive, KernelMode, FALSE, NULL);
+    }
+
+    for (Bridge = Parent->ChildBridgePdoList; Bridge; Bridge = Bridge->NextBridge)
+    {
+        if (Bridge->NotPresent)
+        {
+            DPRINT("PciFindBridgeNumberLimitWorker: Skipping not present bridge PDOX @ %p\n", Bridge);
+        }
+        else if (PciAreBusNumbersConfigured(Bridge))
+        {
+            SecondaryBus = Bridge->Dependent.type1.SecondaryBus;
+            if (SecondaryBus > BaseBus && (SecondaryBus < NumberLimit || !NumberLimit))
+                NumberLimit = Bridge->Dependent.type1.SecondaryBus;
+        }
+    }
+
+    if (NumberLimit)
+    {
+        *OutIsConstraint = FALSE;
+    }
+    else
+    {
+        if (Parent->ParentFdoExtension)
+        {
+            NumberLimit = PciFindBridgeNumberLimitWorker(BridgeParent, Parent->ParentFdoExtension, BaseBus, OutIsConstraint);
+        }
+        else
+        {
+            *OutIsConstraint = TRUE;
+            NumberLimit = Parent->MaxSubordinateBus;
+        }
+    }
+
+    if (BridgeParent != Parent)
+    {
+        KeSetEvent(&Parent->ChildListLock, IO_NO_INCREMENT, FALSE);
+        KeLeaveCriticalRegion();
+    }
+
+    return NumberLimit;
+}
+
 VOID
 NTAPI
 PciConfigureBusNumbers(
