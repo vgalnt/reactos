@@ -2199,6 +2199,29 @@ PciFindBridgeNumberLimitWorker(
     return NumberLimit;
 }
 
+UCHAR
+NTAPI
+PciFindBridgeNumberLimit(
+    _In_ PPCI_FDO_EXTENSION Parent,
+    _In_ UCHAR BaseBus)
+{
+    UCHAR Constraint;
+    BOOLEAN IsConstraint;
+
+    PAGED_CODE();
+    DPRINT("PciFindBridgeNumberLimit: %p, %X\n", Parent, BaseBus);
+
+    Constraint = PciFindBridgeNumberLimitWorker(Parent, Parent, BaseBus, &IsConstraint);
+
+    if (!IsConstraint)
+    {
+        ASSERT(Constraint > 0);
+        Constraint--;
+    }
+
+    return Constraint;
+}
+
 VOID
 NTAPI
 PciConfigureBusNumbers(
