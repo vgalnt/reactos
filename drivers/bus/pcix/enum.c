@@ -2126,6 +2126,20 @@ PciSetBusNumbers(
 
 VOID
 NTAPI
+PciDisableBridge(
+    _In_ PPCI_PDO_EXTENSION Bridge)
+{
+    PAGED_CODE();
+    DPRINT("PciDisableBridge: %p\n", Bridge);
+
+    ASSERT(Bridge->DeviceState == PciNotStarted);
+
+    PciSetBusNumbers(Bridge, 0, 0, 0);
+    PciDecodeEnable(Bridge, FALSE, NULL);
+}
+
+VOID
+NTAPI
 PciConfigureBusNumbers(
     _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
