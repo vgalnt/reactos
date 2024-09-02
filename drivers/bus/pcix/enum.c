@@ -2224,6 +2224,33 @@ PciFindBridgeNumberLimit(
 
 VOID
 NTAPI
+PciUpdateAncestorSubordinateBuses(
+    _In_ PPCI_FDO_EXTENSION Current,
+    _In_ UCHAR Subordinate)
+{
+    PPCI_PDO_EXTENSION PdoExtension;
+
+    PAGED_CODE();
+    DPRINT("PciUpdateAncestorSubordinateBuses: %p, %X\n", Current, Subordinate);
+
+    for (; Current->ParentFdoExtension; Current = Current->ParentFdoExtension)
+    {
+        PdoExtension = Current->PhysicalDeviceObject->DeviceExtension;
+        ASSERT(!PdoExtension->NotPresent);
+
+        if (PdoExtension->Dependent.type1.SubordinateBus < Subordinate)
+        {
+            PdoExtension->Dependent.type1.SubordinateBus = Subordinate;
+            PciWriteDeviceConfig(PdoExtension, &Subordinate, 0x1A, 1);//(26)
+        }
+    }
+
+    ASSERT(PCI_IS_ROOT_FDO(Current));
+    ASSERT(Subordinate <= Current->MaxSubordinateBus);
+}
+
+VOID
+NTAPI
 PciConfigureBusNumbers(
     _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
