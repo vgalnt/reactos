@@ -2251,6 +2251,71 @@ PciUpdateAncestorSubordinateBuses(
 
 VOID
 NTAPI
+PciSpreadBridges(
+    _In_ PPCI_FDO_EXTENSION Parent,
+    _In_ UCHAR BridgeCount)
+{
+    PPCI_PDO_EXTENSION Bridge;
+    UCHAR MaxAssigned = 0;
+    UCHAR Secondary;
+    UCHAR Enlarge;
+    UCHAR Base;
+    UCHAR Limit;
+
+    PAGED_CODE();
+    DPRINT("PciSpreadBridges: %p, %X\n", Parent, BridgeCount);
+
+    ASSERT(Parent->BaseBus < 0xFF);//PCI_MAX_BRIDGE_NUMBER
+
+    Base = Parent->BaseBus;
+    Limit = PciFindBridgeNumberLimit(Parent, Base);
+
+    if (Limit < Base)
+    {
+        ASSERT(Limit >= Base);
+        return;
+    }
+
+    if (Limit == Base)
+        return;
+
+    if (BridgeCount < (Limit - Base))
+        Enlarge = ((Limit - Base) / (BridgeCount + 1));
+    else
+        Enlarge = 1;
+
+    Secondary = (Base + 1);
+
+    for (Bridge = Parent->ChildBridgePdoList; Bridge; Bridge = Bridge->NextBridge)
+    {
+        if (Bridge->NotPresent)
+        {
+            DPRINT("PciSpreadBridges: Skipping not present bridge PDOX @ %p\n", Bridge);
+            continue;
+        }
+
+        ASSERT(!PciAreBusNumbersConfigured(Bridge));
+
+        PciSetBusNumbers(Bridge, Base, Secondary, Secondary);
+
+        MaxAssigned = Secondary;
+
+        if ((Secondary + Enlarge) < Secondary)
+            break;
+
+        if ((Secondary + Enlarge) > Limit)
+            break;
+
+        Secondary += Enlarge;
+    }
+
+    ASSERT(MaxAssigned > 0);
+
+    PciUpdateAncestorSubordinateBuses(Parent, MaxAssigned);
+}
+
+VOID
+NTAPI
 PciConfigureBusNumbers(
     _In_ PPCI_FDO_EXTENSION FdoExtension)
 {
