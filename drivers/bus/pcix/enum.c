@@ -2348,8 +2348,7 @@ PciConfigureBusNumbers(
         if ((PdoExtension && PdoExtension->Dependent.type1.WeChangedBusNumbers && Bridge->DeviceState == PciNotStarted) ||
             !PciAreBusNumbersConfigured(Bridge))
         {
-            DPRINT1("PciConfigureBusNumbers: FIXME\n");
-            ASSERT(FALSE);
+            PciDisableBridge(Bridge);
         }
         else
         {
@@ -2374,8 +2373,7 @@ PciConfigureBusNumbers(
         DPRINT("PciConfigureBusNumbers: %X bridges found on bus %X - all need configuration\n",
                BridgeCount, FdoExtension->BaseBus);
 
-        DPRINT1("PciConfigureBusNumbers: FIXME\n");
-        ASSERT(FALSE);
+        PciSpreadBridges(FdoExtension, ConfiguredBridgeCount);
     }
     else
     {
