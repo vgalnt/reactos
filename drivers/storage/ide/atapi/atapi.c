@@ -13884,6 +13884,156 @@ Exit:
 
 NTSTATUS
 NTAPI
+IdeSendMiniPortIoctl(
+    _In_ PFDO_DEVICE_EXTENSION FdoExtension,
+    _In_ PIRP InIrp)
+{
+    PPDO_DEVICE_EXTENSION PdoExtension;
+    PIO_STACK_LOCATION IoStack;
+    PSRB_IO_CONTROL SrbControl;
+    PIRP Irp;
+    KEVENT Event;
+    IO_STATUS_BLOCK IoStatusBlock;
+    LARGE_INTEGER StartingOffset;
+    ATA_SCSI_ADDRESS ScsiAddress;
+    SCSI_REQUEST_BLOCK Srb;
+    ULONG OutputLength;
+    ULONG InputLength;
+    ULONG Length;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IdeSendMiniPortIoctl: %p, %X\n", FdoExtension, InIrp);
+
+    StartingOffset.QuadPart = 1;
+
+    SrbControl = InIrp->AssociatedIrp.SystemBuffer;
+    IoStack = InIrp->Tail.Overlay.CurrentStackLocation;
+    InIrp->IoStatus.Information = 0;
+
+    if (InIrp->RequestorMode != KernelMode)
+    {
+        DPRINT1("IdeSendMiniPortIoctl: STATUS_INVALID_PARAMETER\n");
+        Status = STATUS_INVALID_PARAMETER;
+        goto ErrorExit;
+    }
+
+    InputLength = IoStack->Parameters.DeviceIoControl.InputBufferLength, InputLength;
+
+    if (InputLength < sizeof(SRB_IO_CONTROL))
+    {
+        DPRINT1("IdeSendMiniPortIoctl: STATUS_INVALID_PARAMETER\n");
+        Status = STATUS_INVALID_PARAMETER;
+        goto ErrorExit;
+    }
+
+    if (SrbControl->HeaderLength != sizeof(SRB_IO_CONTROL))
+    {
+        DPRINT1("IdeSendMiniPortIoctl: STATUS_REVISION_MISMATCH\n");
+        Status = STATUS_REVISION_MISMATCH;
+        goto ErrorExit;
+    }
+
+    Length = (SrbControl->HeaderLength + SrbControl->Length);
+
+    if (Length < SrbControl->HeaderLength)
+    {
+        DPRINT1("IdeSendMiniPortIoctl: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (Length < SrbControl->Length)
+    {
+        DPRINT1("IdeSendMiniPortIoctl: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    OutputLength = IoStack->Parameters.DeviceIoControl.OutputBufferLength;
+
+    if (OutputLength < Length && InputLength < Length)
+    {
+        DPRINT1("IdeSendMiniPortIoctl: STATUS_BUFFER_TOO_SMALL\n");
+        Status = STATUS_BUFFER_TOO_SMALL;
+        goto ErrorExit;
+    }
+
+    ScsiAddress.AsULONG = 0;
+
+    while (TRUE)
+    {
+        PdoExtension = NextLogUnitExtension(FdoExtension, &ScsiAddress, FALSE, InIrp);
+        if (!PdoExtension)
+        {
+            DPRINT1("IdeSendMiniPortIoctl: STATUS_DEVICE_DOES_NOT_EXIST\n");
+            Status = STATUS_DEVICE_DOES_NOT_EXIST;
+            goto ErrorExit;
+        }
+
+        if (!(PdoExtension->PdoFlags & 0x8000))
+            break;
+
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, InIrp);
+    }
+
+    KeInitializeEvent(&Event, IO_NO_INCREMENT, FALSE);
+
+    Irp = IoBuildSynchronousFsdRequest(IRP_MJ_SCSI,
+                                       PdoExtension->SelfDevice,
+                                       SrbControl,
+                                       Length,
+                                       &StartingOffset,
+                                       &Event,
+                                       &IoStatusBlock);
+    if (!Irp)
+    {
+        DPRINT1("IdeSendMiniPortIoctl: IoBuildSynchronousFsdRequest() failed\n");
+        ASSERT(FALSE);
+        UnrefLogicalUnitExtension(FdoExtension, PdoExtension, InIrp);
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto ErrorExit;
+    }
+
+    RtlZeroMemory(&Srb, sizeof(Srb));
+
+    Srb.PathId = PdoExtension->PathId;
+    Srb.TargetId = PdoExtension->TargetId;
+    Srb.Lun = PdoExtension->Lun;
+
+    Srb.Function = SRB_FUNCTION_IO_CONTROL;
+    Srb.Length = sizeof(Srb);
+    Srb.SrbFlags = 0x140;
+    Srb.OriginalRequest = Irp;
+    Srb.DataBuffer = SrbControl;
+    Srb.TimeOutValue = SrbControl->Timeout;
+    Srb.DataTransferLength = Length;
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MajorFunction = IRP_MJ_SCSI;
+    IoStack->Parameters.Scsi.Srb = &Srb;
+
+    IoCallDriver(PdoExtension->SelfDevice, Irp);
+
+    KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+    if (Srb.DataTransferLength > OutputLength)
+        InIrp->IoStatus.Information = OutputLength;
+    else
+        InIrp->IoStatus.Information = Srb.DataTransferLength;
+
+    InIrp->IoStatus.Status = IoStatusBlock.Status;
+
+    UnrefLogicalUnitExtension(FdoExtension, PdoExtension, InIrp);
+
+    return InIrp->IoStatus.Status;
+
+ErrorExit:
+
+    InIrp->IoStatus.Status = Status;
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 IdePortDeviceControl(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
@@ -13940,8 +14090,7 @@ IdePortDeviceControl(
     }
     else if (IoStack->Parameters.DeviceIoControl.IoControlCode == IOCTL_SCSI_MINIPORT)
     {
-        DPRINT1("IdePortDeviceControl: FIXME\n");
-        ASSERT(FALSE);
+        Status = IdeSendMiniPortIoctl(FdoExtension, Irp);
     }
     else if (IoStack->Parameters.DeviceIoControl.IoControlCode == IOCTL_SCSI_PASS_THROUGH_DIRECT)
     {
