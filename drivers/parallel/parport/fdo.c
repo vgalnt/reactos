@@ -505,9 +505,9 @@ NTAPI
 FdoPnp(IN PDEVICE_OBJECT DeviceObject,
        IN PIRP Irp)
 {
-    ULONG MinorFunction;
     PIO_STACK_LOCATION Stack;
     ULONG_PTR Information = 0;
+    UCHAR MinorFunction;
     NTSTATUS Status;
 
     DPRINT("FdoPnp()\n");
@@ -557,6 +557,36 @@ FdoPnp(IN PDEVICE_OBJECT DeviceObject,
             }
             break;
 
+        case IRP_MN_QUERY_REMOVE_DEVICE: /* 0x1 */
+            DPRINT1("FdoPnp: IRP_MN_QUERY_REMOVE_DEVICE\n");
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_REMOVE_DEVICE: /* 0x2 */
+            DPRINT1("FdoPnp: IRP_MN_REMOVE_DEVICE\n");
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_CANCEL_REMOVE_DEVICE: /* 0x3 */
+            DPRINT1("FdoPnp: IRP_MN_CANCEL_REMOVE_DEVICE\n");
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_STOP_DEVICE: /* 0x4 */
+            DPRINT1("FdoPnp: IRP_MN_STOP_DEVICE\n");
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_QUERY_STOP_DEVICE: /* 0x5 */
+            DPRINT1("FdoPnp: IRP_MN_QUERY_STOP_DEVICE\n");
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_CANCEL_STOP_DEVICE: /* 0x6 */
+            DPRINT1("FdoPnp: IRP_MN_CANCEL_STOP_DEVICE\n");
+            UNIMPLEMENTED;
+            break;
+
         case IRP_MN_QUERY_DEVICE_RELATIONS: /* (optional) 0x7 */
             switch (Stack->Parameters.QueryDeviceRelations.Type)
             {
@@ -582,6 +612,11 @@ FdoPnp(IN PDEVICE_OBJECT DeviceObject,
             DPRINT("IRP_MJ_PNP / IRP_MN_FILTER_RESOURCE_REQUIREMENTS\n");
             return ForwardIrpAndForget(DeviceObject, Irp);
 
+        case IRP_MN_SURPRISE_REMOVAL: /* 0x17 */
+            DPRINT1("FdoPnp: IRP_MN_SURPRISE_REMOVAL\n");
+            UNIMPLEMENTED;
+            break;
+
         default:
             DPRINT("Unknown minor function 0x%x\n", MinorFunction);
             return ForwardIrpAndForget(DeviceObject, Irp);
@@ -593,7 +628,6 @@ FdoPnp(IN PDEVICE_OBJECT DeviceObject,
 
     return Status;
 }
-
 
 NTSTATUS
 NTAPI

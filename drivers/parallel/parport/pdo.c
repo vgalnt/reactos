@@ -161,14 +161,84 @@ NTAPI
 PdoPnp(IN PDEVICE_OBJECT DeviceObject,
        IN PIRP Irp)
 {
+    PIO_STACK_LOCATION Stack;
+    UCHAR MinorFunction;
     NTSTATUS Status;
-    DPRINT("PdoPnp()\n");
+
+    DPRINT("PdoPnp()\n");Status = Irp->IoStatus.Status;
+
+    Stack = IoGetCurrentIrpStackLocation(Irp);
+    MinorFunction = Stack->MinorFunction;
+
+    switch (MinorFunction)
+    {
+        case IRP_MN_START_DEVICE: // 0x00 PptPdoStartDevice
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_QUERY_REMOVE_DEVICE: // 0x01 PptPdoQueryRemove
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_REMOVE_DEVICE: // 0x02 PptPdoRemoveDevice
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_CANCEL_REMOVE_DEVICE: // 0x03 PptPdoCancelRemove
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_STOP_DEVICE: // 0x04 PptPdoStopDevice
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_QUERY_STOP_DEVICE: // 0x05 PptPdoQueryStop
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_CANCEL_STOP_DEVICE: // 0x06 PptPdoCancelStop
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_QUERY_DEVICE_RELATIONS: // 0x07 PptPdoQueryDeviceRelations
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_QUERY_CAPABILITIES: // 0x09 PptPdoQueryCapabilities
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_QUERY_DEVICE_TEXT: // 0x0C PptPdoQueryDeviceText
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_QUERY_ID: // 0x13 PptPdoQueryId
+            UNIMPLEMENTED;Status = STATUS_INSUFFICIENT_RESOURCES;
+            //break;
+            IoCompleteRequest(Irp, IO_NO_INCREMENT);
+            return Status;
+
+        case IRP_MN_QUERY_PNP_DEVICE_STATE: //  PptPdoQueryPnpDeviceState
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_QUERY_BUS_INFORMATION: //  PptPdoQueryBusInformation
+            UNIMPLEMENTED;
+            break;
+
+        case IRP_MN_SURPRISE_REMOVAL: // 0x17 PptPdoSurpriseRemoval
+            UNIMPLEMENTED;
+            break;
+
+        default:
+            UNIMPLEMENTED;
+            break;
+    }
 
     Status = Irp->IoStatus.Status;
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return Status;
 }
-
 
 NTSTATUS
 NTAPI
