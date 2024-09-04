@@ -329,12 +329,21 @@ NTAPI
 IopDmaPackResource(
     _In_ PIO_RESOURCE_DESCRIPTOR IoDescriptor,
     _In_ ULONGLONG Start,
-    _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor)
+    _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR OutCmDescriptor)
 {
-    PAGED_CODE();
+    ASSERT(OutCmDescriptor);
+    ASSERT(Start < ((ULONG)-1));
+    ASSERT(IoDescriptor);
+    ASSERT(IoDescriptor->Type == CmResourceTypeDma);
 
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    OutCmDescriptor->Type = 4;
+    OutCmDescriptor->ShareDisposition = IoDescriptor->ShareDisposition;
+    OutCmDescriptor->Flags = IoDescriptor->Flags;
+
+    OutCmDescriptor->u.Dma.Port = 0;
+    OutCmDescriptor->u.Dma.Channel = Start;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
