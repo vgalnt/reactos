@@ -51,7 +51,7 @@ AreDriversLoaded(
     Status = NtPlugPlayControl(PlugPlayControlDeviceStatus, &PlugPlayData, sizeof(PlugPlayData));
     if (NT_SUCCESS(Status))
     {
-        return (_Bool)((PlugPlayData.DeviceStatus & DN_DRIVER_LOADED) &&
+        return (BOOLEAN)((PlugPlayData.DeviceStatus & DN_DRIVER_LOADED) &&
                        !(PlugPlayData.DeviceStatus & DN_HAS_PROBLEM));
     }
     else
