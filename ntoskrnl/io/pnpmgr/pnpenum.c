@@ -173,9 +173,7 @@ ErrorExit:
 
     if (Status == STATUS_PNP_INVALID_ID)
     {
-        DPRINT("PpIrpQueryID: Invalid ID. ServiceName - %wZ\n",
-               &DeviceNode->Parent->ServiceName);
-
+        DPRINT1("PpIrpQueryID: Invalid ID. ServiceName - %wZ\n", &DeviceNode->Parent->ServiceName);
         ASSERT(Status != STATUS_PNP_INVALID_ID);
     }
     else
@@ -192,9 +190,8 @@ ErrorExit:
             return Status;
         }
 
-        DPRINT("PpIrpQueryID: FIXME Log\n");
-        DPRINT("PpIrpQueryID: ServiceName - %wZ, Status - %X\n",
-               &DeviceNode->Parent->ServiceName, Status);
+        DPRINT1("PpIrpQueryID: FIXME Log\n");
+        DPRINT1("PpIrpQueryID: '%wZ' (%X)\n", &DeviceNode->Parent->ServiceName, Status);
 
         ASSERT(IdType != BusQueryDeviceID);
     }
