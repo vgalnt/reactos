@@ -125,7 +125,6 @@ IopFilterResourceRequirementsList(
     ULONG IoAlignment;
     ULONG IoAltListsCount;
     ULONG CmDescCount = 0;
-    ULONG IoDescCount;
     ULONG NewIoDescCount = 0;
     ULONG DataSize;
     ULONG ListSise;
@@ -140,8 +139,7 @@ IopFilterResourceRequirementsList(
     BOOLEAN IsNoFiltered;
 
     PAGED_CODE();
-    DPRINT("IopFilterResourceRequirementsList: InIoResources - %p, CmResources - %p\n",
-           InIoResources, CmResources);
+    DPRINT("IopFilterResourceRequirementsList: %p, %p\n", InIoResources, CmResources);
 
     *OutIoResources = NULL;
     *OutIsNoFiltered = FALSE;
@@ -150,9 +148,7 @@ IopFilterResourceRequirementsList(
     {
         if (CmResources && CmResources->Count)
         {
-            *OutIoResources = IopCmResourcesToIoResources(0,
-                                                          CmResources,
-                                                          LCPRI_BOOTCONFIG);
+            *OutIoResources = IopCmResourcesToIoResources(0, CmResources, LCPRI_BOOTCONFIG);
         }
         else
         {
@@ -162,9 +158,7 @@ IopFilterResourceRequirementsList(
         return STATUS_SUCCESS;
     }
 
-    IoResources = ExAllocatePoolWithTag(PagedPool,
-                                        InIoResources->ListSize,
-                                        'uspP');
+    IoResources = ExAllocatePoolWithTag(PagedPool, InIoResources->ListSize, 'uspP');
     if (!IoResources)
     {
         ASSERT(FALSE);
@@ -190,12 +184,13 @@ IopFilterResourceRequirementsList(
 
         for (jx = 0; jx < CmFullList->PartialResourceList.Count; jx++)
         {
-            if (CmDescriptor->Type == CmResourceTypeNull ||
+            if (CmDescriptor->Type == CmResourceTypeConfigData ||
+                CmDescriptor->Type == CmResourceTypeConfigData ||
+                CmDescriptor->Type == CmResourceTypeDeviceSpecific ||
+                CmDescriptor->Type == CmResourceTypeNull ||
                 CmDescriptor->Type >= CmResourceTypeMaximum)
             {
-                DPRINT("IopFilterResourceRequirementsList: CmDescriptor->Type - %X\n",
-                       CmDescriptor->Type);
-
+                DPRINT("IopFilterResourceRequirementsList: X\n", CmDescriptor->Type);
                 CmDescCount--;
             }
 
@@ -216,10 +211,7 @@ IopFilterResourceRequirementsList(
     for (ix = 0; ix < IoResources->AlternativeLists; ix++)
     {
         for (jx = 0; jx < IoList->Count; jx++)
-        {
-            IoDescriptor = &IoList->Descriptors[jx];
-            IoDescriptor->Spare1 = 0;
-        }
+            IoList->Descriptors[jx].Spare1 = 0;
 
         IoList = (PIO_RESOURCE_LIST)(IoList->Descriptors + IoList->Count);
     }
@@ -227,26 +219,20 @@ IopFilterResourceRequirementsList(
     IoList = &IoResources->List[0];
     IoAltListsCount = IoResources->AlternativeLists;
 
-    for (ix = 0; ix < IoResources->AlternativeLists; ix++)
+    for (ix = 0; ix < IoAltListsCount; ix++)
     {
-        DPRINT("IopFilterResourceRequirementsList: ix- %X, IoAltListsCount - %X\n",
-               ix, IoAltListsCount);
+        DPRINT("IopFilterResourceRequirementsList: [%X] IoAltListsCount %X\n", ix, IoAltListsCount);
 
-        if (IoList->Version == -1)
-        {
+        if (IoList->Version == 0xFFFF)
             Version = 1;
-        }
         else
-        {
             Version = IoList->Version;
-        }
 
-        IoDescCount = IoList->Count;
-        IoDescriptorsEnd = &IoList->Descriptors[IoDescCount];
+        IoDescriptorsEnd = &IoList->Descriptors[IoList->Count];
 
         if (IoList->Descriptors == IoDescriptorsEnd)
         {
-            IoList->Version = -1;
+            IoList->Version = 0xFFFF;
             IoResources->AlternativeLists--;
             continue;
         }
@@ -274,7 +260,8 @@ IopFilterResourceRequirementsList(
                     DataSize = 0;
                 }
 
-                if (CmDescriptor->Type == CmResourceTypeNull ||
+                if (CmDescriptor->Type == CmResourceTypeDevicePrivate ||
+                    CmDescriptor->Type == CmResourceTypeNull ||
                     CmDescriptor->Type >= CmResourceTypeMaximum)
                 {
                     goto NextCmDescriptor;
@@ -321,8 +308,7 @@ IopFilterResourceRequirementsList(
                                 case CmResourceTypeMemory:
                                 {
                                     CmMinimumValue = CmDescriptor->u.Generic.Start.QuadPart;
-                                    CmMaximumValue = CmDescriptor->u.Generic.Start.QuadPart +
-                                                     CmDescriptor->u.Generic.Length - 1;
+                                    CmMaximumValue = CmDescriptor->u.Generic.Start.QuadPart + CmDescriptor->u.Generic.Length - 1;
                                     CmLength = CmDescriptor->u.Generic.Length;
 
                                     IoMinimumValue = IoDescriptor->u.Generic.MinimumAddress.QuadPart;
@@ -355,8 +341,7 @@ IopFilterResourceRequirementsList(
                                 case CmResourceTypeBusNumber:
                                 {
                                     CmMinimumValue = CmDescriptor->u.BusNumber.Start;
-                                    CmMaximumValue = CmMinimumValue +
-                                                     CmDescriptor->u.BusNumber.Length - 1;
+                                    CmMaximumValue = CmMinimumValue + CmDescriptor->u.BusNumber.Length - 1;
                                     CmLength = CmDescriptor->u.BusNumber.Length;
 
                                     IoMinimumValue = IoDescriptor->u.BusNumber.MinBusNumber;
@@ -518,7 +503,6 @@ IopFilterResourceRequirementsList(
                                     IoList->Count--;
                                 }
 
-                                mx = 1;
                                 break;
                             }
                         }
@@ -527,9 +511,7 @@ IopFilterResourceRequirementsList(
 
 NextCmDescriptor:
                 /* Next Cm partial descriptor */
-                CmDescriptor = (PCM_PARTIAL_RESOURCE_DESCRIPTOR)
-                               ((ULONG_PTR)CmDescriptor +
-                               sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR) + DataSize);
+                CmDescriptor = Add2Ptr(CmDescriptor, (sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR) + DataSize));
             }
 
             /* Next Cm full descriptor */
@@ -555,7 +537,7 @@ NextCmDescriptor:
                 }
                 else
                 {
-                    IoList->Version = -1;
+                    IoList->Version = 0xFFFF;
                     IoResources->AlternativeLists--;
                 }
 
@@ -568,11 +550,9 @@ NextCmDescriptor:
         }
         else
         {
-            IoList->Version = -1;
+            IoList->Version = 0xFFFF;
             IoResources->AlternativeLists--;
         }
-
-        IoList->Count = IoDescCount;
 
         /* Next Alternative list */
         IoList = (PIO_RESOURCE_LIST)IoDescriptorsEnd;
@@ -580,9 +560,7 @@ NextCmDescriptor:
 
     if (!IoResources->AlternativeLists)
     {
-        *OutIoResources = IopCmResourcesToIoResources(0,
-                                                      CmResources,
-                                                      LCPRI_BOOTCONFIG);
+        *OutIoResources = IopCmResourcesToIoResources(0, CmResources, LCPRI_BOOTCONFIG);
         Status = STATUS_SUCCESS;
         goto Exit;
     }
@@ -592,9 +570,9 @@ NextCmDescriptor:
                NewIoDescCount * sizeof(IO_RESOURCE_DESCRIPTOR);
 
     NewIoResources = ExAllocatePoolWithTag(PagedPool, ListSise, 'uspP');
-
     if (!NewIoResources)
     {
+        DPRINT1("IopFilterResourceRequirementsList: STATUS_INSUFFICIENT_RESOURCES\n");
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
     }
@@ -606,9 +584,7 @@ NextCmDescriptor:
     NewIoResources->SlotNumber = IoResources->SlotNumber;
 
     if (IoResources->AlternativeLists > 1)
-    {
         *OutIsNoFiltered = FALSE;
-    }
 
     NewIoResources->AlternativeLists = IoResources->AlternativeLists;
 
@@ -620,7 +596,7 @@ NextCmDescriptor:
         IoDescriptor = IoList->Descriptors;
         IoDescriptorsEnd = &IoList->Descriptors[IoList->Count];
 
-        if (IoList->Version != -1)
+        if (IoList->Version != 0xFFFF)
         {
             PIO_RESOURCE_DESCRIPTOR newIoDescriptor;
             PIO_RESOURCE_DESCRIPTOR newConfigIoDescriptor;
@@ -655,10 +631,7 @@ NextCmDescriptor:
             {
                 if (IoDescriptor->Type)
                 {
-                    RtlCopyMemory(newIoDescriptor,
-                                  IoDescriptor,
-                                  sizeof(IO_RESOURCE_DESCRIPTOR));
-
+                    RtlCopyMemory(newIoDescriptor, IoDescriptor, sizeof(IO_RESOURCE_DESCRIPTOR));
                     newIoDescriptor++;
                 }
             }
@@ -673,8 +646,13 @@ NextCmDescriptor:
         IoList = (PIO_RESOURCE_LIST)IoDescriptorsEnd;
     }
 
-    ASSERT((ULONG_PTR)NewIoList == (ULONG_PTR)NewIoResources +
-                                              NewIoResources->ListSize);
+    if ((ULONG_PTR)NewIoList != (ULONG_PTR)NewIoResources + NewIoResources->ListSize)
+    {
+        DPRINT1("IopFilterResourceRequirementsList: %p, %p, %p, %p, %X\n",
+                InIoResources, CmResources, NewIoList, NewIoResources, NewIoResources->ListSize);
+
+        ASSERT((ULONG_PTR)NewIoList == (ULONG_PTR)NewIoResources + NewIoResources->ListSize);
+    }
 
     *OutIoResources = NewIoResources;
     Status = STATUS_SUCCESS;
@@ -5301,7 +5279,7 @@ IopProcessAssignResources(
 
         IsRetry = FALSE;
 
-        AssignContextSize = sizeof(PNP_RESOURCE_REQUEST) + (IopNumberDeviceNodes * sizeof(PDEVICE_OBJECT));
+        AssignContextSize = sizeof(PIP_ASSIGN_RESOURCES_CONTEXT) + (IopNumberDeviceNodes * sizeof(PDEVICE_OBJECT));
 
         AssignContext = ExAllocatePoolWithTag(PagedPool, AssignContextSize, 'ddpP');
         if (!AssignContext)
@@ -5326,7 +5304,7 @@ IopProcessAssignResources(
             break;
         }
 
-        DPRINT("IopProcessAssignResources: DeviceCount %x\n", DeviceCount);
+        DPRINT("IopProcessAssignResources: IopNumberDeviceNodes %X, DeviceCount %X\n", IopNumberDeviceNodes, DeviceCount);
 
         ResRequest = ExAllocatePoolWithTag(PagedPool, (DeviceCount * sizeof(PNP_RESOURCE_REQUEST)), 'ddpP');
         if (!ResRequest)
