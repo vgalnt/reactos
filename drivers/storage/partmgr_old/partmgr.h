@@ -48,6 +48,7 @@ typedef struct _PM_DEVICE_EXTENSION
     UNICODE_STRING NameString;
     WCHAR NameBuffer[64];
     BOOLEAN IsDeviceIdRequested;
+    IO_REMOVE_LOCK RemoveLock;
 } PM_DEVICE_EXTENSION, *PPM_DEVICE_EXTENSION;
 
 typedef struct _PM_SIGNATURE

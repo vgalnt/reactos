@@ -155,6 +155,8 @@ PmAddDevice(
 
     PartitionFido->Flags &= ~DO_DEVICE_INITIALIZING;
 
+    IoInitializeRemoveLock(&Extension->RemoveLock, 'rRcS', 2, 5); 
+
     DPRINT("PmAddDevice: STATUS_SUCCESS\n");
 
     return STATUS_SUCCESS;
@@ -1359,12 +1361,64 @@ PmDeviceControl(
 
 NTSTATUS
 NTAPI
+PmPowerCompletion(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    DPRINT1("PmPowerCompletion: %p, %p, %p\n", DeviceObject, Irp, Context);
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 PmPower(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPM_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    DPRINT1("PmPower: %p, %p\n", DeviceObject, Irp);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Extension = DeviceObject->DeviceExtension;
+
+    Status = IoAcquireRemoveLock(&Extension->RemoveLock, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PmPower: Status %X\n", Status);
+
+        PoStartNextPowerIrp(Irp);
+
+        Irp->IoStatus.Information = 0;
+        Irp->IoStatus.Status = Status;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+
+        return Status;
+    }
+
+    if (IoStack->MinorFunction == 2 && IoStack->Parameters.Power.Type == 1)
+    {
+        IoCopyCurrentIrpStackLocationToNext(Irp);
+        IoSetCompletionRoutine(Irp, PmPowerCompletion, NULL, TRUE, TRUE, TRUE);
+        IoMarkIrpPending(Irp);
+
+        PoCallDriver(Extension->AttachedToDevice, Irp);
+
+        return STATUS_PENDING;
+    }
+
+    PoStartNextPowerIrp(Irp);
+    IoSkipCurrentIrpStackLocation(Irp);
+
+    Status = PoCallDriver(Extension->AttachedToDevice, Irp);
+
+    IoReleaseRemoveLock(&Extension->RemoveLock, NULL);
+
+    return Status;
 }
 
 NTSTATUS
