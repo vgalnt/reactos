@@ -3080,8 +3080,8 @@ USBH_HubQueuePortIdleIrps(IN PUSBHUB_FDO_EXTENSION HubExtension,
 
             if (IdleIrp && IoSetCancelRoutine(IdleIrp, NULL))
             {
-                DPRINT1("USBH_HubQueuePortIdleIrps: IdleIrp != NULL. FIXME\n");
-                DbgBreakPoint();
+                PortExtension->PortPdoFlags &= ~0x40;
+                InsertTailList(IdleList, &IdleIrp->Tail.Overlay.ListEntry);
             }
         }
     }
