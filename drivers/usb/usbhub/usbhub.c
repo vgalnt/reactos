@@ -1876,6 +1876,9 @@ USBH_ProcessPortStateChange(IN PUSBHUB_FDO_EXTENSION HubExtension,
     PUSBHUB_PORT_PDO_EXTENSION PortExtension;
     PVOID SerialNumber;
     PVOID DeviceHandle;
+    PRKEVENT Event;
+    PIRP WakeIrp = NULL;
+    PIRP Irp;
     USHORT RequestValue;
     KIRQL Irql;
 
@@ -1957,8 +1960,53 @@ USBH_ProcessPortStateChange(IN PUSBHUB_FDO_EXTENSION HubExtension,
     }
     else if (PortStatusChange.SuspendChange)
     {
-        DPRINT1("USBH_ProcessPortStateChange: SuspendChange UNIMPLEMENTED. FIXME\n");
-        DbgBreakPoint();
+        PortData->PortStatus.AsUlong32 = PortStatus->AsUlong32;
+
+        USBH_SyncClearPortStatus(HubExtension, Port, USBHUB_FEATURE_C_PORT_SUSPEND);
+
+        Event = InterlockedExchangePointer((PVOID)&HubExtension->pResetPortEvent, NULL);
+        if (Event)
+            KeSetEvent(Event, EVENT_INCREMENT, FALSE);
+
+        PortDevice = HubExtension->PortData[Port - 1].DeviceObject;
+        if (!PortDevice)
+            return;
+
+        PortExtension = PortDevice->DeviceExtension;
+        if (!PortExtension)
+            return;
+
+        if (!PortExtension->IdleNotificationIrp)
+            return;
+
+        IoAcquireCancelSpinLock(&Irql);
+
+        if (!PortExtension->PdoWaitWakeIrp)
+        {
+            IoReleaseCancelSpinLock(Irql);
+            return;
+        }
+
+        Irp = PortExtension->PdoWaitWakeIrp;
+        PortExtension->PdoWaitWakeIrp = NULL;
+
+        IoSetCancelRoutine(Irp, NULL);
+
+        PortExtension->PortPdoFlags &= ~0x20;
+
+        if (!InterlockedDecrement(&HubExtension->WaitWakeCouter))
+        {
+            WakeIrp = HubExtension->PendingWakeIrp;
+            if (WakeIrp)
+                HubExtension->PendingWakeIrp = NULL;
+        }
+
+        IoReleaseCancelSpinLock(Irql);
+
+        if (WakeIrp)
+            USBH_HubCancelWakeIrp(HubExtension, WakeIrp);
+
+        USBH_CompletePowerIrp(HubExtension, Irp, STATUS_SUCCESS);
     }
     else if (PortStatusChange.OverCurrentIndicatorChange)
     {
