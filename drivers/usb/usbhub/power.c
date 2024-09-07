@@ -207,12 +207,17 @@ USBH_HubCompleteQueuedPortWakeIrps(IN PUSBHUB_FDO_EXTENSION HubExtension,
                                    IN PLIST_ENTRY ListIrps,
                                    IN NTSTATUS NtStatus)
 {
-    DPRINT("USBH_HubCompleteQueuedPortWakeIrps ... \n");
+    PLIST_ENTRY Entry;
+    PIRP Irp;
+
+    DPRINT("USBH_HubCompleteQueuedPortWakeIrps: %p\n", HubExtension);
 
     while (!IsListEmpty(ListIrps))
     {
-        DPRINT1("USBH_HubCompleteQueuedPortWakeIrps: UNIMPLEMENTED. FIXME\n");
-        DbgBreakPoint();
+        Entry = RemoveHeadList(ListIrps);
+        Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.ListEntry);
+
+        USBH_CompletePowerIrp(HubExtension, Irp, NtStatus);
     }
 }
 
