@@ -982,6 +982,105 @@ USBH_SetPowerD1orD2(IN PIRP Irp,
     return Status;
 }
 
+VOID
+NTAPI
+USBH_CompletePortIdleNotification(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+USBH_SyncResumePort(IN PUSBHUB_FDO_EXTENSION HubExtension,
+                    IN USHORT Port)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+USBH_SetPowerD0(IN PIRP Irp,
+                IN PUSBHUB_PORT_PDO_EXTENSION PortExtension)
+{
+    PUSBHUB_FDO_EXTENSION HubExtension;
+    PIO_STACK_LOCATION IoStack;
+    USB_PORT_STATUS_AND_CHANGE PortStatus;
+    DEVICE_POWER_STATE DeviceState;
+    USHORT Port;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    HubExtension = PortExtension->HubExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Port = PortExtension->PortNumber;
+
+    DPRINT1("USBH_SetPowerD0: %p, %p, %X, %X\n",
+            PortExtension, Irp, IoStack->Parameters.Power.Type, IoStack->Parameters.Power.State.DeviceState);
+
+    if (HubExtension->CurrentPowerState.DeviceState != PowerDeviceD0 &&
+        (HubExtension->HubFlags & 0x21))
+    {
+        USBH_HubSetD0(HubExtension);
+    }
+
+    DeviceState = PortExtension->CurrentPowerState.DeviceState;
+    if (DeviceState == PowerDeviceD3)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (DeviceState != PowerDeviceD2 && DeviceState != PowerDeviceD1)
+        goto Finish;
+
+    Status = USBH_SyncGetPortStatus(HubExtension, Port, &PortStatus, 4);
+
+    if (NT_SUCCESS(Status))
+    {
+        if (PortStatus.AsUlong32 & 8)
+        {
+            DPRINT1("USBH_SetPowerD0: STATUS_UNSUCCESSFUL\n");
+            Status = STATUS_UNSUCCESSFUL;
+        }
+        else if (PortStatus.AsUlong32 & 4)
+        {
+            DPRINT1("USBH_SetPowerD0: Status %X\n", Status);
+            Status = USBH_SyncResumePort(HubExtension, Port);
+        }
+        else
+        {
+            DPRINT1("USBH_SetPowerD0: STATUS_SUCCESS\n");
+            Status = STATUS_SUCCESS;
+        }
+    }
+
+    PortExtension->CurrentPowerState.DeviceState = IoStack->Parameters.Power.State.DeviceState;
+
+    USBH_CompletePortIdleNotification(PortExtension);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("USBH_SetPowerD0: STATUS_SUCCESS\n");
+        Status = STATUS_SUCCESS;
+        goto Finish;
+    }
+
+    if (PortExtension->PortPdoFlags & 0x01000000)
+    {
+        DPRINT1("USBH_SetPowerD0: Status %X\n", Status);
+        USBH_SyncFeatureRequest(PortExtension->Common.SelfDevice, 1, 0, 0, TRUE);
+        PortExtension->PortPdoFlags &= ~0x01000000;
+    }
+
+Finish:
+
+    PortExtension->CurrentPowerState = IoStack->Parameters.Power.State;
+    InterlockedDecrement(&PortExtension->PendingDevicePoRequest);
+
+    USBH_CompletePowerIrp(HubExtension, Irp, Status);
+
+    return Status;
+}
+
 NTSTATUS
 NTAPI
 USBH_PdoSetPower(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
@@ -1021,14 +1120,12 @@ USBH_PdoSetPower(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
     }
 
     if (DeviceState == PowerDeviceD0)
-    {
-        UNIMPLEMENTED_DBGBREAK();
-    }
-    else if (DeviceState == PowerDeviceD1 || DeviceState == PowerDeviceD2)
-    {
+        return USBH_SetPowerD0(Irp, PortExtension);
+
+    if (DeviceState == PowerDeviceD1 || DeviceState == PowerDeviceD2)
         return USBH_SetPowerD1orD2(Irp, PortExtension);
-    }
-    else if (DeviceState == PowerDeviceD3)
+
+    if (DeviceState == PowerDeviceD3)
     {
         UNIMPLEMENTED_DBGBREAK();
     }
