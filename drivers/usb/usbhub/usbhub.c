@@ -3110,12 +3110,16 @@ USBH_HubCompleteQueuedPortIdleIrps(IN PUSBHUB_FDO_EXTENSION HubExtension,
                                    IN PLIST_ENTRY IdleList,
                                    IN NTSTATUS NtStatus)
 {
+    PIRP IdleIrp;
+
     DPRINT("USBH_HubCompleteQueuedPortIdleIrps ... \n");
 
     while (!IsListEmpty(IdleList))
     {
-        DPRINT1("USBH_HubCompleteQueuedPortIdleIrps: IdleList not Empty. FIXME\n");
-        DbgBreakPoint();
+        IdleIrp = CONTAINING_RECORD(RemoveHeadList(IdleList), IRP, Tail.Overlay.ListEntry);
+        IdleIrp->IoStatus.Status = NtStatus;
+
+        IoCompleteRequest(IdleIrp, 0);
     }
 }
 
