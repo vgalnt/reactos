@@ -986,7 +986,30 @@ VOID
 NTAPI
 USBH_CompletePortIdleNotification(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PIRP IdleNotificationIrp = NULL;
+    KIRQL Irql;
+
+    DPRINT1("USBH_CompletePortIdleNotification: %p\n", PortExtension);
+
+    IoAcquireCancelSpinLock(&Irql);
+
+    IdleNotificationIrp = PortExtension->IdleNotificationIrp;
+    if (IdleNotificationIrp)
+    {
+        if (IoSetCancelRoutine(IdleNotificationIrp, NULL))
+        {
+            PortExtension->IdleNotificationIrp = NULL;
+            PortExtension->PortPdoFlags &= ~0x40;
+        }
+    }
+
+    IoReleaseCancelSpinLock(Irql);
+
+    if (IdleNotificationIrp)
+    {
+        IdleNotificationIrp->IoStatus.Status = STATUS_SUCCESS;
+        IoCompleteRequest(IdleNotificationIrp, 0);
+    }
 }
 
 NTSTATUS
