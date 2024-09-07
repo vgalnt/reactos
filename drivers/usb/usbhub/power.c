@@ -994,8 +994,50 @@ NTAPI
 USBH_SyncResumePort(IN PUSBHUB_FDO_EXTENSION HubExtension,
                     IN USHORT Port)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    BM_REQUEST_TYPE RequestType;
+    LARGE_INTEGER Timeout;
+    KEVENT Event;
+    NTSTATUS Status;
+
+    DPRINT1("USBH_SyncResumePort: %p, %X\n", HubExtension, Port);
+
+    InterlockedIncrement(&HubExtension->PendingRequestCount);
+
+    KeWaitForSingleObject(&HubExtension->HubPortSemaphore, Executive, KernelMode, FALSE, NULL);
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    InterlockedExchangePointer((PVOID)&HubExtension->pResetPortEvent, &Event);
+
+    RequestType.B = 0x23;
+    Status = USBH_Transact(HubExtension, NULL, 0, TRUE, 0x1F, RequestType, 1, 2, Port);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("USBH_SyncResumePort: Status %X\n", Status);
+        InterlockedExchangePointer((PVOID)&HubExtension->pResetPortEvent, NULL);
+    }
+    else
+    {
+        NTSTATUS status;
+
+        Timeout.QuadPart = (-10000 * 5000);
+
+        status = KeWaitForSingleObject(&Event, Suspended, KernelMode, FALSE, &Timeout);
+        if (status == STATUS_TIMEOUT)
+        {
+            InterlockedExchangePointer((PVOID)&HubExtension->pResetPortEvent, NULL);
+            Status = STATUS_DEVICE_DATA_ERROR;
+        }
+    }
+
+    USBH_Wait(0xA);
+
+    KeReleaseSemaphore(&HubExtension->HubPortSemaphore, LOW_REALTIME_PRIORITY, 1, FALSE);
+
+    if (!InterlockedDecrement(&HubExtension->PendingRequestCount))
+        KeSetEvent(&HubExtension->PendingRequestEvent, EVENT_INCREMENT, FALSE);
+
+    return Status;
 }
 
 NTSTATUS
