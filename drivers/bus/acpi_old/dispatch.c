@@ -17644,12 +17644,231 @@ ACPIDispatchIrpInvalid(
 
 NTSTATUS
 NTAPI
+PnpiCmResourceToBiosIoPort(
+    _In_ PVOID Data,
+    _In_ PCM_RESOURCE_LIST CmResources)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PnpiCmResourceToBiosIrq(
+    _In_ PVOID Data,
+    _In_ PCM_RESOURCE_LIST CmResources)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+PnpiCmResourceToBiosDma(
+    _In_ PVOID Data,
+    _In_ PCM_RESOURCE_LIST CmResources)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+PnpiCmResourceValidEmptyList(
+    _In_ PCM_RESOURCE_LIST CmResources)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
 PnpCmResourcesToBiosResources(
     _In_ PCM_RESOURCE_LIST CmResources,
     _In_ PVOID Data)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_RESOURCE_DATA_TYPE ResDataType;
+    ULONG Increment;
+    UCHAR TagName;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT1("PnpCmResourcesToBiosResources: %p, %X\n", CmResources, Data);
+
+    ASSERT(Data != NULL);
+
+    for (ResDataType = Data; ; )
+    {
+        if (!ResDataType->Small.Type)
+        {
+            Increment = (ResDataType->Small.Length + 1);
+            TagName = ResDataType->Small.Name;
+            DPRINT1("PnpCmResourcesToBiosResources: Small TagName %X, Increment %X\n", TagName, Increment);
+        }
+        else
+        {
+            Increment = (ResDataType->Large.Length + 3);
+            TagName = ResDataType->Large.Name;
+            DPRINT1("PnpCmResourcesToBiosResources: Large TagName %X, Increment %X\n", TagName, Increment);
+        }
+
+        if ((ResDataType->Small.Tag & 0xF8) == 0x78)
+        {
+            DPRINT1("PnpCmResourcesToBiosResources: TAG_END\n");
+            break;
+        }
+
+        if (!ResDataType->Small.Type)
+        {
+            switch (TagName)
+            {
+                case 0x04:
+                {
+                    Status = PnpiCmResourceToBiosIrq(Data, CmResources);
+                    DPRINT1("PnpCmResourcesToBiosResources: TAG_IRQ, Status %X\n", Status);
+                    break;
+                }
+                case 0x05:
+                {
+                    Status = PnpiCmResourceToBiosDma(Data, CmResources);
+                    DPRINT1("PnpCmResourcesToBiosResources: TAG_DMA, Status %X\n", Status);
+                    break;
+                }
+                case 0x06:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: TAG_START_DEPEND(TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x07:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: TAG_END_DEPEND(TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x08:
+                {
+                    Status = PnpiCmResourceToBiosIoPort(Data, CmResources);
+                    DPRINT1("PnpCmResourcesToBiosResources: TAG_IO, Status %X\n", Status);
+                    break;
+                }
+                case 0x09:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x0E:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                default:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: Unsupported TagName %X\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            switch (TagName)
+            {
+                case 0x01:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x02:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x03:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x04:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x05:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x06:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: TAG_MEMORY(TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x07:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: TAG_DOUBLE_ADDRESS(TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x08:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: TAG_WORD_ADDRESS(TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x09:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: TAG_EXTENDED_IRQ(TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x0A:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                case 0x0B:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: FIXME! (TagName %X)\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+                default:
+                {
+                    DPRINT1("PnpCmResourcesToBiosResources: Unsupported TagName %X\n", TagName);
+                    ASSERT(FALSE);
+                    break;
+                }
+            }
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PnpCmResourcesToBiosResources: Status %X for TagName %X\n", Status, TagName);
+            return Status;
+        }
+
+        Data = ResDataType = Add2Ptr(ResDataType, Increment);
+    }
+
+    DPRINT1("PnpCmResourcesToBiosResources: TAG_END\n");
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PnpCmResourcesToBiosResources: Status %X for TagName %X\n", Status, TagName);
+        return Status;
+    }
+
+    return (PnpiCmResourceValidEmptyList(CmResources) == TRUE ? STATUS_UNSUCCESSFUL : STATUS_SUCCESS);
 }
 
 NTSTATUS
