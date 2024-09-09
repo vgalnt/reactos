@@ -12228,6 +12228,48 @@ PnpiBiosPortToIoDescriptor(
 
 NTSTATUS
 NTAPI
+PnpiBiosPortFixedToIoDescriptor(
+    _In_ PVOID Data,
+    _In_ PIO_RESOURCE_LIST* ResourceListArray,
+    _In_ ULONG Index,
+    _In_ UCHAR Param4)
+{
+    PACPI_IO_PORT_10_DESCRIPTOR AcpiDesc = Data;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PnpiBiosPortFixedToIoDescriptor: %p, %X\n", Data, Param4);
+
+    ASSERT(ResourceListArray != NULL);
+
+    if (Param4 & 1)
+        return STATUS_SUCCESS;
+
+    if (!AcpiDesc->RangeLength)
+        return STATUS_SUCCESS;
+
+    Status = PnpiUpdateResourceList(&ResourceListArray[Index], &IoDescriptor);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PnpiBiosPortFixedToIoDescriptor: Status %X\n", Status);
+        return Status;
+    }
+
+    IoDescriptor->Type = CmResourceTypePort;
+    IoDescriptor->Flags = 5;
+    IoDescriptor->ShareDisposition = 1;
+
+    IoDescriptor->u.Port.MinimumAddress.LowPart = (AcpiDesc->BaseAddress & 0x3FF);
+    IoDescriptor->u.Port.MaximumAddress.LowPart = ((AcpiDesc->BaseAddress & 0x3FF) + AcpiDesc->RangeLength - 1);
+    IoDescriptor->u.Port.Length = AcpiDesc->RangeLength;
+    IoDescriptor->u.Port.Alignment = 1;
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 PnpiBiosMemoryToIoDescriptor(
     _In_ PACPI_RESOURCE_DATA_TYPE Data,
     _In_ PIO_RESOURCE_LIST* ResourceListArray,
@@ -12661,8 +12703,8 @@ PnpBiosResourcesToNtResources(
                 }
                 case 0x09:
                 {
-                    DPRINT1("PnpBiosResourcesToNtResources: FIXME! (TagName %X)\n", TagName);
-                    ASSERT(FALSE);
+                    Status = PnpiBiosPortFixedToIoDescriptor(Data, ResourceListArray, Index, Param2);
+                    DPRINT1("PnpBiosResourcesToNtResources: TAG_IO_FIXED, Status %X\n", Status);
                     break;
                 }
                 case 0x0E:

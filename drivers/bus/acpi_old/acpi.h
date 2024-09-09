@@ -1035,6 +1035,22 @@ typedef struct _ACPI_IO_PORT_DESCRIPTOR
     UCHAR RangeLength;
 } ACPI_IO_PORT_DESCRIPTOR, *PACPI_IO_PORT_DESCRIPTOR;
 
+typedef struct _ACPI_IO_PORT_10_DESCRIPTOR
+{
+    union
+    {
+        struct
+        {
+            UCHAR Length :3;
+            UCHAR Name :4;
+            UCHAR Type :1;
+        };
+        UCHAR Tag;
+    };
+    USHORT BaseAddress;
+    UCHAR RangeLength;
+} ACPI_IO_PORT_10_DESCRIPTOR, *PACPI_IO_PORT_10_DESCRIPTOR;
+
 typedef struct _ACPI_FIXED_MEMORY32_DESCRIPTOR
 {
     union
