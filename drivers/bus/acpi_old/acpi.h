@@ -991,6 +991,30 @@ typedef struct _ACPI_DWORD_ADDRESS_SPACE_DESCRIPTOR
     CHAR ResourceSource[]; // Optional
 } ACPI_DWORD_ADDRESS_SPACE_DESCRIPTOR, *PACPI_DWORD_ADDRESS_SPACE_DESCRIPTOR;
 
+typedef struct _ACPI_QWORD_ADDRESS_SPACE_DESCRIPTOR
+{
+    union
+    {
+        struct
+        {
+            UCHAR Name :7;
+            UCHAR Type :1;
+        };
+        UCHAR Tag;
+    };
+    USHORT Length;
+    UCHAR ResourceType;
+    UCHAR GeneralFlags;
+    UCHAR SpecificFlags;
+    ULONGLONG Granularity;
+    ULONGLONG Minimum;
+    ULONGLONG Maximum;
+    ULONGLONG Offset;
+    ULONGLONG AddressLength;
+    UCHAR ResourceSourceIndex; // Optional
+    CHAR ResourceSource[]; // Optional
+} ACPI_QWORD_ADDRESS_SPACE_DESCRIPTOR, *PACPI_QWORD_ADDRESS_SPACE_DESCRIPTOR;
+
 typedef struct _ACPI_IO_PORT_DESCRIPTOR
 {
     union

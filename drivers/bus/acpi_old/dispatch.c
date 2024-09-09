@@ -12021,6 +12021,170 @@ PnpiBiosAddressDoubleToIoDescriptor(
 
 NTSTATUS
 NTAPI
+PnpiBiosAddressQuadToIoDescriptor(
+    _In_ PVOID Data,
+    _In_ PIO_RESOURCE_LIST* ResourceListArray,
+    _In_ ULONG Index,
+    _In_ ULONG Param4)
+{
+    PACPI_QWORD_ADDRESS_SPACE_DESCRIPTOR AcpiDesc = Data;
+    PIO_RESOURCE_DESCRIPTOR PrivateIoDescriptor;
+    PIO_RESOURCE_DESCRIPTOR IoDescriptor;
+    ULONGLONG Length;
+    ULONG Granularity;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PnpiBiosAddressQuadToIoDescriptor: %p, %X\n", Data, Param4);
+
+    ASSERT(ResourceListArray != NULL);
+
+    if ((AcpiDesc->GeneralFlags & 1) && // This device consumes this resource 
+        AcpiDesc->ResourceType == 1 &&  // I/O range
+        (Param4 & 1))
+    {
+        return STATUS_SUCCESS;
+    }
+
+    if (!AcpiDesc->AddressLength)
+    {
+        return STATUS_SUCCESS;
+    }
+
+    Status = PnpiUpdateResourceList(&ResourceListArray[Index], &PrivateIoDescriptor);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PnpiBiosAddressQuadToIoDescriptor: Status %X\n", Status);
+        return Status;
+    }
+
+    if (AcpiDesc->ResourceType == 0 || // Memory range
+        AcpiDesc->ResourceType == 1)   // I/O range
+    {
+        Status = PnpiUpdateResourceList(&ResourceListArray[Index], &PrivateIoDescriptor);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PnpiBiosAddressQuadToIoDescriptor: Status %X\n", Status);
+            return Status;
+        }
+
+        PrivateIoDescriptor->Type = CmResourceTypeDevicePrivate;
+        PrivateIoDescriptor->Flags = 0x6000;
+
+        IoDescriptor = (PrivateIoDescriptor - 1);
+    }
+    else // ASSERT(AcpiDesc->ResourceType == 2) // Bus number range
+    {
+        IoDescriptor = PrivateIoDescriptor;
+    }
+
+    if (AcpiDesc->Length < 0x2B) // 43 (minimum value)
+    {
+        DPRINT1("PnpiBiosAddressQuadToIoDescriptor: Descriptor too small %X\n", AcpiDesc->Length);
+        KeBugCheckEx(0xA5, 0xF, (ULONG_PTR)AcpiDesc, AcpiDesc->Tag, AcpiDesc->Length);
+    }
+
+    Length = AcpiDesc->AddressLength;
+
+    Granularity = AcpiDesc->Granularity;
+    Granularity++;
+
+    if ((AcpiDesc->GeneralFlags & 4) && // The specified minimum address is fixed
+        (AcpiDesc->GeneralFlags & 8))   // The specified maximum address is fixed
+    {
+        if ((AcpiDesc->Maximum - AcpiDesc->Minimum + 1) != AcpiDesc->AddressLength)
+        {
+            DPRINT("PnpiBiosAddressQuadToIoDescriptor: Length does not match fixed attributes\n");
+            Length = (AcpiDesc->Maximum - AcpiDesc->Minimum + 1);
+        }
+
+        if (AcpiDesc->Minimum & AcpiDesc->Granularity)
+        {
+            DPRINT("PnpiBiosAddressQuadToIoDescriptor: Granularity does not match fixed attributes\n");
+            Granularity = 1;
+        }
+    }
+
+    if (Length > 0xFFFFFFFF)
+    {
+        DPRINT("ACPI: descriptor length %I64X exceeds MAXULONG\n", Length);
+
+        if (!(AcpiOverrideAttributes & 0x80))
+        {
+            DPRINT1("ACPI: descriptor length %I64X exceeds MAXULONG\n", Length);
+            KeBugCheckEx(0xA5, 0x14, (ULONG_PTR)AcpiDesc, AcpiDesc->Tag, (ULONG_PTR)&Length);
+        }
+        else if (AcpiDesc->Minimum < 0xFFFFFFFF)
+        {
+            DPRINT1("ACPI: descriptor length %I64X exceeds MAXULONG\n", Length);
+            KeBugCheckEx(0xA5, 0x14, (ULONG_PTR)AcpiDesc, AcpiDesc->Tag, (ULONG_PTR)&Length);
+        }
+    }
+  
+    if (AcpiDesc->ResourceType == 0) // Memory range
+    {
+        IoDescriptor->Type = CmResourceTypeMemory;
+        IoDescriptor->u.Memory.MinimumAddress.QuadPart = AcpiDesc->Minimum;
+        IoDescriptor->u.Memory.MaximumAddress.QuadPart = AcpiDesc->Maximum;
+        IoDescriptor->u.Memory.Length = Length;
+        IoDescriptor->u.Memory.Alignment = Granularity;
+
+        if (AcpiDesc->SpecificFlags & 0x20)
+            PrivateIoDescriptor->u.DevicePrivate.Data[0] = CmResourceTypePort;
+        else
+            PrivateIoDescriptor->u.DevicePrivate.Data[0] = CmResourceTypeMemory;
+
+        PrivateIoDescriptor->u.DevicePrivate.Data[1] = (ULONG)(AcpiDesc->Minimum + AcpiDesc->Offset);
+        PrivateIoDescriptor->u.DevicePrivate.Data[2] = ((AcpiDesc->Minimum + AcpiDesc->Offset) >> 32);
+
+        PnpiBiosAddressHandleMemoryFlags(Data, IoDescriptor);
+    }
+    else if (AcpiDesc->ResourceType == 1) // I/O range 
+    {
+        IoDescriptor->Type = CmResourceTypePort;
+        IoDescriptor->u.Port.MinimumAddress.QuadPart = AcpiDesc->Minimum;
+        IoDescriptor->u.Port.MaximumAddress.QuadPart = AcpiDesc->Maximum;
+        IoDescriptor->u.Port.Length = Length;
+        IoDescriptor->u.Port.Alignment = Granularity;
+
+        if (AcpiDesc->SpecificFlags & 0x20)
+            PrivateIoDescriptor->Flags |= 1;
+
+        if (AcpiDesc->SpecificFlags & 0x10)
+            PrivateIoDescriptor->u.DevicePrivate.Data[0] = CmResourceTypeMemory;
+        else
+            PrivateIoDescriptor->u.DevicePrivate.Data[0] = CmResourceTypePort;
+
+        PrivateIoDescriptor->u.DevicePrivate.Data[1] = (ULONG)(AcpiDesc->Minimum + AcpiDesc->Offset);
+        PrivateIoDescriptor->u.DevicePrivate.Data[2] = ((AcpiDesc->Minimum + AcpiDesc->Offset) >> 32);
+
+        PnpiBiosAddressHandlePortFlags(Data, IoDescriptor);
+
+        IoDescriptor->u.Port.Alignment = 1;
+    }
+    else if (AcpiDesc->ResourceType == 2) // Bus number range 
+    {
+        IoDescriptor->Type = CmResourceTypeBusNumber;
+        IoDescriptor->u.BusNumber.MinBusNumber = (ULONG)AcpiDesc->Minimum;
+        IoDescriptor->u.BusNumber.MaxBusNumber = (ULONG)AcpiDesc->Maximum;
+        IoDescriptor->u.BusNumber.Length = Length;
+
+        PnpiBiosAddressHandleBusFlags(Data, IoDescriptor);
+    }
+    else
+    {
+        DPRINT1("PnpiBiosAddressQuadToIoDescriptor: Unknown Type %X\n", AcpiDesc->ResourceType);
+    }
+
+    Status = PnpiBiosAddressHandleGlobalFlags(Data, ResourceListArray, Index, IoDescriptor);
+    if (NT_SUCCESS(Status))
+        Status = STATUS_SUCCESS;
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 PnpiBiosPortToIoDescriptor(
     _In_ PACPI_IO_PORT_DESCRIPTOR AcpiDesc,
     _In_ PIO_RESOURCE_LIST* ResourceListArray,
@@ -12585,8 +12749,8 @@ PnpBiosResourcesToNtResources(
                 }
                 case 0x0A:
                 {
-                    DPRINT1("PnpBiosResourcesToNtResources: FIXME! (TagName %X)\n", TagName);
-                    ASSERT(FALSE);
+                    Status = PnpiBiosAddressQuadToIoDescriptor(Data, ResourceListArray, Index, Param2);
+                    DPRINT1("PnpBiosResourcesToNtResources: TAG_QUAD_ADDRESS = %X\n", Status);
                     break;
                 }
                 case 0x0B:
