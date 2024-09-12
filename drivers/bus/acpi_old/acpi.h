@@ -1027,8 +1027,8 @@ typedef struct _ACPI_IO_PORT_DESCRIPTOR
         };
         UCHAR Tag;
     };
-    UCHAR Reserved :7;
     UCHAR DecodingBitness :1;
+    UCHAR Reserved :7;
     USHORT Minimum;
     USHORT Maximum;
     UCHAR Alignment;
