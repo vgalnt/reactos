@@ -17695,8 +17695,61 @@ PnpiCmResourceToBiosIrq(
     _In_ PVOID Data,
     _In_ PCM_RESOURCE_LIST CmResources)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_IRQ_DESCRIPTOR AcpiDesc = Data;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT1("PnpiCmResourceToBiosIrq: %p, %X\n", Data, CmResources);
+
+    ASSERT((AcpiDesc->Tag & 7) >= 2);//SMALL_TAG_SIZE_MASK
+    ASSERT(CmResources->Count == 1);
+
+    if (!CmResources->List[0].PartialResourceList.Count)
+    {
+        ASSERT(CmResources->List[0].PartialResourceList.Count);
+        return STATUS_SUCCESS;
+    }
+
+    AcpiDesc->IrqMask = 0;
+
+    CmDescriptor = &CmResources->List[0].PartialResourceList.PartialDescriptors[0];
+
+    for (ix = 0; ix < CmResources->List[0].PartialResourceList.Count; ix++)
+    {
+        if (CmDescriptor[ix].Type == CmResourceTypeInterrupt &&
+            CmDescriptor[ix].u.Interrupt.Level < 0x10)
+        {
+            AcpiDesc->IrqMask = (1 << CmDescriptor[ix].u.Interrupt.Level);
+
+            if ((AcpiDesc->Tag & 7) == 3)
+            {
+                if (CmDescriptor[ix].Flags & CM_RESOURCE_INTERRUPT_LATCHED)
+                {
+                    AcpiDesc->IntMode = 1;
+                    AcpiDesc->IntPolarity = 0;
+                }
+                else
+                {
+                    AcpiDesc->IntMode = 0;
+                    AcpiDesc->IntPolarity = 1;
+                }
+
+                if (CmDescriptor[ix].ShareDisposition == CmResourceShareShared)
+                    AcpiDesc->IntSharable = 1;
+                else
+                    AcpiDesc->IntSharable = 0;
+
+                AcpiDesc->Reserved0 = 0;
+                AcpiDesc->Reserved1 = 0;
+            }
+
+            CmDescriptor[ix].Type = CmResourceTypeNull;
+            break;
+        }
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
