@@ -17648,8 +17648,45 @@ PnpiCmResourceToBiosIoPort(
     _In_ PVOID Data,
     _In_ PCM_RESOURCE_LIST CmResources)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_IO_PORT_DESCRIPTOR AcpiDesc = Data;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT1("PnpiCmResourceToBiosIoPort: %p, %X\n", Data, CmResources);
+
+    ASSERT((AcpiDesc->Tag & 7) == 7);//SMALL_TAG_SIZE_MASK
+    ASSERT(CmResources->Count == 1);
+
+    if (!CmResources->List[0].PartialResourceList.Count)
+    {
+        ASSERT(CmResources->List[0].PartialResourceList.Count);
+        return STATUS_SUCCESS;
+    }
+
+    RtlZeroMemory(AcpiDesc, sizeof(*AcpiDesc));
+
+    CmDescriptor = &CmResources->List[0].PartialResourceList.PartialDescriptors[0];
+
+    for (ix = 0; ix < CmResources->List[0].PartialResourceList.Count; ix++)
+    {
+        if (CmDescriptor[ix].Type == CmResourceTypePort)
+        {
+            AcpiDesc->Maximum = AcpiDesc->Minimum = CmDescriptor[ix].u.Port.Start.LowPart;
+            AcpiDesc->RangeLength = CmDescriptor[ix].u.Port.Length;
+            AcpiDesc->Alignment = 1;
+
+            if (CmDescriptor[ix].Flags & CM_RESOURCE_PORT_16_BIT_DECODE)
+                AcpiDesc->DecodingBitness = 1;//The logical device decodes 16-bit addresses
+            else
+                AcpiDesc->DecodingBitness = 0;//The logical device only decodes address bits[9:0]
+
+            CmDescriptor[ix].Type = CmResourceTypeNull;
+            break;
+        }
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
