@@ -17758,8 +17758,61 @@ PnpiCmResourceToBiosDma(
     _In_ PVOID Data,
     _In_ PCM_RESOURCE_LIST CmResources)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PACPI_DMA_DESCRIPTOR AcpiDesc = Data;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT1("PnpiCmResourceToBiosDma: %p, %X\n", Data, CmResources);
+
+    ASSERT((AcpiDesc->Tag & 7) == 2);//SMALL_TAG_SIZE_MASK
+    ASSERT(CmResources->Count == 1);
+
+    if (!CmResources->List[0].PartialResourceList.Count)
+    {
+        ASSERT(CmResources->List[0].PartialResourceList.Count);
+        return STATUS_SUCCESS;
+    }
+
+    AcpiDesc->ChannelMask = 0;
+
+    CmDescriptor = &CmResources->List[0].PartialResourceList.PartialDescriptors[0];
+
+    for (ix = 0; ix < CmResources->List[0].PartialResourceList.Count; ix++)
+    {
+        if (CmDescriptor[ix].Type == CmResourceTypeDma)
+        {
+            AcpiDesc->TransferType = 0;
+            AcpiDesc->IsBusMaster = 0;
+            AcpiDesc->NotUsed = 0;
+            AcpiDesc->SpeedSupported = 0;
+            AcpiDesc->Reserved = 0;
+
+            AcpiDesc->ChannelMask = (1 << CmDescriptor->u.Dma.Channel);
+
+            if (CmDescriptor->Flags & CM_RESOURCE_DMA_8_AND_16)
+                AcpiDesc->TransferType = 1;
+            else if (CmDescriptor->Flags & CM_RESOURCE_DMA_16)
+                AcpiDesc->TransferType = 2;
+            else if (CmDescriptor->Flags & CM_RESOURCE_DMA_32)
+                AcpiDesc->TransferType = 3;
+
+            if (CmDescriptor->Flags & CM_RESOURCE_DMA_BUS_MASTER)
+                AcpiDesc->IsBusMaster |= 4;
+
+            if (CmDescriptor->Flags & CM_RESOURCE_DMA_TYPE_A)
+                AcpiDesc->SpeedSupported = 1;
+            else if (CmDescriptor->Flags & CM_RESOURCE_DMA_TYPE_B)
+                AcpiDesc->SpeedSupported = 2;
+            else if (CmDescriptor->Flags & CM_RESOURCE_DMA_TYPE_F)
+                AcpiDesc->SpeedSupported = 3;
+
+            CmDescriptor[ix].Type = CmResourceTypeNull;
+            break;
+        }
+    }
+
+    return STATUS_SUCCESS;
 }
 
 BOOLEAN
