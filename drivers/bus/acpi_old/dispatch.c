@@ -17820,8 +17820,35 @@ NTAPI
 PnpiCmResourceValidEmptyList(
     _In_ PCM_RESOURCE_LIST CmResources)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("PnpiCmResourceValidEmptyList: %p\n", CmResources);
+
+    ASSERT(CmResources->Count == 1);
+
+    if (!CmResources->List[0].PartialResourceList.Count)
+    {
+        ASSERT(CmResources->List[0].PartialResourceList.Count);
+        return STATUS_SUCCESS;
+    }
+
+    CmDescriptor = &CmResources->List[0].PartialResourceList.PartialDescriptors[0];
+
+    for (ix = 0; ix < CmResources->List[0].PartialResourceList.Count; ix++)
+    {
+        if (CmDescriptor[ix].Type == CmResourceTypeNull)
+            break;
+    }
+
+    if (ix == CmResources->List[0].PartialResourceList.Count)
+    {
+        DPRINT1("PnpiCmResourceValidEmptyList: %X, %X\n", ix, CmResources->List[0].PartialResourceList.Count);
+        RosDumpCmResources(CmResources, 0);
+      
+    }
+    return (ix == CmResources->List[0].PartialResourceList.Count);
 }
 
 NTSTATUS
