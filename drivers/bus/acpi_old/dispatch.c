@@ -12831,7 +12831,10 @@ PnpBiosResourcesToNtResources(
         return Status;
     }
 
-    if (ix && ix == jx)
+    //FIXME!
+    //if (0)              // NT 5.1
+    //if (ix && ix == jx) // NT 5.2
+    if (!ix || ix == jx)  // NT 6.1
     {
         DPRINT("PnpBiosResourcesToNtResources: This _CRS contains vendor defined tags only. No resources will be allocated.\n");
 

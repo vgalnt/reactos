@@ -1937,6 +1937,13 @@ ACPIInterruptDispatchEventDpc(
     _In_ PVOID SystemArgument2
 );
 
+VOID
+NTAPI
+RosDumpCmResources(
+    _In_ PCM_RESOURCE_LIST CmResource,
+    _In_ ULONG DebugLevel
+);
+
 /* registry.c */
 VOID
 NTAPI
