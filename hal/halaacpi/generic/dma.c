@@ -15,6 +15,7 @@ HALP_DMA_MASTER_ADAPTER MasterAdapter24;
 HALP_DMA_MASTER_ADAPTER MasterAdapter32;
 LIST_ENTRY HalpDmaAdapterList;
 KSPIN_LOCK HalpDmaAdapterListLock;
+LONG HalpOutstandingScatterGatherCount;
 
 static BOOLEAN HalpEisaDma = FALSE;
 static KEVENT HalpDmaLock; // NT use HalpNewAdapter?
@@ -1367,31 +1368,29 @@ HalPutScatterGatherList(
     _In_ PSCATTER_GATHER_LIST ScatterGather,
     _In_ BOOLEAN WriteToDevice)
 {
-    PSCATTER_GATHER_CONTEXT AdapterControlContext;
-    ULONG ix;
+    PADAPTER_OBJECT AdapterObject = (PADAPTER_OBJECT)DmaAdapter;
 
-    AdapterControlContext = (PSCATTER_GATHER_CONTEXT)ScatterGather->Reserved;
+    InterlockedDecrement(&HalpOutstandingScatterGatherCount);
 
-    for (ix = 0; ix < ScatterGather->NumberOfElements; ix++)
+    if (ScatterGather->Reserved == 0)
     {
-         IoFlushAdapterBuffers(DmaAdapter,
-                               AdapterControlContext->Mdl,
-                               AdapterControlContext->MapRegisterBase,
-                               AdapterControlContext->CurrentVa,
-                               ScatterGather->Elements[ix].Length,
-                               AdapterControlContext->WriteToDevice);
-
-         AdapterControlContext->CurrentVa += ScatterGather->Elements[ix].Length;
+        ASSERT(!AdapterObject->NeedsMapRegisters);
+        goto Finish;
     }
 
-    IoFreeMapRegisters(DmaAdapter,
-                       AdapterControlContext->MapRegisterBase,
-                       AdapterControlContext->MapRegisterCount);
+    if (ScatterGather->Reserved == 1)
+    {
+        ASSERT(!AdapterObject->NeedsMapRegisters);
+        return;
+    }
 
-    DPRINT("S/G DMA has finished!\n");
+    DPRINT1("HalPutScatterGatherList: FIXME\n");
+    UNIMPLEMENTED_DBGBREAK();
 
-    ExFreePoolWithTag(AdapterControlContext, TAG_DMA);
-    ExFreePoolWithTag(ScatterGather, TAG_DMA);
+Finish:
+
+    //ExFreePoolWithTag(ScatterGather, TAG_DMA);
+    ExFreePool(ScatterGather);
 }
 
 NTSTATUS
