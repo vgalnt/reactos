@@ -186,7 +186,7 @@ NTSTATUS
 NTAPI
 PmQueryDeviceId(
     _In_ PPM_DEVICE_EXTENSION Extension,
-    _In_ PSTORAGE_PROPERTY_QUERY *OutDeviceId
+    _In_ PSTORAGE_DEVICE_DESCRIPTOR* OutDeviceId
 );
 
 VOID

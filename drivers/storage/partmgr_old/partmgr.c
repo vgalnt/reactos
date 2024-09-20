@@ -41,6 +41,7 @@
 /* GLOBALS *******************************************************************/
 
 GUID VOLMGR_VOLUME_MANAGER_GUID = {0x53F5630E, 0xB6BF, 0x11D0, {0X94, 0XF2, 0X00, 0XA0, 0XC9, 0X1E, 0XFB, 0X8B}};
+GUID PARTITION_BASIC_DATA_GUID  = {0xEBD0A0A2, 0xB9E5, 0x4433, {0x87, 0xC0, 0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7}};
 
 /* FUNCTIONS ****************************************************************/
 
@@ -431,11 +432,11 @@ NTSTATUS
 NTAPI
 PmQueryDeviceId(
     _In_ PPM_DEVICE_EXTENSION Extension,
-    _In_ PSTORAGE_PROPERTY_QUERY *OutDeviceId)
+    _In_ PSTORAGE_DEVICE_DESCRIPTOR* OutDeviceId)
 {
     STORAGE_PROPERTY_QUERY InputBuffer;
-    PSTORAGE_PROPERTY_QUERY DeviceId;
     STORAGE_DESCRIPTOR_HEADER OutputBuffer;
+    PSTORAGE_DEVICE_DESCRIPTOR DeviceId;
     IO_STATUS_BLOCK IoStatusBlock;
     KEVENT Event;
     PIRP Irp;
@@ -526,6 +527,111 @@ PmQueryDeviceId(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+PmReadGptAttributesOnMbr(
+    _In_ PPM_DEVICE_EXTENSION Extension,
+    _In_ PVOID* OutInfo)
+{
+    IO_STATUS_BLOCK IoStatusBlock;
+    LARGE_INTEGER StartingOffset;
+    DISK_GEOMETRY DiskGeometry;
+    PVOID Info;
+    PIRP Irp;
+    KEVENT Event;
+    NTSTATUS Status;
+
+    DPRINT("PmReadGptAttributesOnMbr: %p\n", Extension);
+
+    *OutInfo = NULL;
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    Irp = IoBuildDeviceIoControlRequest(IOCTL_DISK_GET_DRIVE_GEOMETRY,
+                                        Extension->AttachedToDevice,
+                                        NULL,
+                                        0,
+                                        &DiskGeometry,
+                                        sizeof(DiskGeometry),
+                                        FALSE,
+                                        &Event,
+                                        &IoStatusBlock);
+    if (!Irp)
+    {
+        DPRINT1("PmReadGptAttributesOnMbr: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Status = IoCallDriver(Extension->AttachedToDevice, Irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = IoStatusBlock.Status;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PmReadGptAttributesOnMbr: %X\n", Status);
+        return Status;
+    }
+
+    Info = ExAllocatePoolWithTag(NonPagedPool, DiskGeometry.BytesPerSector, 'iRcS');
+    if (!Info)
+    {
+        DPRINT1("PmReadGptAttributesOnMbr: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    if (DiskGeometry.BytesPerSector > 0x400)
+        StartingOffset.QuadPart = DiskGeometry.BytesPerSector;
+    else
+        StartingOffset.QuadPart = 0x400;
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    Irp = IoBuildSynchronousFsdRequest(IRP_MJ_READ,
+                                       Extension->AttachedToDevice,
+                                       Info,
+                                       DiskGeometry.BytesPerSector,
+                                       &StartingOffset,
+                                       &Event,
+                                       &IoStatusBlock);
+    if (!Irp)
+    {
+        DPRINT1("PmReadGptAttributesOnMbr: STATUS_INSUFFICIENT_RESOURCES\n");
+        ExFreePoolWithTag(Info, 'iRcS');
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Status = IoCallDriver(Extension->AttachedToDevice, Irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        Status = IoStatusBlock.Status;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PmReadGptAttributesOnMbr: %X\n", Status);
+        ExFreePoolWithTag(Info, 'iRcS');
+        return Status;
+    }
+
+    if (!IsEqualGUID((PGUID)((ULONG_PTR)Info + 0), &PARTITION_BASIC_DATA_GUID))
+    {
+        DPRINT1("PmReadGptAttributesOnMbr: STATUS_NOT_FOUND\n");
+        ExFreePoolWithTag(Info, 'iRcS');
+        return STATUS_NOT_FOUND;
+    }
+
+    DPRINT1("PmAddSignatures: FIXME\n");
+    ASSERT(FALSE);
+
+    *OutInfo = Info;
+
+    return Status;
+}
+
 VOID
 NTAPI
 PmAddSignatures(
@@ -534,7 +640,7 @@ PmAddSignatures(
 {
     PPM_DRIVER_EXTENSION DriverExtension;
     TABLE_SEARCH_RESULT ResultSignatures;
-    PSTORAGE_PROPERTY_QUERY DeviceId;
+    PSTORAGE_DEVICE_DESCRIPTOR DeviceId;
     PPM_SIGNATURE RetSignature;
     PM_SIGNATURE Signature;
     PVOID SignatureNode;
@@ -583,9 +689,21 @@ PmAddSignatures(
             Status = PmQueryDeviceId(Extension, &DeviceId);
             if (NT_SUCCESS(Status))
             {
-                DPRINT1("PmAddSignatures: FIXME\n");
-                ASSERT(FALSE);
+                PVOID Info = NULL;
+
+                Status = PmReadGptAttributesOnMbr(Extension, &Info);
+                if (NT_SUCCESS(Status))
+                {
+                    DPRINT1("PmAddSignatures: FIXME\n");
+                    ASSERT(FALSE);
+                }
+
+                if (Info)
+                    ExFreePoolWithTag(Info, 'iRcS');
             }
+
+            if (DeviceId)
+                ExFreePoolWithTag(DeviceId, 'iRcS');
 
             Extension->IsDeviceIdRequested = TRUE;
         }
@@ -1719,7 +1837,7 @@ PmDriverReinit(
     PLIST_ENTRY Entry;
     NTSTATUS Status;
 
-    DPRINT("PmDriverReinit: %p, %p, %X\n", DriverObject, Context, Count);
+    DPRINT1("PmDriverReinit: %p, %p, %X\n", DriverObject, Context, Count);
 
     KeWaitForSingleObject(&DriverExtension->Mutex, Executive, KernelMode, FALSE, NULL);
 
