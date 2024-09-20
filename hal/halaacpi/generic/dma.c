@@ -1403,10 +1403,74 @@ HalCalculateScatterGatherListSize(
     _Out_ PULONG ScatterGatherListSize,
     _Out_ PULONG pNumberOfMapRegisters)
 {
-    //PADAPTER_OBJECT AdapterObject = (PADAPTER_OBJECT)DmaAdapter;
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // HalpDbgBreakPointEx();
-    return STATUS_NOT_IMPLEMENTED;
+    PADAPTER_OBJECT AdapterObject = (PADAPTER_OBJECT)DmaAdapter;
+    ULONG_PTR MdlVa;
+    ULONG NumberOfMapRegisters;
+    ULONG TransferLength;
+    ULONG MapRegisters;
+    ULONG byteOffset;
+    ULONG MdlLength;
+    ULONG SgSize;
+
+    DPRINT("HalCalculateScatterGatherListSize: %p, %X, %X\n", DmaAdapter, CurrentVa, Length);
+
+    if (Mdl)
+    {
+        MdlVa = ((ULONG_PTR)Mdl->StartVa + Mdl->ByteOffset);
+        MdlLength = TransferLength = (MdlVa + Mdl->ByteCount - (ULONG_PTR)CurrentVa);
+        byteOffset = BYTE_OFFSET(CurrentVa);
+
+        ASSERT((ULONG)((PUCHAR)CurrentVa - MdlVa) <= Mdl->ByteCount);
+
+        MapRegisters = 0;
+        while (TransferLength < Length)
+        {
+            Mdl = Mdl->Next;
+            if (!Mdl)
+                break;
+
+            DPRINT1("HalCalculateScatterGatherListSize: FIXME!!! Mdl->Next is %p\n", Mdl);
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if ((TransferLength + PAGE_SIZE - byteOffset) < Length)
+        {
+            ASSERT(TransferLength >= Length);
+            return STATUS_BUFFER_TOO_SMALL;
+        }
+
+        ASSERT(TransferLength <= MdlLength + Length);
+
+        NumberOfMapRegisters = (MapRegisters + ((MdlLength + byteOffset - TransferLength + Length + (PAGE_SIZE - 1)) >> 12));
+
+        if (NumberOfMapRegisters > AdapterObject->MapRegistersPerChannel)
+        {
+            DPRINT1("HalCalculateScatterGatherListSize: STATUS_INSUFFICIENT_RESOURCES (%X, %X)\n",
+                    NumberOfMapRegisters, AdapterObject->MapRegistersPerChannel);
+
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+    else
+    {
+        NumberOfMapRegisters = ADDRESS_AND_SIZE_TO_SPAN_PAGES(CurrentVa, Length);
+    }
+
+    SgSize = sizeof(SCATTER_GATHER_LIST);
+    SgSize += (NumberOfMapRegisters * sizeof(SCATTER_GATHER_ELEMENT));
+
+    if (AdapterObject->NeedsMapRegisters)
+    {
+        DPRINT1("HalCalculateScatterGatherListSize: (%p) NeedsMapRegisters %X\n", AdapterObject, AdapterObject->NeedsMapRegisters);
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    *ScatterGatherListSize = SgSize;
+
+    if (pNumberOfMapRegisters)
+        *pNumberOfMapRegisters = NumberOfMapRegisters;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
