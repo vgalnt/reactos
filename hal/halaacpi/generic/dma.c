@@ -1484,13 +1484,156 @@ HalBuildScatterGatherList(
     _In_ PDRIVER_LIST_CONTROL ExecutionRoutine,
     _In_ PVOID Context,
     _In_ BOOLEAN WriteToDevice,
-    _In_ PVOID ScatterGatherBuffer,
-    _In_ ULONG ScatterGatherBufferLength)
+    _In_ PVOID SgBuffer,
+    _In_ ULONG SgLength)
 {
-    //PADAPTER_OBJECT AdapterObject = (PADAPTER_OBJECT)DmaAdapter;
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // HalpDbgBreakPointEx();
-    return STATUS_NOT_IMPLEMENTED;
+    PADAPTER_OBJECT AdapterObject = (PADAPTER_OBJECT)DmaAdapter;
+    PSCATTER_GATHER_LIST ScatterGather;
+    PSCATTER_GATHER_ELEMENT Element;
+    PPFN_NUMBER MdlPage;
+    ULONG_PTR MdlVa;
+    ULONG ScatterGatherListSize;
+    ULONG NumberOfMapRegisters;
+    ULONG TransferLength;
+    ULONG ByteOffset;
+    ULONG MdlLength;
+    NTSTATUS Status;
+
+    DPRINT("HalBuildScatterGatherList: %p, %p, %X, %X, %X, %X, %X\n",
+           DmaAdapter, Mdl, CurrentVa, Length, WriteToDevice, SgBuffer, SgLength);
+
+    if (!Mdl)
+    {
+        DPRINT1("HalBuildScatterGatherList: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (AdapterObject->NeedsMapRegisters)
+    {
+        Status = HalCalculateScatterGatherListSize(DmaAdapter,
+                                                   Mdl,
+                                                   CurrentVa,
+                                                   Length,
+                                                   &ScatterGatherListSize,
+                                                   &NumberOfMapRegisters);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("HalBuildScatterGatherList: Status %X\n", Status);
+            return Status;
+        }
+
+        UNIMPLEMENTED_DBGBREAK();
+        return Status;
+    }
+
+    if (SgBuffer)
+    {
+        if (SgLength < sizeof(SCATTER_GATHER_LIST))
+        {
+            DPRINT1("HalBuildScatterGatherList: STATUS_BUFFER_TOO_SMALL\n");
+            InterlockedDecrement(&HalpOutstandingScatterGatherCount);
+            return STATUS_BUFFER_TOO_SMALL;
+        }
+
+        ScatterGather = SgBuffer;
+    }
+    else
+    {
+        Status = HalCalculateScatterGatherListSize(DmaAdapter,
+                                                   Mdl,
+                                                   CurrentVa,
+                                                   Length,
+                                                   &ScatterGatherListSize,
+                                                   &NumberOfMapRegisters);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("HalBuildScatterGatherList: Status %X\n", Status);
+            InterlockedDecrement(&HalpOutstandingScatterGatherCount);
+            return Status;
+        }
+
+        ScatterGather = ExAllocatePoolWithTag(NonPagedPool, ScatterGatherListSize, ' laH');
+        if (!ScatterGather)
+        {
+            DPRINT1("HalBuildScatterGatherList: STATUS_INSUFFICIENT_RESOURCES\n");
+            InterlockedDecrement(&HalpOutstandingScatterGatherCount);
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    ScatterGather->Reserved = 0;
+
+    Element = &ScatterGather->Elements[0];
+
+    MdlVa = ((ULONG_PTR)Mdl->StartVa + Mdl->ByteOffset);
+    MdlLength = (MdlVa + Mdl->ByteCount - (ULONG_PTR)CurrentVa);
+    ByteOffset = BYTE_OFFSET(CurrentVa);
+
+    TransferLength = Length;
+
+    MdlPage = (MmGetMdlPfnArray(Mdl) + (((ULONG_PTR)CurrentVa - ((ULONG_PTR)MdlVa & ~(PAGE_SIZE - 1))) >> PAGE_SHIFT));
+
+    for (; TransferLength; Mdl = Mdl->Next)
+    {
+        if (MdlLength > TransferLength)
+            MdlLength = TransferLength;
+
+        TransferLength -= MdlLength;
+
+        while (MdlLength)
+        {
+            if (SgBuffer && (ULONG_PTR)Element > ((ULONG_PTR)ScatterGather + SgLength - sizeof(SCATTER_GATHER_ELEMENT)))
+            {
+                InterlockedDecrement(&HalpOutstandingScatterGatherCount);
+                return STATUS_BUFFER_TOO_SMALL;
+            }
+
+            Element->Address.QuadPart = (((*MdlPage) << PAGE_SHIFT) + ByteOffset);
+            Element->Length = (PAGE_SIZE - ByteOffset);
+
+            if (Element->Length > MdlLength)
+                Element->Length = MdlLength;
+
+            ASSERT((ULONG) MdlLength >= Element->Length);
+
+            MdlLength -= Element->Length;
+
+            if (Element != &ScatterGather->Elements[0] &&
+                Element->Address.QuadPart == (Element[-1].Address.QuadPart + Element[-1].Length) &&
+                !(((*MdlPage - 1) ^ *MdlPage) & 0xFFF00000)) // ? 64bit
+            {
+                Element[-1].Length += Element->Length;
+                Element--;
+            }
+
+            ByteOffset = 0;
+
+            Element++;
+            MdlPage++;
+        }
+
+        if (!Mdl->Next)
+        {
+            ASSERT(((Element - 1)->Length & (PAGE_SIZE - 1)) + TransferLength <= PAGE_SIZE);
+
+            Element[-1].Length += TransferLength;
+            break;
+        }
+
+        MdlLength = Mdl->Next->ByteCount;
+        ByteOffset = Mdl->Next->ByteOffset;
+        MdlPage = MmGetMdlPfnArray(Mdl->Next);
+    }
+
+    ScatterGather->NumberOfElements = ((ULONG_PTR)Element - (ULONG_PTR)ScatterGather - sizeof(SCATTER_GATHER_LIST));
+    ScatterGather->NumberOfElements /= sizeof(SCATTER_GATHER_ELEMENT);
+
+    if (SgBuffer)
+        ScatterGather->Reserved = 1;
+
+    ExecutionRoutine(DeviceObject, DeviceObject->CurrentIrp, ScatterGather, Context);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -2019,9 +2162,11 @@ HalGetAdapter(
                     HalpGrowMapBuffers(MasterAdapter, 0x10000);
 
                 AdapterObject->NeedsMapRegisters = TRUE;
+                DPRINT1("HalGetAdapter: (%p) NeedsMapRegisters %X\n", AdapterObject, AdapterObject->NeedsMapRegisters);
             }
             else
             {
+                DPRINT1("HalGetAdapter: (%p) NeedsMapRegisters %X\n", AdapterObject, AdapterObject->NeedsMapRegisters);
                 AdapterObject->NeedsMapRegisters = FALSE;
 
                 if (DeviceDescriptor->Master)
