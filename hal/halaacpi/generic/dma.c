@@ -1334,33 +1334,16 @@ HalGetScatterGatherList(
     _In_ PVOID Context,
     _In_ BOOLEAN WriteToDevice)
 {
-    PADAPTER_OBJECT AdapterObject = (PADAPTER_OBJECT)DmaAdapter;
-    PSCATTER_GATHER_CONTEXT AdapterControlContext;
-
-    AdapterControlContext = ExAllocatePoolWithTag(NonPagedPool, sizeof(SCATTER_GATHER_CONTEXT), TAG_DMA);
-    if (!AdapterControlContext)
-    {
-        DPRINT1("HalGetScatterGatherList: STATUS_INSUFFICIENT_RESOURCES\n");
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-
-    AdapterControlContext->AdapterObject = AdapterObject;
-    AdapterControlContext->Mdl = Mdl;
-    AdapterControlContext->CurrentVa = CurrentVa;
-    AdapterControlContext->Length = Length;
-    AdapterControlContext->MapRegisterCount = (PAGE_ROUND_UP(Length) >> PAGE_SHIFT);
-    AdapterControlContext->AdapterListControlRoutine = ExecutionRoutine;
-    AdapterControlContext->AdapterListControlContext = Context;
-    AdapterControlContext->WriteToDevice = WriteToDevice;
-
-    AdapterControlContext->Wcb.DeviceObject = DeviceObject;
-    AdapterControlContext->Wcb.DeviceContext = AdapterControlContext;
-    AdapterControlContext->Wcb.CurrentIrp = DeviceObject->CurrentIrp;
-
-    return HalAllocateAdapterChannel(DmaAdapter,
-                                     &AdapterControlContext->Wcb,
-                                     AdapterControlContext->MapRegisterCount,
-                                     HalpScatterGatherAdapterControl);
+    return HalBuildScatterGatherList(DmaAdapter,
+                                     DeviceObject,
+                                     Mdl,
+                                     CurrentVa,
+                                     Length,
+                                     ExecutionRoutine,
+                                     Context,
+                                     WriteToDevice,
+                                     NULL,
+                                     0);
 }
 
 /* HalPutScatterGatherList
