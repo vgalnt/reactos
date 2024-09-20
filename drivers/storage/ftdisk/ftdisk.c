@@ -2749,8 +2749,28 @@ FtpPnpPdo(
 
             if (VolumeExtension->RootExtension->IsBootReinitialized)
             {
-                DPRINT1("FtpPnpPdo: FIXME\n");
-                ASSERT(FALSE);
+                ULONG PropertyBuffer;
+                ULONG ResultLength;
+
+                Status = IoGetDeviceProperty(VolumeExtension->SelfDeviceObject,
+                                             DevicePropertyInstallState,
+                                             sizeof(PropertyBuffer),
+                                             &PropertyBuffer,
+                                             &ResultLength);
+                if (NT_SUCCESS(Status))
+                {
+                    if (!PropertyBuffer)
+                    {
+                        DPRINT1("FtpPnpPdo: FIXME\n");
+                        ASSERT(FALSE);
+                    }
+                    else
+                    {
+                        Status = STATUS_UNSUCCESSFUL;
+                    }
+                }
+
+                IsStarted = TRUE;
             }
             else
             {
