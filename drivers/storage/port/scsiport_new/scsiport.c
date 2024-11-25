@@ -21,6 +21,7 @@ LONG SpVrfyLevel = 0;
 PDEVICE_OBJECT* ScsiGlobalAdapterList = ULongToPtr(0xFFFFFFFF);
 ULONG ScsiGlobalAdapterListElements = 0;
 KSPIN_LOCK ScsiGlobalAdapterListSpinLock;
+PVOID ScsiDirectory = NULL;
 
 BOOLEAN Sp64BitPhysicalAddresses = FALSE;
 BOOLEAN SpLegacyInstanceId = FALSE;
@@ -35,7 +36,23 @@ VOID
 NTAPI
 SpCreateScsiDirectory(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING DirectoryName;
+    HANDLE Handle;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpCreateScsiDirectory: called!\n");
+
+    RtlInitUnicodeString(&DirectoryName, L"\\Device\\Scsi");
+    InitializeObjectAttributes(&ObjectAttributes, &DirectoryName, (OBJ_CASE_INSENSITIVE | OBJ_PERMANENT | OBJ_KERNEL_HANDLE), 0, NULL);
+
+    Status = ZwCreateDirectoryObject(&Handle, DIRECTORY_ALL_ACCESS, &ObjectAttributes);
+    if (NT_SUCCESS(Status))
+    {
+        ObReferenceObjectByHandle(Handle, 0x80, NULL, KernelMode, &ScsiDirectory, NULL);
+        ZwClose(Handle);
+    }
 }
 
 NTSTATUS
