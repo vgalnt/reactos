@@ -15,6 +15,19 @@
 
 /* STRUCTURES ***************************************************************/
 
+typedef struct _SCSI_HW_CHAIN_ENTRY
+{
+    HW_INITIALIZATION_DATA HwInitializationData;
+    struct _SCSI_HW_CHAIN_ENTRY* Next;
+} SCSI_HW_CHAIN_ENTRY, *PSCSI_HW_CHAIN_ENTRY;
+
+typedef struct _SCSIPORT_DRIVER_EXTENSION
+{
+    PSCSI_HW_CHAIN_ENTRY ChainHeader;
+    BOOLEAN LegacyAdapterDetection;
+    ULONG IgnoreInitLegacyStatus;
+} SCSI_PORT_DRIVER_EXTENSION, *PSCSI_PORT_DRIVER_EXTENSION;
+
 /* FUNCTIONS ****************************************************************/
 
 #endif /* _SCSIPORT_H_ */
