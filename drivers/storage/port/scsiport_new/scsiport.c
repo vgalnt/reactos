@@ -119,7 +119,15 @@ BOOLEAN
 NTAPI
 SpDetermine64BitSupport(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PAGED_CODE();
+    DPRINT("SpDetermine64BitSupport()\n");
+
+    if ((BOOLEAN)(ULONG_PTR)Mm64BitPhysicalAddress == TRUE)
+    {
+        DPRINT1("SpDetermine64BitSupport: Mm64BitPhysicalAddress is TRUE\n");
+        return TRUE;
+    }
+
     return FALSE;
 }
 
