@@ -1,0 +1,130 @@
+; ahcix86.INF
+; Copyright 2012 Advanced Micro Devices, Inc.
+;
+[Version]
+signature="$Windows NT$"
+Class=SCSIAdapter
+ClassGUID={4D36E97B-E325-11CE-BFC1-08002BE10318}
+CatalogFile=ahcix86.cat
+Provider=%ATI%
+DriverVer=05/28/2012, 3.3.1540.33
+;
+
+[DestinationDirs] 
+ahci8086.Files.x86_12 = 12 
+
+[SourceDisksNames.x86]
+0=%Desc_x860%
+
+[SourceDisksFiles.x86]
+ahcix86.sys=0,
+
+[ControlFlags]
+ExcludeFromSelect=*
+
+[Manufacturer] 
+%ATI%=ATI
+
+[ATI]
+%NapaDesc%=Napa_Inst,PCI\VEN_1002&DEV_4380
+%NapaDesc%=Napa_Inst,PCI\VEN_1002&DEV_4381
+%NapaDesc%=Napa_Inst,PCI\VEN_1002&DEV_4391&CC_0106
+%NapaDesc%=Napa_Inst,PCI\VEN_1002&DEV_4392&CC_0104
+%NapaDesc%=Napa_Inst,PCI\VEN_1002&DEV_4393&CC_0104
+%NapaDesc%=Napa_Inst,PCI\VEN_1002&DEV_4394&CC_0106
+%NapaDesc%=Napa_Inst,PCI\VEN_1022&DEV_7801&CC_0106
+%NapaDesc%=Napa_Inst,PCI\VEN_1022&DEV_7802&CC_0104
+%NapaDesc%=Napa_Inst,PCI\VEN_1022&DEV_7803&CC_0104
+%NapaDesc%=Napa_Inst,PCI\VEN_1022&DEV_7804&CC_0106
+%ATI_Raid_ControllerDesc%=NODRV,SCSI\ProcessorAMD_____
+
+[NODRV]
+CopyFiles=MoveNODRV
+
+[MoveNODRV]
+
+[NODRV.Services]
+;
+; this is blank to just allow the install to succeed
+;
+AddService = , %SPSVCINST_ASSOCSERVICE%   ; null service install
+
+[Napa_Inst.ntx86] 
+CopyFiles = ahci8086.Files.x86_12 
+
+[Napa_Inst.ntx86.Services] 
+AddService = ahcix86,0x00000002,Napa_Service_Instx86, Napa_EventLog_Inst 
+
+[Napa_Service_Instx86] 
+ServiceType = %SERVICE_KERNEL_DRIVER% 
+StartType = %SERVICE_BOOT_START% 
+ErrorControl = %SERVICE_ERROR_NORMAL% 
+ServiceBinary = %12%\ahcix86.sys 
+LoadOrderGroup = "SCSI Miniport"
+AddReg = pnpsafe_pci_addreg
+AddReg = ATI_Installer_AddReg
+
+
+[ahci8086.Files.x86_12] 
+ahcix86.sys
+
+[Napa_EventLog_Inst] 
+AddReg = Napa_EventLog_Inst.AddReg 
+ 
+[Napa_EventLog_Inst.AddReg] 
+HKR,,EventMessageFile,%REG_EXPAND_SZ%,"%%SystemRoot%%\System32\IoLogMsg.dll" 
+HKR,,TypesSupported,%REG_DWORD%,7
+
+[pnpsafe_pci_addreg] 
+HKR, Parameters\PnpInterface, 5, 0x00010001, 0x00000001
+HKR, Parameters\Device, NumberOfRequests, 0x00010001, 0x00000080 
+HKR, Settings\CAM, EnableALPEDisableHotplug, 0x00010001, 0xffffffff 
+HKR, Settings\CAM, EnableCCC, 0x00010001, 0x00000000 
+HKR, Settings\CAM, CCCTimeoutValue, 0x00010001, 10 
+HKR, Settings\CAM, CCCCompletionValue, 0x00010001, 32 
+HKR, Settings\CAM, NCQEnableDiskIDBits, 0x00010001, 0xffffffff 
+HKR, Settings\CAM, EnableHIPM, 0x00010001, 0xffffffff 
+HKR, Settings\CAM, EnableDIPM, 0x00010001, 0x00000000 
+HKR, Settings\CAM, EnableHDDParking, 0x00010001, 0x00000001
+HKR, Settings\CAM, CAMTimeOutValue, 0x00010001, 0x00000005
+HKR, Settings\CAM, EnableAN, 0x00010001, 0x00000001
+HKR, Settings\CAM, EnableAPS, 0x00010001, 0x00000000
+
+[ATI_Installer_AddReg]
+HKLM,"Software\ATI Technologies\Install\South Bridge\ATI_AHCI_RAID",DisplayName,,"AMD AHCI RAID"
+HKLM,"Software\ATI Technologies\Install\South Bridge\ATI_AHCI_RAID",Version,,"3.3.1540.33"
+HKLM,"Software\ATI Technologies\Install\South Bridge\ATI_AHCI_RAID",Install,,"Success"
+
+[pnpsafe_isa_addreg] 
+HKR, Parameters\PnpInterface, 1, 0x00010001, 0x00000001 
+
+[pnpsafe_eisa_addreg] 
+HKR, Parameters\PnpInterface, 2, 0x00010001, 0x00000001 
+
+
+[Strings] 
+
+;  *******Localizable Strings******* 
+ATI= "Advanced Micro Devices, Inc." 
+Desc_x860= "AMD AHCI Compatible RAID Controller Driver" 
+NapaDesc= "AMD AHCI Compatible RAID Controller" 
+ATI_Raid_ControllerDesc= "AMD RAID Console"
+
+;  *******Non Localizable Strings******* 
+
+SERVICE_BOOT_START = 0x0 
+SERVICE_SYSTEM_START = 0x1 
+SERVICE_AUTO_START = 0x2 
+SERVICE_DEMAND_START = 0x3 
+SERVICE_DISABLED = 0x4 
+
+SERVICE_KERNEL_DRIVER = 0x1 
+SERVICE_ERROR_IGNORE = 0x0 
+SERVICE_ERROR_NORMAL = 0x1 
+SERVICE_ERROR_SEVERE = 0x2 
+SERVICE_ERROR_CRITICAL = 0x3 
+
+REG_EXPAND_SZ = 0x00020000 
+REG_DWORD = 0x00010001 
+
+SPSVCINST_ASSOCSERVICE=0x00000002
