@@ -87,11 +87,11 @@ FreeSysPartDiskSpace=450
 ;
 [SourceDisksFiles]
 acpi.sys     = 1,,,,,,x,4,1,,,1,4
-;ahcix86.sys  = 1,,,,,,x,4,,,,1,4
+ahcix86.sys  = 1,,,,,,x,4,,,,1,4
 atapi.sys    = 1,,,,,,x,4,,,,1,4
 blue.sys     = 1,,,,,,x,4,,,,1,4
 btrfs.sys    = 1,,,,,,x,4,,,,1,4
-buslogic.sys = 1,,,,,,x,4,,,,1,4
+;buslogic.sys = 1,,,,,,x,4,,,,1,4
 cdfs.sys     = 1,,,,,,x,4,,,,1,4
 cdrom.sys    = 1,,,,,,x,4,,,,1,4
 ;class2.sys   = 1,,,,,,x,4,,,,1,4
@@ -216,6 +216,14 @@ PCI\VEN_8086&DEV_2922&CC_0106 = iaStor,{4D36E96A-E325-11CE-BFC1-08002BE10318}
 PCI\VEN_8086&DEV_2923&CC_0106 = iaStor,{4D36E96A-E325-11CE-BFC1-08002BE10318}
 PCI\VEN_8086&DEV_3A03&CC_0106 = iaStor,{4D36E96A-E325-11CE-BFC1-08002BE10318}
 PCI\VEN_8086&DEV_3A23&CC_0106 = iaStor,{4D36E96A-E325-11CE-BFC1-08002BE10318}
+PCI\VEN_1002&DEV_4391&CC_0106 = ahcix86,{4D36E96A-E325-11CE-BFC1-08002BE10318}
+PCI\VEN_1002&DEV_4392&CC_0104 = ahcix86,{4D36E96A-E325-11CE-BFC1-08002BE10318}
+PCI\VEN_1002&DEV_4393&CC_0104 = ahcix86,{4D36E96A-E325-11CE-BFC1-08002BE10318}
+PCI\VEN_1002&DEV_4394&CC_0106 = ahcix86,{4D36E96A-E325-11CE-BFC1-08002BE10318}
+PCI\VEN_1022&DEV_7801&CC_0106 = ahcix86,{4D36E96A-E325-11CE-BFC1-08002BE10318}
+PCI\VEN_1022&DEV_7802&CC_0104 = ahcix86,{4D36E96A-E325-11CE-BFC1-08002BE10318}
+PCI\VEN_1022&DEV_7803&CC_0104 = ahcix86,{4D36E96A-E325-11CE-BFC1-08002BE10318}
+PCI\VEN_1022&DEV_7804&CC_0106 = ahcix86,{4D36E96A-E325-11CE-BFC1-08002BE10318}
 
 PCI\VEN_8086&DEV_2411 = intelide
 PCI\VEN_8086&DEV_2421 = intelide
@@ -290,7 +298,7 @@ usbuhci = usbuhci.sys
 [SCSI.Load]
 ;uniata = uniata.sys
 atapi = atapi.sys,4
-buslogic = buslogic.sys
+;buslogic = buslogic.sys
 disk = disk.sys
 storahci = storahci.sys
 

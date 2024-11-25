@@ -52,22 +52,22 @@ HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\HID_DEVICE_SYSTEM_
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\HID_DEVICE_SYSTEM_KEYBOARD","ClassGUID",0x00000000,"{4D36E96B-E325-11CE-BFC1-08002BE10318}"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\HID_DEVICE_SYSTEM_MOUSE","Service",0x00000000,"mouhid"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\HID_DEVICE_SYSTEM_MOUSE","ClassGUID",0x00000000,"{4D36E96F-E325-11CE-BFC1-08002BE10318}"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4391&CC_0106","Service",0x00000000,"ahcix86"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4391&CC_0106","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4392&CC_0104","Service",0x00000000,"ahcix86"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4392&CC_0104","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4393&CC_0104","Service",0x00000000,"ahcix86"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4393&CC_0104","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4394&CC_0106","Service",0x00000000,"ahcix86"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4394&CC_0106","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7801&CC_0106","Service",0x00000000,"ahcix86"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7801&CC_0106","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7802&CC_0104","Service",0x00000000,"ahcix86"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7802&CC_0104","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7803&CC_0104","Service",0x00000000,"ahcix86"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7803&CC_0104","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7804&CC_0106","Service",0x00000000,"ahcix86"
-;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7804&CC_0106","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4391&CC_0106","Service",0x00000000,"ahcix86"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4391&CC_0106","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4392&CC_0104","Service",0x00000000,"ahcix86"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4392&CC_0104","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4393&CC_0104","Service",0x00000000,"ahcix86"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4393&CC_0104","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4394&CC_0106","Service",0x00000000,"ahcix86"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1002&DEV_4394&CC_0106","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7801&CC_0106","Service",0x00000000,"ahcix86"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7801&CC_0106","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7802&CC_0104","Service",0x00000000,"ahcix86"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7802&CC_0104","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7803&CC_0104","Service",0x00000000,"ahcix86"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7803&CC_0104","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7804&CC_0106","Service",0x00000000,"ahcix86"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_7804&CC_0106","ClassGUID",0x00000000,"{4D36E97B-E325-11CE-BFC1-08002BE10318}"
 ;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_2000","Service",0x00000000,"pcntpci5"
 ;HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_1022&DEV_2000","ClassGUID",0x00000000,"{4D36E972-E325-11CE-BFC1-08002bE10318}"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_197B&DEV_2361&CC_0101","Service",0x00000000,"pciide"
@@ -423,6 +423,13 @@ HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E97D-E325-11CE-BFC1-08002BE103
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{9D6D66A6-0B0C-4563-9077-A0E9A7955AE4}",,0x00000000,"Ramdisk"
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{9D6D66A6-0B0C-4563-9077-A0E9A7955AE4}","Class",0x00000000,"Ramdisk"
 HKLM,"SYSTEM\CurrentControlSet\Control\Class\{9D6D66A6-0B0C-4563-9077-A0E9A7955AE4}","Icon",0x00000000,"-5"
+
+HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E97B-E325-11CE-BFC1-08002BE10318}",,0x00000000,"SCSI and RAID controllers"
+HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E97B-E325-11CE-BFC1-08002BE10318}","Class",0x00000000,"SCSIAdapter"
+HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E97B-E325-11CE-BFC1-08002BE10318}","Icon",0x00000000,"-10"
+HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E97B-E325-11CE-BFC1-08002BE10318}","Installer32",0x00000000,"SysSetup.Dll,ScsiClassInstaller"
+HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E97B-E325-11CE-BFC1-08002BE10318}","LegacyInfOption",0x00000000,"SCSI"
+HKLM,"SYSTEM\CurrentControlSet\Control\Class\{4D36E97B-E325-11CE-BFC1-08002BE10318}","LegacyAdapterDetection",0x00010003,0
 
 ; Device classes key
 HKLM,"SYSTEM\CurrentControlSet\Control\DeviceClasses",,0x00000012
@@ -2217,13 +2224,15 @@ HKLM,"SYSTEM\CurrentControlSet\Services\IntelIde","Type",0x00010001,0x00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\IntelIde","Tag",0x00010001,0x00000005
 
 ; AMD AHCI Compatible RAID Controller driver
-;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","ErrorControl",0x00010001,0x00000001
-;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Group",0x00000000,"SCSI Miniport"
-;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","ImagePath",0x00020000,"system32\drivers\ahcix86.sys"
-;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Start",0x00010001,0x00000000
-;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Type",0x00010001,0x00000001
-;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Tag",0x00010001,0x00000003
-;HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","DisplayName",0x00000000,"AMD AHCI Compatible RAID Controller"
+HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","ErrorControl",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Group",0x00000000,"SCSI Miniport"
+HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","ImagePath",0x00020000,"system32\drivers\ahcix86.sys"
+HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Type",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","Tag",0x00010001,0x00000003
+HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86","DisplayName",0x00000000,"AMD AHCI Compatible RAID Controller"
+HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86\Parameters\PnpInterface","5",0x00010001,0x00000001
+HKLM,"SYSTEM\CurrentControlSet\Services\ahcix86\Parameters\Device","NumberOfRequests",0x00010001,0x00000080
 
 ; iaStor driver
 HKLM,"SYSTEM\CurrentControlSet\Services\iaStor","ErrorControl",0x00010001,0x00000001

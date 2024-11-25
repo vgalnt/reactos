@@ -1,5 +1,6 @@
-add_subdirectory(buslogic)
+#add_subdirectory(buslogic)
 #add_subdirectory(scsiport)
-add_subdirectory(scsiport_old)
+#add_subdirectory(scsiport_old)
+add_subdirectory(scsiport_new)
 add_subdirectory(storahci)
 add_subdirectory(storport)
