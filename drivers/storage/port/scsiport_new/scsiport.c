@@ -22,6 +22,7 @@ PDEVICE_OBJECT* ScsiGlobalAdapterList = ULongToPtr(0xFFFFFFFF);
 ULONG ScsiGlobalAdapterListElements = 0;
 KSPIN_LOCK ScsiGlobalAdapterListSpinLock;
 PVOID ScsiDirectory = NULL;
+PSCSI_PORT_GUID_INTERFACE_MAPPING SpGuidInterfaceMappingList;
 
 BOOLEAN Sp64BitPhysicalAddresses = FALSE;
 BOOLEAN SpLegacyInstanceId = FALSE;
@@ -59,8 +60,34 @@ NTSTATUS
 NTAPI
 SpInitializeGuidInterfaceMapping(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+    DPRINT("SpInitializeGuidInterfaceMapping()\n");
+
+    ASSERT(SpGuidInterfaceMappingList == NULL);
+
+    SpGuidInterfaceMappingList = ExAllocatePoolWithTag(PagedPool, (5 * sizeof(SCSI_PORT_GUID_INTERFACE_MAPPING)), 'TPcS');
+    if (!SpGuidInterfaceMappingList)
+    {
+        DPRINT1("SpInitializeGuidInterfaceMapping: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(SpGuidInterfaceMappingList, (5 * sizeof(SCSI_PORT_GUID_INTERFACE_MAPPING)));
+
+    SpGuidInterfaceMappingList[0].Guid = GUID_BUS_TYPE_PCMCIA;
+    SpGuidInterfaceMappingList[0].InterfaceType = Isa;
+
+    SpGuidInterfaceMappingList[1].Guid = GUID_BUS_TYPE_PCI;
+    SpGuidInterfaceMappingList[1].InterfaceType = PCIBus;
+
+    SpGuidInterfaceMappingList[2].Guid = GUID_BUS_TYPE_ISAPNP;
+    SpGuidInterfaceMappingList[2].InterfaceType = Isa;
+
+    SpGuidInterfaceMappingList[3].Guid = GUID_BUS_TYPE_EISA;
+    SpGuidInterfaceMappingList[3].InterfaceType = Eisa;
+
+    SpGuidInterfaceMappingList[4].InterfaceType = InterfaceTypeUndefined;
+
+    return STATUS_SUCCESS;
 }
 
 VOID

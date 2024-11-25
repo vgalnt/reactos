@@ -28,6 +28,12 @@ typedef struct _SCSIPORT_DRIVER_EXTENSION
     ULONG IgnoreInitLegacyStatus;
 } SCSI_PORT_DRIVER_EXTENSION, *PSCSI_PORT_DRIVER_EXTENSION;
 
+typedef struct _SCSI_PORT_GUID_INTERFACE_MAPPING
+{
+    GUID Guid;
+    INTERFACE_TYPE InterfaceType;
+} SCSI_PORT_GUID_INTERFACE_MAPPING, *PSCSI_PORT_GUID_INTERFACE_MAPPING;
+
 /* FUNCTIONS ****************************************************************/
 
 #endif /* _SCSIPORT_H_ */
