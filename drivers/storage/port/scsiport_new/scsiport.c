@@ -23,6 +23,7 @@ ULONG ScsiGlobalAdapterListElements = 0;
 KSPIN_LOCK ScsiGlobalAdapterListSpinLock;
 PVOID ScsiDirectory = NULL;
 PSCSI_PORT_GUID_INTERFACE_MAPPING SpGuidInterfaceMappingList;
+HANDLE ScsiDeviceMapKey = ULongToPtr(0xFFFFFFFF);
 
 BOOLEAN Sp64BitPhysicalAddresses = FALSE;
 BOOLEAN SpLegacyInstanceId = FALSE;
@@ -94,7 +95,24 @@ VOID
 NTAPI
 SpInitDeviceMap(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING DeviceMapName;
+    HANDLE KeyHandle;
+    ULONG Disposition;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpInitDeviceMap()\n");
+
+    RtlInitUnicodeString(&DeviceMapName, L"\\Registry\\Machine\\Hardware\\DeviceMap\\Scsi");
+    InitializeObjectAttributes(&ObjectAttributes, &DeviceMapName, OBJ_CASE_INSENSITIVE, 0, NULL);
+
+    Status = ZwCreateKey(&KeyHandle, (KEY_READ | KEY_WRITE), &ObjectAttributes, 0, NULL, REG_OPTION_VOLATILE, &Disposition);
+
+    if (NT_SUCCESS(Status))
+        ScsiDeviceMapKey = KeyHandle;
+    else
+        ScsiDeviceMapKey = NULL;
 }
 
 BOOLEAN
