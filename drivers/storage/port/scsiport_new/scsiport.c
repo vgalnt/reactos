@@ -191,8 +191,61 @@ SpReadNumericValue(
     _In_ PUNICODE_STRING ValueName,
     _Out_ ULONG* OutValue)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UCHAR Buffer[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
+    PKEY_VALUE_PARTIAL_INFORMATION KeyValueInfo;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE KeyHandle = Root;
+    ULONG ResultLength;
+    ULONG Value = 0;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpReadNumericValue: '%wZ' '%wZ'\n", KeyName, ValueName);
+
+    ASSERT(OutValue != NULL);
+    ASSERT(ValueName != NULL);
+    ASSERT((KeyName != NULL) || (Root != NULL));
+
+    if (KeyName)
+    {
+        InitializeObjectAttributes(&ObjectAttributes, KeyName, (OBJ_CASE_INSENSITIVE | OBJ_OPENIF), Root, NULL);
+
+        Status = ZwOpenKey(&KeyHandle, KEY_QUERY_VALUE, &ObjectAttributes);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("SpReadNumericValue: Status %X\n", Status);
+            goto Exit;
+        }
+    }
+
+    RtlZeroMemory(Buffer, sizeof(Buffer));
+    KeyValueInfo = (PKEY_VALUE_PARTIAL_INFORMATION)Buffer;
+
+    Status = ZwQueryValueKey(KeyHandle, ValueName, KeyValuePartialInformation, KeyValueInfo, sizeof(Buffer), &ResultLength);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("SpReadNumericValue: Status %X\n", Status);
+        goto Exit;
+    }
+
+    if (KeyValueInfo->Type == REG_DWORD)
+    {
+        Value = ((PULONG)KeyValueInfo->Data)[0];
+        DPRINT("SpReadNumericValue: Value %X\n", Value);
+    }
+    else
+    {
+        Status = STATUS_UNSUCCESSFUL;
+    }
+
+Exit:
+
+    *OutValue = Value;
+
+    if (KeyHandle != Root)
+        ZwClose(KeyHandle);
+
+    return Status;
 }
 
 NTSTATUS
