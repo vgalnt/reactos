@@ -1368,8 +1368,40 @@ NTAPI
 SpOpenParametersKey(
     _In_ PUNICODE_STRING RegistryPath)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING KeyName;
+    HANDLE RootKeyHandle = NULL;
+    HANDLE KeyHandle = NULL;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpOpenParametersKey: %p\n", RegistryPath);
+
+    InitializeObjectAttributes(&ObjectAttributes, RegistryPath, (OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE), NULL, NULL);
+
+    Status = ZwOpenKey(&RootKeyHandle, KEY_READ, &ObjectAttributes);
+    if (!NT_SUCCESS(Status))
+    {
+        //ScsiDebugPrintInt(1, "SpOpenParameterKey: cannot open service key node for driver.  Name: %wZ Status: %08lx\n", RegistryPath, Status);
+        DPRINT1("SpOpenParametersKey: cannot open service key node for driver. Name '%wZ' Status %X\n", RegistryPath, Status);
+    }
+
+    if (!RootKeyHandle)
+        return NULL;
+
+    RtlInitUnicodeString(&KeyName, L"Parameters");
+    InitializeObjectAttributes(&ObjectAttributes, &KeyName, (OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE), RootKeyHandle, NULL);
+
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpOpenParametersKey: Status: %X\n", Status);
+        return RootKeyHandle;
+    }
+
+    ZwClose(RootKeyHandle);
+
+    return KeyHandle;
 }
 
 HANDLE
