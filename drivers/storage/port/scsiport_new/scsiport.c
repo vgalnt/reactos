@@ -1363,6 +1363,55 @@ SpInitializeAdapterExtension(
     DeviceExtension->ResetHoldTime = (ScsiPortVerifierInitialized ? 0x3C : 4);
 }
 
+HANDLE
+NTAPI
+SpOpenDeviceKey(
+    _In_ PUNICODE_STRING RegistryPath,
+    _In_ ULONG AdapterNumber)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+VOID
+NTAPI
+SpParseDevice(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ HANDLE KeyHandle,
+    _In_ PSCSI_PORT_CONFIG_CONTEXT CfgContext,
+    _In_ PKEY_VALUE_FULL_INFORMATION FullInfoBuffer)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+PortGetDiskTimeoutValue(
+    _Out_ ULONG* OutTimeoutValue)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpConfigurationCallout(
+    _In_ PVOID Context,
+    _In_ PUNICODE_STRING PathName,
+    _In_ INTERFACE_TYPE BusType,
+    _In_ ULONG BusNumber,
+    _Out_ PKEY_VALUE_FULL_INFORMATION* BusInformation,
+    _In_ CONFIGURATION_TYPE ControllerType,
+    _In_ ULONG ControllerNumber,
+    _Out_ PKEY_VALUE_FULL_INFORMATION* ControllerInformation,
+    _In_ CONFIGURATION_TYPE PeripheralType,
+    _In_ ULONG PeripheralNumber,
+    _Out_ PKEY_VALUE_FULL_INFORMATION* PeripheralInformation)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 SpInitializeConfiguration(
@@ -1371,8 +1420,100 @@ SpInitializeConfiguration(
     _In_ PSCSI_HW_CHAIN_ENTRY ChainEntry,
     _In_ PSCSI_PORT_CONFIG_CONTEXT CfgContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCONFIGURATION_INFORMATION ConfigInfo;
+    INTERFACE_TYPE BusType;
+    HANDLE KeyHandle;
+    UCHAR FullInfoBuffer[0x200];
+    ULONG ix;
+    BOOLEAN Result;
+
+    DPRINT("SpInitializeConfiguration: %p\n", DeviceExtension);
+
+    RtlZeroMemory(&CfgContext->PortConfig, sizeof(CfgContext->PortConfig));
+
+    ASSERT(CfgContext->AccessRanges != NULL);
+    RtlZeroMemory(CfgContext->AccessRanges, (ChainEntry->HwInitializationData.NumberOfAccessRanges * sizeof(ACCESS_RANGE)));
+
+    BusType = ChainEntry->HwInitializationData.AdapterInterfaceType;
+
+    CfgContext->PortConfig.Length = sizeof(CfgContext->PortConfig);
+    CfgContext->PortConfig.AdapterInterfaceType = BusType;
+    CfgContext->PortConfig.InterruptMode = 1;
+    CfgContext->PortConfig.MaximumTransferLength = 0xFFFFFFFF;
+    CfgContext->PortConfig.DmaChannel = 0xFFFFFFFF;
+    CfgContext->PortConfig.DmaPort = 0xFFFFFFFF;
+    CfgContext->PortConfig.NumberOfAccessRanges = ChainEntry->HwInitializationData.NumberOfAccessRanges;
+    CfgContext->PortConfig.MaximumNumberOfTargets = 8;
+    CfgContext->PortConfig.MaximumNumberOfLogicalUnits = 8;
+    CfgContext->PortConfig.WmiDataProvider = 0;
+    CfgContext->PortConfig.Dma64BitAddresses = (Sp64BitPhysicalAddresses == 1 ? 0x80 : 0);
+    CfgContext->PortConfig.NeedPhysicalAddresses = ChainEntry->HwInitializationData.NeedPhysicalAddresses;
+    CfgContext->PortConfig.MapBuffers = ChainEntry->HwInitializationData.MapBuffers;
+    CfgContext->PortConfig.AutoRequestSense = ChainEntry->HwInitializationData.AutoRequestSense;
+    CfgContext->PortConfig.ReceiveEvent = ChainEntry->HwInitializationData.ReceiveEvent;
+    CfgContext->PortConfig.TaggedQueuing = ChainEntry->HwInitializationData.TaggedQueuing;
+    CfgContext->PortConfig.MultipleRequestPerLu = ChainEntry->HwInitializationData.MultipleRequestPerLu;
+
+    ConfigInfo = IoGetConfigurationInformation();
+    CfgContext->PortConfig.AtdiskPrimaryClaimed = ConfigInfo->AtDiskPrimaryAddressClaimed;
+    CfgContext->PortConfig.AtdiskSecondaryClaimed = ConfigInfo->AtDiskSecondaryAddressClaimed;
+
+    for (ix = 0; ix < 8; ix++)
+        CfgContext->PortConfig.InitiatorBusId[ix] = 0xFF;
+
+    CfgContext->PortConfig.SystemIoBusNumber = CfgContext->BusNumber;
+    CfgContext->PortConfig.NumberOfPhysicalBreaks = 0x11;
+
+    CfgContext->DisableTaggedQueuing = 0;
+    CfgContext->DisableMultipleRequests = 0;
+
+    CfgContext->AdapterNumber = (DeviceExtension->PortScsi - 1);
+    ASSERT((LONG)CfgContext->AdapterNumber > -1);
+
+    if (CfgContext->DriverParameters)
+    {
+        ExFreePoolWithTag(CfgContext->DriverParameters, 0);
+        CfgContext->DriverParameters = 0;
+    }
+
+    KeyHandle = SpOpenDeviceKey(RegistryPath, 0xFFFFFFFF);
+    if (KeyHandle)
+    {
+        SpParseDevice(DeviceExtension, KeyHandle, CfgContext, (PVOID)FullInfoBuffer);
+        ZwClose(DeviceExtension);
+    }
+
+    KeyHandle = SpOpenDeviceKey(RegistryPath, CfgContext->AdapterNumber);
+    if (KeyHandle)
+    {
+        SpParseDevice(DeviceExtension, KeyHandle, CfgContext, (PVOID)FullInfoBuffer);
+        ZwClose(DeviceExtension);
+    }
+
+    DeviceExtension->TimeoutValue = 0xA;
+    PortGetDiskTimeoutValue(&DeviceExtension->TimeoutValue);
+
+    if (BusType == PNPBus)
+        return STATUS_SUCCESS;
+
+    Result = FALSE;
+
+    if (BusType != MicroChannel)
+    {
+        IoQueryDeviceDescription(&BusType, &CfgContext->BusNumber, NULL, NULL, NULL, NULL, SpConfigurationCallout, &Result);
+        if (Result)
+            return STATUS_SUCCESS;
+    }
+
+    if (BusType != Isa)
+    {
+        return STATUS_DEVICE_DOES_NOT_EXIST;
+    }
+
+    BusType = Eisa;
+    IoQueryDeviceDescription(&BusType, &CfgContext->BusNumber, NULL, NULL, NULL, NULL, SpConfigurationCallout, &Result);
+
+    return (Result == FALSE ? STATUS_DEVICE_DOES_NOT_EXIST : STATUS_SUCCESS);
 }
 
 VOID
