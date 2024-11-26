@@ -112,6 +112,8 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     WORK_QUEUE_ITEM EnumWorkItem;
     PSCSI_PORT_ENUM_REQUEST AsyncEnumRequest;
     SCSI_PORT_ENUM_REQUEST EnumRequest;
+    BOOLEAN LowerBusInterfaceStandardRetrieved;
+    BUS_INTERFACE_STANDARD Interface;
     PWCHAR DeviceNameBuffer;
     GUID BusTypeGuid;
     ULONG PnpDeviceState;

@@ -680,6 +680,17 @@ SpCompleteRequest(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+NTSTATUS
+NTAPI
+SpSignalCompletion(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 SpEnumerationWorker(
@@ -1039,11 +1050,79 @@ SpGetInterrupt(
 NTSTATUS
 NTAPI
 SpStartLowerDevice(
-    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    PKEVENT Event;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpStartLowerDevice: %p, %p\n", Fdo, Irp);
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    Event = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Event), 'vPcS');
+    if (!Event)
+    {
+        DPRINT1("SpStartLowerDevice: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    KeInitializeEvent(Event, SynchronizationEvent, FALSE);
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    IoSetCompletionRoutine(Irp, SpSignalCompletion, Event, TRUE, TRUE, TRUE);
+
+    Status = IoCallDriver(DeviceExtension->CommonExtension.LowDevice, Irp);
+    if (Status == STATUS_PENDING)
+    {
+        KeWaitForSingleObject(Event, Executive, KernelMode, FALSE, NULL);
+        Status = Irp->IoStatus.Status;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpStartLowerDevice: Status %X\n", Status);
+        ExFreePoolWithTag(Event, 'vPcS');
+        return Status;
+    }
+
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+
+    IoStack->Parameters.QueryInterface.Size = sizeof(BUS_INTERFACE_STANDARD);
+    IoStack->Parameters.QueryInterface.Version = 1;
+    IoStack->Parameters.QueryInterface.InterfaceType = &GUID_BUS_INTERFACE_STANDARD;
+    IoStack->Parameters.QueryInterface.Interface = (PVOID)&DeviceExtension->Interface;
+
+    IoStack->MajorFunction = IRP_MJ_PNP;
+    IoStack->MinorFunction = IRP_MN_QUERY_INTERFACE;
+
+    KeResetEvent(Event);
+    IoSetCompletionRoutine(Irp, SpSignalCompletion, Event, TRUE, TRUE, TRUE);
+
+    IoCallDriver(DeviceExtension->CommonExtension.LowDevice, Irp);
+    KeWaitForSingleObject(Event, Executive, KernelMode, FALSE, NULL);
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        //ScsiDebugPrintInt(1, "LowerBusInterfaceStandard request returned %#08lx\n", Irp->IoStatus.Status);
+        DPRINT1("SpStartLowerDevice: LowerBusInterfaceStandard request returned %X\n", Irp->IoStatus.Status);
+
+        DeviceExtension->LowerBusInterfaceStandardRetrieved = FALSE;
+    }
+    else
+    {
+        DeviceExtension->LowerBusInterfaceStandardRetrieved = TRUE;
+    }
+
+    Irp->IoStatus.Status = Status;
+    ExFreePoolWithTag(Event, 'vPcS');
+
+    return Status;
 }
 
 PCM_RESOURCE_LIST
