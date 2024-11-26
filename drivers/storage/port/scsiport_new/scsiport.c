@@ -17,6 +17,7 @@
 
 ULONG ScsiDebug = 0;
 LONG SpVrfyLevel = 0;
+ULONG ScsiPortVerifierInitialized = 0;
 
 PDEVICE_OBJECT* ScsiGlobalAdapterList = ULongToPtr(0xFFFFFFFF);
 ULONG ScsiGlobalAdapterListElements = 0;
@@ -1328,7 +1329,38 @@ SpInitializeAdapterExtension(
     _In_ PSCSI_HW_CHAIN_ENTRY ChainEntry,
     _In_ PSCSI_PORT_HW_DATA SpHwData)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PAGED_CODE();
+    DPRINT("SpInitializeAdapterExtension: %p, %X\n", DeviceExtension, ChainEntry);
+
+    DeviceExtension->HwFindAdapter = ChainEntry->HwInitializationData.HwFindAdapter;
+    DeviceExtension->HwInitialize = ChainEntry->HwInitializationData.HwInitialize;
+    DeviceExtension->HwStartIo = ChainEntry->HwInitializationData.HwStartIo;
+    DeviceExtension->HwInterrupt = ChainEntry->HwInitializationData.HwInterrupt;
+    DeviceExtension->HwResetBus = ChainEntry->HwInitializationData.HwResetBus;
+    DeviceExtension->HwDmaStarted = ChainEntry->HwInitializationData.HwDmaStarted;
+
+    if (ChainEntry->HwInitializationData.HwInitializationDataSize >= sizeof(HW_INITIALIZATION_DATA))
+        DeviceExtension->HwAdapterControl = ChainEntry->HwInitializationData.HwAdapterControl;
+    else
+        DeviceExtension->HwAdapterControl = NULL;
+
+    //FIXME SpDoVerifierInit(..);
+
+    DeviceExtension->SpecificLuExtensionSize = ChainEntry->HwInitializationData.SpecificLuExtensionSize;
+    DeviceExtension->SrbExtensionSize = ((ChainEntry->HwInitializationData.SrbExtensionSize + 7) & ~7);
+    DeviceExtension->MaximumLogicalUnit = 8;
+    DeviceExtension->NumberOfRequests = 0x10;
+
+    if (SpHwData)
+    {
+        SpHwData->DeviceExtension = DeviceExtension;
+        DeviceExtension->HwDeviceExtension = &SpHwData->HwDeviceExtension;
+    }
+
+    DeviceExtension->ReservedMapping = MmAllocateMappingAddress((4 * PAGE_SIZE), 'mPcS');
+    DeviceExtension->ReservedMdl = IoAllocateMdl(NULL, (4 * PAGE_SIZE), FALSE, FALSE, NULL);
+    DeviceExtension->TimeoutValue = 0xA;
+    DeviceExtension->ResetHoldTime = (ScsiPortVerifierInitialized ? 0x3C : 4);
 }
 
 NTSTATUS

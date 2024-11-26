@@ -104,17 +104,30 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
 {
     COMMON_EXTENSION CommonExtension;
     PDEVICE_OBJECT LowerPdo;
+    PVOID HwDeviceExtension;
     ULONG PortScsiPort;
     ULONG PortScsi;
     UCHAR Flags2;
     ULONG BusNumber;
     ULONG SlotNumber;
+    UCHAR NumberOfBuses;
+    UCHAR MaximumNumberOfTargets;
+    UCHAR MaximumLogicalUnit;
     ULONG DisableCount;
     PPORT_CONFIGURATION_INFORMATION PortConfig;
     PCM_RESOURCE_LIST AllocatedResources;
     PCM_RESOURCE_LIST AllocatedResourcesTranslated;
     ULONG SrbExtensionSize;
+    ULONG NumberOfRequests;
     ULONG SpecificLuExtensionSize;
+    PHW_FIND_ADAPTER HwFindAdapter;
+    PHW_INITIALIZE HwInitialize;
+    PHW_STARTIO HwStartIo;
+    PHW_INTERRUPT HwInterrupt;
+    PHW_RESET_BUS HwResetBus;
+    PHW_DMA_STARTED HwDmaStarted;
+    PHW_INTERRUPT HwTimerInt;
+    PHW_ADAPTER_CONTROL HwAdapterControl;
     SCSI_PORT_LUN_ENTRY LunList[8];
     SCSI_PORT_INTERRUPT_DATA InterruptData;
     KMUTEX EnumMutex;
@@ -130,6 +143,10 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     FAST_MUTEX PoFastMutex;
     PHYSICAL_ADDRESS MinimumUCXAddress;
     PHYSICAL_ADDRESS MaximumUCXAddress;
+    PVOID ReservedMapping;
+    PMDL ReservedMdl;
+    ULONG TimeoutValue;
+    ULONG ResetHoldTime;
     PSCSI_PORT_LUN_EXTENSION BlockedLun;
 } SCSI_PORT_DEVICE_EXTENSION, *PSCSI_PORT_DEVICE_EXTENSION;
 
