@@ -45,6 +45,15 @@ typedef struct _SCSI_PNP_INTERFACE
     ULONG Flags;
 } SCSI_PNP_INTERFACE, *PSCSI_PNP_INTERFACE;
 
+typedef struct _SCSI_PORT_ENUM_REQUEST
+{
+    struct _SCSI_PORT_ENUM_REQUEST* NextRequest;
+    PVOID CompletionRoutine;
+    PIO_STATUS_BLOCK IoStatus;
+    PIRP Irp;
+    BOOLEAN IsNotCompleteEnumRequest;
+} SCSI_PORT_ENUM_REQUEST, *PSCSI_PORT_ENUM_REQUEST;
+
 typedef struct _COMMON_EXTENSION
 {
     PDEVICE_OBJECT SelfDevice;
@@ -70,6 +79,7 @@ typedef struct _COMMON_EXTENSION
     LONG RemoveLock;
     KEVENT Event;
     NPAGED_LOOKASIDE_LIST LookAsideList;
+    ULONG PagingPathCount;
 } COMMON_EXTENSION, *PCOMMON_EXTENSION;
 
 /* PDO */
@@ -92,11 +102,18 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     ULONG PortScsiPort;
     ULONG PortScsi;
     UCHAR Flags2;
+    ULONG BusNumber;
+    ULONG SlotNumber;
+    PCM_RESOURCE_LIST AllocatedResources;
+    PCM_RESOURCE_LIST AllocatedResourcesTranslated;
     SCSI_PORT_LUN_ENTRY LunList[8];
     KMUTEX EnumMutex;
     FAST_MUTEX EnumFastMutex;
     WORK_QUEUE_ITEM EnumWorkItem;
+    PSCSI_PORT_ENUM_REQUEST AsyncEnumRequest;
+    SCSI_PORT_ENUM_REQUEST EnumRequest;
     PWCHAR DeviceNameBuffer;
+    ULONG PnpDeviceState;
     FAST_MUTEX PoFastMutex;
     PHYSICAL_ADDRESS MinimumUCXAddress;
     PHYSICAL_ADDRESS MaximumUCXAddress;

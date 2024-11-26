@@ -49,6 +49,15 @@ SpAcquireRemoveLockEx(
 }
 
 VOID
+FASTCALL
+SpReleaseRemoveLock(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PVOID Tag) // ? PIRP
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
 NTAPI
 SpCreateScsiDirectory(VOID)
 {
@@ -640,6 +649,18 @@ ScsiPortStartIo(
 }
 
 VOID
+FASTCALL
+SpCompleteRequest(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PVOID Context,
+    _In_ CCHAR PriorityBoost)
+{
+    //PSCSI_PORT_SRB_DATA SrbData = Context;
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
 NTAPI
 SpEnumerationWorker(
     _In_ PVOID Parameter)
@@ -697,7 +718,7 @@ SpCreateAdapter(
 
     Length = (ix - Offset + 1);
 
-    //ScsiDebugPrintInt(2, "SpCreateAdapter: Registry buffer %#p\n", RegistryPath);
+    //ScsiDebugPrintInt(2, "SpCreateAdapter: Registry buffer %p\n", RegistryPath);
     //ScsiDebugPrintInt(2, "SpCreateAdapter: Starting offset %d chars\n", Offset);
     //ScsiDebugPrintInt(2, "SpCreateAdapter: Ending offset %d chars\n", Count);
     //ScsiDebugPrintInt(2, "SpCreateAdapter: %d chars or %d bytes will be copied\n", Length, (Length * 2));
@@ -907,7 +928,7 @@ ScsiPortScsi1PdoScsi(
 NTSTATUS
 NTAPI
 ScsiPortFdoCreateClose(
-    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
@@ -917,7 +938,7 @@ ScsiPortFdoCreateClose(
 NTSTATUS
 NTAPI
 ScsiPortFdoDeviceControl(
-    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
@@ -927,7 +948,7 @@ ScsiPortFdoDeviceControl(
 NTSTATUS
 NTAPI
 ScsiPortFdoDispatch(
-    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
@@ -936,12 +957,349 @@ ScsiPortFdoDispatch(
 
 NTSTATUS
 NTAPI
-ScsiPortFdoPnp(
-    _In_ PDEVICE_OBJECT Pdo,
+SpGetBusTypeGuid(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+SpGetInterrupt(
+    _In_ PCM_RESOURCE_LIST CmResources,
+    _Out_ ULONG* OutLevel,
+    _Out_ ULONG* OutVector,
+    _Out_ ULONG* OutAffinity)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
+SpStartLowerDevice(
+    _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+PCM_RESOURCE_LIST
+NTAPI
+RtlDuplicateCmResourceList(
+    _In_ POOL_TYPE PoolType,
+    _In_ PCM_RESOURCE_LIST InCmResources,
+    _In_ ULONG Tag)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortInitPnpAdapter(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortStartAdapter(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+SpQueryDeviceRelationsCompletion(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_ENUM_REQUEST EnumRequest,
+    _In_ NTSTATUS Unused)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+SpEnumerateAdapterAsynchronous(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_ENUM_REQUEST EnumRequest,
+    _In_ BOOLEAN Unknown)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+ScsiPortFdoPnp(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
+{
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_DRIVER_EXTENSION SpDriverExtension;
+    PCM_RESOURCE_LIST AllocatedResourcesTranslated;
+    PCM_RESOURCE_LIST AllocatedResources;
+    PIO_RESOURCE_REQUIREMENTS_LIST IoResources;
+    PIO_STACK_LOCATION IoStack;
+    ULONG PnpInterfaceFlags;
+    ULONG Level;
+    ULONG Vector;
+    ULONG Affinity;
+    LONG IsRemoved;
+    BOOLEAN IsComplete = TRUE;
+    NTSTATUS Status = STATUS_INVALID_DEVICE_REQUEST;
+
+    PAGED_CODE();
+
+    DeviceExtension = Fdo->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    IsRemoved = SpAcquireRemoveLockEx(Fdo, Irp, __FILE__, __LINE__);
+
+    //ScsiDebugPrintInt(2, "ScsiPortFdoPnp: FDO %p IRP %p MinorFunction %x IsRemoved %d\n", Fdo, Irp, IoStack->MinorFunction, IsRemoved);
+    DPRINT("ScsiPortFdoPnp: FDO %p IRP %p MinorFunction %X IsRemoved %X\n", Fdo, Irp, IoStack->MinorFunction, IsRemoved);
+
+    switch (IoStack->MinorFunction)
+    {
+        case IRP_MN_START_DEVICE:
+        {
+            DPRINT("ScsiPortFdoPnp: IRP_MN_START_DEVICE\n");
+
+            SpDriverExtension = IoGetDriverObjectExtension(Fdo->DriverObject, ScsiPortInitialize);
+
+            AllocatedResources = IoStack->Parameters.StartDevice.AllocatedResources;
+            AllocatedResourcesTranslated = IoStack->Parameters.StartDevice.AllocatedResourcesTranslated;
+
+            if (!(DeviceExtension->Flags2 & 4))
+            {
+                //ScsiDebugPrintInt(1, "ScsiPortFdoPnp - asked to start non-pnp adapter\n");
+                DPRINT1("ScsiPortFdoPnp: asked to start non-pnp adapter\n");
+                Status = STATUS_UNSUCCESSFUL;
+                break;
+            }
+
+            if (!DeviceExtension->CommonExtension.CurrentPnpState)
+            {
+                //ScsiDebugPrintInt(1, "ScsiPortFdoPnp - already started - nothing to do\n");
+                DPRINT("ScsiPortFdoPnp: already started - nothing to do\n");
+                Status = STATUS_SUCCESS;
+                break;
+            }
+
+            if (!AllocatedResources)
+            {
+                Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
+                break;
+            }
+
+            ASSERT(AllocatedResources->Count);
+
+            PnpInterfaceFlags = SpQueryPnpInterfaceFlags(SpDriverExtension, AllocatedResources->List[0].InterfaceType);
+            if (!PnpInterfaceFlags)
+            {
+                //ScsiDebugPrintInt(1, "ScsiPortFdoPnp - Miniport cannot be run in pnp mode for interface type %#08lx\n", AllocatedResources->List[0].InterfaceType);
+                DPRINT1("ScsiPortFdoPnp: Miniport cannot be run in pnp mode for interface type %X\n", AllocatedResources->List[0].InterfaceType);
+                DeviceExtension->Flags2 &= ~4;
+                Status = STATUS_UNSUCCESSFUL;
+                break;
+            }
+
+            if (!(PnpInterfaceFlags & 4))
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            if (SpGetBusTypeGuid(DeviceExtension) == STATUS_OBJECT_NAME_NOT_FOUND &&
+                SpDriverExtension->LegacyAdapterDetection == 1 &&
+                (PnpInterfaceFlags & 2))
+            {
+                DPRINT1("ScsiPortFdoPnp: device has no pnp bus type but was not found as a duplicate during detection\n");
+                //DbgPrint("ScsiPortFdoPnp: device has no pnp bus type but was not found as a duplicate during detection\n");
+                DeviceExtension->Flags2 &= ~4;
+                Status = STATUS_UNSUCCESSFUL;
+                break;
+            }
+
+            if ((PnpInterfaceFlags & 8) && !SpGetInterrupt(AllocatedResources, &Level, &Vector, &Affinity))
+            {
+                DPRINT1("ScsiPortFdoPnp: STATUS_DEVICE_CONFIGURATION_ERROR\n");
+                Status = STATUS_DEVICE_CONFIGURATION_ERROR;
+                UNIMPLEMENTED_DBGBREAK();
+                break;
+            }
+
+            Status = SpStartLowerDevice(Fdo, Irp);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("ScsiPortFdoPnp: Status %X\n", Status);
+                break;
+            }
+
+            if (!DeviceExtension->CommonExtension.IsInitialized)
+            {
+                //ScsiDebugPrintInt(1, "ScsiPortFdoPnp - find and init adapter %p\n", Fdo);
+                DPRINT("ScsiPortFdoPnp: find and init adapter %p\n", Fdo);
+
+                DeviceExtension->AllocatedResources = RtlDuplicateCmResourceList(NonPagedPool, AllocatedResources, 'rPcS');
+                DeviceExtension->AllocatedResourcesTranslated = RtlDuplicateCmResourceList(NonPagedPool, AllocatedResourcesTranslated, 'rPcS');
+
+                DeviceExtension->CommonExtension.IsInitialized = 1;
+
+                Status = ScsiPortInitPnpAdapter(Fdo);
+                if (!NT_SUCCESS(Status))
+                {
+                    //ScsiDebugPrintInt(1, "ScsiPortInitializeAdapter failed %#08lx\n", Status);
+                    DPRINT1("ScsiPortFdoPnp: Status %X\n", Status);
+                    break;
+                }
+            }
+
+            Status = ScsiPortStartAdapter(Fdo);
+
+            if (NT_SUCCESS(Status))
+            {
+                DeviceExtension->CommonExtension.PreviousPnpState = 0xFF;
+                DeviceExtension->CommonExtension.CurrentPnpState = 0;
+            }
+            else
+            {
+                DPRINT1("ScsiPortFdoPnp: Status %X\n", Status);
+            }
+
+            break;
+        }
+        case IRP_MN_QUERY_REMOVE_DEVICE:
+            DPRINT1("ScsiPortFdoPnp: IRP_MN_QUERY_REMOVE_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_REMOVE_DEVICE:
+            DPRINT1("ScsiPortFdoPnp: IRP_MN_REMOVE_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_CANCEL_REMOVE_DEVICE:
+            DPRINT1("ScsiPortFdoPnp: IRP_MN_CANCEL_REMOVE_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_STOP_DEVICE:
+            DPRINT1("ScsiPortFdoPnp: IRP_MN_STOP_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_QUERY_STOP_DEVICE:
+            DPRINT1("ScsiPortFdoPnp: IRP_MN_QUERY_STOP_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_CANCEL_STOP_DEVICE:
+            DPRINT1("ScsiPortFdoPnp: IRP_MN_CANCEL_STOP_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_QUERY_DEVICE_RELATIONS:
+        {
+            PSCSI_PORT_ENUM_REQUEST EnumRequest;
+
+            DPRINT("ScsiPortFdoPnp: IRP_MN_QUERY_DEVICE_RELATIONS\n");
+
+            //ScsiDebugPrintInt(1, "ScsiPortFdoPnp - got IRP_MJ_QUERY_DEVICE_RELATIONS\n");
+            //ScsiDebugPrintInt(1, "\ttype is %d\n", IoStack->Parameters.QueryDeviceRelations.Type);
+            DPRINT1("ScsiPortFdoPnp - got IRP_MJ_QUERY_DEVICE_RELATIONS (type is %X)\n", IoStack->Parameters.QueryDeviceRelations.Type);
+
+            if (IoStack->Parameters.QueryDeviceRelations.Type != BusRelations)
+            {
+                IsComplete = FALSE;
+                break;
+            }
+
+            EnumRequest = InterlockedCompareExchangePointer((PVOID*)&DeviceExtension->AsyncEnumRequest, NULL, &DeviceExtension->EnumRequest);
+            if (!EnumRequest)
+            {
+                ASSERT(FALSE && "Unexpected!! Concurrent QDR requests");
+                Irp->IoStatus.Information = 0;
+                Irp->IoStatus.Status = STATUS_DEVICE_BUSY;
+                break;
+            }
+            RtlZeroMemory(EnumRequest, sizeof(*EnumRequest));
+
+            EnumRequest->Irp = Irp;
+            EnumRequest->IoStatus = &Irp->IoStatus;
+            EnumRequest->CompletionRoutine = SpQueryDeviceRelationsCompletion;
+
+            IoMarkIrpPending(Irp);
+
+            SpEnumerateAdapterAsynchronous(DeviceExtension, EnumRequest, FALSE);
+
+            return STATUS_PENDING;
+        }
+        case IRP_MN_FILTER_RESOURCE_REQUIREMENTS:
+        {
+            DPRINT("ScsiPortFdoPnp: IRP_MN_FILTER_RESOURCE_REQUIREMENTS\n");
+
+            IoResources = IoStack->Parameters.FilterResourceRequirements.IoResourceRequirementList;
+            if (IoResources)
+            {
+                DeviceExtension->BusNumber = IoResources->BusNumber;
+                DeviceExtension->SlotNumber = IoResources->SlotNumber;
+            }
+
+            IsComplete = FALSE;
+            break;
+        }
+        case IRP_MN_QUERY_ID:
+            DPRINT1("ScsiPortFdoPnp: IRP_MN_QUERY_ID\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_QUERY_PNP_DEVICE_STATE:
+        {
+            DPRINT("ScsiPortFdoPnp: IRP_MN_QUERY_PNP_DEVICE_STATE\n");
+
+            Irp->IoStatus.Information = DeviceExtension->PnpDeviceState;
+
+            if (DeviceExtension->CommonExtension.PagingPathCount)
+                Irp->IoStatus.Information = (DeviceExtension->PnpDeviceState | 0x20);
+
+            IsComplete = FALSE;
+            break;
+        }
+        case IRP_MN_DEVICE_USAGE_NOTIFICATION:
+            DPRINT1("ScsiPortFdoPnp: IRP_MN_DEVICE_USAGE_NOTIFICATION\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_SURPRISE_REMOVAL:
+            DPRINT1("ScsiPortFdoPnp: IRP_MN_SURPRISE_REMOVAL\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        default:
+            //ScsiDebugPrintInt(1, "ScsiPortFdoPnp: Unimplemented PNP/POWER minor code %d\n", IoStack->MinorFunction);
+            DPRINT1("ScsiPortFdoPnp: Unimplemented PNP/POWER minor code %X\n", IoStack->MinorFunction);
+            IsComplete = FALSE;
+            break;
+    }
+
+    if (IsComplete)
+    {
+        SpReleaseRemoveLock(Fdo, Irp);
+        Irp->IoStatus.Status = Status;
+        SpCompleteRequest(Fdo, Irp, NULL, IO_NO_INCREMENT);
+        return Status;
+    }
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    SpReleaseRemoveLock(Fdo, Irp);
+
+    return IoCallDriver(DeviceExtension->CommonExtension.LowDevice, Irp);
 }
 
 /* DISPATCH FUNCTIONS ********************************************************/
