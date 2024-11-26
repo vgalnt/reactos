@@ -652,7 +652,25 @@ SpQueryPnpInterfaceFlags(
     _In_ PSCSI_PORT_DRIVER_EXTENSION SpDriverExtension,
     _In_ ULONG InterfaceType)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PNP_INTERFACE PnpInterface;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("SpQueryPnpInterfaceFlags: %p, %X\n", SpDriverExtension, InterfaceType);
+
+    PnpInterface = (PSCSI_PNP_INTERFACE)&SpDriverExtension[1];
+
+    for (ix = 0; ix < SpDriverExtension->PnpInterfaceCount; ix++)
+    {
+        if (PnpInterface[ix].InterfaceType == InterfaceType)
+        {
+            DPRINT("SpQueryPnpInterfaceFlags: interface %X has flags %X\n", InterfaceType, PnpInterface[ix].Flags);
+            return PnpInterface[ix].Flags;
+        }
+    }
+
+    DPRINT("SpQueryPnpInterfaceFlags: No interface flags for %X\n", InterfaceType);
+
     return 0;
 }
 
