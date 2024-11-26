@@ -35,6 +35,18 @@ PDRIVER_DISPATCH AdapterMajorFunctionTable[IRP_MJ_MAXIMUM_FUNCTION + 1];
 
 /* FUNCTIONS *****************************************************************/
 
+ULONG
+FASTCALL
+SpAcquireRemoveLockEx(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PVOID Tag,
+    _In_ PSTR File,
+    _In_ ULONG Line)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
 VOID
 NTAPI
 SpCreateScsiDirectory(VOID)
@@ -626,14 +638,144 @@ ScsiPortStartIo(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+VOID
+NTAPI
+SpEnumerationWorker(
+    _In_ PVOID Parameter)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 SpCreateAdapter(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PDEVICE_OBJECT* OutFdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DRIVER_EXTENSION DriverExtension;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PUNICODE_STRING RegistryPath;
+    WCHAR RegistryPathBuffer[128];
+    WCHAR DeviceNameBuffer[64];
+    UNICODE_STRING DeviceName;
+    ULONG Offset = 0;
+    ULONG Count = 0;
+    ULONG PathLength;
+    ULONG Length;
+    ULONG ix;
+    ULONG Port;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpCreateAdapter: %p\n", DriverObject);
+
+    DriverExtension = IoGetDriverObjectExtension(DriverObject, ScsiPortInitialize);
+    Port = InterlockedIncrement(&DriverExtension->Counter);
+
+    RtlZeroMemory(RegistryPathBuffer, sizeof(RegistryPathBuffer));
+
+    RegistryPath = &DriverExtension->RegistryPath;
+    PathLength = (RegistryPath->Length / 2);
+
+    DPRINT("SpCreateAdapter: RegistryPath '%wZ'\n", RegistryPath);
+
+    for (ix = 0; ix < PathLength; ix++)
+    {
+        if (!RegistryPath->Buffer[ix])
+        {
+            ix--;
+            Count = ix;
+            break;
+        }
+
+        if (RegistryPath->Buffer[ix] == '\\' || RegistryPath->Buffer[ix] == '/')
+            Offset = (ix + 1);
+
+        Count = ix;
+    }
+
+    Length = (ix - Offset + 1);
+
+    //ScsiDebugPrintInt(2, "SpCreateAdapter: Registry buffer %#p\n", RegistryPath);
+    //ScsiDebugPrintInt(2, "SpCreateAdapter: Starting offset %d chars\n", Offset);
+    //ScsiDebugPrintInt(2, "SpCreateAdapter: Ending offset %d chars\n", Count);
+    //ScsiDebugPrintInt(2, "SpCreateAdapter: %d chars or %d bytes will be copied\n", Length, (Length * 2));
+
+    DPRINT("SpCreateAdapter: Registry buffer %p\n", RegistryPath);
+    DPRINT("SpCreateAdapter: Starting offset %d chars\n", Offset);
+    DPRINT("SpCreateAdapter: Ending offset %d chars\n", Count);
+    DPRINT("SpCreateAdapter: %d chars or %d bytes will be copied\n", Length, (Length * 2));
+    DPRINT("SpCreateAdapter: Name is \"");
+
+    for (ix = (Offset * 2); Length; ix += 2, Length--)
+    {
+        DbgPrint("%wc", *(PUSHORT)Add2Ptr(RegistryPath->Buffer, ix));
+    }
+    DbgPrint("\"\n");
+
+    RtlCopyMemory(RegistryPathBuffer, &RegistryPath->Buffer[Offset], (Length * 2));
+    swprintf(DeviceNameBuffer, L"\\Device\\Scsi\\%ws%d", RegistryPathBuffer, Port);
+
+    RtlInitUnicodeString(&DeviceName, DeviceNameBuffer);
+    DPRINT("SpCreateFdo: Device object name is '%wZ'\n", &DeviceName);
+
+    Status = IoCreateDevice(DriverObject,
+                            (sizeof(*DeviceExtension) + DeviceName.MaximumLength),
+                            &DeviceName,
+                            FILE_DEVICE_CONTROLLER,
+                            FILE_DEVICE_SECURE_OPEN,
+                            FALSE,
+                            OutFdo);
+
+    ASSERTMSG("Name isn't unique: ", Status != STATUS_OBJECT_NAME_COLLISION);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpCreateFdo: couldn't allocate new FDO [%X]\n", Status);
+        return Status;
+    }
+
+    DeviceExtension = (*OutFdo)->DeviceExtension;
+    RtlZeroMemory(DeviceExtension, sizeof(*DeviceExtension));
+
+    DeviceExtension->CommonExtension.SelfDevice = *OutFdo;
+
+    DeviceExtension->CommonExtension.CurrentDeviceState = 1;
+    DeviceExtension->CommonExtension.CurrentSystemState = 1;
+
+    DeviceExtension->CommonExtension.CurrentPnpState = 0xFF;
+    DeviceExtension->CommonExtension.MajorFunction = AdapterMajorFunctionTable;
+
+    KeInitializeEvent(&DeviceExtension->CommonExtension.Event, SynchronizationEvent, FALSE);
+
+    ExInitializeNPagedLookasideList(&DeviceExtension->CommonExtension.LookAsideList, NULL, NULL, 0, 0x18, 'lPcS', 0x40);//?
+
+    SpAcquireRemoveLockEx(*OutFdo, *OutFdo, __FILE__, __LINE__);
+
+    for (ix = 0; ix < 8; ix++)
+        KeInitializeSpinLock(&DeviceExtension->LunList[ix].SpinLock);
+
+    DeviceExtension->PortScsi = Port;
+    DeviceExtension->PortScsiPort = 0xFFFFFFFF;
+
+    DeviceExtension->DeviceNameBuffer = (PVOID)&DeviceExtension[1];
+    RtlCopyMemory(DeviceExtension->DeviceNameBuffer, DeviceName.Buffer, DeviceName.MaximumLength);
+
+    KeInitializeMutex(&DeviceExtension->EnumMutex, 0);
+    ExInitializeFastMutex(&DeviceExtension->EnumFastMutex);
+    ExInitializeFastMutex(&DeviceExtension->PoFastMutex);
+
+    ExInitializeWorkItem(&DeviceExtension->EnumWorkItem, SpEnumerationWorker, DeviceExtension);
+
+    DeviceExtension->MaximumUCXAddress.LowPart = 0xFFFFFFFF;
+    DeviceExtension->MaximumUCXAddress.HighPart = 0;
+
+    DeviceExtension->BlockedLun = (PVOID)&DeviceExtension->BlockedLun;
+
+    (*OutFdo)->Flags |= 0x10;
+    (*OutFdo)->Flags &= ~0x80;
+
+    return Status;
 }
 
 NTSTATUS
