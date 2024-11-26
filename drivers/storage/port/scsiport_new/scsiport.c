@@ -1176,13 +1176,74 @@ RtlDuplicateCmResourceList(
     return CmResources;
 }
 
+NTSTATUS
+NTAPI
+SpReadNumericInstanceValue(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PWCHAR ValueNameString,
+    _Out_ ULONG* OutValue)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 INTERFACE_TYPE
 NTAPI
 SpGetPdoInterfaceType(
     _In_ PDEVICE_OBJECT LowerPdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PSCSI_PORT_GUID_INTERFACE_MAPPING Entry;
+    INTERFACE_TYPE InterfaceType;
+    GUID Guid;
+    ULONG InstanceValue;
+    ULONG ResultLength;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpGetPdoInterfaceType: %p\n", LowerPdo);
+
+    Status = SpReadNumericInstanceValue(LowerPdo, L"LegacyInterfaceType", &InstanceValue);
+    if (NT_SUCCESS(Status))
+        return InstanceValue;
+
+    InterfaceType = InterfaceTypeUndefined;
+
+    Status = IoGetDeviceProperty(LowerPdo, DevicePropertyBusTypeGuid, sizeof(Guid), &Guid, &ResultLength);
+    if (NT_SUCCESS(Status))
+    {
+        Entry = SpGuidInterfaceMappingList;
+
+        for (ix = 0; Entry[ix].InterfaceType != InterfaceTypeUndefined; ix++)
+        {
+            if (IsEqualGUID(&Entry[ix].Guid, &Guid))
+            {
+                InterfaceType = SpGuidInterfaceMappingList[ix].InterfaceType;
+                break;
+            }
+        }
+    }
+
+    if (InterfaceType != InterfaceTypeUndefined)
+        return InterfaceType;
+
+    Status = IoGetDeviceProperty(LowerPdo, DevicePropertyLegacyBusType, sizeof(InterfaceType), &InterfaceType, &ResultLength);
+    if (NT_SUCCESS(Status))
+    {
+        ASSERT(ResultLength == sizeof(INTERFACE_TYPE));
+
+        if (InterfaceType == PCMCIABus)
+            InterfaceType = Isa;
+    }
+
+    if (InterfaceType == InterfaceTypeUndefined)
+    {
+        //ScsiDebugPrintInt(1, "SpGetPdoInterfaceType: Status %#08lx getting legacy bus type - assuming device is ISA\n", Status);
+        DPRINT("SpGetPdoInterfaceType: Status %X getting legacy bus type - assuming device is ISA\n", Status);
+        InterfaceType = Isa;
+    }
+
+    return InterfaceType;
 }
 
 PSCSI_HW_CHAIN_ENTRY
