@@ -1127,6 +1127,33 @@ SpStartLowerDevice(
     return Status;
 }
 
+ULONG
+NTAPI
+RtlSizeOfCmResourceList(
+    _In_ PCM_RESOURCE_LIST CmResources)
+{
+    ULONG RetSize = sizeof(CM_RESOURCE_LIST);
+    ULONG ix;
+    ULONG jx;
+
+    PAGED_CODE();
+    DPRINT("RtlSizeOfCmResourceList: %p\n", CmResources);
+
+    for (ix = 0; ix < CmResources->Count; ix++)
+    {
+        if (ix)
+            RetSize += sizeof(CM_FULL_RESOURCE_DESCRIPTOR);
+
+        for (jx = 0; jx < CmResources->List[ix].PartialResourceList.Count; jx++)
+        {
+            if (jx)
+                RetSize += sizeof(CM_PARTIAL_RESOURCE_DESCRIPTOR);
+        }
+    }
+
+    return RetSize;
+}
+
 PCM_RESOURCE_LIST
 NTAPI
 RtlDuplicateCmResourceList(
@@ -1134,8 +1161,19 @@ RtlDuplicateCmResourceList(
     _In_ PCM_RESOURCE_LIST InCmResources,
     _In_ ULONG Tag)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PCM_RESOURCE_LIST CmResources;
+    ULONG Size;
+
+    PAGED_CODE();
+    DPRINT("RtlDuplicateCmResourceList: %X %p\n", PoolType, InCmResources);
+
+    Size = RtlSizeOfCmResourceList(InCmResources);
+
+    CmResources = ExAllocatePoolWithTag(PoolType, Size, Tag);
+    if (CmResources)
+        RtlCopyMemory(CmResources, InCmResources, Size);
+
+    return CmResources;
 }
 
 NTSTATUS
