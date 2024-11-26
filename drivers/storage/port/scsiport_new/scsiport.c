@@ -135,8 +135,51 @@ BOOLEAN
 NTAPI
 SpDetermineLegacyInstanceId(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    UCHAR Buffer[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
+    PKEY_VALUE_PARTIAL_INFORMATION KeyValueInfo = (PKEY_VALUE_PARTIAL_INFORMATION)Buffer;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING NameString;
+    HANDLE ScsiPortKey = NULL;
+    ULONG ResultLength;
+    BOOLEAN Result = FALSE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpDetermineLegacyInstanceId()\n");
+
+    ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
+
+    RtlInitUnicodeString(&NameString, L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\ScsiPort\\");
+    InitializeObjectAttributes(&ObjectAttributes, &NameString, (OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE), 0, NULL);
+
+    Status = ZwOpenKey(&ScsiPortKey, KEY_READ, &ObjectAttributes);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("SpDetermineLegacyInstanceId: Status %X\n", Status);
+        return FALSE;
+    }
+
+    ASSERT(ScsiPortKey != 0);
+
+    RtlInitUnicodeString(&NameString, L"UseLegacyInstanceId");
+
+    Status = ZwQueryValueKey(ScsiPortKey, &NameString, KeyValuePartialInformation, KeyValueInfo, sizeof(Buffer), &ResultLength);
+    if (NT_SUCCESS(Status))
+    {
+        DPRINT("SpDetermineLegacyInstanceId: ResultLength %X\n", ResultLength);
+
+        if (KeyValueInfo->Type == REG_DWORD &&
+            ResultLength >= sizeof(ULONG) &&
+            *(PULONG)KeyValueInfo->Data == 1)
+        {
+            Result = TRUE;
+        }
+    }
+
+    if (ScsiPortKey)
+        ZwClose(ScsiPortKey);
+
+    return Result;
 }
 
 NTSTATUS
