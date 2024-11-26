@@ -1008,8 +1008,32 @@ SpGetInterrupt(
     _Out_ ULONG* OutVector,
     _Out_ ULONG* OutAffinity)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("SpGetInterrupt: %p\n", CmResources);
+
+    if (!CmResources->List[0].PartialResourceList.Count)
+        return FALSE;
+
+    ix = 0;
+    Descriptor = &CmResources->List[0].PartialResourceList.PartialDescriptors[0];
+
+    while (Descriptor->Type != CmResourceTypeInterrupt)
+    {
+        ix++;
+        Descriptor++;
+
+        if (ix >= CmResources->List[0].PartialResourceList.Count)
+            return FALSE;
+    }
+
+    *OutLevel = Descriptor->u.Interrupt.Level;
+    *OutVector = Descriptor->u.Interrupt.Vector;
+    *OutAffinity = Descriptor->u.Interrupt.Affinity;
+
+    return TRUE;
 }
 
 NTSTATUS
