@@ -1183,8 +1183,63 @@ SpReadNumericInstanceValue(
     _In_ PWCHAR ValueNameString,
     _Out_ ULONG* OutValue)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UCHAR Buffer[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
+    PKEY_VALUE_PARTIAL_INFORMATION KeyValueInfo;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING KeyNameString;
+    UNICODE_STRING ValueName;
+    HANDLE DevInstRegKey = NULL;
+    HANDLE KeyHandle = NULL;
+    ULONG ResultLength;
+    ULONG Value;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpReadNumericInstanceValue: (%p) '%S'\n", Pdo, ValueNameString);
+
+    ASSERT(OutValue != NULL);
+    ASSERT(ValueNameString != NULL);
+    ASSERT(Pdo != NULL);
+
+    Status = IoOpenDeviceRegistryKey(Pdo, PLUGPLAY_REGKEY_DEVICE, KEY_READ, &DevInstRegKey);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpReadNumericInstanceValue: Status %X\n", Status);
+        return Status;
+    }
+
+    //_SEH2_TRY;
+
+    RtlInitUnicodeString(&KeyNameString, L"Scsiport");
+    InitializeObjectAttributes(&ObjectAttributes, &KeyNameString, (OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE), NULL, NULL);
+
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    if (NT_SUCCESS(Status))
+    {
+        KeyValueInfo = (PKEY_VALUE_PARTIAL_INFORMATION)&Buffer;
+        RtlInitUnicodeString(&ValueName, ValueNameString);
+
+        Status = ZwQueryValueKey(KeyHandle, &ValueName, KeyValuePartialInformation, KeyValueInfo, sizeof(Buffer), &ResultLength);
+        if (NT_SUCCESS(Status))
+        {
+            if (KeyValueInfo->Type != REG_DWORD || ResultLength < sizeof(ULONG))
+                Status = STATUS_OBJECT_TYPE_MISMATCH;
+            else
+                Value = *(PULONG)&KeyValueInfo->Data[0];
+        }
+    }
+
+    //_SEH2_FINALLY;
+
+    if (DevInstRegKey)
+        ZwClose(DevInstRegKey);
+
+    if (KeyHandle)
+        ZwClose(KeyHandle);
+
+    *OutValue = Value;
+
+    return Status;
 }
 
 INTERFACE_TYPE
