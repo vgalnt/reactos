@@ -1176,13 +1176,262 @@ RtlDuplicateCmResourceList(
     return CmResources;
 }
 
+INTERFACE_TYPE
+NTAPI
+SpGetPdoInterfaceType(
+    _In_ PDEVICE_OBJECT LowerPdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+PSCSI_HW_CHAIN_ENTRY
+NTAPI
+SpFindInitData(
+    _In_ PSCSI_PORT_DRIVER_EXTENSION DriverExtension,
+    _In_ INTERFACE_TYPE InterfaceType)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+VOID
+NTAPI
+SpInitializeAdapterExtension(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_HW_CHAIN_ENTRY ChainEntry,
+    _In_ PSCSI_PORT_HW_DATA SpHwData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+SpInitializeConfiguration(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PUNICODE_STRING RegistryPath,
+    _In_ PSCSI_HW_CHAIN_ENTRY ChainEntry,
+    _In_ PSCSI_PORT_CONFIG_CONTEXT CfgContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+SpBuildConfiguration(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_HW_CHAIN_ENTRY ChainEntry,
+    _In_ PPORT_CONFIGURATION_INFORMATION PortConfig)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+SpGetSlotNumber(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PPORT_CONFIGURATION_INFORMATION PortConfig,
+    _In_ PCM_RESOURCE_LIST AllocatedResources)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+SpCallHwFindAdapter(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PSCSI_HW_CHAIN_ENTRY ChainEntry,
+    _In_ PVOID HwContext,
+    _In_ PSCSI_PORT_CONFIG_CONTEXT CfgContext,
+    _In_ PPORT_CONFIGURATION_INFORMATION PortConfig,
+    _In_ BOOLEAN *OutIsAgain)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpAllocateAdapterResources(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpCallHwInitialize(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+SpGetSupportedAdapterControlFunctions(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 ScsiPortInitPnpAdapter(
     _In_ PDEVICE_OBJECT DeviceObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DRIVER_EXTENSION SpDriverExtension;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PPORT_CONFIGURATION_INFORMATION PortConfig;
+    PSCSI_HW_CHAIN_ENTRY ChainEntry;
+    PSCSI_PORT_HW_DATA SpHwData;
+    PVOID ImageSectionHandle;
+    SCSI_PORT_CONFIG_CONTEXT CfgContext;
+    ULONG SpHwInitDataSize;
+    ULONG AccessRangesSize;
+    ULONG InterfaceType;
+    ULONG Size;
+    KIRQL Irql;
+    BOOLEAN IsAgain;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortInitPnpAdapter: %p\n", DeviceObject);
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    SpDriverExtension = IoGetDriverObjectExtension(DeviceObject->DriverObject, ScsiPortInitialize);
+
+    InterfaceType = SpGetPdoInterfaceType(DeviceExtension->LowerPdo);
+
+    ChainEntry = SpFindInitData(SpDriverExtension, InterfaceType);
+    if (!ChainEntry)
+    {
+        DPRINT1("ScsiPortInitPnpAdapter: STATUS_NO_SUCH_DEVICE\n");
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    RtlZeroMemory(&CfgContext, sizeof(CfgContext));
+
+    if (ChainEntry->HwInitializationData.NumberOfAccessRanges)
+    {
+        AccessRangesSize = (ChainEntry->HwInitializationData.NumberOfAccessRanges * sizeof(ACCESS_RANGE));
+
+        CfgContext.AccessRanges = ExAllocatePoolWithTag(PagedPool, AccessRangesSize, 'APcS');
+        if (!CfgContext.AccessRanges)
+        {
+            DPRINT1("ScsiPortInitPnpAdapter: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    SpHwInitDataSize = (sizeof(SCSI_PORT_HW_DATA) + ChainEntry->HwInitializationData.DeviceExtensionSize);
+
+    //_SEH2_TRY;
+
+    SpHwData = ExAllocatePoolWithTag(NonPagedPool, SpHwInitDataSize, 'hPcS');
+
+    if (!SpHwData)
+    {
+        //ScsiDebugPrintInt(1, "ScsiPortInitialize: Could not allocate HwDeviceExtension\n");
+        DPRINT1("ScsiPortInitialize: Could not allocate HwDeviceExtension\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        RtlZeroMemory(SpHwData, SpHwInitDataSize);
+        SpInitializeAdapterExtension(DeviceExtension, ChainEntry, SpHwData);
+
+        Status = SpInitializeConfiguration(DeviceExtension, &SpDriverExtension->RegistryPath, ChainEntry, &CfgContext);
+
+        if (!NT_SUCCESS(Status))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else
+        {
+            Size = ((sizeof(*PortConfig) + (ChainEntry->HwInitializationData.NumberOfAccessRanges * sizeof(ACCESS_RANGE)) + 7) & ~7);
+            PortConfig = ExAllocatePoolWithTag(NonPagedPool, Size, 'PpcS');
+
+            if (!PortConfig)
+            {
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else
+            {
+                DeviceExtension->PortConfig = PortConfig;
+
+                RtlCopyMemory(PortConfig, &CfgContext.PortConfig, sizeof(*PortConfig));
+
+                PortConfig->SrbExtensionSize = DeviceExtension->SrbExtensionSize;
+                PortConfig->SpecificLuExtensionSize = DeviceExtension->SpecificLuExtensionSize;
+
+                if (ChainEntry->HwInitializationData.NumberOfAccessRanges)
+                {
+                    PortConfig->AccessRanges = (PVOID)(((ULONG_PTR)&PortConfig[1] + 7) & ~7);
+                    RtlCopyMemory(PortConfig->AccessRanges, CfgContext.AccessRanges, (ChainEntry->HwInitializationData.NumberOfAccessRanges * sizeof(ACCESS_RANGE)));
+                }
+
+                PortConfig->AdapterInterfaceType = InterfaceType;
+
+                SpBuildConfiguration(DeviceExtension, ChainEntry, PortConfig);
+                SpGetSlotNumber(DeviceObject, PortConfig, DeviceExtension->AllocatedResources);
+
+                Status = SpCallHwFindAdapter(DeviceObject, ChainEntry, 0, &CfgContext, PortConfig, &IsAgain);
+
+                if (Status == STATUS_DEVICE_DOES_NOT_EXIST)
+                {
+                    DeviceExtension->PortConfig = NULL;
+                    ExFreePoolWithTag(PortConfig, 'PpcS');
+                }
+                else if (NT_SUCCESS(Status))
+                {
+                    Status = SpAllocateAdapterResources(DeviceObject);
+                    if (NT_SUCCESS(Status))
+                    {
+                        if (DeviceExtension->CommonExtension.CurrentPnpState == 4)
+                        {
+                            ASSERT(DeviceExtension->CommonExtension.PreviousPnpState == 0);//IRP_MN_START_DEVICE
+
+                            ASSERT(DeviceExtension->DisableCount == 1);
+                            DeviceExtension->DisableCount = 0;
+
+                            DeviceExtension->InterruptData.Flags &= ~0x4000;
+                        }
+
+                        Status = SpCallHwInitialize(DeviceObject);
+
+                        if (DeviceExtension->CommonExtension.CurrentPnpState == 4)
+                        {
+                            ImageSectionHandle = MmLockPagableDataSection(ScsiPortInitPnpAdapter);
+
+                            KeRaiseIrql(DISPATCH_LEVEL, &Irql);
+                            IoStartNextPacket(DeviceObject, FALSE);
+                            KeLowerIrql(Irql);
+
+                            MmUnlockPagableImageSection(ImageSectionHandle);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    //_SEH2_FINALLY;
+
+    if (NT_SUCCESS(Status))
+    {
+        SpGetSupportedAdapterControlFunctions(DeviceExtension);
+    }
+    else
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return Status;
 }
 
 NTSTATUS

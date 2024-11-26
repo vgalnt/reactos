@@ -54,6 +54,11 @@ typedef struct _SCSI_PORT_ENUM_REQUEST
     BOOLEAN IsNotCompleteEnumRequest;
 } SCSI_PORT_ENUM_REQUEST, *PSCSI_PORT_ENUM_REQUEST;
 
+typedef struct _SCSI_PORT_INTERRUPT_DATA
+{
+    ULONG Flags;
+} SCSI_PORT_INTERRUPT_DATA, *PSCSI_PORT_INTERRUPT_DATA;
+
 typedef struct _COMMON_EXTENSION
 {
     PDEVICE_OBJECT SelfDevice;
@@ -104,9 +109,14 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     UCHAR Flags2;
     ULONG BusNumber;
     ULONG SlotNumber;
+    ULONG DisableCount;
+    PPORT_CONFIGURATION_INFORMATION PortConfig;
     PCM_RESOURCE_LIST AllocatedResources;
     PCM_RESOURCE_LIST AllocatedResourcesTranslated;
+    ULONG SrbExtensionSize;
+    ULONG SpecificLuExtensionSize;
     SCSI_PORT_LUN_ENTRY LunList[8];
+    SCSI_PORT_INTERRUPT_DATA InterruptData;
     KMUTEX EnumMutex;
     FAST_MUTEX EnumFastMutex;
     WORK_QUEUE_ITEM EnumWorkItem;
@@ -122,6 +132,23 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PHYSICAL_ADDRESS MaximumUCXAddress;
     PSCSI_PORT_LUN_EXTENSION BlockedLun;
 } SCSI_PORT_DEVICE_EXTENSION, *PSCSI_PORT_DEVICE_EXTENSION;
+
+typedef struct _SCSI_PORT_HW_DATA
+{
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    UCHAR HwDeviceExtension[0];
+} SCSI_PORT_HW_DATA, *PSCSI_PORT_HW_DATA;
+
+typedef struct _SCSI_PORT_CONFIG_CONTEXT
+{
+    UCHAR DisableTaggedQueuing;
+    UCHAR DisableMultipleRequests;
+    ULONG AdapterNumber;
+    ULONG BusNumber;
+    PCHAR DriverParameters;
+    PVOID AccessRanges;
+    PORT_CONFIGURATION_INFORMATION PortConfig;
+} SCSI_PORT_CONFIG_CONTEXT, *PSCSI_PORT_CONFIG_CONTEXT;
 
 /* FUNCTIONS ****************************************************************/
 
