@@ -1365,12 +1365,47 @@ SpInitializeAdapterExtension(
 
 HANDLE
 NTAPI
+SpOpenParametersKey(
+    _In_ PUNICODE_STRING RegistryPath)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+HANDLE
+NTAPI
 SpOpenDeviceKey(
     _In_ PUNICODE_STRING RegistryPath,
     _In_ ULONG AdapterNumber)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE ParametersHandle;
+    UNICODE_STRING KeyName;
+    HANDLE KeyHandle = NULL;
+    WCHAR KeyString[64];
+
+    PAGED_CODE();
+    DPRINT("SpOpenDeviceKey: %X\n", AdapterNumber);
+
+    ParametersHandle = SpOpenParametersKey(RegistryPath);
+    if (!ParametersHandle)
+    {
+        DPRINT("SpOpenDeviceKey: ret NULL\n");
+        return NULL;
+    }
+
+    if (AdapterNumber == 0xFFFFFFFF)
+        swprintf(KeyString, L"Device");
+    else
+        swprintf(KeyString, L"Device%d", AdapterNumber);
+
+    RtlInitUnicodeString(&KeyName, KeyString);
+    InitializeObjectAttributes(&ObjectAttributes, &KeyName, (OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE), ParametersHandle, NULL);
+
+    ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    ZwClose(ParametersHandle);
+
+    return KeyHandle;
 }
 
 VOID
