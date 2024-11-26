@@ -687,8 +687,10 @@ SpSignalCompletion(
     _In_ PIRP Irp,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PKEVENT Event = Context;
+    DPRINT("SpSignalCompletion: %p\n", DeviceObject);
+    KeSetEvent(Event, IO_NO_INCREMENT, FALSE);
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 VOID
