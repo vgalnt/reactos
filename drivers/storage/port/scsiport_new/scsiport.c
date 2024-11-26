@@ -43,8 +43,9 @@ SpAcquireRemoveLockEx(
     _In_ PSTR File,
     _In_ ULONG Line)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    PCOMMON_EXTENSION CommonExtension = DeviceObject->DeviceExtension;
+    InterlockedIncrement(&CommonExtension->RemoveLock);
+    return CommonExtension->IsRemoved;
 }
 
 VOID

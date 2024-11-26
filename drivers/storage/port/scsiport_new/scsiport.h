@@ -61,11 +61,13 @@ typedef struct _COMMON_EXTENSION
     };
     UCHAR CurrentPnpState;
     UCHAR PreviousPnpState;
+    ULONG IsRemoved;
     PDEVICE_OBJECT LowDevice;
     ULONG DefaultRequestFlags;
     PDRIVER_DISPATCH* MajorFunction;
     SYSTEM_POWER_STATE CurrentSystemState;
     DEVICE_POWER_STATE CurrentDeviceState;
+    LONG RemoveLock;
     KEVENT Event;
     NPAGED_LOOKASIDE_LIST LookAsideList;
 } COMMON_EXTENSION, *PCOMMON_EXTENSION;
