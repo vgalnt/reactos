@@ -952,8 +952,9 @@ ScsiPortGlobalDispatch(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PCOMMON_EXTENSION CommonExtension;
+    CommonExtension = DeviceObject->DeviceExtension;
+    return (CommonExtension->MajorFunction[IoGetCurrentIrpStackLocation(Irp)->MajorFunction])(DeviceObject, Irp);
 }
 
 NTSTATUS
