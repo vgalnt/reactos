@@ -24,6 +24,7 @@ KSPIN_LOCK ScsiGlobalAdapterListSpinLock;
 PVOID ScsiDirectory = NULL;
 PSCSI_PORT_GUID_INTERFACE_MAPPING SpGuidInterfaceMappingList;
 HANDLE ScsiDeviceMapKey = ULongToPtr(0xFFFFFFFF);
+LONG LockLowWatermark = 0;
 
 BOOLEAN ScsiPortLegacyAdapterDetection = FALSE;
 BOOLEAN Sp64BitPhysicalAddresses = FALSE;
@@ -54,7 +55,26 @@ SpReleaseRemoveLock(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PVOID Tag) // ? PIRP
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PCOMMON_EXTENSION CommonExtension = DeviceObject->DeviceExtension;
+    LONG LockValue;
+
+    LockValue = InterlockedDecrement(&CommonExtension->RemoveLock);
+
+    //DebugPrint((4, "SpReleaseRemoveLock: Released for Object %#p & irp %#p - count is %d\n", DeviceObject, Tag, LockValue));
+    DPRINT("SpReleaseRemoveLock: (%p %p) %X\n", DeviceObject, Tag, LockValue);
+
+    ASSERT(LockValue >= 0);
+    ASSERTMSG("RemoveLock decreased to meet LockLowWatermark", ((LockLowWatermark == 0) || !(LockValue == LockLowWatermark)));
+
+    if (LockValue)
+        return;
+
+    ASSERT(CommonExtension->IsRemoved);
+
+    //DebugPrint((3, "SpReleaseRemoveLock: Release for object %#p & irp %#p caused lock to go to zero\n", DeviceObject, Tag));
+    DPRINT("SpReleaseRemoveLock: (%p %p) to zero\n", DeviceObject, Tag);
+
+    KeSetEvent(&CommonExtension->Event, IO_NO_INCREMENT, FALSE);
 }
 
 VOID
