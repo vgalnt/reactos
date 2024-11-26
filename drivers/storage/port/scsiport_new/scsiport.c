@@ -980,8 +980,24 @@ NTAPI
 SpGetBusTypeGuid(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ULONG ResultLength;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpGetBusTypeGuid: %p\n", DeviceExtension);
+
+    Status = IoGetDeviceProperty(DeviceExtension->LowerPdo,
+                                 DevicePropertyBusTypeGuid,
+                                 sizeof(GUID),
+                                 &DeviceExtension->BusTypeGuid,
+                                 &ResultLength);
+    if (NT_SUCCESS(Status))
+        return Status;
+
+    RtlZeroMemory(&DeviceExtension->BusTypeGuid, sizeof(GUID));
+
+    DPRINT1("SpGetBusTypeGuid: Status %X\n", Status);
+    return Status;
 }
 
 BOOLEAN

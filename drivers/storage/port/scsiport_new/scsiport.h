@@ -113,6 +113,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PSCSI_PORT_ENUM_REQUEST AsyncEnumRequest;
     SCSI_PORT_ENUM_REQUEST EnumRequest;
     PWCHAR DeviceNameBuffer;
+    GUID BusTypeGuid;
     ULONG PnpDeviceState;
     FAST_MUTEX PoFastMutex;
     PHYSICAL_ADDRESS MinimumUCXAddress;
