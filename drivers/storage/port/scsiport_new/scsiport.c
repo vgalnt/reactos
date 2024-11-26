@@ -1307,7 +1307,17 @@ SpFindInitData(
     _In_ PSCSI_PORT_DRIVER_EXTENSION DriverExtension,
     _In_ INTERFACE_TYPE InterfaceType)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_HW_CHAIN_ENTRY ChainEntry;
+
+    PAGED_CODE();
+    DPRINT("SpFindInitData: %p, %X\n", DriverExtension, InterfaceType);
+
+    for (ChainEntry = DriverExtension->ChainHeader; ChainEntry; ChainEntry = ChainEntry->Next)
+    {
+        if (ChainEntry->HwInitializationData.AdapterInterfaceType == InterfaceType)
+            return ChainEntry;
+    }
+
     return NULL;
 }
 
