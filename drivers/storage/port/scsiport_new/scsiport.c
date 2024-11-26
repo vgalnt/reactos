@@ -25,6 +25,7 @@ PVOID ScsiDirectory = NULL;
 PSCSI_PORT_GUID_INTERFACE_MAPPING SpGuidInterfaceMappingList;
 HANDLE ScsiDeviceMapKey = ULongToPtr(0xFFFFFFFF);
 
+BOOLEAN ScsiPortLegacyAdapterDetection = FALSE;
 BOOLEAN Sp64BitPhysicalAddresses = FALSE;
 BOOLEAN SpLegacyInstanceId = FALSE;
 
@@ -184,13 +185,383 @@ SpDetermineLegacyInstanceId(VOID)
 
 NTSTATUS
 NTAPI
+SpReadNumericValue(
+    _In_ HANDLE Root,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ PUNICODE_STRING ValueName,
+    _Out_ ULONG* OutValue)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 SpAllocateDriverExtension(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PUNICODE_STRING RegistryPath,
     _Out_ PSCSI_PORT_DRIVER_EXTENSION* OutSpDriverExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UCHAR PnpInterfaceBuffer[sizeof(KEY_VALUE_FULL_INFORMATION) + 0xE6];//?
+    UCHAR LegacyDetectBuffer[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
+    PSCSI_PORT_DRIVER_EXTENSION SpDriverExtension = NULL;
+    PKEY_VALUE_PARTIAL_INFORMATION LegacyDetectInfo;
+    PKEY_VALUE_FULL_INFORMATION PnpInterfaceInfo;
+    PSCSI_PNP_INTERFACE Interface;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING GuidString;
+    UNICODE_STRING ValueName;
+    UNICODE_STRING KeyName;
+    HANDLE ParametersHandle = NULL;
+    HANDLE InterfaceHandle = NULL;
+    HANDLE DriverHandle = NULL;
+    HANDLE GuidStringHandle;
+    HANDLE ClassHandle;
+    ULONG ResultLength;
+    ULONG BusType;
+    ULONG Value;
+    ULONG Size;
+    ULONG Data;
+    ULONG ix;
+    ULONG jx;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpAllocateDriverExtension: Allocating extension for '%wZ'\n", &DriverObject->DriverName);
+
+    *OutSpDriverExtension = NULL;
+
+    //_SEH2_TRY
+
+    InitializeObjectAttributes(&ObjectAttributes, RegistryPath, (OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE), NULL, NULL);
+
+    Status = ZwOpenKey(&DriverHandle, KEY_READ, &ObjectAttributes);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("SpAllocateDriverExtension: Unable to open registry key %wZ [%X]\n", RegistryPath, Status);
+        goto Finish;
+    }
+
+    RtlInitUnicodeString(&KeyName, L"Parameters");
+    InitializeObjectAttributes(&ObjectAttributes, &KeyName, (OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE), DriverHandle, NULL);
+
+    Status = ZwOpenKey(&ParametersHandle, KEY_READ, &ObjectAttributes);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("SpAllocateDriverExtension: Unable to open parameters key of %wZ [%X]\n", RegistryPath, Status);
+        goto Finish;
+    }
+
+    RtlInitUnicodeString(&KeyName, L"BusType");
+    Status = SpReadNumericValue(ParametersHandle, NULL, &KeyName, &BusType);
+
+    if (!NT_SUCCESS(Status))
+    {
+        BusType = Isa;
+    }
+    else if (BusType == Isa || BusType == Eisa || BusType == MicroChannel || BusType == PCIBus || BusType == VMEBus ||
+             BusType == PCMCIABus || BusType == CBus || BusType == MPIBus || BusType == MPSABus)
+    {
+        DPRINT("SpAllocateDriverExtension: Bus type set to %X\n", BusType);
+    }
+
+    RtlInitUnicodeString(&KeyName, L"PnpInterface");
+    InitializeObjectAttributes(&ObjectAttributes, &KeyName, (OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE), ParametersHandle, NULL);
+
+    Status = ZwOpenKey(&InterfaceHandle, KEY_READ, &ObjectAttributes);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("SpAllocateDriverExtension: Unable to open PnpInterface key of %wZ [%X]\n", &RegistryPath, Status);
+        goto Finish;
+    }
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        Status = STATUS_SUCCESS;
+
+        for (jx = 0; ; jx++)
+        {
+            PnpInterfaceInfo = (PKEY_VALUE_FULL_INFORMATION)&PnpInterfaceBuffer;
+
+            ASSERTMSG("ScsiPort configuration error - possibly too many count entries: ", jx != MaximumInterfaceType);
+
+            RtlZeroMemory(PnpInterfaceInfo, sizeof(PnpInterfaceBuffer));
+
+            Status = ZwEnumerateValueKey(InterfaceHandle,
+                                         jx,
+                                         ((ix == 0) ? KeyValueBasicInformation : KeyValueFullInformation),
+                                         PnpInterfaceInfo,
+                                         sizeof(PnpInterfaceBuffer),
+                                         &ResultLength);
+
+            if (Status == STATUS_NO_MORE_ENTRIES)
+            {
+                Status = STATUS_SUCCESS;
+                if (ix == 0)
+                {
+                    //DPRINT("SpAllocateDriverExtension: Driver has %d interface entries\n", jx);
+
+                    Size = sizeof(SCSI_PORT_DRIVER_EXTENSION) + (jx * 8);
+                    //DPRINT("SpAllocateDriverExtension: Driver extension will be %d bytes\n", Size);
+
+                    Status = IoAllocateDriverObjectExtension(DriverObject, ScsiPortInitialize, Size, (PVOID *)&SpDriverExtension);
+                    if (!NT_SUCCESS(Status))
+                    {
+                        DPRINT("SpAllocateDriverExtension: Fatal error %X allocating driver extension\n", Status);
+                        goto Finish;
+                    }
+                    RtlZeroMemory(SpDriverExtension, Size);
+
+                    SpDriverExtension->PnpInterfaceCount = jx;
+                }
+
+                break;
+            }
+            else if (!NT_SUCCESS(Status))
+            {
+                DPRINT("SpAllocateDriverExtension: Fatal error %X enumerating PnpInterface key under %wZ.", Status, RegistryPath);
+                goto Finish;
+            }
+            else if (ix == 1)
+            {
+                Interface = (PSCSI_PNP_INTERFACE)((ULONG_PTR)&SpDriverExtension[1] + (jx * 8));
+
+                ASSERTMSG("ScsiPort internal error - too many pnpinterface entries on second pass: ", jx <= SpDriverExtension->PnpInterfaceCount);
+
+                RtlInitUnicodeString(&KeyName, PnpInterfaceInfo->Name);
+
+                if (PnpInterfaceInfo->Type != REG_DWORD && PnpInterfaceInfo->Type != REG_NONE)
+                {
+                    DPRINT1("SpAllocateDriverExtension: Fatal error %X parsing PnpInterface under '%wZ' - entry '%wZ' is not a REG_DWORD or REG_NONE entry\n", Status, RegistryPath, &KeyName);
+                    Status = STATUS_DEVICE_CONFIGURATION_ERROR;
+                    goto Finish;
+                }
+
+                Status = RtlUnicodeStringToInteger(&KeyName, 0, &Value);// ValueName
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("SpAllocateDriverExtension: Fatal error %X parsing PnpInterface under '%wZ' - entry '%wZ' is not a valid interface type name\n", Status, RegistryPath, &KeyName);
+                    goto Finish;
+                }
+
+                if (Value > MaximumInterfaceType)
+                {
+                    DPRINT1("SpAllocateDriverExtension: Fatal error %X parsing PnpInterface under '%wZ' - entry '%wZ' is > MaximumInterfaceType (%X)\n", Status, RegistryPath, &KeyName, Value);
+                    Interface->InterfaceType = 0xFFFFFFFF;
+                    Status = STATUS_DEVICE_CONFIGURATION_ERROR;
+                    goto Finish;
+                }
+
+                Interface->InterfaceType = Value;
+
+                if (PnpInterfaceInfo->Type == REG_NONE)
+                {
+                    Interface->Flags = 0;
+                }
+                else
+                {
+                    Interface->Flags = *((PUCHAR)PnpInterfaceInfo + PnpInterfaceInfo->DataOffset);
+                    if (Interface->Flags & 1)
+                    {
+                        ASSERT(SpDriverExtension != NULL);
+                        SpDriverExtension->IgnoreInitLegacyStatus++;
+                    }
+
+                    if (Interface->InterfaceType != Internal)
+                    {
+                        if (Interface->InterfaceType == PCIBus)
+                        {
+                            Interface->Flags |= 4;
+                            Interface->Flags |= 8;
+                            Interface->Flags &= ~2;
+                        }
+                        else if (Interface->InterfaceType != PCMCIABus &&
+                                 Interface->InterfaceType != 14)//PNPISABus
+                        {
+                            if (!(Interface->Flags & 0x10))
+                                Interface->Flags |= 2;
+                        }
+                        else
+                        {
+                            Interface->Flags &= ~2;
+                        }
+                    }
+                    else
+                    {
+                        Interface->Flags &= ~2;
+                    }
+                }
+
+                DPRINT("SpAllocateDriverExtension: Interface %X has flags %X\n", Interface->InterfaceType, Interface->Flags);
+            }
+        }
+    }
+
+    ASSERTMSG("ScsiPortAllocateDriverExtension internal error: left first section with non-success status: ", NT_SUCCESS(Status));
+
+Finish:
+    //_SEH2_FINALLY
+
+    if (SpDriverExtension)
+    {
+        SpDriverExtension->BusType = BusType;
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        DPRINT("SpAllocateDriverExtension: Driver has 0 interface entries\n");
+        DPRINT("SpAllocateDriverExtension: Driver extension will be %X bytes\n", sizeof(SCSI_PORT_DRIVER_EXTENSION));
+
+        Status = IoAllocateDriverObjectExtension(DriverObject, ScsiPortInitialize, sizeof(SCSI_PORT_DRIVER_EXTENSION), (PVOID *)&SpDriverExtension);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("SpAllocateDriverExtension: Fatal error %X allocating driver extension\n", Status);
+        }
+        else
+        {
+            RtlZeroMemory(SpDriverExtension, sizeof(SCSI_PORT_DRIVER_EXTENSION));
+            Status = STATUS_SUCCESS;
+        }
+    }
+
+    if (Status != STATUS_SUCCESS)
+        goto Exit;
+
+    //_SEH2_END
+
+    //SpDriverExtension->LogEntry = SpAllocateErrorLogEntry(DriverObject);
+
+    SpDriverExtension->DriverObject = DriverObject;
+
+    SpDriverExtension->RegistryPath = *RegistryPath;
+    SpDriverExtension->RegistryPath.MaximumLength += 2;
+
+    SpDriverExtension->RegistryPath.Buffer = ExAllocatePoolWithTag(PagedPool, SpDriverExtension->RegistryPath.MaximumLength, 'RPcS');
+    if (!SpDriverExtension->RegistryPath.Buffer)
+    {
+        DPRINT1("SpAllocateDriverExtension: Fatal error allocating copy of registry path\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    RtlCopyUnicodeString(&SpDriverExtension->RegistryPath, RegistryPath);
+
+    if (ScsiPortLegacyAdapterDetection)
+    {
+        SpDriverExtension->LegacyAdapterDetection = 1;
+        goto Exit;
+    }
+
+    if (ParametersHandle)
+    {
+        LegacyDetectInfo = (PKEY_VALUE_PARTIAL_INFORMATION)&LegacyDetectBuffer;
+        RtlInitUnicodeString(&ValueName, L"LegacyAdapterDetection");
+
+        Status = ZwQueryValueKey(ParametersHandle, &ValueName, KeyValuePartialInformation, LegacyDetectInfo, sizeof(LegacyDetectBuffer), &ResultLength);
+
+        if (NT_SUCCESS(Status) && ResultLength >= sizeof(KEY_VALUE_PARTIAL_INFORMATION) && LegacyDetectInfo->Type == REG_DWORD)
+        {
+            SpDriverExtension->LegacyAdapterDetection = (*(PULONG)LegacyDetectInfo->Data == 1);
+            Data = 0;
+
+            Status = ZwSetValueKey(ParametersHandle, &ValueName, LegacyDetectInfo->TitleIndex, REG_DWORD, &Data, sizeof(Data));
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("SpAllocateDriverExtension: Error %X setting LegacyAdapterDetection value to zero\n", Status);
+            }
+        }
+        else
+        {
+            SpDriverExtension->LegacyAdapterDetection = 0;
+        }
+    }
+
+    if (SpDriverExtension->LegacyAdapterDetection)
+    {
+        goto Exit;
+    }
+
+    ClassHandle = 0;
+    GuidStringHandle = 0;
+
+    RtlInitUnicodeString(&GuidString, NULL);
+    RtlInitUnicodeString(&KeyName, L"\\REGISTRY\\MACHINE\\SYSTEM\\CurrentControlSet\\Control\\Class");
+
+    InitializeObjectAttributes(&ObjectAttributes, &KeyName, (OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE), NULL, NULL);
+
+    //_SEH2_TRY
+
+    Status = ZwOpenKey(&ClassHandle, KEY_READ, &ObjectAttributes);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("SpAllocateDriverExtension: Error %X opening key '%wZ'\n", Status, &KeyName);
+    }
+    else
+    {
+        Status = RtlStringFromGUID(&GUID_DEVCLASS_SCSIADAPTER, &GuidString);
+
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT("SpAllocateDriverExtension: Error %X converting GUID to unicode string\n", Status);
+        }
+        else
+        {
+            InitializeObjectAttributes(&ObjectAttributes, &GuidString, (OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE), ClassHandle, NULL);
+
+            Status = ZwOpenKey(&GuidStringHandle, KEY_READ, &ObjectAttributes);
+
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT("SpAllocateDriverExtension: Error %X opening class key '%wZ'\n", Status, &GuidString);
+            }
+            else
+            {
+                LegacyDetectInfo = (PKEY_VALUE_PARTIAL_INFORMATION)&LegacyDetectBuffer;
+                RtlInitUnicodeString(&KeyName, L"LegacyAdapterDetection");
+
+                Status = ZwQueryValueKey(GuidStringHandle, &KeyName, KeyValuePartialInformation, LegacyDetectInfo, sizeof(LegacyDetectBuffer), &ResultLength);
+
+                if (NT_SUCCESS(Status))
+                {
+                    SpDriverExtension->LegacyAdapterDetection = (*(PULONG)LegacyDetectInfo->Data != 0);
+                }
+                else
+                {
+                    DPRINT("SpAllocateDriverExtension: Error %X reading key '%wZ'\n", Status, &KeyName);
+                    Status = STATUS_SUCCESS;
+                }
+            }
+        }
+    }
+
+    //_SEH2_FINALLY
+
+    if (ClassHandle)
+        ZwClose(ClassHandle);
+    if (GuidStringHandle)
+        ZwClose(GuidStringHandle);
+
+    RtlFreeUnicodeString(&GuidString);
+
+    //_SEH2_END
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (DriverHandle)
+        ZwClose(DriverHandle);
+    if (ParametersHandle)
+        ZwClose(ParametersHandle);
+    if (InterfaceHandle)
+        ZwClose(InterfaceHandle);
+
+    if (NT_SUCCESS(Status))
+        *OutSpDriverExtension = SpDriverExtension;
+
+    return Status;
 }
 
 VOID
@@ -627,7 +998,7 @@ ScsiPortInitialize(
         Status = SpAllocateDriverExtension(DriverObject, RegistryPath, &SpDriverExtension);
         if (!NT_SUCCESS(Status))
         {
-            //ScsiDebugPrintInt(0, "ScsiPortInitialize: Error %#08lx allocating driver extension - cannot continue\n", Status);
+            //ScsiDebugPrintInt(0, "ScsiPortInitialize: Error %X allocating driver extension - cannot continue\n", Status);
             DPRINT1("ScsiPortInitialize: Status %X\n", Status);
             return Status;
         }
@@ -682,7 +1053,7 @@ ScsiPortInitialize(
 
     if (!(iFlags & 1) || (SpDriverExtension->LegacyAdapterDetection && (iFlags & 2)))
     {
-        //ScsiDebugPrintInt(1, "ScsiPortInitialize: flags = %#08lx & LegacyAdapterDetection = %d\n", iFlags, SpDriverExtension->LegacyAdapterDetection);
+        //ScsiDebugPrintInt(1, "ScsiPortInitialize: flags = %X & LegacyAdapterDetection = %d\n", iFlags, SpDriverExtension->LegacyAdapterDetection);
         //ScsiDebugPrintInt(1, "ScsiPortInitialize: Doing Legacy Adapter detection\n");
         DPRINT1("ScsiPortInitialize: Doing Legacy Adapter detection (%X, %X)\n", iFlags, SpDriverExtension->LegacyAdapterDetection);
         UNIMPLEMENTED_DBGBREAK();

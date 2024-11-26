@@ -23,8 +23,12 @@ typedef struct _SCSI_HW_CHAIN_ENTRY
 
 typedef struct _SCSIPORT_DRIVER_EXTENSION
 {
+    PDRIVER_OBJECT DriverObject;
+    UNICODE_STRING RegistryPath;
     PSCSI_HW_CHAIN_ENTRY ChainHeader;
+    ULONG BusType;
     BOOLEAN LegacyAdapterDetection;
+    ULONG PnpInterfaceCount;
     ULONG IgnoreInitLegacyStatus;
 } SCSI_PORT_DRIVER_EXTENSION, *PSCSI_PORT_DRIVER_EXTENSION;
 
@@ -33,6 +37,12 @@ typedef struct _SCSI_PORT_GUID_INTERFACE_MAPPING
     GUID Guid;
     INTERFACE_TYPE InterfaceType;
 } SCSI_PORT_GUID_INTERFACE_MAPPING, *PSCSI_PORT_GUID_INTERFACE_MAPPING;
+
+typedef struct _SCSI_PNP_INTERFACE
+{
+    INTERFACE_TYPE InterfaceType;
+    ULONG Flags;
+} SCSI_PNP_INTERFACE, *PSCSI_PNP_INTERFACE;
 
 /* FUNCTIONS ****************************************************************/
 
