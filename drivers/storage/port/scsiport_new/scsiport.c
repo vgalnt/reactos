@@ -628,12 +628,45 @@ ScsiPortStartIo(
 
 NTSTATUS
 NTAPI
+SpCreateAdapter(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PDEVICE_OBJECT* OutFdo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ScsiPortAddDevice(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PDEVICE_OBJECT LowerPdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PDEVICE_OBJECT Fdo;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortAddDevice: %p, %p\n", DriverObject, LowerPdo);
+
+    Status = SpCreateAdapter(DriverObject, &Fdo);
+    if (!Fdo)
+    {
+        DPRINT1("ScsiPortAddDevice: Status %X\n", Status);
+        return Status;
+    }
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    DeviceExtension->Flags2 &= ~1;
+    DeviceExtension->Flags2 &= ~0x30;
+    DeviceExtension->Flags2 |= 4;
+
+    DeviceExtension->CommonExtension.LowDevice = IoAttachDeviceToDeviceStack(Fdo, LowerPdo);
+    DeviceExtension->LowerPdo = LowerPdo;
+
+    Status = (DeviceExtension->CommonExtension.LowDevice ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL);
+    return Status;
 }
 
 VOID

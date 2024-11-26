@@ -44,6 +44,20 @@ typedef struct _SCSI_PNP_INTERFACE
     ULONG Flags;
 } SCSI_PNP_INTERFACE, *PSCSI_PNP_INTERFACE;
 
+typedef struct _COMMON_EXTENSION
+{
+    PDEVICE_OBJECT SelfDevice;
+    PDEVICE_OBJECT LowDevice;
+} COMMON_EXTENSION, *PCOMMON_EXTENSION;
+
+/* FDO */
+typedef struct _SCSI_PORT_DEVICE_EXTENSION
+{
+    COMMON_EXTENSION CommonExtension;
+    PDEVICE_OBJECT LowerPdo;
+    UCHAR Flags2;
+} SCSI_PORT_DEVICE_EXTENSION, *PSCSI_PORT_DEVICE_EXTENSION;
+
 /* FUNCTIONS ****************************************************************/
 
 #endif /* _SCSIPORT_H_ */
