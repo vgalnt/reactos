@@ -134,6 +134,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PCM_RESOURCE_LIST AllocatedResourcesTranslated;
     ULONG SrbExtensionSize;
     ULONG NumberOfRequests;
+    PVOID CommonBuffer;
     ULONG SpecificLuExtensionSize;
     PSCSI_PORT_ADDRESS_MAPPING CurrentAddressMapping;
     PSCSI_PORT_ADDRESS_MAPPING AddressMapping;

@@ -3027,8 +3027,15 @@ NTAPI
 SpGetSrbExtensionBuffer(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    DPRINT("SpGetSrbExtensionBuffer: %p\n", DeviceExtension);
+
+    if (DeviceExtension->VerifierExtension)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return NULL;
+    }
+
+    return DeviceExtension->CommonBuffer;
 }
 
 VOID
