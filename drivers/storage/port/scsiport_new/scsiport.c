@@ -1448,7 +1448,229 @@ SpParseDevice(
     _In_ PSCSI_PORT_CONFIG_CONTEXT CfgContext,
     _In_ PKEY_VALUE_FULL_INFORMATION FullInfoBuffer)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PKEY_VALUE_FULL_INFORMATION KeyValueInfo;
+    ULONG NumberOfRequests;
+    ULONG ResultLength;
+    ULONG NameLength;
+    ULONG Index = 0;
+    NTSTATUS Status1;
+    NTSTATUS Status2;
+
+    DPRINT("SpParseDevice: %p\n", DeviceExtension);
+
+    KeyValueInfo = FullInfoBuffer;
+
+    while (TRUE)
+    {
+        while (TRUE)
+        {
+            if (KeyValueInfo != FullInfoBuffer)
+            {
+                ExFreePoolWithTag(KeyValueInfo, 'cPcS');
+                KeyValueInfo = FullInfoBuffer;
+            }
+
+            Status1 = ZwEnumerateValueKey(KeyHandle, Index++, KeyValueFullInformation, KeyValueInfo, 0x200, &ResultLength);
+            if (NT_SUCCESS(Status1))
+                break;
+
+            if (Status1 == STATUS_NO_MORE_ENTRIES)
+                return;
+
+            if (Status1 != STATUS_BUFFER_OVERFLOW && Status1 != STATUS_BUFFER_TOO_SMALL)
+            {
+                //ScsiDebugPrintInt(1, "SpParseDevice: ZwEnumerateValueKey failed. Status: %lx", Status1);
+                DPRINT1("SpParseDevice: ZwEnumerateValueKey failed. Status: %X", Status1);
+                continue;
+            }
+
+            KeyValueInfo = ExAllocatePoolWithTag(PagedPool, ResultLength, 'cPcS');
+            if (!KeyValueInfo)
+            {
+                //ScsiDebugPrintInt(1, "SpParseDevice: Failed to allocated paged pool of size %lx", ResultLength);
+                DPRINT1("SpParseDevice: Failed to allocated paged pool of size %X", ResultLength);
+                KeyValueInfo = FullInfoBuffer;
+                continue;
+            }
+
+            Status2 = ZwEnumerateValueKey(KeyHandle, (Index - 1), KeyValueFullInformation, KeyValueInfo, ResultLength, &ResultLength);
+            if (NT_SUCCESS(Status2))
+                break;
+
+            if (Status2 == STATUS_NO_MORE_ENTRIES)
+            {
+                ExFreePoolWithTag(KeyValueInfo, 'cPcS');
+                return;
+            }
+
+            if (Status2 == STATUS_BUFFER_OVERFLOW || Status2 == STATUS_BUFFER_TOO_SMALL)
+                continue;
+
+            //ScsiDebugPrintInt(1, "SpParseDevice: ZwEnumerateValueKey failed. Status2: %lx", Status2);
+            DPRINT1("SpParseDevice: ZwEnumerateValueKey failed. Status2: %X", Status2);
+        }
+
+        NameLength = (KeyValueInfo->NameLength / 2);
+
+        if (KeyValueInfo->Type == REG_DWORD && KeyValueInfo->DataLength != sizeof(ULONG))
+            continue;
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"MaximumLogicalUnit", NameLength))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"InitiatorTargetId", NameLength))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"ScsiDebug", NameLength))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"BreakPointOnEntry", NameLength))
+        {
+            //ScsiDebugPrintInt(0, "SpParseDevice: Break point requested on entry.\n");
+            DPRINT1("SpParseDevice: Break point requested on entry.\n");
+            DbgBreakPoint();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"DisableSynchronousTransfers", NameLength))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"DisableDisconnects", NameLength))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"DisableTaggedQueuing", NameLength))
+        {
+            //ScsiDebugPrintInt(1, "SpParseDevice: Disabling tagged queueing\n");
+            DPRINT("SpParseDevice: Disabling tagged queueing\n");
+            CfgContext->DisableTaggedQueuing = 1;
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"DisableMultipleRequests", NameLength))
+        {
+            //ScsiDebugPrintInt(1, "SpParseDevice: Disabling multiple requests\n");
+            DPRINT("SpParseDevice: Disabling multiple requests\n");
+            CfgContext->DisableMultipleRequests = 1;
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"MinimumUCXAddress", NameLength) && KeyValueInfo->Type == REG_BINARY)
+        {
+            DeviceExtension->MinimumUCXAddress.QuadPart = *(PULONGLONG)((ULONG_PTR)KeyValueInfo + KeyValueInfo->DataOffset);
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"MaximumUCXAddress", NameLength) && KeyValueInfo->Type == REG_BINARY)
+        {
+            DeviceExtension->MaximumUCXAddress.QuadPart = *(PULONGLONG)((ULONG_PTR)KeyValueInfo + KeyValueInfo->DataOffset);
+        }
+
+        if (!DeviceExtension->MaximumUCXAddress.QuadPart)
+            DeviceExtension->MaximumUCXAddress.QuadPart = 0xFFFFFFFF;
+
+        if (DeviceExtension->MinimumUCXAddress.QuadPart >= (DeviceExtension->MaximumUCXAddress.QuadPart - PAGE_SIZE))
+        {
+            //ScsiDebugPrintInt(0, "SpParseDevice: MinimumUCXAddress %I64x is invalid\n", DeviceExtension->MinimumUCXAddress.QuadPart);
+            DPRINT1("SpParseDevice: MinimumUCXAddress %I64X is invalid\n", DeviceExtension->MinimumUCXAddress.QuadPart);
+            DeviceExtension->MinimumUCXAddress.QuadPart = 0;
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"DriverParameters", NameLength))
+        {
+            if (!KeyValueInfo->DataLength)
+                continue;
+
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"MaximumSGList", NameLength))
+        {
+            if (KeyValueInfo->Type != REG_DWORD)
+            {
+                //ScsiDebugPrintInt(1, "SpParseDevice:  Bad data type for MaximumSGList.\n");
+                DPRINT("SpParseDevice: Bad data type for MaximumSGList.\n");
+                continue;
+            }
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"NumberOfRequests", NameLength))
+        {
+            if (KeyValueInfo->Type != REG_DWORD)
+            {
+                //ScsiDebugPrintInt(1, "SpParseDevice:  Bad data type for NumberOfRequests.\n");
+                DPRINT("SpParseDevice: Bad data type for NumberOfRequests.\n");
+                continue;
+            }
+
+            NumberOfRequests = *(PULONG)Add2Ptr(KeyValueInfo, KeyValueInfo->DataOffset);
+
+            if (NumberOfRequests >= 0x10)
+            {
+                if (NumberOfRequests <= 0xFF)
+                    DeviceExtension->NumberOfRequests = NumberOfRequests;
+                else
+                    DeviceExtension->NumberOfRequests = 0xFF;
+            }
+            else
+            {
+                DeviceExtension->NumberOfRequests = 0x10;
+            }
+
+            //ScsiDebugPrintInt(1, "SpParseDevice:  Number Of Requests = %d found.\n", DeviceExtension->NumberOfRequests);
+            DPRINT("SpParseDevice: Number Of Requests %X found.\n", DeviceExtension->NumberOfRequests);
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"ResourceList", NameLength) ||
+            !_wcsnicmp(KeyValueInfo->Name, L"Configuration Data", NameLength))
+        {
+            if (KeyValueInfo->Type != REG_FULL_RESOURCE_DESCRIPTOR || KeyValueInfo->DataLength < 4)
+            {
+                //ScsiDebugPrintInt(1, "SpParseDevice:  Bad data type for ResourceList.\n");
+                DPRINT("SpParseDevice: Bad data type for ResourceList.\n");
+                continue;
+            }
+
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"UncachedExtAlignment", NameLength))
+        {
+            if (KeyValueInfo->Type != REG_DWORD)
+            {
+                //ScsiDebugPrintInt(1, "SpParseDevice:  Bad data type for UncachedExtAlignment.\n");
+                DPRINT("SpParseDevice: Bad data type for UncachedExtAlignment.\n");
+                continue;
+            }
+
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"ResetHoldTime", NameLength))
+        {
+            if (KeyValueInfo->Type != REG_DWORD)
+            {
+                //ScsiDebugPrintInt(1, "SpParseDevice:  Bad data type for ResetHoldTime.\n");
+                DPRINT("SpParseDevice: Bad data type for ResetHoldTime.\n");
+                continue;
+            }
+
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!_wcsnicmp(KeyValueInfo->Name, L"CreateInitiatorLU", NameLength))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+
+    ASSERT(FALSE);
 }
 
 NTSTATUS
