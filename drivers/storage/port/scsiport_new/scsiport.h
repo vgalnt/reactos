@@ -125,8 +125,10 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     UCHAR NumberOfBuses;
     UCHAR MaximumNumberOfTargets;
     UCHAR MaximumLogicalUnit;
+    ULONG Flags;
     ULONG DisableCount;
     PVOID MapRegisterBase;
+    PDMA_ADAPTER DmaAdapter;
     PPORT_CONFIGURATION_INFORMATION PortConfig;
     PCM_RESOURCE_LIST AllocatedResources;
     PCM_RESOURCE_LIST AllocatedResourcesTranslated;
@@ -145,10 +147,16 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PHW_ADAPTER_CONTROL HwAdapterControl;
     SCSI_PORT_LUN_ENTRY LunList[8];
     SCSI_PORT_INTERRUPT_DATA InterruptData;
+    IO_SCSI_CAPABILITIES IoScsiCapabilities;
+    BOOLEAN IsRemapBuffers;
     BOOLEAN TaggedQueuing;
+    BOOLEAN AutoRequestSense;
     BOOLEAN MultipleRequestPerLu;
     BOOLEAN ReceiveEvent;
+    BOOLEAN IsSrbExtensions;
     BOOLEAN CachesData;
+    BOOLEAN Dma64BitAddresses;
+    BOOLEAN Dma32BitAddresses;
     KMUTEX EnumMutex;
     FAST_MUTEX EnumFastMutex;
     WORK_QUEUE_ITEM EnumWorkItem;

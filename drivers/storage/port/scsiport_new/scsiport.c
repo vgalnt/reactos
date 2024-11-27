@@ -26,9 +26,9 @@ PVOID ScsiDirectory = NULL;
 PSCSI_PORT_GUID_INTERFACE_MAPPING SpGuidInterfaceMappingList;
 HANDLE ScsiDeviceMapKey = ULongToPtr(0xFFFFFFFF);
 LONG LockLowWatermark = 0;
-
 BOOLEAN ScsiPortLegacyAdapterDetection = FALSE;
 BOOLEAN Sp64BitPhysicalAddresses = FALSE;
+BOOLEAN SpRemapBuffersByDefault = FALSE;
 BOOLEAN SpLegacyInstanceId = FALSE;
 
 PDRIVER_DISPATCH DeviceMajorFunctionTable[IRP_MJ_MAXIMUM_FUNCTION + 1];
@@ -3024,13 +3024,151 @@ ScsiPortGetSrb(
 
 PVOID
 NTAPI
-ScsiPortGetUncachedExtension(
-    _In_ PVOID HwDeviceExtension,
-    _In_ PPORT_CONFIGURATION_INFORMATION ConfigInfo,
-    _In_ ULONG NumberOfBytes)
+SpGetSrbExtensionBuffer(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
     UNIMPLEMENTED_DBGBREAK();
     return NULL;
+}
+
+VOID
+NTAPI
+SpInitializePowerParams(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+SpInitializePerformanceParams(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+SpInitializeRequestSenseParams(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+SpGetCommonBuffer(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ ULONG NumberOfBytes)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+PVOID
+NTAPI
+ScsiPortGetUncachedExtension(
+    _In_ PVOID MiniportExtension,
+    _In_ PPORT_CONFIGURATION_INFORMATION ConfigInfo,
+    _In_ ULONG NumberOfBytes)
+{
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    DEVICE_DESCRIPTION DeviceDescription;
+    PSCSI_PORT_HW_DATA SpHwData;
+    ULONG NumberOfMapRegisters;
+    NTSTATUS Status;
+
+    SpHwData = CONTAINING_RECORD(MiniportExtension, SCSI_PORT_HW_DATA, HwDeviceExtension);
+    DeviceExtension = SpHwData->DeviceExtension;
+
+    DPRINT("ScsiPortGetUncachedExtension: %p, %p\n", MiniportExtension, DeviceExtension);
+
+    if (DeviceExtension->Flags & 0x40000)
+    {
+        //ScsiDebugPrintInt(1, "ScsiPortGetUncachedExtension - miniport is reinitializing returning %#p\n", DeviceExtension->UncachedExtension);
+        DPRINT("ScsiPortGetUncachedExtension - miniport is reinitializing returning %p\n", DeviceExtension->UncachedExtension);
+
+        if (!(DeviceExtension->Flags & 0x80000))
+        {
+            DeviceExtension->Flags |= 0x80000;
+            return DeviceExtension->UncachedExtension;
+        }
+
+        return 0;
+    }
+
+    if (SpGetSrbExtensionBuffer(DeviceExtension))
+        return NULL;
+
+    if (!DeviceExtension->DmaAdapter)
+    {
+        RtlZeroMemory(&DeviceDescription, sizeof(DeviceDescription));
+
+        DeviceDescription.Version = 0;
+        DeviceDescription.DmaChannel = ConfigInfo->DmaChannel;
+        DeviceDescription.InterfaceType = ConfigInfo->AdapterInterfaceType;
+        DeviceDescription.DmaWidth = ConfigInfo->DmaWidth;
+        DeviceDescription.DmaSpeed = ConfigInfo->DmaSpeed;
+        DeviceDescription.ScatterGather = ConfigInfo->ScatterGather;
+        DeviceDescription.Master = ConfigInfo->Master;
+        DeviceDescription.DmaPort = ConfigInfo->DmaPort;
+        DeviceDescription.Dma32BitAddresses = ConfigInfo->Dma32BitAddresses;
+
+        DeviceExtension->Dma32BitAddresses = DeviceDescription.Dma32BitAddresses;
+
+        //ScsiDebugPrintInt(1, "ScsiPortGetUncachedExtension: Dma64BitAddresses = %#0x\n", ConfigInfo->Dma64BitAddresses);
+        DPRINT("ScsiPortGetUncachedExtension: Dma64BitAddresses = %#0x\n", ConfigInfo->Dma64BitAddresses);
+
+        DeviceExtension->IsRemapBuffers = (SpRemapBuffersByDefault != FALSE);
+
+        if (ConfigInfo->Dma64BitAddresses & 0x7F)
+        {
+            //ScsiDebugPrintInt(1, "ScsiPortGetUncachedExtension: will request 64-bit PA's\n");
+            DPRINT("ScsiPortGetUncachedExtension: will request 64-bit PA's\n");
+
+            DeviceDescription.Dma64BitAddresses = 1;
+            DeviceExtension->Dma64BitAddresses = 1;
+        }
+        else if (Sp64BitPhysicalAddresses == 1)
+        {
+            //ScsiDebugPrintInt(1, "ScsiPortGetUncachedExtension: Will remap buffers for adapter %#p\n", DeviceExtension);
+            DPRINT("ScsiPortGetUncachedExtension: Will remap buffers for adapter %p\n", DeviceExtension);
+
+            DeviceExtension->IsRemapBuffers = 1;
+        }
+
+        DeviceDescription.BusNumber = ConfigInfo->SystemIoBusNumber;
+        DeviceDescription.MaximumLength = ConfigInfo->MaximumTransferLength;
+        DeviceDescription.AutoInitialize = 0;
+        DeviceDescription.DemandMode = 0;
+
+        DeviceExtension->DmaAdapter = IoGetDmaAdapter(DeviceExtension->LowerPdo, &DeviceDescription, &NumberOfMapRegisters);
+        if (!DeviceExtension->DmaAdapter)
+            return NULL;
+
+        if (NumberOfMapRegisters > ConfigInfo->NumberOfPhysicalBreaks && ConfigInfo->NumberOfPhysicalBreaks != 0)
+            DeviceExtension->IoScsiCapabilities.MaximumPhysicalPages = ConfigInfo->NumberOfPhysicalBreaks;
+        else
+            DeviceExtension->IoScsiCapabilities.MaximumPhysicalPages = NumberOfMapRegisters;
+    }
+
+    DeviceExtension->AutoRequestSense = ConfigInfo->AutoRequestSense;
+
+    SpInitializePowerParams(DeviceExtension);
+    SpInitializePerformanceParams(DeviceExtension);
+    SpInitializeRequestSenseParams(DeviceExtension);
+
+    if (DeviceExtension->SrbExtensionSize != ConfigInfo->SrbExtensionSize)
+        DeviceExtension->SrbExtensionSize = ConfigInfo->SrbExtensionSize;
+
+    if (DeviceExtension->SrbExtensionSize || ConfigInfo->AutoRequestSense)
+        DeviceExtension->IsSrbExtensions = 1;
+
+    Status = SpGetCommonBuffer(DeviceExtension, NumberOfBytes);
+    if (!NT_SUCCESS(Status))
+        return NULL;
+
+    return DeviceExtension->UncachedExtension;
 }
 
 PVOID
