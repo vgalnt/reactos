@@ -2058,6 +2058,23 @@ Finish:
         ZwClose(KeyHandle);
 }
 
+VOID
+NTAPI
+SpPreallocateAddressMapping(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR Count)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+SpPurgeFreeMappedAddressList(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 SpCallHwFindAdapter(
@@ -2066,10 +2083,124 @@ SpCallHwFindAdapter(
     _In_ PVOID HwContext,
     _In_ PSCSI_PORT_CONFIG_CONTEXT CfgContext,
     _In_ PPORT_CONFIGURATION_INFORMATION PortConfig,
-    _In_ BOOLEAN *OutIsAgain)
+    _Out_ BOOLEAN* OutIsAgain)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    ULONG Result;
+    NTSTATUS Status;
+
+    DPRINT("SpCallHwFindAdapter: %p\n", DeviceObject);
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+
+    *OutIsAgain = FALSE;
+
+    SpPreallocateAddressMapping(DeviceExtension, 0x14);
+
+    Result = DeviceExtension->HwFindAdapter(DeviceExtension->HwDeviceExtension,
+                                            HwContext,
+                                            NULL, // BusInformation
+                                            CfgContext->DriverParameters,
+                                            PortConfig,
+                                            OutIsAgain);
+
+    if (DeviceExtension->InterruptData.Flags & 0x40)
+    {
+        DeviceExtension->InterruptData.Flags &= ~0x44;
+        UNIMPLEMENTED;
+        //LogErrorEntry(..);
+    }
+
+    if (DeviceExtension->MapRegisterBase)
+    {
+        ExFreePool(DeviceExtension->MapRegisterBase);
+        DeviceExtension->MapRegisterBase = NULL;
+    }
+
+    if (Result == 1)
+    {
+        if (!PortConfig->Master && Sp64BitPhysicalAddresses == 1)
+        {
+            //ScsiDebugPrintInt(0, "SpCallHwFindAdapter: Driver does not support bus mastering for adapter %#08lx - this type of adapter is not supported on systems with 64-bit physical addresses\n", DeviceExtension);
+            DPRINT1("SpCallHwFindAdapter: Driver does not support bus mastering for adapter %X - this type of adapter is not supported on systems with 64-bit physical addresses\n", DeviceExtension);
+            return STATUS_NOT_SUPPORTED;
+        }
+
+        SpPurgeFreeMappedAddressList(DeviceExtension);
+
+        //ScsiDebugPrintInt(1, "SpFindAdapter: SCSI Adapter ID is %d\n", PortConfig->InitiatorBusId[0]);
+        DPRINT("SpFindAdapter: SCSI Adapter ID is %d\n", PortConfig->InitiatorBusId[0]);
+
+        if (DeviceExtension->Flags2 & 4)
+        {
+            Status = STATUS_SUCCESS;
+        }
+        else
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (!DeviceExtension->UncachedExtension)
+        {
+            if (PortConfig->SrbExtensionSize != DeviceExtension->SrbExtensionSize)
+                DeviceExtension->SrbExtensionSize = (PortConfig->SrbExtensionSize + 8) & ~7;
+        }
+
+        if (DeviceExtension->SpecificLuExtensionSize != PortConfig->SpecificLuExtensionSize)
+            DeviceExtension->SpecificLuExtensionSize = PortConfig->SpecificLuExtensionSize;
+
+        if (PortConfig->MaximumNumberOfTargets <= 0x80)
+            DeviceExtension->MaximumNumberOfTargets = PortConfig->MaximumNumberOfTargets;
+        else
+            DeviceExtension->MaximumNumberOfTargets = 0x80;
+
+        DeviceExtension->NumberOfBuses = PortConfig->NumberOfBuses;
+        DeviceExtension->CachesData = PortConfig->CachesData;
+        DeviceExtension->ReceiveEvent = PortConfig->ReceiveEvent;
+        DeviceExtension->TaggedQueuing = PortConfig->TaggedQueuing;
+        DeviceExtension->MultipleRequestPerLu = PortConfig->MultipleRequestPerLu;
+        DeviceExtension->CommonExtension.WmiDataProvider = PortConfig->WmiDataProvider;
+
+        if (CfgContext->DisableMultipleRequests)
+        {
+            PortConfig->MultipleRequestPerLu = 0;
+            DeviceExtension->MultipleRequestPerLu = 0;
+        }
+
+        if (CfgContext->DisableTaggedQueuing)
+        {
+            PortConfig->MultipleRequestPerLu = 0;
+            PortConfig->TaggedQueuing = 0;
+            DeviceExtension->TaggedQueuing = 0;
+        }
+
+        DeviceExtension->IsRequestQueue = (DeviceExtension->TaggedQueuing || DeviceExtension->MultipleRequestPerLu);
+
+        return Status;
+    }
+
+    //ScsiDebugPrintInt(1, "SpFindAdapter: miniport find adapter routine reported an error %d\n", Result);
+    DPRINT1("SpFindAdapter: miniport find adapter routine reported an error %X\n", Result);
+
+    if (Result == 0)
+    {
+        *OutIsAgain = 0;
+        Status = STATUS_DEVICE_DOES_NOT_EXIST;
+    }
+    else if (Result == 2)
+    {
+        Status = STATUS_ADAPTER_HARDWARE_ERROR;
+    }
+    else if (Result == 3)
+    {
+        Status = STATUS_INVALID_PARAMETER;
+    }
+    else
+    {
+        Status = STATUS_INTERNAL_ERROR;
+    }
+
+    return Status;
 }
 
 NTSTATUS

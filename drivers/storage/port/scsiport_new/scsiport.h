@@ -105,6 +105,8 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     COMMON_EXTENSION CommonExtension;
     PDEVICE_OBJECT LowerPdo;
     PVOID HwDeviceExtension;
+    PVOID UncachedExtension;
+    ULONG UncachedExtensionSize;
     ULONG PortScsiPort;
     ULONG PortScsi;
     UCHAR Flags2;
@@ -115,6 +117,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     UCHAR MaximumNumberOfTargets;
     UCHAR MaximumLogicalUnit;
     ULONG DisableCount;
+    PVOID MapRegisterBase;
     PPORT_CONFIGURATION_INFORMATION PortConfig;
     PCM_RESOURCE_LIST AllocatedResources;
     PCM_RESOURCE_LIST AllocatedResourcesTranslated;
@@ -131,6 +134,10 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PHW_ADAPTER_CONTROL HwAdapterControl;
     SCSI_PORT_LUN_ENTRY LunList[8];
     SCSI_PORT_INTERRUPT_DATA InterruptData;
+    BOOLEAN TaggedQueuing;
+    BOOLEAN MultipleRequestPerLu;
+    BOOLEAN ReceiveEvent;
+    BOOLEAN CachesData;
     KMUTEX EnumMutex;
     FAST_MUTEX EnumFastMutex;
     WORK_QUEUE_ITEM EnumWorkItem;
@@ -147,6 +154,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PVOID ReservedMapping;
     PMDL ReservedMdl;
     ULONG TimeoutValue;
+    BOOLEAN IsRequestQueue;
     ULONG ResetHoldTime;
     PSCSI_PORT_LUN_EXTENSION BlockedLun;
 } SCSI_PORT_DEVICE_EXTENSION, *PSCSI_PORT_DEVICE_EXTENSION;
