@@ -1678,8 +1678,63 @@ NTAPI
 PortGetDiskTimeoutValue(
     _Out_ ULONG* OutTimeoutValue)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PKEY_VALUE_FULL_INFORMATION KeyValueInfo;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING KeyName;
+    UNICODE_STRING ValueName;
+    HANDLE KeyHandle;
+    ULONG TimeoutValue;
+    ULONG ResultLength;
+    UCHAR Buffer[0x200];
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("PortGetDiskTimeoutValue()\n");
+
+    RtlInitUnicodeString(&KeyName, L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\Disk");
+    InitializeObjectAttributes(&ObjectAttributes, &KeyName, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PortGetDiskTimeoutValue: Status %X\n", Status);
+        return Status;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"TimeoutValue");
+    KeyValueInfo = (PKEY_VALUE_FULL_INFORMATION)Buffer;
+
+    Status = ZwQueryValueKey(KeyHandle, &ValueName, KeyValueFullInformation, &KeyValueInfo, 0x200, &ResultLength);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PortGetDiskTimeoutValue: Status %X\n", Status);
+        return Status;
+    }
+
+    if (KeyValueInfo->Type == REG_DWORD && KeyValueInfo->DataLength != sizeof(ULONG))
+    {
+        DPRINT1("PortGetDiskTimeoutValue: Status %X\n", Status);
+        return Status;
+    }
+
+    Status = _wcsnicmp(KeyValueInfo->Name, L"TimeoutValue", (KeyValueInfo->NameLength / 2));
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("PortGetDiskTimeoutValue: Status %X\n", Status);
+        return Status;
+    }
+
+    if (!KeyValueInfo->DataLength || KeyValueInfo->Type != REG_DWORD)
+    {
+        DPRINT1("PortGetDiskTimeoutValue: Status %X\n", Status);
+        return Status;
+    }
+
+    TimeoutValue = *(PULONG)((ULONG_PTR)KeyValueInfo + KeyValueInfo->DataOffset);
+    if (TimeoutValue)
+        *OutTimeoutValue = TimeoutValue;
+
+    return Status;
 }
 
 NTSTATUS
