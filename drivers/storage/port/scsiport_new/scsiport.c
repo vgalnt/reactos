@@ -2904,14 +2904,56 @@ ScsiPortFreeDeviceBase(
 
 ULONG
 NTAPI
+SpGetBusData(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PDEVICE_OBJECT AttachedToDevice,
+    _In_ BUS_DATA_TYPE BusDataType,
+    _In_ ULONG BusNumber,
+    _In_ ULONG SlotNumber,
+    _In_ PVOID Buffer,
+    _In_ ULONG Length)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+ULONG
+NTAPI
 ScsiPortGetBusData(
-    _In_ PVOID DeviceExtension,
+    _In_ PVOID MiniportExtension,
     _In_ ULONG BusDataType,
     _In_ ULONG SystemIoBusNumber,
     _In_ ULONG SlotNumber,
     _In_ PVOID Buffer,
     _In_ ULONG Length)
 {
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PDEVICE_OBJECT AttachedToDevice;
+    PSCSI_PORT_HW_DATA SpHwData;
+
+    DPRINT("ScsiPortGetBusData: %X\n", BusDataType);
+
+    SpHwData = CONTAINING_RECORD(MiniportExtension, SCSI_PORT_HW_DATA, HwDeviceExtension);
+    DeviceExtension = SpHwData->DeviceExtension;
+
+    if (!(DeviceExtension->Flags2 & 2))
+    {
+        AttachedToDevice = NULL;
+    }
+    else if (SlotNumber != DeviceExtension->PciSlotNumber.u.AsULONG)
+    {
+        ASSERT(BusDataType == PCIConfiguration);
+        return 2;
+    }
+    else
+    {
+        AttachedToDevice = DeviceExtension->CommonExtension.LowDevice;
+    }
+
+    if (Length)
+        return SpGetBusData(DeviceExtension, AttachedToDevice, BusDataType, SystemIoBusNumber, SlotNumber, Buffer, Length);
+
+
     UNIMPLEMENTED_DBGBREAK();
     return 0;
 }
