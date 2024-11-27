@@ -108,6 +108,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     ULONG PortScsiPort;
     ULONG PortScsi;
     UCHAR Flags2;
+    PCI_SLOT_NUMBER PciSlotNumber;
     ULONG BusNumber;
     ULONG SlotNumber;
     UCHAR NumberOfBuses;

@@ -1933,6 +1933,15 @@ SpBuildConfiguration(
     }
 }
 
+NTSTATUS
+NTAPI
+SpQueryCapabilities(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 SpGetSlotNumber(
@@ -1940,7 +1949,113 @@ SpGetSlotNumber(
     _In_ PPORT_CONFIGURATION_INFORMATION PortConfig,
     _In_ PCM_RESOURCE_LIST AllocatedResources)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[3];
+    UNICODE_STRING KeyValueName;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE DevInstRegKey = NULL;
+    HANDLE KeyHandle = NULL;
+    ULONG BusNumber;
+    ULONG DefaultData;
+    ULONG SlotNumber;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpGetSlotNumber: %p\n", DeviceObject);
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    DeviceExtension->Flags2 &= ~2;
+
+    //_SEH2_TRY;
+
+    Status = IoOpenDeviceRegistryKey(DeviceExtension->LowerPdo, PLUGPLAY_REGKEY_DEVICE, KEY_READ, &DevInstRegKey);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpGetSlotNumber: Status %X\n", Status);
+        goto Finish;
+    }
+
+    RtlInitUnicodeString(&KeyValueName, L"Scsiport");
+    InitializeObjectAttributes(&ObjectAttributes, &KeyValueName, OBJ_CASE_INSENSITIVE, DevInstRegKey, NULL);
+
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpGetSlotNumber: Status %X\n", Status);
+        goto Finish;
+    }
+
+    DefaultData = 0xFFFFFFFF;
+    BusNumber = 0xFFFFFFFF;
+    SlotNumber = 0xFFFFFFFF;
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].Flags = RTL_QUERY_REGISTRY_DIRECT;
+    QueryTable[0].Name = L"SlotNumber";
+    QueryTable[0].EntryContext = &SlotNumber;
+    QueryTable[0].DefaultType = REG_DWORD;
+    QueryTable[0].DefaultData = &DefaultData;
+    QueryTable[0].DefaultLength = sizeof(ULONG);
+
+    QueryTable[1].Flags = RTL_QUERY_REGISTRY_DIRECT;
+    QueryTable[1].Name = L"BusNumber";
+    QueryTable[1].EntryContext = &BusNumber;
+    QueryTable[1].DefaultType = REG_DWORD;
+    QueryTable[1].DefaultData = &DefaultData;
+    QueryTable[1].DefaultLength = sizeof(ULONG);
+
+    Status = RtlQueryRegistryValues(RTL_REGISTRY_HANDLE, KeyHandle, QueryTable, NULL, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpGetSlotNumber: Status %X\n", Status);
+        goto Finish;
+    }
+
+    if (BusNumber == DefaultData && SlotNumber == DefaultData)
+    {
+        DPRINT1("SpGetSlotNumber: STATUS_UNSUCCESSFUL\n");
+        Status = STATUS_UNSUCCESSFUL;
+        goto Finish;
+    }
+
+    if (BusNumber != DefaultData && SlotNumber != DefaultData)
+    {
+        PortConfig->SystemIoBusNumber = BusNumber;
+        PortConfig->SlotNumber = SlotNumber;
+
+        DeviceExtension->Flags2 &= ~2;
+    }
+    else
+    {
+        PortConfig->SystemIoBusNumber = AllocatedResources->List[0].BusNumber;
+        PortConfig->SlotNumber = 0;
+
+        DeviceExtension->Flags2 |= 2;
+    }
+
+Finish:
+    //_SEH2_FINALLY;
+
+    if (!NT_SUCCESS(Status))
+    {
+        Status = SpQueryCapabilities(DeviceExtension);
+        if (NT_SUCCESS(Status))
+        {
+            PortConfig->SystemIoBusNumber = AllocatedResources->List[0].BusNumber;
+            PortConfig->SlotNumber = DeviceExtension->PciSlotNumber.u.AsULONG;
+
+            DPRINT("SpGetSlotNumber: %X, %X\n", PortConfig->SystemIoBusNumber, PortConfig->SlotNumber);
+
+            DeviceExtension->Flags2 |= 2;
+        }
+    }
+
+    if (DevInstRegKey)
+        ZwClose(DevInstRegKey);
+
+    if (KeyHandle)
+        ZwClose(KeyHandle);
 }
 
 NTSTATUS
