@@ -3096,7 +3096,35 @@ NTAPI
 SpInitializeRequestSenseParams(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG InstanceValue;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpInitializeRequestSenseParams: %p\n", DeviceExtension);
+
+    if (!(DeviceExtension->Flags2 & 4))
+    {
+        DeviceExtension->TotalSenseDataBytes = 0;
+        return;
+    }
+
+    Status = SpReadNumericInstanceValue(DeviceExtension->LowerPdo, L"TotalSenseDataBytes", &InstanceValue);
+    if (!NT_SUCCESS(Status))
+    {
+        DeviceExtension->TotalSenseDataBytes = 0;
+        return;
+    }
+
+    if (InstanceValue <= 0x12)
+    {
+        DeviceExtension->TotalSenseDataBytes = 0;
+        return;
+    }
+
+    if (InstanceValue < 0xFF)
+        DeviceExtension->TotalSenseDataBytes = (InstanceValue - 0x12);
+    else
+        DeviceExtension->TotalSenseDataBytes = 0xED;
 }
 
 NTSTATUS
