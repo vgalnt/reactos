@@ -1938,8 +1938,61 @@ NTAPI
 SpQueryCapabilities(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    DEVICE_CAPABILITIES Capabilities;
+    PIO_STACK_LOCATION IoStack;
+    KEVENT Event;
+    PIRP Irp;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpQueryCapabilities: %p\n", DeviceExtension);
+
+    RtlZeroMemory(&Capabilities, sizeof(Capabilities));
+
+    Capabilities.Size = sizeof(Capabilities);
+    Capabilities.Version = 1;
+    Capabilities.Address = 0xFFFFFFFF;
+    Capabilities.UINumber = 0xFFFFFFFF;
+
+    KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+    Irp = IoAllocateIrp((DeviceExtension->CommonExtension.SelfDevice->StackSize + 1), FALSE);
+    if (!Irp)
+    {
+        DPRINT1("SpQueryCapabilities: Allocate failed\n");
+        UNIMPLEMENTED_DBGBREAK();
+        //SpLogAllocationFailureFn(..);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MajorFunction = IRP_MJ_PNP;
+    IoStack->MinorFunction = IRP_MN_QUERY_CAPABILITIES;
+    IoStack->Parameters.DeviceCapabilities.Capabilities = &Capabilities;
+
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+    IoSetCompletionRoutine(Irp, SpSignalCompletion, &Event, TRUE, TRUE, TRUE);
+
+    IoCallDriver(DeviceExtension->CommonExtension.SelfDevice, Irp);
+    KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+    Status = Irp->IoStatus.Status;
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        DPRINT1("SpQueryCapabilities: Irp->IoStatus.Status %X\n", Irp->IoStatus.Status);
+        DeviceExtension->PciSlotNumber.u.AsULONG = 0;
+    }
+    else
+    {
+        DeviceExtension->PciSlotNumber.u.bits.DeviceNumber = ((Capabilities.Address >> 16) & 0x1F);
+        DeviceExtension->PciSlotNumber.u.bits.FunctionNumber = (Capabilities.Address & 7);
+    }
+
+    IoFreeIrp(Irp);
+
+    return Status;
 }
 
 VOID
@@ -2350,7 +2403,7 @@ ScsiPortInitPnpAdapter(
                 SpBuildConfiguration(DeviceExtension, ChainEntry, PortConfig);
                 SpGetSlotNumber(DeviceObject, PortConfig, DeviceExtension->AllocatedResources);
 
-                Status = SpCallHwFindAdapter(DeviceObject, ChainEntry, 0, &CfgContext, PortConfig, &IsAgain);
+                Status = SpCallHwFindAdapter(DeviceObject, ChainEntry, NULL, &CfgContext, PortConfig, &IsAgain);
 
                 if (Status == STATUS_DEVICE_DOES_NOT_EXIST)
                 {
