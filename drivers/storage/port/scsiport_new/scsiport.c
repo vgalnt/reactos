@@ -2913,7 +2913,18 @@ SpGetBusData(
     _In_ PVOID Buffer,
     _In_ ULONG Length)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("SpGetBusData: %X\n", BusNumber);
+
+    if (!AttachedToDevice)
+        return HalGetBusData(BusDataType, BusNumber, SlotNumber, Buffer, Length);
+
+    if (BusDataType == PCIConfiguration)
+    {
+        ASSERT(DeviceExtension->LowerBusInterfaceStandardRetrieved == TRUE);
+        return DeviceExtension->Interface.GetBusData(DeviceExtension->Interface.Context, 0, Buffer, 0, Length);
+    }
+
+    ASSERT(FALSE && "Invalid PCI_WHICHSPACE_ parameter");
     return 0;
 }
 
