@@ -3043,7 +3043,25 @@ NTAPI
 SpInitializePowerParams(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG InstanceValue;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpInitializePowerParams: %p\n", DeviceExtension);
+
+    if (!(DeviceExtension->Flags2 & 4))
+    {
+        DeviceExtension->Flags2 &= ~0x40;
+        return;
+    }
+
+    Status = SpReadNumericInstanceValue(DeviceExtension->LowerPdo, L"NeedsSystemShutdownNotification", &InstanceValue);
+    if (!NT_SUCCESS(Status) || !InstanceValue)
+    {
+        DeviceExtension->Flags2 &= ~0x40;
+    }
+
+    DeviceExtension->Flags2 |= 0x40;
 }
 
 VOID
