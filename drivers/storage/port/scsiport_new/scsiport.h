@@ -174,6 +174,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PHYSICAL_ADDRESS MaximumUCXAddress;
     PVOID ReservedMapping;
     PMDL ReservedMdl;
+    ULONG RemainInReducedMaxQueueState;
     ULONG TimeoutValue;
     BOOLEAN IsRequestQueue;
     ULONG ResetHoldTime;

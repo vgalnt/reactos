@@ -3069,7 +3069,26 @@ NTAPI
 SpInitializePerformanceParams(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG InstanceValue;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpInitializePerformanceParams: %p\n", DeviceExtension);
+
+    if (!(DeviceExtension->Flags2 & 4))
+    {
+        DeviceExtension->RemainInReducedMaxQueueState = 0xFFFFFFFF;
+        return;
+    }
+
+    Status = SpReadNumericInstanceValue(DeviceExtension->LowerPdo, L"RemainInReducedMaxQueueState", &InstanceValue);
+    if (!NT_SUCCESS(Status))
+    {
+        DeviceExtension->RemainInReducedMaxQueueState = 0xFFFFFFFF;
+        return;
+    }
+
+    DeviceExtension->RemainInReducedMaxQueueState = InstanceValue;
 }
 
 VOID
