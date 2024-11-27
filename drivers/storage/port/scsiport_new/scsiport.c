@@ -1752,8 +1752,14 @@ SpConfigurationCallout(
     _In_ ULONG PeripheralNumber,
     _Out_ PKEY_VALUE_FULL_INFORMATION* PeripheralInformation)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    BOOLEAN* OutResult = Context;
+
+    PAGED_CODE();
+    DPRINT("SpConfigurationCallout: %X\n", BusNumber);
+
+    *OutResult = TRUE;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
