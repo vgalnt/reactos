@@ -1873,7 +1873,64 @@ SpBuildConfiguration(
     _In_ PSCSI_HW_CHAIN_ENTRY ChainEntry,
     _In_ PPORT_CONFIGURATION_INFORMATION PortConfig)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PCM_FULL_RESOURCE_DESCRIPTOR CmList;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PACCESS_RANGE AccessRanges;
+    ULONG AccessNumber = 0;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("SpBuildConfiguration: %p\n", DeviceExtension);
+
+    ASSERT((DeviceExtension->Flags2 & 1) == 0);//IsMiniportDetected
+    ASSERT(DeviceExtension->AllocatedResources);
+
+    CmList = &DeviceExtension->AllocatedResources->List[0];
+
+    for (ix = 0; ix < CmList->PartialResourceList.Count; ix++)
+    {
+        CmDescriptor = &CmList->PartialResourceList.PartialDescriptors[ix];
+
+        if (CmDescriptor->Type == CmResourceTypePort)
+        {
+            if (AccessNumber < ChainEntry->HwInitializationData.NumberOfAccessRanges)
+            {
+                AccessRanges = Add2Ptr(PortConfig->AccessRanges, (AccessNumber * sizeof(ACCESS_RANGE)));
+                AccessRanges->RangeStart = CmDescriptor->u.Port.Start;
+                AccessRanges->RangeLength = CmDescriptor->u.Port.Length;
+                AccessRanges->RangeInMemory = 0;
+                AccessNumber++;
+            }
+        }
+        else if (CmDescriptor->Type == CmResourceTypeInterrupt)
+        {
+            PortConfig->BusInterruptLevel = CmDescriptor->u.Interrupt.Level;
+            PortConfig->BusInterruptVector = CmDescriptor->u.Interrupt.Vector;
+
+            if (CmDescriptor->ShareDisposition == 1)
+                PortConfig->InterruptMode = 1;
+            else if (CmDescriptor->ShareDisposition == 0)
+                PortConfig->InterruptMode = 0;
+
+            DeviceExtension->Flags2 |= 8;
+        }
+        else if (CmDescriptor->Type == CmResourceTypeMemory)
+        {
+            if (AccessNumber < ChainEntry->HwInitializationData.NumberOfAccessRanges)
+            {
+                AccessRanges = Add2Ptr(PortConfig->AccessRanges, (AccessNumber * sizeof(ACCESS_RANGE)));
+                AccessRanges->RangeStart = CmDescriptor->u.Memory.Start;
+                AccessRanges->RangeLength = CmDescriptor->u.Memory.Length;
+                AccessRanges->RangeInMemory = 1;
+                AccessNumber++;
+            }
+        }
+        else if (CmDescriptor->Type == CmResourceTypeDma)
+        {
+            PortConfig->DmaChannel = CmDescriptor->u.Dma.Channel;
+            PortConfig->DmaPort = CmDescriptor->u.Dma.Port;
+        }
+    }
 }
 
 VOID
