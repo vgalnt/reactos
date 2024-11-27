@@ -2064,7 +2064,25 @@ SpPreallocateAddressMapping(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ UCHAR Count)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_ADDRESS_MAPPING AddressMapping;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("SpPreallocateAddressMapping: %X\n", Count);
+
+    for (ix = 0; ix < Count; ix++)
+    {
+        AddressMapping = ExAllocatePoolWithTag(NonPagedPool, sizeof(*AddressMapping), 'mPcS');
+        if (!AddressMapping)
+        {
+            DPRINT1("SpPreallocateAddressMapping: Allocate failed\n");
+            break;
+        }
+        RtlZeroMemory(AddressMapping, sizeof(*AddressMapping));
+
+        AddressMapping->Next = DeviceExtension->AddressMapping;
+        DeviceExtension->AddressMapping = AddressMapping;
+    }
 }
 
 VOID

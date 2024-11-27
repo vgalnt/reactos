@@ -59,6 +59,15 @@ typedef struct _SCSI_PORT_INTERRUPT_DATA
     ULONG Flags;
 } SCSI_PORT_INTERRUPT_DATA, *PSCSI_PORT_INTERRUPT_DATA;
 
+typedef struct _SCSI_PORT_ADDRESS_MAPPING
+{
+    struct _SCSI_PORT_ADDRESS_MAPPING* Next;
+    PVOID MappedAddress;
+    ULONG NumberOfBytes;
+    SCSI_PHYSICAL_ADDRESS Address;
+    ULONG SystemIoBusNumber;
+} SCSI_PORT_ADDRESS_MAPPING, *PSCSI_PORT_ADDRESS_MAPPING;
+
 typedef struct _COMMON_EXTENSION
 {
     PDEVICE_OBJECT SelfDevice;
@@ -124,6 +133,8 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     ULONG SrbExtensionSize;
     ULONG NumberOfRequests;
     ULONG SpecificLuExtensionSize;
+    PSCSI_PORT_ADDRESS_MAPPING CurrentAddressMapping;
+    PSCSI_PORT_ADDRESS_MAPPING AddressMapping;
     PHW_FIND_ADAPTER HwFindAdapter;
     PHW_INITIALIZE HwInitialize;
     PHW_STARTIO HwStartIo;
