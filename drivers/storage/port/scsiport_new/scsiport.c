@@ -2980,7 +2980,60 @@ SpFindAddressTranslation(
     _In_ BOOLEAN InIoSpace,
     _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR OutDescriptor)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PCM_RESOURCE_LIST CmResources;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR TranslatedDescriptor;
+    ULONGLONG Start;
+    ULONG ix;
+    ULONG jx;
+
+    DPRINT("SpFindAddressTranslation: %X, %X\n", BusType, NumberOfBytes);
+
+    CmResources = DeviceExtension->AllocatedResources;
+
+    ASSERT(!(DeviceExtension->Flags2 & 1));//IsMiniportDetected
+    ASSERT(DeviceExtension->AllocatedResources);
+    ASSERT(DeviceExtension->AllocatedResourcesTranslated);//TranslatedResources
+
+    for (ix = 0; ix < CmResources->Count; ix++)
+    {
+        if (CmResources->List[ix].InterfaceType != BusType)
+            continue;
+
+        if (CmResources->List[ix].BusNumber != BusNumber)
+            continue;
+
+        for (jx = 0; jx < CmResources->List[ix].PartialResourceList.Count; jx++)
+        {
+            Descriptor = &CmResources->List[ix].PartialResourceList.PartialDescriptors[jx];
+
+            if (Descriptor->Type != (InIoSpace ? CmResourceTypePort : CmResourceTypeMemory))
+                continue;
+
+            Start = Descriptor->u.Generic.Start.QuadPart;
+
+            if ((ULONGLONG)Address.QuadPart < Start)
+                continue;
+
+            if ((ULONGLONG)Address.QuadPart >= (Start + Descriptor->u.Generic.Length))
+                continue;
+
+            if (((ULONGLONG)Address.QuadPart + NumberOfBytes) > (Start + Descriptor->u.Generic.Length))
+                continue;
+
+            TranslatedDescriptor = &DeviceExtension->AllocatedResourcesTranslated->List[ix].PartialResourceList.PartialDescriptors[jx];
+
+            OutDescriptor->Type = TranslatedDescriptor->Type;
+            OutDescriptor->ShareDisposition = TranslatedDescriptor->ShareDisposition;
+            OutDescriptor->Flags = TranslatedDescriptor->Flags;
+
+            OutDescriptor->u.Generic.Start.QuadPart = (TranslatedDescriptor->u.Generic.Start.QuadPart + ((ULONGLONG)Address.QuadPart - Start));
+            OutDescriptor->u.Generic.Length = TranslatedDescriptor->u.Generic.Length;
+
+            return TRUE;
+        }
+    }
+
     return FALSE;
 }
 
