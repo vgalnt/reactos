@@ -2998,15 +2998,73 @@ ScsiPortGetLogicalUnit(
 SCSI_PHYSICAL_ADDRESS
 NTAPI
 ScsiPortGetPhysicalAddress(
-    _In_ PVOID HwDeviceExtension,
+    _In_ PVOID MiniportExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb OPTIONAL,
     _In_ PVOID VirtualAddress,
-    _Out_ ULONG *Length)
+    _Out_ ULONG* OutLength)
 {
-    SCSI_PHYSICAL_ADDRESS PhysicalAddress;
-    PhysicalAddress.QuadPart = 0;
-    UNIMPLEMENTED_DBGBREAK();
-    return PhysicalAddress;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCATTER_GATHER_ELEMENT ScatterList;
+    SCSI_PHYSICAL_ADDRESS PhAddress;
+    PSCSI_PORT_HW_DATA SpHwData;
+    PSCSI_PORT_SRB_DATA SrbData;
+    ULONG ByteOffset;
+    ULONG Length;
+
+    SpHwData = CONTAINING_RECORD(MiniportExtension, SCSI_PORT_HW_DATA, HwDeviceExtension);
+    DeviceExtension = SpHwData->DeviceExtension;
+
+    DPRINT("ScsiPortGetPhysicalAddress: %p, %X\n", DeviceExtension, Srb);
+
+
+    if (!Srb || (Srb->SenseInfoBuffer && Srb->SenseInfoBuffer == VirtualAddress))
+    {
+        ByteOffset = ((ULONG_PTR)VirtualAddress - (ULONG_PTR)DeviceExtension->CommonBuffer);
+        ASSERT(ByteOffset < DeviceExtension->CommonBufferSize);
+
+        Length = (DeviceExtension->CommonBufferSize - ByteOffset);
+        PhAddress.QuadPart = (DeviceExtension->PhysicalCommonBuffer.LowPart + ByteOffset);
+    }
+    else if (DeviceExtension->NeedPhAddrForMasterDma)
+    {
+        SrbData = Srb->OriginalRequest;
+       
+        ASSERT(SrbData->Type == 0x7770); // SRB_DATA_TYPE
+
+        ScatterList = SrbData->ScatterGatherList;
+        ByteOffset = ((ULONG_PTR)VirtualAddress - (ULONG_PTR)Srb->DataBuffer);
+
+        while (TRUE)
+        {
+            if (!ScatterList->Length || ByteOffset < ScatterList->Length)
+                break;
+
+            ByteOffset -= ScatterList->Length;
+            ScatterList++;
+        }
+
+        ASSERT(ByteOffset <= ScatterList->Length);
+
+        if (ByteOffset <= ScatterList->Length)
+        {
+            Length = (ScatterList->Length - ByteOffset);
+            PhAddress.QuadPart = (ScatterList->Address.QuadPart + ByteOffset);
+        }
+        else
+        {
+            Length = 0;
+            PhAddress.QuadPart = 0xFFFFFFFF;
+        }
+    }
+    else
+    {
+        Length = 0;
+        PhAddress.QuadPart = 0xFFFFFFFF;
+    }
+
+    *OutLength = Length;
+
+    return PhAddress;
 }
 
 PSCSI_REQUEST_BLOCK

@@ -54,6 +54,13 @@ typedef struct _SCSI_PORT_ENUM_REQUEST
     BOOLEAN IsNotCompleteEnumRequest;
 } SCSI_PORT_ENUM_REQUEST, *PSCSI_PORT_ENUM_REQUEST;
 
+typedef struct _SCSI_PORT_SRB_DATA
+{
+    USHORT Type;
+    USHORT Size;
+    PVOID ScatterGatherList;
+} SCSI_PORT_SRB_DATA, *PSCSI_PORT_SRB_DATA;
+
 typedef struct _SCSI_PORT_INTERRUPT_DATA
 {
     ULONG Flags;
@@ -154,6 +161,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     IO_SCSI_CAPABILITIES IoScsiCapabilities;
     PHYSICAL_ADDRESS PhysicalCommonBuffer;
     BOOLEAN IsRemapBuffers;
+    BOOLEAN NeedPhAddrForMasterDma;
     BOOLEAN TaggedQueuing;
     BOOLEAN AutoRequestSense;
     BOOLEAN MultipleRequestPerLu;
