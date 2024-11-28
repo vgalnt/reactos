@@ -3104,27 +3104,27 @@ SpInitializeRequestSenseParams(
 
     if (!(DeviceExtension->Flags2 & 4))
     {
-        DeviceExtension->TotalSenseDataBytes = 0;
+        DeviceExtension->SenseDataBytes = 0;
         return;
     }
 
     Status = SpReadNumericInstanceValue(DeviceExtension->LowerPdo, L"TotalSenseDataBytes", &InstanceValue);
     if (!NT_SUCCESS(Status))
     {
-        DeviceExtension->TotalSenseDataBytes = 0;
+        DeviceExtension->SenseDataBytes = 0;
         return;
     }
 
-    if (InstanceValue <= 0x12)
+    if (InstanceValue <= sizeof(SENSE_DATA))
     {
-        DeviceExtension->TotalSenseDataBytes = 0;
+        DeviceExtension->SenseDataBytes = 0;
         return;
     }
 
     if (InstanceValue < 0xFF)
-        DeviceExtension->TotalSenseDataBytes = (InstanceValue - 0x12);
+        DeviceExtension->SenseDataBytes = (InstanceValue - sizeof(SENSE_DATA));
     else
-        DeviceExtension->TotalSenseDataBytes = 0xED;
+        DeviceExtension->SenseDataBytes = (0xFF - sizeof(SENSE_DATA));
 }
 
 ULONG
@@ -3134,8 +3134,27 @@ SpGetCommonBufferSize(
     _In_ ULONG NumberOfBytes,
     _Out_ ULONG* OutSrbExtensionSize)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    ULONG SrbExtensionSize;
+    ULONG BufferSize;
+
+    DPRINT("SpGetCommonBufferSize: %p, %X\n", DeviceExtension, NumberOfBytes);
+
+    if (!DeviceExtension->SrbExtensionSize)
+        DeviceExtension->SrbExtensionSize = 0x10;
+
+    SrbExtensionSize = DeviceExtension->SrbExtensionSize;
+
+    if (DeviceExtension->AutoRequestSense)
+        SrbExtensionSize += (DeviceExtension->SenseDataBytes + sizeof(SENSE_DATA));
+
+    SrbExtensionSize = (SrbExtensionSize + 7) & ~7;
+    BufferSize = ((SrbExtensionSize * DeviceExtension->NumberOfRequests + NumberOfBytes + 0xFFF) & 0xFFFFF000);
+
+    if (OutSrbExtensionSize)
+        *OutSrbExtensionSize = SrbExtensionSize;
+
+    DPRINT("SpGetCommonBufferSize: ret %X\n", BufferSize);
+    return BufferSize;
 }
 
 NTSTATUS

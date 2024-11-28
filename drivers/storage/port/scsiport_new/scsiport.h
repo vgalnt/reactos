@@ -173,7 +173,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     GUID BusTypeGuid;
     ULONG PnpDeviceState;
     FAST_MUTEX PoFastMutex;
-    UCHAR TotalSenseDataBytes;
+    UCHAR SenseDataBytes;
     PVOID VerifierExtension;
     PHYSICAL_ADDRESS MinimumUCXAddress;
     PHYSICAL_ADDRESS MaximumUCXAddress;
