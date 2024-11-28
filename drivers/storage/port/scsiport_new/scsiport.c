@@ -3647,8 +3647,7 @@ ScsiPortValidateRange(
     _In_ ULONG NumberOfBytes,
     _In_ BOOLEAN InIoSpace)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    return TRUE;
 }
 
 NTSTATUS
