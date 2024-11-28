@@ -2969,18 +2969,148 @@ ScsiPortGetBusData(
     return 0;
 }
 
+BOOLEAN
+NTAPI
+SpFindAddressTranslation(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ INTERFACE_TYPE BusType,
+    _In_ ULONG BusNumber,
+    _In_ PHYSICAL_ADDRESS Address,
+    _In_ ULONG NumberOfBytes,
+    _In_ BOOLEAN InIoSpace,
+    _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR OutDescriptor)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+PSCSI_PORT_ADDRESS_MAPPING
+NTAPI
+SpAllocateAddressMapping(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PSCSI_PORT_ADDRESS_MAPPING
+NTAPI
+SpFindMappedAddress(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ SCSI_PHYSICAL_ADDRESS Address,
+    _In_ ULONG NumberOfBytes,
+    _In_ ULONG BusNumber)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 PVOID
 NTAPI
 ScsiPortGetDeviceBase(
-    _In_ PVOID HwDeviceExtension,
+    _In_ PVOID MiniportExtension,
     _In_ INTERFACE_TYPE BusType,
     _In_ ULONG SystemIoBusNumber,
     _In_ SCSI_PHYSICAL_ADDRESS IoAddress,
     _In_ ULONG NumberOfBytes,
     _In_ BOOLEAN InIoSpace)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_ADDRESS_MAPPING AddressMapping;
+    PSCSI_PORT_HW_DATA SpHwData;
+    PVOID MappedAddress;
+    PCHAR IoSpaceName;
+    CM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor;
+    LARGE_INTEGER TranslatedAddress;
+    ULONG AddressSpace = InIoSpace;
+    BOOLEAN Result = FALSE;
+
+    DPRINT("ScsiPortGetDeviceBase: %X, %X\n", BusType, NumberOfBytes);
+
+    SpHwData = CONTAINING_RECORD(MiniportExtension, SCSI_PORT_HW_DATA, HwDeviceExtension);
+    DeviceExtension = SpHwData->DeviceExtension;
+
+    if (!(DeviceExtension->Flags2 & 1))
+    {
+        Result = SpFindAddressTranslation(DeviceExtension, BusType, SystemIoBusNumber, IoAddress, NumberOfBytes, InIoSpace, &Descriptor);
+
+        if (Result)
+        {
+            TranslatedAddress.QuadPart = Descriptor.u.Port.Start.QuadPart;
+            AddressSpace = (Descriptor.Type == 1);
+        }
+        else
+        {
+            if (!InIoSpace)
+                IoSpaceName = "Memory";
+            else
+                IoSpaceName = "I/O";
+  
+            //ScsiDebugPrintInt(1, "ScsiPortGetDeviceBase: SpFindAddressTranslation failed. %s Address = %lx\n", IoSpaceName, IoAddress.LowPart);
+            DPRINT("ScsiPortGetDeviceBase: SpFindAddressTranslation failed. '%s' Address = %X\n", IoSpaceName, IoAddress.LowPart);
+        }
+    }
+
+    if ((DeviceExtension->Flags & 0x40000) != 0x40000 && !Result)
+    {
+        Result = HalTranslateBusAddress(BusType, SystemIoBusNumber, IoAddress, &AddressSpace, &TranslatedAddress);
+    }
+
+    if (!Result)
+    {
+        if (!InIoSpace)
+            IoSpaceName = "Memory";
+        else
+            IoSpaceName = "I/O";
+
+        //ScsiDebugPrintInt(1, "ScsiPortGetDeviceBase: Translate bus address failed. %s Address = %lx\n", IoSpaceName, IoAddress.LowPart);
+        DPRINT1("ScsiPortGetDeviceBase: Translate bus address failed. '%s' Address = %X\n", IoSpaceName, IoAddress.LowPart);
+
+        return NULL;
+    }
+
+    if ((DeviceExtension->Flags & 0x40000) != 0x40000)
+    {
+        if (!AddressSpace)
+        {
+            MappedAddress = MmMapIoSpace(TranslatedAddress, NumberOfBytes, 0);
+            if (!MappedAddress)
+            {
+                DPRINT1("ScsiPortGetDeviceBase: ret NULL\n");
+                return NULL;
+            }
+
+            AddressMapping = SpAllocateAddressMapping(DeviceExtension);
+            if (!AddressMapping)
+            {
+                //ScsiDebugPrintInt(0, "ScsiPortGetDeviceBase: could not find free block to track address mapping - returning NULL\n");
+                DPRINT1("ScsiPortGetDeviceBase: could not find free block to track address mapping - returning NULL\n");
+                MmUnmapIoSpace(MappedAddress, NumberOfBytes);
+                return NULL;
+            }
+
+            AddressMapping->NumberOfBytes = NumberOfBytes;
+            AddressMapping->Address.QuadPart = IoAddress.QuadPart;
+            AddressMapping->MappedAddress = MappedAddress;
+            AddressMapping->SystemIoBusNumber = SystemIoBusNumber;
+
+            return MappedAddress;
+        }
+
+        return (PVOID)TranslatedAddress.LowPart;
+    }
+
+    if ((DeviceExtension->Flags & 0x40000) != 0x40000 || AddressSpace)
+        return (PVOID)TranslatedAddress.LowPart;
+
+    AddressMapping = SpFindMappedAddress(DeviceExtension, IoAddress, NumberOfBytes, SystemIoBusNumber);
+    if (!AddressMapping)
+    {
+        DPRINT1("ScsiPortGetDeviceBase: KeBugCheckEx(PORT_DRIVER_INTERNAL)!\n");
+        KeBugCheckEx(PORT_DRIVER_INTERNAL, 0, 0, 0, 0);
+    }
+
+    return AddressMapping->MappedAddress;
 }
 
 PVOID
