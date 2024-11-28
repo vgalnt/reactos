@@ -3127,14 +3127,127 @@ SpInitializeRequestSenseParams(
         DeviceExtension->TotalSenseDataBytes = 0xED;
 }
 
+ULONG
+NTAPI
+SpGetCommonBufferSize(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ ULONG NumberOfBytes,
+    _Out_ ULONG* OutSrbExtensionSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
 NTSTATUS
 NTAPI
 SpGetCommonBuffer(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ ULONG NumberOfBytes)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PHYSICAL_ADDRESS BoundaryAddressMultiple;
+    PVOID* SrbExtensionEntry;
+    PVOID CommonBuffer;
+    ULONG UncachedExtAlignment = 0;
+    ULONG PageAlignedSize;
+    ULONG SrbExtensionSize;
+    ULONG CommonBufferSize;
+    ULONG Size;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("SpGetCommonBuffer: %p, %X\n", DeviceExtension, NumberOfBytes);
+
+    if (NumberOfBytes)
+    {
+        UncachedExtAlignment = DeviceExtension->UncachedExtAlignment;
+        NumberOfBytes = ((NumberOfBytes + 0xFFF) & 0xFFFFF000);
+        DeviceExtension->UncachedExtensionSize = NumberOfBytes;
+
+        PageAlignedSize = ((NumberOfBytes + 0xFFF) & 0xFFFFF000);
+    }
+    else
+    {
+        PageAlignedSize = 0;
+    }
+
+    if (DeviceExtension->VerifierExtension)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    CommonBufferSize = SpGetCommonBufferSize(DeviceExtension, PageAlignedSize, &SrbExtensionSize);
+
+    if (UncachedExtAlignment && PageAlignedSize)
+    {
+        CommonBufferSize = ((CommonBufferSize + UncachedExtAlignment - 1) & ~(UncachedExtAlignment - 1));
+    }
+
+    if (DeviceExtension->DmaAdapter)
+    {
+        if ((Sp64BitPhysicalAddresses && DeviceExtension->Dma64BitAddresses == 1) || UncachedExtAlignment)
+        {
+            if (UncachedExtAlignment)
+                BoundaryAddressMultiple.QuadPart = CommonBufferSize;
+            else
+                BoundaryAddressMultiple.QuadPart = 0x0000000100000000;
+
+            CommonBuffer = MmAllocateContiguousMemorySpecifyCache(CommonBufferSize,
+                                                                  DeviceExtension->MinimumUCXAddress,
+                                                                  DeviceExtension->MaximumUCXAddress,
+                                                                  BoundaryAddressMultiple,
+                                                                  MmCached);
+
+            if (CommonBuffer)
+                DeviceExtension->PhysicalCommonBuffer.QuadPart = MmGetPhysicalAddress(CommonBuffer).QuadPart;
+
+            DeviceExtension->IsNotCacheAlignedCommonBuffer = FALSE;
+        }
+        else
+        {
+            DeviceExtension->IsNotCacheAlignedCommonBuffer = TRUE;
+            CommonBuffer = DeviceExtension->DmaAdapter->DmaOperations->AllocateCommonBuffer(DeviceExtension->DmaAdapter, CommonBufferSize, &DeviceExtension->PhysicalCommonBuffer, 0);
+        }
+    }
+    else
+    {
+        CommonBuffer = ExAllocatePoolWithTag(NonPagedPool, CommonBufferSize, 'cPcS');
+    }
+
+    //ScsiDebugPrintInt(1, "SpGetCommonBuffer: buffer:%p PhysicalCommonBuffer:%p\n", CommonBuffer, DeviceExtension->PhysicalCommonBuffer.QuadPart);
+    DPRINT("SpGetCommonBuffer: %p %I64X\n", CommonBuffer, DeviceExtension->PhysicalCommonBuffer.QuadPart);
+
+    if (!CommonBuffer)
+    {
+        DPRINT1("SpGetCommonBuffer: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(CommonBuffer, CommonBufferSize);
+
+    DeviceExtension->CommonBufferSize = CommonBufferSize;
+    DeviceExtension->CommonBuffer = CommonBuffer;
+
+    DeviceExtension->UncachedExtension = (NumberOfBytes ? CommonBuffer : NULL);
+
+    if (!DeviceExtension->IsSrbExtensions)
+        return STATUS_SUCCESS;
+
+    Size = (CommonBufferSize - DeviceExtension->UncachedExtensionSize);
+
+    DeviceExtension->SrbExtensionList = SrbExtensionEntry = (PVOID *)Add2Ptr(CommonBuffer, DeviceExtension->UncachedExtensionSize);
+
+    for (ix = 0; Size >= (2 * SrbExtensionSize); ix++)
+    {
+        *SrbExtensionEntry = Add2Ptr(SrbExtensionEntry, SrbExtensionSize);
+        Size -= SrbExtensionSize;
+        SrbExtensionEntry = (PVOID *)Add2Ptr(SrbExtensionEntry, SrbExtensionSize);
+    }
+
+    //ScsiDebugPrintInt(1, "SpGetCommonBuffer: %d entries put onto SrbExtension list\n", ix);
+    DPRINT("SpGetCommonBuffer: %X entries put onto SrbExtension list\n", ix);
+
+    DeviceExtension->NumberOfRequests = ix;
+
+    return STATUS_SUCCESS;
 }
 
 PVOID

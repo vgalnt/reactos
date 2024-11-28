@@ -132,9 +132,12 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PPORT_CONFIGURATION_INFORMATION PortConfig;
     PCM_RESOURCE_LIST AllocatedResources;
     PCM_RESOURCE_LIST AllocatedResourcesTranslated;
+    ULONG CommonBufferSize;
     ULONG SrbExtensionSize;
+    BOOLEAN IsNotCacheAlignedCommonBuffer;
     ULONG NumberOfRequests;
     PVOID CommonBuffer;
+    PVOID* SrbExtensionList;
     ULONG SpecificLuExtensionSize;
     PSCSI_PORT_ADDRESS_MAPPING CurrentAddressMapping;
     PSCSI_PORT_ADDRESS_MAPPING AddressMapping;
@@ -149,6 +152,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     SCSI_PORT_LUN_ENTRY LunList[8];
     SCSI_PORT_INTERRUPT_DATA InterruptData;
     IO_SCSI_CAPABILITIES IoScsiCapabilities;
+    PHYSICAL_ADDRESS PhysicalCommonBuffer;
     BOOLEAN IsRemapBuffers;
     BOOLEAN TaggedQueuing;
     BOOLEAN AutoRequestSense;
@@ -176,6 +180,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PVOID ReservedMapping;
     PMDL ReservedMdl;
     ULONG RemainInReducedMaxQueueState;
+    ULONG UncachedExtAlignment;
     ULONG TimeoutValue;
     BOOLEAN IsRequestQueue;
     ULONG ResetHoldTime;
