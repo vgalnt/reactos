@@ -3042,8 +3042,31 @@ NTAPI
 SpAllocateAddressMapping(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PSCSI_PORT_ADDRESS_MAPPING CurrentAddressMapping;
+
+    PAGED_CODE();
+    DPRINT("SpAllocateAddressMapping: %p\n", DeviceExtension);
+
+    CurrentAddressMapping = DeviceExtension->AddressMapping;
+
+    if (CurrentAddressMapping)
+        DeviceExtension->AddressMapping = CurrentAddressMapping->Next;
+    else
+        CurrentAddressMapping = ExAllocatePoolWithTag(NonPagedPool, sizeof(*CurrentAddressMapping), 'mPcS');
+
+    if (!CurrentAddressMapping)
+    {
+        //ScsiDebugPrintInt(0, "SpAllocateAddressMapping: Unable to allocate mapping\n");
+        DPRINT1("SpAllocateAddressMapping: Unable to allocate mapping\n");
+        return NULL;
+    }
+
+    RtlZeroMemory(CurrentAddressMapping, sizeof(*CurrentAddressMapping));
+
+    CurrentAddressMapping->Next = DeviceExtension->CurrentAddressMapping;
+    DeviceExtension->CurrentAddressMapping = CurrentAddressMapping;
+
+    return CurrentAddressMapping;
 }
 
 PSCSI_PORT_ADDRESS_MAPPING
