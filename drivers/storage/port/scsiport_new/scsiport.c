@@ -2290,8 +2290,49 @@ NTAPI
 SpAllocateQueueTagList(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_QUEUETAGS_ENTRY List;
+    PSLIST_HEADER ListHead;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("SpAllocateQueueTagList: %p\n", DeviceExtension);
+
+    if (DeviceExtension->MaxQueueTag)
+    {
+        if (DeviceExtension->MaxQueueTag < DeviceExtension->NumberOfRequests)
+        {
+            DbgPrint("SpAllocateTagBitmap: MaxQueueTag %d < NumberOfRequests %d\nThis will negate the advantage of having increased the number of requests.\n", DeviceExtension->MaxQueueTag, DeviceExtension->NumberOfRequests);
+        }
+    }
+    else
+    {
+        DeviceExtension->MaxQueueTag = 0xFE;
+    }
+
+    //ScsiDebugPrintInt(1, "SpAllocateAdapterResources: %d bits in queue tag bitMap\n", DeviceExtension->MaxQueueTag);
+    DPRINT("SpAllocateQueueTagList: %X bits in queue tag bitMap\n", DeviceExtension->MaxQueueTag);
+
+    List = ExAllocatePoolWithTag(NonPagedPool, (sizeof(*List) * DeviceExtension->MaxQueueTag), 'LTcS');
+    if (!List)
+    {
+        DPRINT1("SpAllocateQueueTagList: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    ListHead = &DeviceExtension->QueueTagsListHead;
+    ListHead->Next.Next = 0;
+    ListHead->Depth = 0;
+    ListHead->Sequence = 0;
+
+    DeviceExtension->QueueTagsList = List;
+
+    for (ix = 0; ix < DeviceExtension->MaxQueueTag; ix++)
+    {
+        List[ix].Tag = (ix + 1);
+        InterlockedPushEntrySList(ListHead, &List[ix].Link);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 VOID

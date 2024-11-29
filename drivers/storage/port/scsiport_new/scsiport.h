@@ -168,6 +168,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PVOID* SrbExtensionList;
     SLIST_HEADER QueueTagsListHead;
     PSCSI_PORT_QUEUETAGS_ENTRY QueueTagsList;
+    UCHAR MaxQueueTag;
     ULONG SpecificLuExtensionSize;
     PSCSI_PORT_ADDRESS_MAPPING CurrentAddressMapping;
     PSCSI_PORT_ADDRESS_MAPPING AddressMapping;
