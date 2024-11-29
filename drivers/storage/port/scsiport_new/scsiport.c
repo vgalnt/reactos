@@ -2621,7 +2621,36 @@ NTAPI
 SpGetSupportedAdapterControlFunctions(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    SCSI_SUPPORTED_CONTROL_TYPE_LIST ControlTypeList;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("SpGetSupportedAdapterControlFunctions: %p\n", DeviceExtension);
+
+    RtlInitializeBitMap(&DeviceExtension->ScsiControlBitMap, &DeviceExtension->ScsiControlBitMapBuffer, ScsiAdapterControlMax);
+    RtlClearAllBits(&DeviceExtension->ScsiControlBitMap);
+
+    if (!DeviceExtension->HwAdapterControl)
+        return;
+
+    if (!(DeviceExtension->Flags2 & 4))
+        return;
+
+    RtlZeroMemory(&ControlTypeList, sizeof(ControlTypeList)); 
+
+    ControlTypeList.MaxControlType = ScsiAdapterControlMax;
+    ControlTypeList.SupportedTypeList[ScsiAdapterControlMax] = 0x63;
+
+    if (DeviceExtension->HwAdapterControl(DeviceExtension->HwDeviceExtension, ScsiQuerySupportedControlTypes, &ControlTypeList))
+        return;
+
+    ASSERT(ControlTypeList.SupportedTypeList[ScsiAdapterControlMax] == 0x63);
+
+    for (ix = 0; ix < ScsiAdapterControlMax; ix++)
+    {
+        if (ControlTypeList.SupportedTypeList[ix] == 1)
+            RtlSetBits(&DeviceExtension->ScsiControlBitMap, ix, 1);
+    }
 }
 
 NTSTATUS

@@ -179,6 +179,8 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PHW_DMA_STARTED HwDmaStarted;
     PHW_INTERRUPT HwTimerInt;
     PHW_ADAPTER_CONTROL HwAdapterControl;
+    RTL_BITMAP ScsiControlBitMap;
+    ULONG ScsiControlBitMapBuffer;
     SCSI_PORT_LUN_ENTRY LunList[8];
     SCSI_PORT_INTERRUPT_DATA InterruptData;
     IO_SCSI_CAPABILITIES IoScsiCapabilities;
