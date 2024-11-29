@@ -2454,8 +2454,17 @@ SpAllocateSrbData(
     _In_ PIRP Irp,
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PSCSI_PORT_SRB_DATA SrbData;
+
+    DPRINT("SpAllocateSrbData: %p\n", DeviceExtension);
+
+    SrbData = ExAllocateFromNPagedLookasideList(&DeviceExtension->SrbDataLookAsideList);
+    if (!SrbData && Irp)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return SrbData;
 }
 
 NTSTATUS
