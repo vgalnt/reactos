@@ -176,9 +176,11 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     WORK_QUEUE_ITEM EnumWorkItem;
     PSCSI_PORT_ENUM_REQUEST AsyncEnumRequest;
     SCSI_PORT_ENUM_REQUEST EnumRequest;
+    NPAGED_LOOKASIDE_LIST SrbDataLookAsideList;
     KSPIN_LOCK SrbDataSpinLock;
     LIST_ENTRY BlockedRequestList;
     PSCSI_PORT_SRB_DATA SrbData;
+    BOOLEAN IsSrbDataList;
     BOOLEAN LowerBusInterfaceStandardRetrieved;
     BUS_INTERFACE_STANDARD Interface;
     PWCHAR DeviceNameBuffer;

@@ -25,6 +25,7 @@ KSPIN_LOCK ScsiGlobalAdapterListSpinLock;
 PVOID ScsiDirectory = NULL;
 PSCSI_PORT_GUID_INTERFACE_MAPPING SpGuidInterfaceMappingList;
 HANDLE ScsiDeviceMapKey = ULongToPtr(0xFFFFFFFF);
+LONG SpPAGELOCKLockCount = 0;
 LONG LockLowWatermark = 0;
 BOOLEAN ScsiPortLegacyAdapterDetection = FALSE;
 BOOLEAN Sp64BitPhysicalAddresses = FALSE;
@@ -2293,13 +2294,101 @@ SpAllocateQueueTagList(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+PVOID
+NTAPI
+SpAllocateSrbDataBackend(
+     _In_ POOL_TYPE PoolType,
+     _In_ SIZE_T NumberOfBytes,
+     _In_ ULONG Tag)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+VOID
+NTAPI
+SpFreeSrbDataBackend(
+    _In_ PVOID Buffer)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 SpInitializeSrbDataLookasideList(
-    _In_ PDEVICE_OBJECT DeviceObject)
+    _In_ PDEVICE_OBJECT Fdo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PDEVICE_OBJECT* AdapterList;
+    PDEVICE_OBJECT* OldAdapterList;
+    PVOID ImageSectionHandle;
+    ULONG OldElements;
+    KIRQL Irql;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("SpInitializeSrbDataLookasideList: %p\n", Fdo);
+
+    ImageSectionHandle = MmLockPagableDataSection(SpInitializeSrbDataLookasideList);
+    InterlockedIncrement(&SpPAGELOCKLockCount);
+    KeAcquireSpinLock(&ScsiGlobalAdapterListSpinLock, &Irql);
+
+    OldElements = ScsiGlobalAdapterListElements;
+
+    if (ScsiGlobalAdapterListElements == 0xFFFFFFFF)
+    {
+        DPRINT1("SpInitializeSrbDataLookasideList: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Finish;
+    }
+
+    AdapterList = ExAllocatePoolWithTag(NonPagedPool, ((OldElements + 1) * sizeof(PDEVICE_OBJECT)), 'GPcS');
+    if (!AdapterList)
+    {
+        DPRINT1("SpInitializeSrbDataLookasideList: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Finish;
+    }
+
+    ScsiGlobalAdapterListElements++;
+
+    if (ScsiGlobalAdapterList)
+        RtlCopyMemory(AdapterList, ScsiGlobalAdapterList, (OldElements * sizeof(PDEVICE_OBJECT))); 
+
+    AdapterList[OldElements] = Fdo;
+
+    OldAdapterList = ScsiGlobalAdapterList;
+    ScsiGlobalAdapterList = AdapterList;
+
+    DPRINT("SpInitializeSrbDataLookasideList: %p %p\n", OldAdapterList, AdapterList);
+
+    if (OldAdapterList)
+        ExFreePoolWithTag(OldAdapterList, 'GPcS');
+
+Finish:
+
+    KeReleaseSpinLock(&ScsiGlobalAdapterListSpinLock, Irql);
+    MmUnlockPagableImageSection(ImageSectionHandle);
+    InterlockedDecrement(&SpPAGELOCKLockCount);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpInitializeSrbDataLookasideList: Status %X\n", Status);
+        return Status;
+    }
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    ExInitializeNPagedLookasideList(&DeviceExtension->SrbDataLookAsideList,
+                                    SpAllocateSrbDataBackend,
+                                    SpFreeSrbDataBackend,
+                                    0,
+                                    sizeof(SCSI_PORT_SRB_DATA),
+                                    OldElements,
+                                    0x14);//20
+
+    DeviceExtension->IsSrbDataList = TRUE;
+
+    return Status;
 }
 
 PSCSI_PORT_SRB_DATA
