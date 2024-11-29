@@ -2695,7 +2695,17 @@ NTAPI
 SpRequestCompletionDpc(
     _In_ PDEVICE_OBJECT DeviceObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+
+    DPRINT("SpRequestCompletionDpc: %p, %X\n", DeviceExtension, DeviceExtension->DpcFlags);
+
+    if (!(InterlockedExchange((PLONG)&DeviceExtension->DpcFlags, 0x20004) & 0x20000))
+    {
+        DPRINT("SpRequestCompletionDpc: %p %X\n", DeviceExtension, DeviceExtension->DpcFlags);
+        KeInsertQueueDpc(&DeviceObject->Dpc, NULL, NULL);
+    }
 }
 
 NTSTATUS

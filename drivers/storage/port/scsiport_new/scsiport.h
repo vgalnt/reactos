@@ -176,6 +176,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     UCHAR MaximumNumberOfTargets;
     UCHAR MaximumLogicalUnit;
     ULONG Flags;
+    ULONG DpcFlags;
     ULONG DisableCount;
     LONG TimeOut;
     PKINTERRUPT InterruptObject;
