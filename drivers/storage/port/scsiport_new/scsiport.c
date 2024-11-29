@@ -2294,6 +2294,15 @@ SpAllocateQueueTagList(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+FASTCALL
+SpFreeSrbData(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_SRB_DATA SrbData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 PVOID
 NTAPI
 SpAllocateSrbDataBackend(
@@ -2301,8 +2310,55 @@ SpAllocateSrbDataBackend(
      _In_ SIZE_T NumberOfBytes,
      _In_ ULONG Tag)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_QUEUETAGS_ENTRY QueueEntry;
+    PSCSI_PORT_SRB_DATA SrbData;
+    LONG QueueTag;
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&ScsiGlobalAdapterListSpinLock, &Irql);
+    DeviceExtension = ScsiGlobalAdapterList[Tag]->DeviceExtension;
+    KeReleaseSpinLock(&ScsiGlobalAdapterListSpinLock, Irql);
+
+    ASSERT(!(((PCOMMON_EXTENSION)(DeviceExtension->CommonExtension.SelfDevice)->DeviceExtension)->IsPdo));
+
+    QueueEntry = (PSCSI_PORT_QUEUETAGS_ENTRY)InterlockedPopEntrySList(&DeviceExtension->QueueTagsListHead);
+    if (!QueueEntry)
+        return NULL;
+
+    QueueTag = QueueEntry->Tag;
+    ASSERT(QueueTag != -1);
+
+    QueueEntry->Tag = -1;
+
+    if (QueueTag == -1)
+        return NULL;
+
+    DPRINT("SpAllocateSrbDataBackend: %X\n", NumberOfBytes);
+
+    SrbData = ExAllocatePoolWithTag(PoolType, NumberOfBytes, 'DPcS');
+    if (!SrbData)
+    {
+        QueueEntry = &DeviceExtension->QueueTagsList[QueueTag - 1];
+        ASSERT(QueueEntry->Tag == -1);
+
+        QueueEntry->Tag = QueueTag;
+        InterlockedPushEntrySList(&DeviceExtension->QueueTagsListHead, &QueueEntry->Link);
+
+        return NULL;
+    }
+    RtlZeroMemory(SrbData, sizeof(*SrbData));
+
+    DPRINT("SpAllocateSrbDataBackend: SrbData %X\n", SrbData);
+
+    SrbData->Type = 0x7770;//SRB_DATA_TYPE
+    SrbData->Size = sizeof(*SrbData);
+    SrbData->FreeRoutine = SpFreeSrbData;
+    SrbData->Flags = 0;
+    SrbData->DeviceExtension = DeviceExtension;
+    SrbData->QueueTag = QueueTag;
+
+    return SrbData;
 }
 
 VOID

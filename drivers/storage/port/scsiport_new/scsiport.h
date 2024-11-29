@@ -54,10 +54,25 @@ typedef struct _SCSI_PORT_ENUM_REQUEST
     BOOLEAN IsNotCompleteEnumRequest;
 } SCSI_PORT_ENUM_REQUEST, *PSCSI_PORT_ENUM_REQUEST;
 
+typedef struct _SCSI_PORT_SRB_DATA SCSI_PORT_SRB_DATA, *PSCSI_PORT_SRB_DATA;
+typedef struct _SCSI_PORT_DEVICE_EXTENSION SCSI_PORT_DEVICE_EXTENSION, *PSCSI_PORT_DEVICE_EXTENSION;
+
+typedef
+VOID
+(FASTCALL* PSP_FREE_SRBDATA)(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_SRB_DATA SrbData
+);
+
 typedef struct _SCSI_PORT_SRB_DATA
 {
+    SINGLE_LIST_ENTRY QueueTagsLink;
     USHORT Type;
     USHORT Size;
+    PSP_FREE_SRBDATA FreeRoutine;
+    ULONG Flags;
+    struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
+    LONG QueueTag;
     PVOID ScatterGatherList;
 } SCSI_PORT_SRB_DATA, *PSCSI_PORT_SRB_DATA;
 
@@ -74,6 +89,12 @@ typedef struct _SCSI_PORT_ADDRESS_MAPPING
     SCSI_PHYSICAL_ADDRESS Address;
     ULONG SystemIoBusNumber;
 } SCSI_PORT_ADDRESS_MAPPING, *PSCSI_PORT_ADDRESS_MAPPING;
+
+typedef struct _SCSI_PORT_QUEUETAGS_ENTRY
+{
+    SINGLE_LIST_ENTRY Link;
+    LONG Tag;
+} SCSI_PORT_QUEUETAGS_ENTRY, *PSCSI_PORT_QUEUETAGS_ENTRY;
 
 typedef struct _COMMON_EXTENSION
 {
@@ -145,6 +166,8 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     ULONG NumberOfRequests;
     PVOID CommonBuffer;
     PVOID* SrbExtensionList;
+    SLIST_HEADER QueueTagsListHead;
+    PSCSI_PORT_QUEUETAGS_ENTRY QueueTagsList;
     ULONG SpecificLuExtensionSize;
     PSCSI_PORT_ADDRESS_MAPPING CurrentAddressMapping;
     PSCSI_PORT_ADDRESS_MAPPING AddressMapping;
