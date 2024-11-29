@@ -31,6 +31,7 @@ BOOLEAN ScsiPortLegacyAdapterDetection = FALSE;
 BOOLEAN Sp64BitPhysicalAddresses = FALSE;
 BOOLEAN SpRemapBuffersByDefault = FALSE;
 BOOLEAN SpLegacyInstanceId = FALSE;
+BOOLEAN SpLunIoLogActive = FALSE;
 
 PDRIVER_DISPATCH DeviceMajorFunctionTable[IRP_MJ_MAXIMUM_FUNCTION + 1];
 PDRIVER_DISPATCH Scsi1DeviceMajorFunctionTable[IRP_MJ_MAXIMUM_FUNCTION + 1];
@@ -4446,13 +4447,217 @@ ScsiPortMoveMemory(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+PSCSI_PORT_LUN_EXTENSION
+NTAPI
+GetLogicalUnitExtensionEx(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR PathId,
+    _In_ UCHAR TargetId,
+    _In_ UCHAR Lun,
+    _In_ PVOID Tag,
+    _In_ BOOLEAN IsLock,
+    _In_ PSTR File,
+    _In_ ULONG Line)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 VOID
 ScsiPortNotification(
     _In_ SCSI_NOTIFICATION_TYPE NotificationType,
-    _In_ PVOID HwDeviceExtension,
+    _In_ PVOID MiniportExtension,
     ...)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PSCSI_PORT_HW_DATA SpHwData;
+    PSCSI_PORT_SRB_DATA SrbData;
+    PSCSI_REQUEST_BLOCK Srb;
+    UCHAR PathId;
+    UCHAR TargetId;
+    UCHAR Lun;
+    va_list ap;
+
+    if (MiniportExtension)
+    {
+        SpHwData = CONTAINING_RECORD(MiniportExtension, SCSI_PORT_HW_DATA, HwDeviceExtension);
+        DeviceExtension = SpHwData->DeviceExtension;
+    }
+    else
+    {
+        DeviceExtension = NULL;
+    }
+
+    DPRINT("ScsiPortNotification: %p, %X\n", DeviceExtension, NotificationType);
+
+    va_start(ap, MiniportExtension);
+
+    switch (NotificationType)
+    {
+        case 0x0:
+        {
+            DPRINT("ScsiPortNotification: RequestComplete\n");
+
+            Srb = va_arg(ap, PSCSI_REQUEST_BLOCK);
+
+            ASSERT(Srb->SrbStatus != SRB_STATUS_PENDING);
+            ASSERT(Srb->SrbStatus != SRB_STATUS_SUCCESS || Srb->ScsiStatus == SCSISTAT_GOOD || Srb->Function != SRB_FUNCTION_EXECUTE_SCSI);
+
+            if (!(Srb->SrbFlags & 0x10000))
+                return;
+
+            Srb->SrbFlags &= ~0x10000;
+
+            if (Srb->Function == 0x10)
+            {
+                ASSERT(FALSE);
+                UNIMPLEMENTED_DBGBREAK();
+            }
+            else
+            {
+                SrbData = Srb->OriginalRequest;
+
+                ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+                ASSERT(SrbData->CurrentSrb == Srb);
+                ASSERT(SrbData->CurrentSrb != NULL && SrbData->CompletedRequests == NULL);
+
+                if (Srb->SrbStatus == 1 && (Srb->Cdb[0] == 0x28 || Srb->Cdb[0] == 0x2A))
+                {
+                    ASSERT(Srb->DataTransferLength);
+                }
+
+                if (SpLunIoLogActive == 1 && Srb->Function == 0)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+
+                if (Srb->SrbStatus == 5)
+                {
+                    //ScsiDebugPrintInt(0, "ScsiPortNotification: lun is busy (Srb %p)\n", Srb);
+                    DPRINT("ScsiPortNotification: lun is busy (%p)\n", Srb);
+                }
+
+                if ((Srb->SrbStatus == 1 || Srb->SrbStatus == 0x12) && (Srb->SrbFlags & 0xC0))
+                {
+                    ASSERT(SrbData->OriginalDataTransferLength >= Srb->DataTransferLength);
+                }
+
+                SrbData->CompletedRequests = DeviceExtension->InterruptData.CompletedRequests;
+                DeviceExtension->InterruptData.CompletedRequests = SrbData;
+
+                DeviceExtension->SrbDataLunExt = SrbData->LunExtension;
+            }
+
+            break;
+        }
+        case 0x1:
+            DPRINT("ScsiPortNotification: NextRequest\n");
+            DeviceExtension->InterruptData.Flags |= 8;
+            break;
+
+        case 0x2:
+        {
+            PathId = (UCHAR)va_arg(ap, int);
+            TargetId = (UCHAR)va_arg(ap, int);
+            Lun = (UCHAR)va_arg(ap, int);
+
+
+            LunExtension = DeviceExtension->SrbDataLunExt;
+            DeviceExtension->InterruptData.Flags |= 8;
+
+            DPRINT("ScsiPortNotification: NextLuRequest (%X)\n", DeviceExtension->InterruptData.Flags);
+
+            if (!LunExtension ||
+                LunExtension->TargetId != TargetId ||
+                LunExtension->PathId != PathId ||
+                LunExtension->Lun != Lun)
+            {
+                LunExtension = GetLogicalUnitExtensionEx(DeviceExtension, PathId, TargetId, Lun, NULL, FALSE, __FILE__, __LINE__);
+            }
+
+            if (LunExtension && !LunExtension->ReadyLogicalUnit && !LunExtension->CurrentUntaggedRequest)
+            {
+                LunExtension->ReadyLogicalUnit = DeviceExtension->InterruptData.ReadyLogicalUnit;
+                DeviceExtension->InterruptData.ReadyLogicalUnit = LunExtension;
+            }
+
+            break;
+        }
+        case 0x3:
+            DPRINT1("ScsiPortNotification: ResetDetected\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 0x4:
+            DPRINT1("ScsiPortNotification: CallDisableInterrupts\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 0x5:
+            DPRINT1("ScsiPortNotification: CallEnableInterrupts\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 0x6:
+            DPRINT("ScsiPortNotification: RequestTimerCall\n");
+            DeviceExtension->InterruptData.Flags |= 0x10000;
+            DeviceExtension->InterruptData.HwTimerInt = va_arg(ap, PHW_INTERRUPT);
+            DeviceExtension->InterruptData.MiniportTimerValue = va_arg(ap, ULONG);
+            DPRINT("ScsiPortNotification: MiniportTimerValue %X\n", DeviceExtension->InterruptData.MiniportTimerValue);
+            break;
+
+        case 0x7:
+            DPRINT1("ScsiPortNotification: BusChangeDetected\n");
+            DbgBreakPoint();
+            DeviceExtension->InterruptData.Flags |= 0x40000;
+            break;
+
+        case 0x8:
+            DPRINT1("ScsiPortNotification: WMIEvent\n");
+            UNIMPLEMENTED_ONCE;
+            break;
+
+        case 0x9:
+            DPRINT1("ScsiPortNotification: WMIReregister\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 0xA:
+            DPRINT1("ScsiPortNotification: LinkUp\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 0xB:
+            DPRINT1("ScsiPortNotification: LinkDown\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 0xC:
+            DPRINT1("ScsiPortNotification: QueryTickCount\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 0xD:
+            DPRINT1("ScsiPortNotification: BufferOverrunDetected\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case 0xE:
+            DPRINT1("ScsiPortNotification: TraceNotification\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        default:
+            DPRINT1("ScsiPortNotification: Unsupported notification %X\n", NotificationType);
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+    }
+
+    va_end(ap);
+
+    if (DeviceExtension)
+        DeviceExtension->InterruptData.Flags |= 4;
 }
 
 ULONG

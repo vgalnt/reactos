@@ -71,6 +71,10 @@ typedef struct _SCSI_PORT_SRB_DATA
     USHORT Size;
     PSP_FREE_SRBDATA FreeRoutine;
     ULONG Flags;
+    struct _SCSI_PORT_LUN_EXTENSION* LunExtension;
+    PSCSI_REQUEST_BLOCK CurrentSrb;
+    PVOID CompletedRequests;
+    ULONG OriginalDataTransferLength;
     struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
     LONG QueueTag;
     PVOID ScatterGatherList;
@@ -79,6 +83,10 @@ typedef struct _SCSI_PORT_SRB_DATA
 typedef struct _SCSI_PORT_INTERRUPT_DATA
 {
     ULONG Flags;
+    PVOID CompletedRequests;
+    struct _SCSI_PORT_LUN_EXTENSION* ReadyLogicalUnit;
+    PHW_INTERRUPT HwTimerInt;
+    ULONG MiniportTimerValue;
 } SCSI_PORT_INTERRUPT_DATA, *PSCSI_PORT_INTERRUPT_DATA;
 
 typedef struct _SCSI_PORT_ADDRESS_MAPPING
@@ -136,6 +144,11 @@ typedef struct _COMMON_EXTENSION
 typedef struct _SCSI_PORT_LUN_EXTENSION
 {
     COMMON_EXTENSION CommonExtension;
+    UCHAR PathId;
+    UCHAR TargetId;
+    UCHAR Lun;
+    struct _SCSI_PORT_LUN_EXTENSION* ReadyLogicalUnit;
+    PSCSI_PORT_SRB_DATA CurrentUntaggedRequest;
 } SCSI_PORT_LUN_EXTENSION, *PSCSI_PORT_LUN_EXTENSION;
 
 typedef struct _SCSI_PORT_LUN_ENTRY
@@ -200,6 +213,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     RTL_BITMAP ScsiControlBitMap;
     ULONG ScsiControlBitMapBuffer;
     SCSI_PORT_LUN_ENTRY LunList[8];
+    PSCSI_PORT_LUN_EXTENSION SrbDataLunExt;
     SCSI_PORT_INTERRUPT_DATA InterruptData;
     IO_SCSI_CAPABILITIES IoScsiCapabilities;
     KTIMER MiniPortTimer;
