@@ -2648,13 +2648,246 @@ SpAllocateAdapterResources(
     return Status;
 }
 
+VOID
+NTAPI
+ScsiPortCompletionDpc(
+    _In_ PKDPC Dpc,
+    _In_ PVOID DeferredContext,
+    _In_ PVOID SystemArgument1,
+    _In_ PVOID SystemArgument2)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+ScsiPortTickHandler(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+SpMiniPortTimerDpc(
+    _In_ PKDPC Dpc,
+    _In_ PVOID DeferredContext,
+    _In_ PVOID SystemArgument1,
+    _In_ PVOID SystemArgument2)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+BOOLEAN
+NTAPI
+ScsiPortInterrupt(
+    _In_ PKINTERRUPT Interrupt,
+    _In_ PVOID ServiceContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+SpRequestCompletionDpc(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 SpCallHwInitialize(
     _In_ PDEVICE_OBJECT DeviceObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_SYNCHRONIZE_EXECUTION SynchronizeFunction;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDescriptor;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PPORT_CONFIGURATION_INFORMATION PortConfig;
+    PCM_FULL_RESOURCE_DESCRIPTOR FullList;
+    PACCESS_RANGE AccessRange;
+    KAFFINITY Affinity;
+    ULONG Vector;
+    ULONG ix;
+    ULONG jx;
+    KIRQL SynchronizeIrql;
+    KIRQL Irql;
+    KIRQL Irql2;
+    BOOLEAN IsSecondInterrupt;
+    BOOLEAN IsShareVector;
+    BOOLEAN Result;
+    NTSTATUS status;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("SpCallHwInitialize: %p\n", DeviceObject);
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    PortConfig = DeviceExtension->PortConfig;
+
+    KeInitializeSpinLock(&DeviceExtension->SpinLock);
+    KeInitializeDpc(&DeviceExtension->CommonExtension.SelfDevice->Dpc, ScsiPortCompletionDpc, DeviceExtension->CommonExtension.SelfDevice);
+    DeviceExtension->TimeOut = -1;
+
+    if (!DeviceObject->Timer)
+        IoInitializeTimer(DeviceObject, ScsiPortTickHandler, 0);
+
+    KeInitializeTimer(&DeviceExtension->MiniPortTimer);
+    KeInitializeDpc(&DeviceExtension->MiniPortDpc, SpMiniPortTimerDpc, DeviceObject);
+    KeInitializeSpinLock(&DeviceExtension->MiniPortLock);
+
+    if (DeviceExtension->HwInterrupt && (DeviceExtension->Flags2 & 8))
+    {
+        //ScsiDebugPrintInt(1, "ScsiPortInitialize: Interrupt Info for adapter %#p\n", DeviceObject);
+        //ScsiDebugPrintInt(1, "ScsiPortInitialize: AdapterInterfaceType = %d\n", PortConfig->AdapterInterfaceType);
+        //ScsiDebugPrintInt(1, "ScsiPortInitialize: BusInterruptLevel = %d\n", PortConfig->BusInterruptLevel);
+        //ScsiDebugPrintInt(1, "ScsiPortInitialize: BusInterruptVector = %d\n", PortConfig->BusInterruptVector);
+        //ScsiDebugPrintInt(1, "ScsiPortInitialize: BusInterruptLevel2 = %d\n", PortConfig->BusInterruptLevel2);
+        //ScsiDebugPrintInt(1, "ScsiPortInitialize: BusInterruptVector2 = %d\n", PortConfig->BusInterruptVector2);
+
+        DPRINT("SpCallHwInitialize: Interrupt Info for adapter %p\n", DeviceObject);
+        DPRINT("SpCallHwInitialize: AdapterInterfaceType %X\n", PortConfig->AdapterInterfaceType);
+        DPRINT("SpCallHwInitialize: BusInterruptLevel %X\n", PortConfig->BusInterruptLevel);
+        DPRINT("SpCallHwInitialize: BusInterruptVector %X\n", PortConfig->BusInterruptVector);
+        DPRINT("SpCallHwInitialize: BusInterruptLevel2 %X\n", PortConfig->BusInterruptLevel2);
+        DPRINT("SpCallHwInitialize: BusInterruptVector2 %X\n", PortConfig->BusInterruptVector2);
+
+        Irql = 0;
+        Irql2 = 0;
+        Vector = 0;
+        Affinity = 0;
+        IsShareVector = FALSE;
+        IsSecondInterrupt = FALSE;
+
+        if (DeviceExtension->HwInterrupt &&
+            (PortConfig->BusInterruptLevel || PortConfig->BusInterruptVector) &&
+            (PortConfig->BusInterruptLevel2 || PortConfig->BusInterruptVector2))
+        {
+            IsSecondInterrupt = TRUE;
+        }
+
+        DeviceExtension->BusInterruptLevel = PortConfig->BusInterruptLevel;
+        DeviceExtension->SynchronizeFunction = KeSynchronizeExecution;
+
+        if (!(DeviceExtension->Flags2 & 1))
+        {
+            ASSERT(IsSecondInterrupt == FALSE);
+
+            for (ix = 0; ix < DeviceExtension->AllocatedResourcesTranslated->Count; ix++)
+            {
+                FullList = &DeviceExtension->AllocatedResourcesTranslated->List[ix];
+
+                for (jx = 0; jx < FullList->PartialResourceList.Count; jx++)
+                {
+                    CmDescriptor = &FullList->PartialResourceList.PartialDescriptors[jx];
+
+                    if (CmDescriptor->Type == CmResourceTypeInterrupt)
+                    {
+                        Vector = CmDescriptor->u.Interrupt.Vector;
+                        Affinity = CmDescriptor->u.Interrupt.Affinity;
+                        Irql = (KIRQL)CmDescriptor->u.Interrupt.Level;
+
+                        if (CmDescriptor->ShareDisposition == CmResourceShareShared)
+                            IsShareVector = TRUE;
+
+                        break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (Irql > Irql2)
+            SynchronizeIrql = Irql;
+        else
+            SynchronizeIrql = Irql2;
+
+        //ScsiDebugPrintInt(1, "SpCallHwInitialize: vector = %d\n", Vector);
+        //ScsiDebugPrintInt(1, "SpCallHwInitialize: irql = %d\n", Irql);
+        //ScsiDebugPrintInt(1, "SpCallHwInitialize: affinity = %#08lx\n", Affinity);
+
+        DPRINT("SpCallHwInitialize: Vector %X\n", Vector);
+        DPRINT("SpCallHwInitialize: Irql %X\n", Irql);
+        DPRINT("SpCallHwInitialize: Affinity %X\n", Affinity);
+
+        status = IoConnectInterrupt(&DeviceExtension->InterruptObject,
+                                    ScsiPortInterrupt,
+                                    DeviceObject,
+                                    (IsSecondInterrupt ? &DeviceExtension->IrqLock : NULL),
+                                    Vector,
+                                    Irql,
+                                    SynchronizeIrql,
+                                    PortConfig->InterruptMode,
+                                    IsShareVector,
+                                    Affinity,
+                                    FALSE);
+        if (!NT_SUCCESS(status))
+        {
+            //ScsiDebugPrintInt(1, "SpInitializeAdapter: Can't connect interrupt %d\n", Vector);
+            DPRINT1("SpCallHwInitialize: Can't connect interrupt %X\n", Vector);
+            DeviceExtension->InterruptObject = 0;
+            return status;
+        }
+
+        if (IsSecondInterrupt)
+        {
+            //ScsiDebugPrintInt(1, "SpInitializeAdapter: SCSI adapter second IRQ is %d\n", PortConfig->BusInterruptLevel2);
+            //ScsiDebugPrintInt(1, "SpInitializeAdapter: vector = %d\n", Vector);
+            //ScsiDebugPrintInt(1, "SpInitializeAdapter: irql = %d\n", Irql);
+            //ScsiDebugPrintInt(1, "SpInitializeAdapter: affinity = %#08lx\n", Affinity);
+
+            DPRINT("SpCallHwInitialize: SCSI adapter second IRQ is %X\n", PortConfig->BusInterruptLevel2);
+            DPRINT("SpCallHwInitialize: Vector %X\n", Vector);
+            DPRINT("SpCallHwInitialize: Irql %X\n", Irql);
+            DPRINT("SpCallHwInitialize: Affinity %X\n", Affinity);
+
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (PortConfig->NumberOfAccessRanges)
+    {
+        AccessRange = &((*PortConfig->AccessRanges)[0]);
+        DeviceExtension->IoAddress = AccessRange->RangeStart.LowPart;
+
+        //ScsiDebugPrintInt(1, "SpInitializeAdapter: IO Base address %x\n", DeviceExtension->IoAddress);
+        DPRINT("SpCallHwInitialize: IO Base address %X\n", DeviceExtension->IoAddress);
+    }
+
+    DeviceExtension->Flags |= 0x1000;
+    DeviceExtension->ActiveRequestCount = -1;
+    DeviceExtension->NeedPhAddrForMasterDma = (DeviceExtension->DmaAdapter && PortConfig->Master && PortConfig->NeedPhysicalAddresses);
+
+    KeRaiseIrql(DISPATCH_LEVEL, &Irql);
+
+    SynchronizeFunction = DeviceExtension->SynchronizeFunction;
+
+    Result = SynchronizeFunction(DeviceExtension->InterruptObject, DeviceExtension->HwInitialize, DeviceExtension->HwDeviceExtension);
+    if (Result)
+    {
+        if (DeviceExtension->InterruptData.Flags & 4)
+            SpRequestCompletionDpc(DeviceObject);
+    }
+    else
+    {
+        //ScsiDebugPrintInt(1, "SpInitializeAdapter: initialization failed\n");
+        DPRINT1("SpCallHwInitialize: initialization failed\n");
+        Status = STATUS_ADAPTER_HARDWARE_ERROR;
+    }
+
+    KeLowerIrql(Irql);
+
+    return Status;
 }
 
 VOID

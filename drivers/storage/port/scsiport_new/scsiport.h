@@ -96,6 +96,14 @@ typedef struct _SCSI_PORT_QUEUETAGS_ENTRY
     LONG Tag;
 } SCSI_PORT_QUEUETAGS_ENTRY, *PSCSI_PORT_QUEUETAGS_ENTRY;
 
+typedef
+BOOLEAN
+(NTAPI* PSCSI_PORT_SYNCHRONIZE_EXECUTION)(
+    _In_ PKINTERRUPT Interrupt,
+    _In_ PKSYNCHRONIZE_ROUTINE Function,
+    _In_ PVOID Context
+);
+
 typedef struct _COMMON_EXTENSION
 {
     PDEVICE_OBJECT SelfDevice;
@@ -146,6 +154,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     ULONG UncachedExtensionSize;
     ULONG PortScsiPort;
     ULONG PortScsi;
+    LONG ActiveRequestCount;
     UCHAR Flags2;
     PCI_SLOT_NUMBER PciSlotNumber;
     ULONG BusNumber;
@@ -155,6 +164,12 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     UCHAR MaximumLogicalUnit;
     ULONG Flags;
     ULONG DisableCount;
+    LONG TimeOut;
+    PKINTERRUPT InterruptObject;
+    PSCSI_PORT_SYNCHRONIZE_EXECUTION SynchronizeFunction;
+    KSPIN_LOCK SpinLock;
+    KSPIN_LOCK IrqLock;
+    KSPIN_LOCK MiniPortLock;
     PVOID MapRegisterBase;
     PDMA_ADAPTER DmaAdapter;
     PPORT_CONFIGURATION_INFORMATION PortConfig;
@@ -180,11 +195,15 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PHW_DMA_STARTED HwDmaStarted;
     PHW_INTERRUPT HwTimerInt;
     PHW_ADAPTER_CONTROL HwAdapterControl;
+    ULONG BusInterruptLevel;
+    ULONG IoAddress;
     RTL_BITMAP ScsiControlBitMap;
     ULONG ScsiControlBitMapBuffer;
     SCSI_PORT_LUN_ENTRY LunList[8];
     SCSI_PORT_INTERRUPT_DATA InterruptData;
     IO_SCSI_CAPABILITIES IoScsiCapabilities;
+    KTIMER MiniPortTimer;
+    KDPC MiniPortDpc;
     PHYSICAL_ADDRESS PhysicalCommonBuffer;
     UCHAR MapBuffers;
     BOOLEAN IsRemapBuffers;
