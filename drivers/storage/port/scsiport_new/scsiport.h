@@ -160,6 +160,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     SCSI_PORT_INTERRUPT_DATA InterruptData;
     IO_SCSI_CAPABILITIES IoScsiCapabilities;
     PHYSICAL_ADDRESS PhysicalCommonBuffer;
+    UCHAR MapBuffers;
     BOOLEAN IsRemapBuffers;
     BOOLEAN NeedPhAddrForMasterDma;
     BOOLEAN TaggedQueuing;
@@ -175,11 +176,18 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     WORK_QUEUE_ITEM EnumWorkItem;
     PSCSI_PORT_ENUM_REQUEST AsyncEnumRequest;
     SCSI_PORT_ENUM_REQUEST EnumRequest;
+    KSPIN_LOCK SrbDataSpinLock;
+    LIST_ENTRY BlockedRequestList;
+    PSCSI_PORT_SRB_DATA SrbData;
     BOOLEAN LowerBusInterfaceStandardRetrieved;
     BUS_INTERFACE_STANDARD Interface;
     PWCHAR DeviceNameBuffer;
     GUID BusTypeGuid;
     ULONG PnpDeviceState;
+    PVOID InquiryData;
+    PSENSE_DATA InquirySenseData;
+    PIRP InquiryIrp;
+    PMDL InquiryMdl;
     FAST_MUTEX PoFastMutex;
     UCHAR SenseDataBytes;
     PVOID VerifierExtension;
@@ -217,6 +225,37 @@ typedef struct _SCSI_PORT_CONFIG_CONTEXT
 #ifndef Add2Ptr
   #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
 #endif
+
+VOID
+NTAPI
+SpInitializeRequestSenseParams(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension
+);
+
+NTSTATUS
+NTAPI
+SpGetCommonBuffer(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ ULONG NumberOfBytes
+);
+
+PVOID
+NTAPI
+SpGetSrbExtensionBuffer(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension
+);
+
+VOID
+NTAPI
+SpInitializePowerParams(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension
+);
+
+VOID
+NTAPI
+SpInitializePerformanceParams(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension
+);
 
 #endif /* _SCSIPORT_H_ */
 

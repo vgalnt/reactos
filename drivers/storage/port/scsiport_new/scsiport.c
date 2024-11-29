@@ -2286,11 +2286,171 @@ SpCallHwFindAdapter(
 
 NTSTATUS
 NTAPI
-SpAllocateAdapterResources(
+SpAllocateQueueTagList(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpInitializeSrbDataLookasideList(
     _In_ PDEVICE_OBJECT DeviceObject)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+PSCSI_PORT_SRB_DATA
+NTAPI
+SpAllocateSrbData(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PIRP Irp,
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+NTSTATUS
+NTAPI
+SpAllocateAdapterResources(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PPORT_CONFIGURATION_INFORMATION PortConfig;
+    PIO_SCSI_CAPABILITIES IoScsiCapabilities;
+    PVOID SrbExtensionBuffer;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpAllocateAdapterResources: %p\n", DeviceObject);
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    PortConfig = DeviceExtension->PortConfig;
+
+    DeviceExtension->MapBuffers = PortConfig->MapBuffers;
+
+    IoScsiCapabilities = &DeviceExtension->IoScsiCapabilities;
+    IoScsiCapabilities->AdapterUsesPio = PortConfig->MapBuffers;
+
+    if (!DeviceExtension->DmaAdapter)
+    {
+        if (PortConfig->Master || PortConfig->DmaChannel != 0xFFFFFFFF)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+
+    Status = SpAllocateQueueTagList(DeviceExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpAllocateAdapterResources: Status %X\n", Status);
+        return Status;
+    }
+
+    SpInitializePowerParams(DeviceExtension);
+    SpInitializePerformanceParams(DeviceExtension);
+
+    SrbExtensionBuffer = SpGetSrbExtensionBuffer(DeviceExtension);
+
+    if ((DeviceExtension->SrbExtensionSize || PortConfig->AutoRequestSense) && !SrbExtensionBuffer)
+    {
+        SpInitializeRequestSenseParams(DeviceExtension);
+
+        DeviceExtension->AutoRequestSense = PortConfig->AutoRequestSense;
+        DeviceExtension->IsSrbExtensions = TRUE;
+
+        Status = SpGetCommonBuffer(DeviceExtension, 0);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("SpAllocateAdapterResources: Status %X\n", Status);
+            return Status;
+        }
+    }
+
+    Status = SpInitializeSrbDataLookasideList(DeviceObject);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpAllocateAdapterResources: Status %X\n", Status);
+        return Status;
+    }
+
+    DeviceExtension->SrbData = SpAllocateSrbData(DeviceExtension, NULL, NULL);
+    if (!DeviceExtension->SrbData)
+    {
+        DPRINT1("SpAllocateAdapterResources: Status %X\n", Status);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    if (!DeviceExtension->BlockedRequestList.Flink && !DeviceExtension->BlockedRequestList.Blink)
+        InitializeListHead(&DeviceExtension->BlockedRequestList);
+
+    KeInitializeSpinLock(&DeviceExtension->SrbDataSpinLock);
+
+    DeviceExtension->AsyncEnumRequest = &DeviceExtension->EnumRequest;
+
+    if (!DeviceExtension->InquiryData)
+    {
+        DeviceExtension->InquiryData = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, 0x100, 'qPcS'); // ?
+        if (!DeviceExtension->InquiryData)
+        {
+            DPRINT1("SpAllocateAdapterResources: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+        DPRINT("SpAllocateAdapterResources: DeviceExtension->InquiryData %p\n", DeviceExtension->InquiryData);
+
+        DeviceExtension->InquirySenseData = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, (sizeof(SENSE_DATA) + DeviceExtension->SenseDataBytes), 'qPcS');
+        if (!DeviceExtension->InquirySenseData)
+        {
+            DPRINT1("SpAllocateAdapterResources: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+        DPRINT("SpAllocateAdapterResources: DeviceExtension->InquirySenseData %p\n", DeviceExtension->InquirySenseData);
+
+        DeviceExtension->InquiryIrp = IoAllocateIrp(1, FALSE);
+        if (!DeviceExtension->InquiryIrp)
+        {
+            DPRINT1("SpAllocateAdapterResources: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+        DPRINT("SpAllocateAdapterResources: DeviceExtension->InquiryIrp %p\n", DeviceExtension->InquiryIrp);
+
+        DeviceExtension->InquiryMdl = IoAllocateMdl(DeviceExtension->InquiryData, INQUIRYDATABUFFERSIZE, FALSE, FALSE, NULL);
+        if (!DeviceExtension->InquiryMdl)
+        {
+            DPRINT1("SpAllocateAdapterResources: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+        DPRINT("SpAllocateAdapterResources: DeviceExtension->InquiryMdl %p\n", DeviceExtension->InquiryMdl);
+
+        MmBuildMdlForNonPagedPool(DeviceExtension->InquiryMdl);
+    }
+
+    IoScsiCapabilities->Length = sizeof(*IoScsiCapabilities);
+    IoScsiCapabilities->MaximumTransferLength = PortConfig->MaximumTransferLength;
+
+    if (PortConfig->ReceiveEvent)
+        IoScsiCapabilities->SupportedAsynchronousEvents |= 2;
+
+    IoScsiCapabilities->TaggedQueuing = DeviceExtension->TaggedQueuing;
+    IoScsiCapabilities->AdapterScansDown = PortConfig->AdapterScansDown;
+
+    if (PortConfig->AlignmentMask > DeviceObject->AlignmentRequirement)
+        DeviceObject->AlignmentRequirement = PortConfig->AlignmentMask;
+
+    IoScsiCapabilities->AlignmentMask = DeviceObject->AlignmentRequirement;
+
+    if (!IoScsiCapabilities->MaximumPhysicalPages)
+    {
+        IoScsiCapabilities->MaximumPhysicalPages = BYTES_TO_PAGES(IoScsiCapabilities->MaximumTransferLength);
+
+        if (IoScsiCapabilities->MaximumPhysicalPages > PortConfig->NumberOfPhysicalBreaks)
+            IoScsiCapabilities->MaximumPhysicalPages = PortConfig->NumberOfPhysicalBreaks;
+    }
+
+    return Status;
 }
 
 NTSTATUS
