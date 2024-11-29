@@ -2143,7 +2143,17 @@ NTAPI
 SpPurgeFreeMappedAddressList(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_ADDRESS_MAPPING AddressMapping;
+
+    PAGED_CODE();
+    DPRINT("SpPurgeFreeMappedAddressList: %p\n", DeviceExtension);
+ 
+    while (DeviceExtension->AddressMapping)
+    {
+        AddressMapping = DeviceExtension->AddressMapping;
+        DeviceExtension->AddressMapping = DeviceExtension->AddressMapping->Next;
+        ExFreePoolWithTag(AddressMapping, 'mPcS');
+    }
 }
 
 NTSTATUS
@@ -2200,7 +2210,7 @@ SpCallHwFindAdapter(
         SpPurgeFreeMappedAddressList(DeviceExtension);
 
         //ScsiDebugPrintInt(1, "SpFindAdapter: SCSI Adapter ID is %d\n", PortConfig->InitiatorBusId[0]);
-        DPRINT("SpFindAdapter: SCSI Adapter ID is %d\n", PortConfig->InitiatorBusId[0]);
+        DPRINT("SpCallHwFindAdapter: SCSI Adapter ID is %d\n", PortConfig->InitiatorBusId[0]);
 
         if (DeviceExtension->Flags2 & 4)
         {
@@ -2251,7 +2261,7 @@ SpCallHwFindAdapter(
     }
 
     //ScsiDebugPrintInt(1, "SpFindAdapter: miniport find adapter routine reported an error %d\n", Result);
-    DPRINT1("SpFindAdapter: miniport find adapter routine reported an error %X\n", Result);
+    DPRINT1("SpCallHwFindAdapter: miniport find adapter routine reported an error %X\n", Result);
 
     if (Result == 0)
     {
