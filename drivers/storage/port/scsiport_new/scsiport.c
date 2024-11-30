@@ -37,6 +37,8 @@ PDRIVER_DISPATCH DeviceMajorFunctionTable[IRP_MJ_MAXIMUM_FUNCTION + 1];
 PDRIVER_DISPATCH Scsi1DeviceMajorFunctionTable[IRP_MJ_MAXIMUM_FUNCTION + 1];
 PDRIVER_DISPATCH AdapterMajorFunctionTable[IRP_MJ_MAXIMUM_FUNCTION + 1];
 
+DEFINE_GUID(GUID_DEVINTERFACE_STORAGEPORT, 0x2ACCFE60, 0xC130, 0x11D2, 0xB0, 0x82, 0x00, 0xA0, 0xC9, 0x1E, 0xFB, 0x8B);
+
 /* FUNCTIONS *****************************************************************/
 
 ULONG
@@ -3384,13 +3386,110 @@ ScsiPortInitPnpAdapter(
     return Status;
 }
 
+VOID
+NTAPI
+SpWmiInitializeSpRegInfo(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    UNIMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
-ScsiPortStartAdapter(
-    _In_ PDEVICE_OBJECT DeviceObject)
+SpBuildDeviceMapEntry(
+    _In_ PVOID DeviceObjectExtension)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortStartAdapter(
+    _In_ PDEVICE_OBJECT Fdo)
+{
+    PSCSI_PORT_DRIVER_EXTENSION SpDriverExtension;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PCONFIGURATION_INFORMATION ConfigInfo;
+    UNICODE_STRING SymbolicLinkName;
+    UNICODE_STRING DeviceName;
+    WCHAR Buffer[64];
+    ULONG Port = 0;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    SpDriverExtension = IoGetDriverObjectExtension(Fdo->DriverObject, ScsiPortInitialize);
+    DeviceExtension = Fdo->DeviceExtension;
+
+    ASSERT(SpDriverExtension != NULL);
+    ASSERT(!(DeviceExtension->CommonExtension.IsPdo));
+    ASSERT(DeviceExtension->CommonExtension.CurrentPnpState != 0);//IRP_MN_START_DEVICE
+    ASSERT(DeviceExtension->CommonExtension.IsInitialized);
+    ASSERT(((Fdo->Flags & DO_DEVICE_INITIALIZING) == 0));
+
+    //ScsiDebugPrintInt(1, "ScsiPortStartAdapter - starting adapter %#p\n", Fdo);
+    DPRINT("ScsiPortStartAdapter: %p\n", Fdo);
+
+    IoStartTimer(Fdo);
+
+    if (!DeviceExtension->CommonExtension.WmiInitialized)
+        SpWmiInitializeSpRegInfo(Fdo);
+
+    if (DeviceExtension->PortScsiPort != 0xFFFFFFFF)
+        goto Exit;
+
+    RtlInitUnicodeString(&DeviceName, DeviceExtension->DeviceNameBuffer);
+
+    do
+    {
+        swprintf(Buffer, L"\\Device\\ScsiPort%d", Port);
+        RtlInitUnicodeString(&SymbolicLinkName, Buffer);
+
+        Status = IoCreateSymbolicLink(&SymbolicLinkName, &DeviceName);
+        if (!NT_SUCCESS(Status))
+        {
+            Port++;
+            continue;
+        }
+
+        DeviceExtension->PortScsiPort = Port;
+
+        swprintf(Buffer, L"\\DosDevices\\Scsi%d:", Port);
+        RtlInitUnicodeString(&SymbolicLinkName, Buffer);
+
+        IoCreateSymbolicLink(&SymbolicLinkName, &DeviceName);
+    }
+    while (Status == STATUS_OBJECT_NAME_COLLISION);
+
+    ConfigInfo = IoGetConfigurationInformation();
+    ConfigInfo->ScsiPortCount++;
+
+    SpBuildDeviceMapEntry(DeviceExtension);
+
+    Status = IoRegisterDeviceInterface(DeviceExtension->LowerPdo, &GUID_DEVINTERFACE_STORAGEPORT, NULL, &SymbolicLinkName);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ScsiPortStartAdapter: Status %X\n", Status);
+        goto Exit;
+    }
+
+    DeviceExtension->SymbolicLinkName = SymbolicLinkName;
+
+    Status = IoSetDeviceInterfaceState(&SymbolicLinkName, TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ScsiPortStartAdapter: Status %X\n", Status);
+        RtlFreeUnicodeString(&SymbolicLinkName);
+        RtlInitUnicodeString(&DeviceExtension->SymbolicLinkName, NULL);
+    }
+
+Exit:
+
+    DeviceExtension->RunEnumSync = 1;
+
+    DPRINT("ScsiPortStartAdapter: return STATUS_SUCCESS\n");
+    return STATUS_SUCCESS;
 }
 
 VOID

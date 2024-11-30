@@ -252,6 +252,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     BUS_INTERFACE_STANDARD Interface;
     PWCHAR DeviceNameBuffer;
     GUID BusTypeGuid;
+    UNICODE_STRING SymbolicLinkName;
     ULONG PnpDeviceState;
     PVOID InquiryData;
     PSENSE_DATA InquirySenseData;
