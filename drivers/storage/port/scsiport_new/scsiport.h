@@ -251,8 +251,11 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     BOOLEAN Dma32BitAddresses;
     KMUTEX EnumMutex;
     FAST_MUTEX EnumFastMutex;
+    LARGE_INTEGER EnumTime;
     LONG RunEnumSync;
     WORK_QUEUE_ITEM EnumWorkItem;
+    BOOLEAN EnumerationRunning;
+    PSCSI_PORT_ENUM_REQUEST RequestHead;
     PSCSI_PORT_ENUM_REQUEST AsyncEnumRequest;
     SCSI_PORT_ENUM_REQUEST EnumRequest;
     NPAGED_LOOKASIDE_LIST SrbDataLookAsideList;

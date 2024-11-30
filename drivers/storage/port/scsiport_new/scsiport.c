@@ -758,6 +758,15 @@ SpSignalCompletion(
 
 VOID
 NTAPI
+SpCompleteEnumRequest(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 SpEnumerationWorker(
     _In_ PVOID Parameter)
 {
@@ -3737,9 +3746,68 @@ NTAPI
 SpEnumerateAdapterAsynchronous(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ PSCSI_PORT_ENUM_REQUEST EnumRequest,
-    _In_ BOOLEAN Unknown)
+    _In_ BOOLEAN Param3)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    VOID (NTAPI* CallBack)(PSCSI_PORT_DEVICE_EXTENSION, PSCSI_PORT_ENUM_REQUEST, NTSTATUS);
+    PIRP RequestIrp;
+    LARGE_INTEGER CurrentTime;
+    LONG RunEnumSync;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT1("SpEnumerateAdapterAsynchronous: %p, %p, %X\n", DeviceExtension, EnumRequest, Param3);
+
+    ASSERT(EnumRequest->CompletionRoutine != NULL);
+    ASSERT(EnumRequest->NextRequest == NULL);
+
+    ExAcquireFastMutex(&DeviceExtension->EnumFastMutex);
+    RunEnumSync = InterlockedExchange(&DeviceExtension->RunEnumSync, 0);
+
+    if (!Param3 && !RunEnumSync && !DeviceExtension->EnumerationRunning)
+    {
+        KeQuerySystemTime(&CurrentTime);
+        CurrentTime.QuadPart -= DeviceExtension->EnumTime.QuadPart;
+    }
+
+    if (!Param3 && !RunEnumSync && !DeviceExtension->EnumerationRunning && CurrentTime.QuadPart <= 300000000)
+    {
+        RequestIrp = NULL;
+
+        ASSERT(DeviceExtension->EnumerationRunning == FALSE);
+
+        ExReleaseFastMutex(&DeviceExtension->EnumFastMutex);
+
+        Status = KeWaitForSingleObject(&DeviceExtension->EnumMutex, UserRequest, KernelMode, FALSE, NULL);
+
+        if (!EnumRequest->IsNotCompleteEnumRequest)
+            RequestIrp = EnumRequest->Irp;
+
+        CallBack = EnumRequest->CompletionRoutine;
+        CallBack(DeviceExtension, EnumRequest, Status);
+
+        if (Status == STATUS_SUCCESS)
+            KeReleaseMutex(&DeviceExtension->EnumMutex, FALSE);
+
+        if (RequestIrp)
+            SpCompleteEnumRequest(DeviceExtension, RequestIrp);
+    }
+    else
+    {
+        SpAcquireRemoveLockEx(DeviceExtension->CommonExtension.SelfDevice, &EnumRequest->NextRequest, __FILE__, __LINE__);
+
+        EnumRequest->NextRequest = DeviceExtension->RequestHead;
+        DeviceExtension->RequestHead = EnumRequest;
+
+        if (!DeviceExtension->EnumerationRunning)
+        {
+            DeviceExtension->EnumerationRunning = TRUE;
+            ExQueueWorkItem(&DeviceExtension->EnumWorkItem, DelayedWorkQueue);
+        }
+
+        ExReleaseFastMutex(&DeviceExtension->EnumFastMutex);
+    }
+
+    DPRINT1("SpEnumerateAdapterAsynchronous: exit %p, %p, %X\n", DeviceExtension, EnumRequest, Param3);
 }
 
 NTSTATUS
