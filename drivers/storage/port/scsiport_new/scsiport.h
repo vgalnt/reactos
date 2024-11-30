@@ -70,6 +70,7 @@ typedef struct _SCSI_PORT_SRB_DATA
     USHORT Type;
     USHORT Size;
     PSP_FREE_SRBDATA FreeRoutine;
+    LIST_ENTRY Link;
     ULONG Flags;
     struct _SCSI_PORT_LUN_EXTENSION* LunExtension;
     PSCSI_REQUEST_BLOCK CurrentSrb;
@@ -145,11 +146,14 @@ typedef struct _COMMON_EXTENSION
 typedef struct _SCSI_PORT_LUN_EXTENSION
 {
     COMMON_EXTENSION CommonExtension;
+    ULONG LuFlags;
     UCHAR PathId;
     UCHAR TargetId;
     UCHAR Lun;
     struct _SCSI_PORT_LUN_EXTENSION* ReadyLogicalUnit;
     struct _SCSI_PORT_LUN_EXTENSION* AbortLogicalUnit;
+    LONG RequestTimeoutCounter;
+    LIST_ENTRY SrbDataList;
     PSCSI_PORT_SRB_DATA CurrentUntaggedRequest;
 } SCSI_PORT_LUN_EXTENSION, *PSCSI_PORT_LUN_EXTENSION;
 

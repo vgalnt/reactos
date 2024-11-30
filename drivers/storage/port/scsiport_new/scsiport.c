@@ -2654,8 +2654,97 @@ NTAPI
 SpGetInterruptState(
     _In_ PVOID InContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PSCSI_PORT_GET_INT_STATE_CONTEXT Context = InContext;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PSCSI_PORT_SRB_DATA SrbData;
+    PSCSI_REQUEST_BLOCK Srb;
+    ULONG OldDpcFlags;
+    ULONG ix;
+
+    DeviceExtension = Context->DeviceExtension;
+
+    DPRINT("SpGetInterruptState: %p %X\n", DeviceExtension, Context->DeviceExtension->InterruptData.Flags);
+
+    if (!(Context->DeviceExtension->InterruptData.Flags & 4))
+    {
+        DeviceExtension->DpcFlags &= 0x20000;
+        DPRINT("SpGetInterruptState: DpcFlags %X\n", DeviceExtension->DpcFlags);
+        return FALSE;
+    }
+
+    RtlCopyMemory(Context->InterruptData, &Context->DeviceExtension->InterruptData, sizeof(*Context->InterruptData));
+
+    Context->DeviceExtension->InterruptData.Flags &= 0x84180;
+
+    DeviceExtension->InterruptData.CompletedRequests = 0;
+    DeviceExtension->InterruptData.ReadyLogicalUnit = 0;
+    DeviceExtension->InterruptData.AbortLogicalUnit = 0;
+
+    OldDpcFlags = InterlockedExchange((PLONG)&DeviceExtension->DpcFlags, 0x20000);
+    ASSERT(OldDpcFlags == 0x20004);//(PD_NOTIFICATION_REQUIRED | PD_DPC_RUNNING)
+
+    ix = 0;
+
+    for (SrbData = Context->InterruptData->CompletedRequests;
+         SrbData;
+         SrbData = SrbData->CompletedRequests)
+    {
+        if (ix > DeviceExtension->ActiveRequestCount)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        ix++;
+
+        ASSERT(SrbData->CurrentSrb != NULL);
+        Srb = SrbData->CurrentSrb;
+        ASSERT(!(Srb->SrbFlags & SRB_FLAGS_IS_ACTIVE));
+
+        LunExtension = SrbData->LunExtension;
+
+        if (Srb->SrbStatus != 1)
+        {
+            if (Srb->ScsiStatus == 2 && !(Srb->SrbStatus & 0x80) && Srb->SenseInfoBuffer && Srb->SenseInfoBufferLength)
+            {
+                if (LunExtension->LuFlags & 4)
+                {
+                    Srb->ScsiStatus = 0;
+                    Srb->SrbStatus = 0x10;
+                }
+                else
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+            }
+
+            if (Srb->ScsiStatus == 0x28)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+
+        if (Srb->QueueTag != 0xFF)
+        {
+            if (LunExtension->SrbDataList.Flink != &SrbData->Link)
+            {
+                RemoveEntryList(&SrbData->Link);
+                continue;
+            }
+
+            RemoveEntryList(&SrbData->Link);
+        }
+
+        if (IsListEmpty(&LunExtension->SrbDataList))
+        {
+            LunExtension->RequestTimeoutCounter = -1;
+            continue;
+        }
+
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return TRUE;
 }
 
 VOID
