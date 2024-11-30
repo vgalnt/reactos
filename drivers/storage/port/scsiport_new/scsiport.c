@@ -2649,6 +2649,33 @@ SpAllocateAdapterResources(
     return Status;
 }
 
+BOOLEAN
+NTAPI
+SpGetInterruptState(
+    _In_ PVOID InContext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+FASTCALL
+GetNextLuRequest(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+SpProcessCompletedRequest(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_SRB_DATA SrbData,
+    _Out_ BOOLEAN* OutIsStartIo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 VOID
 NTAPI
 ScsiPortCompletionDpc(
@@ -2657,7 +2684,180 @@ ScsiPortCompletionDpc(
     _In_ PVOID SystemArgument1,
     _In_ PVOID SystemArgument2)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_OBJECT DeviceObject = DeferredContext;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION ReadyLunExt;
+    PSCSI_PORT_LUN_EXTENSION PrevReadyLunExt;
+    PSCSI_PORT_SRB_DATA SrbData;
+    SCSI_PORT_GET_INT_STATE_CONTEXT Context;
+    SCSI_PORT_INTERRUPT_DATA IntData;
+    LARGE_INTEGER DueTime;
+    BOOLEAN IsStartIo;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+
+    DPRINT("ScsiPortCompletionDpc: %p\n", DeviceExtension);
+
+    do
+    {
+        KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+
+        Context.InterruptData = &IntData;
+        Context.DeviceExtension = DeviceExtension;
+
+        if (!DeviceExtension->SynchronizeFunction(DeviceExtension->InterruptObject, SpGetInterruptState, &Context))
+        {
+            KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+            continue;
+        }
+
+        if (IntData.Flags & 0x170030)
+        {
+            if (IntData.Flags & 0x10)
+            {
+                if (Sp64BitPhysicalAddresses)
+                {
+                    KeBugCheckEx(0x2C, 3, 0xC00000BB, (ULONG_PTR)DeviceExtension->HwDeviceExtension, (ULONG_PTR)DeviceExtension->CommonExtension.SelfDevice->DriverObject);
+                }
+
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            if ((IntData.Flags & 0x20) && !(IntData.Flags & 0x80000))
+            {
+                if (Sp64BitPhysicalAddresses)
+                {
+                    KeBugCheckEx(0x2C, 4, 0xC00000BB, (ULONG_PTR)DeviceExtension->HwDeviceExtension, (ULONG_PTR)DeviceExtension->CommonExtension.SelfDevice->DriverObject);
+                }
+
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            if ((IntData.Flags & 0x10000) && !(IntData.Flags & 0x80000))
+            {
+                if (DeviceExtension->VerifierExtension)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+                else
+                {
+                    DeviceExtension->HwTimerInt = IntData.HwTimerInt;
+                }
+
+                if (IntData.MiniportTimerValue)
+                {
+                    if (!(DeviceExtension->Flags & 0x800000))
+                    {
+                        DueTime.QuadPart = -10;
+                        DueTime.QuadPart *= IntData.MiniportTimerValue;
+                        KeSetTimer(&DeviceExtension->MiniPortTimer, DueTime, &DeviceExtension->MiniPortDpc);
+                        DPRINT("ScsiPortCompletionDpc: DueTime %I64X\n", DueTime.QuadPart);
+                    }
+                }
+                else
+                {
+                    KeCancelTimer(&DeviceExtension->MiniPortTimer);
+                }
+            }
+
+            if (IntData.Flags & 0x20000)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            if (IntData.Flags & 0x40000)
+            {
+                DPRINT1("ScsiPortCompletionDpc: call IoInvalidateDeviceRelations(BusRelations)\n");
+                DeviceExtension->RunEnumSync = 1;
+                IoInvalidateDeviceRelations(DeviceExtension->LowerPdo, 0);
+            }
+
+            if (IntData.Flags & 0x100000)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+
+        if (IntData.Flags & 8)
+        {
+            if ((DeviceExtension->Flags & 0x1001) == 0x1001)
+            {
+                DeviceExtension->Flags &= ~1;
+
+                if (!(IntData.Flags & 0x80))
+                    DeviceExtension->TimeOut = 0xFFFFFFFF;
+            }
+            else
+            {
+                DeviceExtension->Flags &= ~1;
+                IntData.Flags &= ~8;
+            }
+        }
+
+        if (IntData.Flags & 0x200)
+            DeviceExtension->TimeOut = DeviceExtension->ResetHoldTime;
+
+        ReadyLunExt = IntData.ReadyLogicalUnit;
+        while (ReadyLunExt)
+        {
+            GetNextLuRequest(ReadyLunExt);
+
+            KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+
+            PrevReadyLunExt = ReadyLunExt;
+            ReadyLunExt = ReadyLunExt->ReadyLogicalUnit;
+            PrevReadyLunExt->ReadyLogicalUnit = NULL;
+        }
+
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+        if ((IntData.Flags & 8) && !(IntData.Flags & 0x100))
+        {
+            //ASSERT(!(TEST_FLAG(ext->Flags, PD_PENDING_DEVICE_REQUEST)));
+            ASSERT(!(DeviceExtension->Flags & 0x800));
+            IoStartNextPacket(DeviceExtension->CommonExtension.SelfDevice, 0);
+        }
+
+        if (IntData.Flags & 0x40)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        IsStartIo = FALSE;
+
+        while (IntData.CompletedRequests)
+        {
+            SrbData = IntData.CompletedRequests;
+            ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+            IntData.CompletedRequests = SrbData->CompletedRequests;
+            SrbData->CompletedRequests = 0;
+            SpProcessCompletedRequest(DeviceExtension, SrbData, &IsStartIo);
+        }
+
+        if (IsStartIo)
+        {
+            ASSERT(DeviceObject->CurrentIrp != NULL);
+        }
+
+        while (IntData.AbortLogicalUnit)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        if (IsStartIo)
+        {
+            ASSERT(DeviceObject->CurrentIrp != NULL);
+            ScsiPortStartIo(DeviceObject, DeviceObject->CurrentIrp);
+        }
+
+        if ((IntData.Flags & 0x8000) && !(IntData.Flags & 0x80000))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        DPRINT("ScsiPortCompletionDpc: %X\n", DeviceExtension->DpcFlags);
+    }
+    while (((InterlockedCompareExchange((PLONG)&DeviceExtension->DpcFlags, 0, 0x20000)) & 4) == 4);
 }
 
 VOID

@@ -85,6 +85,7 @@ typedef struct _SCSI_PORT_INTERRUPT_DATA
     ULONG Flags;
     PVOID CompletedRequests;
     struct _SCSI_PORT_LUN_EXTENSION* ReadyLogicalUnit;
+    struct _SCSI_PORT_LUN_EXTENSION* AbortLogicalUnit;
     PHW_INTERRUPT HwTimerInt;
     ULONG MiniportTimerValue;
 } SCSI_PORT_INTERRUPT_DATA, *PSCSI_PORT_INTERRUPT_DATA;
@@ -148,6 +149,7 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     UCHAR TargetId;
     UCHAR Lun;
     struct _SCSI_PORT_LUN_EXTENSION* ReadyLogicalUnit;
+    struct _SCSI_PORT_LUN_EXTENSION* AbortLogicalUnit;
     PSCSI_PORT_SRB_DATA CurrentUntaggedRequest;
 } SCSI_PORT_LUN_EXTENSION, *PSCSI_PORT_LUN_EXTENSION;
 
@@ -233,6 +235,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     BOOLEAN Dma32BitAddresses;
     KMUTEX EnumMutex;
     FAST_MUTEX EnumFastMutex;
+    LONG RunEnumSync;
     WORK_QUEUE_ITEM EnumWorkItem;
     PSCSI_PORT_ENUM_REQUEST AsyncEnumRequest;
     SCSI_PORT_ENUM_REQUEST EnumRequest;
@@ -281,6 +284,12 @@ typedef struct _SCSI_PORT_CONFIG_CONTEXT
     PVOID AccessRanges;
     PORT_CONFIGURATION_INFORMATION PortConfig;
 } SCSI_PORT_CONFIG_CONTEXT, *PSCSI_PORT_CONFIG_CONTEXT;
+
+typedef struct _SCSI_PORT_GET_INT_STATE_CONTEXT
+{
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_INTERRUPT_DATA InterruptData;
+} SCSI_PORT_GET_INT_STATE_CONTEXT, *PSCSI_PORT_GET_INT_STATE_CONTEXT;
 
 /* FUNCTIONS ****************************************************************/
 
