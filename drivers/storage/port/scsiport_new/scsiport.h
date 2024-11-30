@@ -114,6 +114,12 @@ BOOLEAN
     _In_ PVOID Context
 );
 
+typedef struct _SCSI_PORT_DEVICE_MAP_ENTRY
+{
+    HANDLE ScsiBusHandle;
+    HANDLE InitiatorIdHandle;
+} SCSI_PORT_DEVICE_MAP_ENTRY, *PSCSI_PORT_DEVICE_MAP_ENTRY;
+
 typedef struct _COMMON_EXTENSION
 {
     PDEVICE_OBJECT SelfDevice;
@@ -249,6 +255,8 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PSCSI_PORT_SRB_DATA SrbData;
     BOOLEAN IsSrbDataList;
     BOOLEAN LowerBusInterfaceStandardRetrieved;
+    HANDLE ScsiPortKeyHandle;
+    PSCSI_PORT_DEVICE_MAP_ENTRY DeviceMapEntry;
     BUS_INTERFACE_STANDARD Interface;
     PWCHAR DeviceNameBuffer;
     GUID BusTypeGuid;

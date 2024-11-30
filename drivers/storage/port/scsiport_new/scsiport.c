@@ -3405,11 +3405,128 @@ SpBuildLogicalUnitDeviceMapEntry(
 
 NTSTATUS
 NTAPI
-SpBuildAdapterDeviceMap(
-    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+SpCreateNumericKey(
+    _In_ HANDLE RootKeyHandle,
+    _In_ ULONG Value,
+    _In_ PWSTR KeyName,
+    _In_ BOOLEAN IsNewKey,
+    _Out_ HANDLE* OutHandle,
+    _Out_ ULONG* OutDisposition)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpBuildAdapterDeviceMap(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    PSCSI_PORT_DRIVER_EXTENSION DriverExtension;
+    PSCSI_PORT_DEVICE_MAP_ENTRY CurrentEntry;
+    PUNICODE_STRING ServicePath;
+    UNICODE_STRING ValueName;
+    WCHAR NameBuffer[0x20];
+    PWCHAR pChar;
+    ULONG Disposition;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpBuildAdapterDeviceMap: %p\n", DeviceExtension);
+
+    DriverExtension = IoGetDriverObjectExtension(DeviceExtension->CommonExtension.SelfDevice->DriverObject, ScsiPortInitialize);
+    ASSERT(DriverExtension != NULL);
+
+    if (!ScsiDeviceMapKey)
+    {
+        DPRINT1("SpBuildAdapterDeviceMap: STATUS_UNSUCCESSFUL\n");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    Status = SpCreateNumericKey(ScsiDeviceMapKey,
+                                DeviceExtension->PortScsiPort,
+                                L"Scsi Port ",
+                                1,
+                                &DeviceExtension->ScsiPortKeyHandle,
+                                &Disposition);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpBuildAdapterDeviceMap: %p\n", Status);
+        return Status;
+    }
+
+    if (IsEqualGUID(&GUID_BUS_TYPE_PCMCIA, &DeviceExtension->BusTypeGuid))
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    ServicePath = &DriverExtension->RegistryPath;
+    ASSERT(ServicePath != NULL);
+
+    RtlInitUnicodeString(&ValueName, L"Driver");
+
+    pChar = Add2Ptr(ServicePath->Buffer, (ServicePath->Length - 2));
+    while (*pChar != L'\\')
+    {
+        if (pChar <= ServicePath->Buffer)
+            break;
+
+        pChar--;
+    }
+
+    if (*pChar == '\\')
+    {
+        pChar++;
+
+        for (ix = 0; ix < 30; ix++)
+        {
+            NameBuffer[ix] = *pChar;
+
+            pChar++;
+            if (pChar >= &ServicePath->Buffer[ServicePath->Length / 2])
+                break;
+        }
+
+        ix++;
+
+        NameBuffer[ix] = 0;
+
+        ZwSetValueKey(DeviceExtension->ScsiPortKeyHandle, &ValueName, 0, REG_SZ, NameBuffer, ((ix + 1) * sizeof(WCHAR)));
+    }
+
+    DeviceExtension->DeviceMapEntry = ExAllocatePoolWithTag(PagedPool,
+                                                            (DeviceExtension->NumberOfBuses * sizeof(SCSI_PORT_DEVICE_MAP_ENTRY)),
+                                                            'VPcS');
+    if (!DeviceExtension->DeviceMapEntry)
+    {
+        DPRINT1("SpBuildAdapterDeviceMap: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(DeviceExtension->DeviceMapEntry, (DeviceExtension->NumberOfBuses * sizeof(SCSI_PORT_DEVICE_MAP_ENTRY)));
+
+    for (ix = 0; ix < DeviceExtension->NumberOfBuses; ix++)
+    {
+        CurrentEntry = &DeviceExtension->DeviceMapEntry[ix];
+
+        Status = SpCreateNumericKey(DeviceExtension->ScsiPortKeyHandle,
+                                    ix,
+                                    L"Scsi Bus ",
+                                    1,
+                                    &CurrentEntry->ScsiBusHandle,
+                                    &Disposition);
+        if (NT_SUCCESS(Status))
+        {
+            SpCreateNumericKey(CurrentEntry->ScsiBusHandle,
+                               DeviceExtension->PortConfig->InitiatorBusId[ix],
+                               L"Initiator Id ",
+                               1,
+                               &CurrentEntry->InitiatorIdHandle,
+                               &Disposition);
+        }
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
