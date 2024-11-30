@@ -675,14 +675,72 @@ ScsiPortStartIo(
 
 VOID
 FASTCALL
+SpFreeSrbData(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_SRB_DATA SrbData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+FASTCALL
+SpFreeBypassSrbData(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_SRB_DATA SrbData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+FASTCALL
 SpCompleteRequest(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp,
     _In_ PVOID Context,
     _In_ CCHAR PriorityBoost)
 {
-    //PSCSI_PORT_SRB_DATA SrbData = Context;
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_SRB_DATA SrbData = Context;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+
+    DPRINT("SpCompleteRequest: %p, %p\n", DeviceExtension, SrbData);
+
+    if (SrbData)
+    {
+        ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+        ASSERT(SrbData->ScatterGatherList == NULL);
+        ASSERT(SrbData->CurrentIrp == Irp);
+
+        LunExtension = SrbData->LunExtension;
+        ASSERT(LunExtension != NULL);
+
+        ASSERT(LunExtension->CurrentUntaggedRequest != SrbData);
+        ASSERT((((PCOMMON_EXTENSION) (LunExtension->CommonExtension.SelfDevice)->DeviceExtension)->IsPdo));
+
+        ASSERT(SrbData->RemappedMdl == NULL);
+
+        ASSERTMSG("Attempt to complete blocked request: ", ((LunExtension->ActiveFailedRequest != SrbData) && (LunExtension->BlockedFailedRequest != SrbData)));
+
+        if (SrbData->CurrentSrb->Function == 0x18 || SrbData->CurrentSrb->Function == 0x19)
+        {
+            ASSERT(LunExtension->CurrentLockRequest == SrbData);
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        SrbData->CurrentSrb->OriginalRequest = SrbData->CurrentIrp;
+        SrbData->CurrentIrp = NULL;
+        SrbData->CurrentSrb = NULL;
+
+        ASSERT(SrbData->FreeRoutine != NULL);
+        ASSERT((SrbData->FreeRoutine == SpFreeSrbData) || (SrbData->FreeRoutine == SpFreeBypassSrbData));
+
+        SrbData->FreeRoutine(LunExtension->DeviceExtension, SrbData);
+        SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, Irp);
+    }
+
+    IoCompleteRequest(Irp, PriorityBoost);
 }
 
 NTSTATUS
@@ -2336,15 +2394,6 @@ SpAllocateQueueTagList(
     }
 
     return STATUS_SUCCESS;
-}
-
-VOID
-FASTCALL
-SpFreeSrbData(
-    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
-    _In_ PSCSI_PORT_SRB_DATA SrbData)
-{
-    UNIMPLEMENTED_DBGBREAK();
 }
 
 PVOID

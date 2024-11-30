@@ -73,11 +73,13 @@ typedef struct _SCSI_PORT_SRB_DATA
     LIST_ENTRY Link;
     ULONG Flags;
     struct _SCSI_PORT_LUN_EXTENSION* LunExtension;
+    PIRP CurrentIrp;
     PSCSI_REQUEST_BLOCK CurrentSrb;
     PVOID CompletedRequests;
     ULONG OriginalDataTransferLength;
     struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
     LONG QueueTag;
+    PMDL RemappedMdl;
     PVOID ScatterGatherList;
 } SCSI_PORT_SRB_DATA, *PSCSI_PORT_SRB_DATA;
 
@@ -156,11 +158,15 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     UCHAR PathId;
     UCHAR TargetId;
     UCHAR Lun;
+    struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
+    PVOID CurrentLockRequest;
     struct _SCSI_PORT_LUN_EXTENSION* ReadyLogicalUnit;
     struct _SCSI_PORT_LUN_EXTENSION* AbortLogicalUnit;
     LONG RequestTimeoutCounter;
     LIST_ENTRY SrbDataList;
     PSCSI_PORT_SRB_DATA CurrentUntaggedRequest;
+    PVOID ActiveFailedRequest;
+    PVOID BlockedFailedRequest;
 } SCSI_PORT_LUN_EXTENSION, *PSCSI_PORT_LUN_EXTENSION;
 
 typedef struct _SCSI_PORT_LUN_ENTRY
