@@ -3396,11 +3396,36 @@ SpWmiInitializeSpRegInfo(
 
 NTSTATUS
 NTAPI
-SpBuildDeviceMapEntry(
-    _In_ PVOID DeviceObjectExtension)
+SpBuildLogicalUnitDeviceMapEntry(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpBuildAdapterDeviceMap(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpBuildDeviceMapEntry(
+    _In_ PVOID DeviceObjectExtension)
+{
+    PCOMMON_EXTENSION CommonExtension = DeviceObjectExtension;
+
+    PAGED_CODE();
+    DPRINT("SpBuildDeviceMapEntry: %p\n", DeviceObjectExtension);
+
+    if (CommonExtension->IsPdo)
+        return SpBuildLogicalUnitDeviceMapEntry(DeviceObjectExtension);
+
+    return SpBuildAdapterDeviceMap(DeviceObjectExtension);
 }
 
 NTSTATUS
