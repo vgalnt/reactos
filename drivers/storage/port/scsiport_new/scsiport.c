@@ -3407,14 +3407,53 @@ NTSTATUS
 NTAPI
 SpCreateNumericKey(
     _In_ HANDLE RootKeyHandle,
-    _In_ ULONG Value,
-    _In_ PWSTR KeyName,
+    _In_ ULONG NumericValue,
+    _In_ PWSTR String,
     _In_ BOOLEAN IsNewKey,
     _Out_ HANDLE* OutHandle,
     _Out_ ULONG* OutDisposition)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING NumericKeyName;
+    UNICODE_STRING IntegerUnicode;
+    WCHAR NumericKeyBuffer[0x40];
+    WCHAR IntegerBuffer[0x10];
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpCreateNumericKey: %d, '%S'\n", NumericValue, String);
+
+    NumericKeyName.Length = 0;
+    NumericKeyName.MaximumLength = 0x40;
+    NumericKeyName.Buffer = NumericKeyBuffer;
+
+    RtlInitUnicodeString(&IntegerUnicode, String);
+    RtlCopyUnicodeString(&NumericKeyName, &IntegerUnicode);
+
+    IntegerUnicode.Length = 0;
+    IntegerUnicode.MaximumLength = 0x10;
+    IntegerUnicode.Buffer = IntegerBuffer;
+
+    Status = RtlIntegerToUnicodeString(NumericValue, 10, &IntegerUnicode);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpCreateNumericKey: Status %X\n", Status);
+        return Status;
+    }
+
+    RtlAppendUnicodeStringToString(&NumericKeyName, &IntegerUnicode);
+    InitializeObjectAttributes(&ObjectAttributes, &NumericKeyName, OBJ_CASE_INSENSITIVE, RootKeyHandle, NULL);
+
+    if (IsNewKey)
+    {
+        return ZwCreateKey(OutHandle, (KEY_READ | KEY_WRITE), &ObjectAttributes, 0, NULL, REG_OPTION_VOLATILE, OutDisposition);
+    }
+
+    Status = ZwOpenKey(OutHandle, (KEY_READ | KEY_WRITE), &ObjectAttributes);
+
+    *OutDisposition = REG_OPENED_EXISTING_KEY;
+
+    return Status;
 }
 
 NTSTATUS
