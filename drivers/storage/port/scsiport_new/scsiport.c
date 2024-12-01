@@ -988,8 +988,44 @@ SpGetRegistryValue(
     _In_ PWSTR SourceString,
     _Out_ PKEY_VALUE_FULL_INFORMATION* OutKeyValueInfo)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PKEY_VALUE_FULL_INFORMATION KeyValueInfo;
+    UNICODE_STRING DestinationString;
+    ULONG ResultLength;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpGetRegistryValue: '%S'\n", SourceString);
+
+    RtlInitUnicodeString(&DestinationString, SourceString);
+
+    Status = ZwQueryValueKey(KeyHandle, &DestinationString, KeyValueFullInformation, 0, 0, &ResultLength);
+    if (Status != STATUS_BUFFER_OVERFLOW && Status != STATUS_BUFFER_TOO_SMALL)
+    {
+        DPRINT1("SpGetRegistryValue: Status %X\n", Status);
+        *OutKeyValueInfo = NULL;
+        return Status;
+    }
+
+    KeyValueInfo = ExAllocatePoolWithTag(NonPagedPool, ResultLength, 'RPcS');
+    if (!KeyValueInfo)
+    {
+        DPRINT1("SpGetRegistryValue: STATUS_INSUFFICIENT_RESOURCES\n");
+        *OutKeyValueInfo = NULL;
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    Status = ZwQueryValueKey(KeyHandle, &DestinationString, KeyValueFullInformation, KeyValueInfo, ResultLength, &ResultLength);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpGetRegistryValue: Status %X\n", Status);
+        ExFreePoolWithTag(KeyValueInfo, 'RPcS');
+        *OutKeyValueInfo = NULL;
+        return Status;
+    }
+
+    *OutKeyValueInfo = KeyValueInfo;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
