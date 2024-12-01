@@ -1106,7 +1106,40 @@ SpSetVerificationMarks(
     _In_ UCHAR PathId,
     _In_ UCHAR TargetId)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_LUN_ENTRY LunEntry;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    KIRQL Irql;
+    ULONG ix;
+
+    PAGED_CODE();
+    DPRINT("SpSetVerificationMarks: %p, %X, %X\n", DeviceExtension, PathId, TargetId);
+
+    ASSERT(SpPAGELOCKLockCount != 0);
+
+    KeRaiseIrql(DISPATCH_LEVEL, &Irql);
+
+    LunEntry = DeviceExtension->LunList;
+    ix = 8;
+    do
+    {
+        KeAcquireSpinLockAtDpcLevel(&LunEntry->SpinLock);
+
+        for (LunExtension = LunEntry->LunExtension; LunExtension; LunExtension = LunExtension->NextLogicalUnit)
+        {
+            ASSERT(LunExtension->IsTemporary == FALSE);
+
+            if (LunExtension->PathId == PathId && LunExtension->TargetId == TargetId)
+                LunExtension->NeedsVerification = 1;
+        }
+
+        KeReleaseSpinLockFromDpcLevel(&LunEntry->SpinLock);
+
+        LunEntry++;
+        ix--;
+    }
+    while (ix);
+
+    KeLowerIrql(Irql);
 }
 
 NTSTATUS
