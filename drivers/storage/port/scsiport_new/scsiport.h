@@ -175,14 +175,18 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     PVOID SpecificLuExtension;
     struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
     PVOID CurrentLockRequest;
+    struct _SCSI_PORT_LUN_EXTENSION* NextLogicalUnit;
     struct _SCSI_PORT_LUN_EXTENSION* ReadyLogicalUnit;
     struct _SCSI_PORT_LUN_EXTENSION* AbortLogicalUnit;
     LONG RequestTimeoutCounter;
     LIST_ENTRY SrbDataList;
     PSCSI_PORT_SRB_DATA CurrentUntaggedRequest;
     UCHAR QueueDepth;
+    INQUIRYDATA InquiryData;
     PVOID ActiveFailedRequest;
     PVOID BlockedFailedRequest;
+    PLUN_LIST TargetLunList;
+    ULONG SpecialTargetList[6];
     ANSI_STRING SerialNumber;
     PVPD_IDENTIFICATION_PAGE DeviceIdentifierPage;
     ULONG DeviceIdentifierPageSize;
@@ -346,6 +350,25 @@ typedef struct _SCSI_PORT_GET_INT_STATE_CONTEXT
     PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
     PSCSI_PORT_INTERRUPT_DATA InterruptData;
 } SCSI_PORT_GET_INT_STATE_CONTEXT, *PSCSI_PORT_GET_INT_STATE_CONTEXT;
+
+typedef union _LUN_LIST_LENGTH
+{
+    UCHAR LunListLength[4];
+    ULONG AsUlong;
+} LUN_LIST_LENGTH, *PLUN_LIST_LENGTH;
+
+typedef union _LUN_LIST_ENTRY
+{
+    UCHAR LunListEntry[2];
+    USHORT AsUshort;
+} LUN_LIST_ENTRY, *PLUN_LIST_ENTRY;
+
+typedef struct _SCSI_PORT_LUN_LIST
+{
+    UCHAR LunListLength[4];
+    UCHAR Reserved[4];
+    UCHAR Lun[0x10][8];
+} SCSI_PORT_LUN_LIST, *PSCSI_PORT_LUN_LIST;
 
 /* FUNCTIONS ****************************************************************/
 

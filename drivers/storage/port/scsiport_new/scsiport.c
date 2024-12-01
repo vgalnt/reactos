@@ -39,6 +39,29 @@ PDRIVER_DISPATCH AdapterMajorFunctionTable[IRP_MJ_MAXIMUM_FUNCTION + 1];
 
 DEFINE_GUID(GUID_DEVINTERFACE_STORAGEPORT, 0x2ACCFE60, 0xC130, 0x11D2, 0xB0, 0x82, 0x00, 0xA0, 0xC9, 0x1E, 0xFB, 0x8B);
 
+SCSI_PORT_LUN_LIST ScsiPortDefaultLunList =
+{
+    {0, 0, 0, 0x80},
+    {0, 0, 0, 0},
+    {{ 0, 0, 0, 0, 0, 0, 0, 0},
+     { 0, 1, 0, 0, 0, 0, 0, 0},
+     { 0, 2, 0, 0, 0, 0, 0, 0},
+     { 0, 3, 0, 0, 0, 0, 0, 0},
+     { 0, 4, 0, 0, 0, 0, 0, 0},
+     { 0, 5, 0, 0, 0, 0, 0, 0},
+     { 0, 6, 0, 0, 0, 0, 0, 0},
+     { 0, 7, 0, 0, 0, 0, 0, 0},
+     { 0, 0, 0, 0, 0, 0, 0, 0},
+     { 0, 0, 0, 0, 0, 0, 0, 0},
+     { 0, 0, 0, 0, 0, 0, 0, 0},
+     { 0, 0, 0, 0, 0, 0, 0, 0},
+     { 0, 0, 0, 0, 0, 0, 0, 0},
+     { 0, 0, 0, 0, 0, 0, 0, 0},
+     { 0, 0, 0, 0, 0, 0, 0, 0},
+     { 0, 0, 0, 0, 0, 0, 0, 0}
+    }
+};
+
 /* FUNCTIONS *****************************************************************/
 
 ULONG
@@ -1144,6 +1167,49 @@ SpSetVerificationMarks(
 
 NTSTATUS
 NTAPI
+SpInquireLogicalUnit(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR PathId,
+    _In_ UCHAR TargetId,
+    _In_ UCHAR Lun,
+    _In_ BOOLEAN Param5,
+    _In_ PSCSI_PORT_LUN_EXTENSION RescanLun,
+    _Out_ PSCSI_PORT_LUN_EXTENSION* OutLunExtension,
+    _Out_ BOOLEAN* OutIsCheckingNext)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpPrepareLogicalUnitForReuse(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+SpClearVerificationMark(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+IssueReportLuns(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _Out_ PLUN_LIST* OutLunList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 SpScanTarget(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ UCHAR PathId,
@@ -1151,8 +1217,186 @@ SpScanTarget(
     _In_ BOOLEAN IsScanDisconnectedDevices,
     _In_ PSCSI_PORT_LUN_EXTENSION RescanLun)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_LUN_EXTENSION LunExtensionZero;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PLUN_LIST LunList = NULL;
+    LUN_LIST_ENTRY Entry;
+    LUN_LIST_LENGTH Luns;
+    ULONG ix = 0;
+    USHORT Lun;
+    BOOLEAN IsCheckingNext;
+    BOOLEAN IsSavingLunList;
+    BOOLEAN IsSparseLuns;
+    NTSTATUS status;
+    NTSTATUS Status;
+
+    //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:   Beginning scan of target %x\n", TargetId);
+    DPRINT("SpScanTarget: Beginning scan of target %X\n", TargetId);
+
+    ASSERT(RescanLun->CommonExtension.MajorFunction == DeviceMajorFunctionTable);
+
+    status = SpInquireLogicalUnit(DeviceExtension, PathId, TargetId, 0, 1, RescanLun, &LunExtensionZero, &IsCheckingNext);
+    DPRINT("SpScanTarget: status %X\n", status);
+
+    Status = SpPrepareLogicalUnitForReuse(RescanLun);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT("SpScanTarget: Status %X\n", Status);
+        RescanLun = 0;
+    }
+
+    if (!NT_SUCCESS(status) && (!IsCheckingNext || !LunExtensionZero))
+    {
+        //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:    Lun 0 not found - terminating scan (status %#08lx)\n", status);
+        DPRINT("SpScanTarget: Lun 0 not found - terminating scan (status %X)\n", status);
+        return Status;
+    }
+
+    SpClearVerificationMark(LunExtensionZero);
+
+    if (LunExtensionZero->SpecialTargetList[1])
+    {
+        //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:    Target (%x,%x,*) is listed as having only one lun\n", PathId, TargetId);
+        DPRINT("SpScanTarget: Target (%X,%X,*) is listed as having only one lun\n", PathId, TargetId);
+        return Status;
+    }
+
+    RescanLun->CommonExtension.MajorFunction = LunExtensionZero->CommonExtension.MajorFunction;
+
+    if (LunExtensionZero->SpecialTargetList[0] != 0)
+    {
+        //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:    Target (%x,%x,*) will be checked for sparse luns\n", PathId, TargetId);
+        DPRINT("SpScanTarget: Target (%X:%X:*) will be checked for sparse luns\n", PathId, TargetId);
+    }
+
+    if (LunExtensionZero->InquiryData.HiSupport || LunExtensionZero->SpecialTargetList[2])
+    {
+         //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:    Target (%x,%x,*) may support REPORT_LUNS\n", PathId, TargetId);
+         DPRINT("SpScanTarget: Target (%X:%X:*) may support REPORT_LUNS\n", PathId, TargetId);
+
+         IsSavingLunList = 1;
+
+         status = IssueReportLuns(LunExtensionZero, &LunList);
+         if (!NT_SUCCESS(status))
+         {
+             //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:    Target (%x,%x,*) returned  %#08lx to REPORT_LUNS command - using old list\n", PathId, TargetId, status);
+             DPRINT("SpScanTarget: Target (%X:%X:*) returned  %X to REPORT_LUNS command - using old list\n", PathId, TargetId, status);
+
+             LunList = LunExtensionZero->TargetLunList;
+         }
+
+        if (LunList)
+        {
+            //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:    Target (%x,%x,*) will be checked for sparse luns(2)\n", PathId, TargetId);
+            DPRINT("SpScanTarget:    Target (%X,%X,*) will be checked for sparse luns(2)\n", PathId, TargetId);
+            IsSparseLuns = 1;
+        }
+    }
+
+    if (!LunList)
+    {
+        //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:    Target (%x,%x,*) will use default lun list\n", PathId, TargetId);
+        DPRINT("SpScanTarget: Target (%X,%X,*) will use default lun list\n", PathId, TargetId);
+
+        LunList = (PLUN_LIST)&ScsiPortDefaultLunList;
+
+        IsSavingLunList = 0;
+        IsSparseLuns = (LunExtensionZero->SpecialTargetList[0] != 0);
+    }
+
+    Luns.LunListLength[0]  = LunList->LunListLength[3];
+    Luns.LunListLength[1] |= LunList->LunListLength[2];
+    Luns.LunListLength[2] |= LunList->LunListLength[1];
+    Luns.LunListLength[3] |= LunList->LunListLength[0];
+    Luns.AsUlong /= 8;
+
+    //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:    Target (%x,%x,*) has reported %d luns\n", PathId, TargetId, Luns.AsUlong);
+    DPRINT("SpScanTarget: Target (%X,%X,*) has reported %X luns (%X, %X)\n", PathId, TargetId, Luns.AsUlong, IsSparseLuns, IsSavingLunList);
+
+    for (ix = 0; ix < Luns.AsUlong; ix++)
+    {
+        Entry.LunListEntry[0] = LunList->LunListLength[1];
+        Entry.LunListEntry[1] = LunList->LunListLength[0];
+
+        Lun = Entry.AsUshort & 0x3FFF;
+
+        //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:     Checking lun %I64lx (%x): ", *(PULONGLONG)(LunList->Lun[ix]), Lun);
+        DPRINT("SpScanTarget: Checking lun %I64X (%X): ", *(PULONGLONG)(LunList->Lun[ix]), Lun);
+
+        if (!Lun)
+        {
+            //ScsiDebugPrintInt(EnumDebug, "Skipping LUN 0\n");
+            DPRINT("Skipping LUN 0\n");
+            continue;
+        }
+
+        if (Lun < DeviceExtension->PortConfig->MaximumNumberOfLogicalUnits)
+        {
+            status = SpInquireLogicalUnit(DeviceExtension, PathId, TargetId, Lun, IsScanDisconnectedDevices, RescanLun, &LunExtension, &IsCheckingNext);
+            if (RescanLun)
+            {
+                Status = SpPrepareLogicalUnitForReuse(RescanLun);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("SpScanTarget: Status %X\n", Status);
+                    RescanLun = 0;
+                }
+            }
+
+            if (!NT_SUCCESS(status))
+            {
+                //ScsiDebugPrintInt(EnumDebug, "inquiry returned %#08lx.", status);
+                DPRINT("inquiry returned %#08lx.", status);
+
+                if (!IsSparseLuns && !IsCheckingNext)
+                {
+                    //ScsiDebugPrintInt(EnumDebug, "Aborting\n");
+                    DPRINT("Aborting\n");
+                    break;
+                }
+
+                //ScsiDebugPrintInt(EnumDebug, " - checking next (%c%c)\n", IsSparseLuns != 0 ? 0x73 : 0x20, IsCheckingNext != 0 ? 0x63 : 0x20);//'s' 'c'
+                DPRINT(" - checking next (%c%c)\n", IsSparseLuns != 0 ? 's' : ' ', IsCheckingNext != 0 ? 'c' : ' ');
+            }
+            else
+            {
+                //ScsiDebugPrintInt(EnumDebug, "Inquiry succeeded\n");
+                DPRINT("Inquiry succeeded\n");
+                SpClearVerificationMark(LunExtension);
+            }
+        }
+        else
+        {
+            //ScsiDebugPrintInt(EnumDebug, "Skipping LUN out of range (> %x)\n", DeviceExtension->PortConfig->MaximumNumberOfLogicalUnits);
+            DPRINT("Skipping LUN out of range (> %X)\n", DeviceExtension->PortConfig->MaximumNumberOfLogicalUnits);
+        }
+    }
+
+    if (IsSavingLunList)
+    {
+        //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:   Saving LUN list %#08lx\n", LunList);
+        DPRINT("SpScanTarget: Saving LUN list %p\n", LunList);
+
+        ASSERT(LunExtensionZero->TargetLunList != (PLUN_LIST) &(ScsiPortDefaultLunList));
+
+        if (LunExtensionZero->TargetLunList && LunExtensionZero->TargetLunList != LunList)
+        {
+            //ScsiDebugPrintInt(EnumDebug, "SpScanTarget:   Freeing old LUN list %#08lx\n", LunExtensionZero->TargetLunList);
+            DPRINT("SpScanTarget:   Freeing old LUN list %X\n", LunExtensionZero->TargetLunList);
+
+            ExFreePoolWithTag(LunExtensionZero->TargetLunList, 0);
+        }
+
+        LunExtensionZero->TargetLunList = LunList;
+    }
+    else
+    {
+        ASSERT(LunList == (PLUN_LIST) &(ScsiPortDefaultLunList));
+    }
+
+    RescanLun->CommonExtension.MajorFunction = DeviceMajorFunctionTable;
+
+    return Status;
 }
 
 VOID
