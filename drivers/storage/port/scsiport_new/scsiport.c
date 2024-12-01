@@ -1028,13 +1028,65 @@ SpGetRegistryValue(
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+SpSignalPowerCompletion(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ UCHAR MinorFunction,
+    _In_ POWER_STATE PowerState,
+    _In_ PVOID Context,
+    _Out_ IO_STATUS_BLOCK* IoStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 SpRequestValidAdapterPowerStateSynchronous(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    SCSI_PORT_COMPLETION_CONTEXT Context;
+    POWER_STATE State;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT("SpRequestValidAdapterPowerStateSynchronous: %p\n", DeviceExtension);
+
+    ExAcquireFastMutex(&DeviceExtension->PoFastMutex);
+
+    //_SEH2_TRY;
+
+    if (DeviceExtension->CommonExtension.CurrentSystemState != 1)
+    {
+        DPRINT1("SpRequestValidAdapterPowerStateSynchronous: STATUS_UNSUCCESSFUL\n");
+        Status = STATUS_UNSUCCESSFUL;
+    }
+    else if (DeviceExtension->CommonExtension.CurrentDeviceState != 1)
+    {
+        //ScsiDebugPrintInt(1, "SpRequestValidAdapterPowerState: Requesting D0 power irp for adapter %p\n", DeviceExtension);
+        DPRINT("SpRequestValidAdapterPowerState: Requesting D0 power irp for adapter %p\n", DeviceExtension);
+
+        KeInitializeEvent(&Context.Event, SynchronizationEvent, FALSE);
+ 
+        State.DeviceState = 1;
+
+        Status = PoRequestPowerIrp(DeviceExtension->CommonExtension.SelfDevice,
+                                   IRP_MN_SET_POWER,
+                                   State,
+                                   SpSignalPowerCompletion,
+                                   &Context,
+                                   NULL);
+
+        if (Status == STATUS_PENDING)
+           KeWaitForSingleObject(&Context.Event, Executive, KernelMode, FALSE, NULL);
+
+        Status = Context.Status;
+    }
+
+    //_SEH2_FINALLY;
+
+    ExReleaseFastMutex(&DeviceExtension->PoFastMutex);
+
+    return Status;
 }
 
 PSCSI_PORT_LUN_EXTENSION
