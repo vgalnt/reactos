@@ -254,6 +254,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     LARGE_INTEGER EnumTime;
     LONG RunEnumSync;
     WORK_QUEUE_ITEM EnumWorkItem;
+    PKTHREAD CurrentThread;
     BOOLEAN EnumerationRunning;
     PSCSI_PORT_ENUM_REQUEST RequestHead;
     PSCSI_PORT_ENUM_REQUEST AsyncEnumRequest;

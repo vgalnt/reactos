@@ -767,10 +767,71 @@ SpCompleteEnumRequest(
 
 VOID
 NTAPI
+SpScanAdapter(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 SpEnumerationWorker(
     _In_ PVOID Parameter)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    VOID (NTAPI* CallBack)(PSCSI_PORT_DEVICE_EXTENSION, PSCSI_PORT_ENUM_REQUEST, NTSTATUS);
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension = Parameter;
+    PSCSI_PORT_ENUM_REQUEST EnumRequest;
+    LIST_ENTRY list;
+    PIRP Irp;
+
+    PAGED_CODE();
+    DPRINT("SpEnumerationWorker: %p\n", Parameter);
+
+    ASSERT(!(((PCOMMON_EXTENSION) (DeviceExtension->CommonExtension.SelfDevice)->DeviceExtension)->IsPdo));
+    ASSERT(DeviceExtension->EnumerationRunning == TRUE);
+
+    InitializeListHead(&list);
+
+    DeviceExtension->CurrentThread = KeGetCurrentThread();
+
+    KeWaitForSingleObject(&DeviceExtension->EnumMutex, UserRequest, KernelMode, FALSE, NULL);
+    SpScanAdapter(DeviceExtension);
+    KeReleaseMutex(&DeviceExtension->EnumMutex, FALSE);
+
+    ExAcquireFastMutex(&DeviceExtension->EnumFastMutex);
+
+    KeQuerySystemTime(&DeviceExtension->EnumTime);
+
+    SpAcquireRemoveLockEx(DeviceExtension->CommonExtension.SelfDevice, &DeviceExtension->EnumWorkItem, __FILE__, __LINE__);
+
+    for (EnumRequest = DeviceExtension->RequestHead; EnumRequest; EnumRequest = DeviceExtension->RequestHead)
+    {
+        DeviceExtension->RequestHead = EnumRequest->NextRequest;
+        EnumRequest->NextRequest = NULL;
+
+        if (!EnumRequest->IsNotCompleteEnumRequest)
+            InsertTailList(&list, &EnumRequest->Irp->Tail.Overlay.ListEntry);
+
+        SpReleaseRemoveLock(DeviceExtension->CommonExtension.SelfDevice, EnumRequest);
+
+        CallBack = EnumRequest->CompletionRoutine;
+        CallBack(DeviceExtension, EnumRequest, STATUS_SUCCESS);
+    }
+
+    DeviceExtension->EnumerationRunning = FALSE;
+    DeviceExtension->CurrentThread = NULL;
+
+    ExReleaseFastMutex(&DeviceExtension->EnumFastMutex);
+
+    ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
+
+    while (!IsListEmpty(&list))
+    {
+        Irp = CONTAINING_RECORD(RemoveHeadList(&list), IRP, Tail.Overlay.ListEntry);
+        SpCompleteEnumRequest(DeviceExtension, Irp);
+    }
+
+    SpReleaseRemoveLock(DeviceExtension->CommonExtension.SelfDevice, &DeviceExtension->EnumWorkItem);
 }
 
 NTSTATUS
