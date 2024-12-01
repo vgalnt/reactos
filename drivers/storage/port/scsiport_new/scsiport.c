@@ -1099,6 +1099,39 @@ SpCreateInitiatorLU(
     return NULL;
 }
 
+VOID
+NTAPI
+SpSetVerificationMarks(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR PathId,
+    _In_ UCHAR TargetId)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+SpScanTarget(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR PathId,
+    _In_ UCHAR TargetId,
+    _In_ BOOLEAN IsScanDisconnectedDevices,
+    _In_ PSCSI_PORT_LUN_EXTENSION RescanLun)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+SpPurgeTarget(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR PathId,
+    _In_ UCHAR TargetId)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 NTSTATUS
 NTAPI
 SpScanBus(
@@ -1107,8 +1140,52 @@ SpScanBus(
     _In_ BOOLEAN IsScanDisconnectedDevices,
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UCHAR TargetId;
+    UCHAR TargetIndex;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    //ScsiDebugPrintInt(EnumDebug, "SpScanBus: Beginning scan of bus %x\n", Bus);
+    DPRINT1("SpScanBus: Beginning scan of bus %X\n", Bus);
+
+    for (TargetIndex = 0; TargetIndex < DeviceExtension->MaximumNumberOfTargets; TargetIndex++)
+    {
+        if (DeviceExtension->IoScsiCapabilities.AdapterScansDown)
+            TargetId = (DeviceExtension->MaximumNumberOfTargets - TargetIndex - 1);
+        else
+            TargetId = TargetIndex;
+
+        //ScsiDebugPrintInt(EnumDebug, "SpScanBus: TargetIndex = %x -> targetId = %x\n", TargetIndex, TargetId);
+        DPRINT("SpScanBus: TargetIndex %X -> targetId %X\n", TargetIndex, TargetId);
+
+        ASSERT(TargetId != 0xFF);
+        ASSERT(DeviceExtension->PortConfig);
+
+        DbgPrint("SpScanBus: %X, %X\n", TargetId, DeviceExtension->PortConfig->InitiatorBusId[Bus]);
+
+        if (TargetId == DeviceExtension->PortConfig->InitiatorBusId[Bus])
+        {
+            //ScsiDebugPrintInt(EnumDebug, "SpScanBus:   Target ID matches initiator ID - skipping\n");
+            DPRINT("SpScanBus: Target ID matches initiator ID - skipping\n");
+        }
+        else
+        {
+            SpSetVerificationMarks(DeviceExtension, Bus, TargetId);
+            LunExtension->NeedsVerification = TRUE;
+
+            Status = SpScanTarget(DeviceExtension, Bus, TargetId, IsScanDisconnectedDevices, LunExtension);
+
+            SpPurgeTarget(DeviceExtension, Bus, TargetId);
+
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("SpScanBus: ret Status %X\n", Status);
+                return Status;
+            }
+        }
+    }
+
+    DPRINT1("SpScanBus: ret Status %X\n", Status);
+    return Status;
 }
 
 VOID

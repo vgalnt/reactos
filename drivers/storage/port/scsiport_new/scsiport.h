@@ -168,6 +168,7 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     BOOLEAN IsVisible;
     BOOLEAN IsMismatchedDevice;
     BOOLEAN IsTemporary;
+    ULONG NeedsVerification;
     UCHAR PathId;
     UCHAR TargetId;
     UCHAR Lun;
