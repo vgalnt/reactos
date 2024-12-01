@@ -277,6 +277,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PIRP InquiryIrp;
     PMDL InquiryMdl;
     FAST_MUTEX PoFastMutex;
+    PVOID RescanLun;
     UCHAR SenseDataBytes;
     PVOID VerifierExtension;
     PHYSICAL_ADDRESS MinimumUCXAddress;
@@ -288,6 +289,8 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     ULONG TimeoutValue;
     BOOLEAN IsRequestQueue;
     ULONG ResetHoldTime;
+    PVOID InitiatorLun;
+    UCHAR CreateInitiatorLU;
     PSCSI_PORT_LUN_EXTENSION BlockedLun;
 } SCSI_PORT_DEVICE_EXTENSION, *PSCSI_PORT_DEVICE_EXTENSION;
 

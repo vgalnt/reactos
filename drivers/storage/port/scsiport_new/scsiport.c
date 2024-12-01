@@ -765,12 +765,214 @@ SpCompleteEnumRequest(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+NTSTATUS
+NTAPI
+SpCreateLogicalUnit(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR Path,
+    _In_ UCHAR Target,
+    _In_ UCHAR Lun,
+    _In_ BOOLEAN IsTemporary,
+    _In_ BOOLEAN IsScsi1,
+    _Out_ PSCSI_PORT_LUN_EXTENSION* OutLunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+FASTCALL
+GetNextLuRequest(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+GetNextLuRequestWithoutLock(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+SpGetRegistryValue(
+    _In_ HANDLE KeyHandle,
+    _In_ PWSTR SourceString,
+    _Out_ PKEY_VALUE_FULL_INFORMATION* OutKeyValueInfo)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpRequestValidAdapterPowerStateSynchronous(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+PSCSI_PORT_LUN_EXTENSION
+NTAPI
+SpCreateInitiatorLU(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR PathId)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+NTSTATUS
+NTAPI
+SpScanBus(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR Bus,
+    _In_ BOOLEAN IsScanDisconnectedDevices,
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+SpDeleteLogicalUnit(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 VOID
 NTAPI
 SpScanAdapter(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PKEY_VALUE_FULL_INFORMATION KeyValueInfo;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    PVOID ImageSectionHandle;
+    PWSTR NameString[3];
+    UNICODE_STRING KeyName;
+    HANDLE DevInstRegKey;
+    HANDLE KeyHandle;
+    UCHAR ix;
+    BOOLEAN IsScanDisconnectedDevices = FALSE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    //ScsiDebugPrintInt(EnumDebug, "SpScanAdapter: Beginning scan of adapter %#p\n", DeviceExtension);
+    DPRINT("SpScanAdapter: %p\n", DeviceExtension);
+
+    Status = SpCreateLogicalUnit(DeviceExtension, 0xFF, 0xFF, 0xFF, TRUE, FALSE, &LunExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpScanAdapter: Status %X\n", Status);
+        return;
+    }
+
+    DPRINT("SpScanAdapter: LunExtension %p\n", LunExtension);
+
+    ImageSectionHandle = MmLockPagableDataSection(GetNextLuRequestWithoutLock);
+    InterlockedIncrement(&SpPAGELOCKLockCount);
+
+    NameString[0] = L"Scsiport";
+    NameString[1] = L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\ScsiPort\\";
+    NameString[2] = L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\Disk";
+
+    for (ix = 0; ix < 3; ix++)
+    {
+        DevInstRegKey = NULL;
+        KeyValueInfo = NULL;
+
+        if (!ix)
+        {
+            Status = IoOpenDeviceRegistryKey(DeviceExtension->LowerPdo, PLUGPLAY_REGKEY_DEVICE, KEY_READ, &DevInstRegKey);
+            if (!NT_SUCCESS(Status))
+            {
+                //ScsiDebugPrintInt(2, "SpScanAdapter: Error %#08lx opening device registry key\n", Status);
+                DPRINT1("SpScanAdapter: Status %X\n", Status);
+                continue;
+            }
+        }
+
+        RtlInitUnicodeString(&KeyName, NameString[ix]);
+        InitializeObjectAttributes(&ObjectAttributes, &KeyName, (OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE), DevInstRegKey, NULL);
+
+        Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+        if (!NT_SUCCESS(Status))
+        {
+            //ScsiDebugPrintInt(2, "SpScanAdapter: Error %#08lx opening %wZ key\n", Status, &KeyName);
+            DPRINT1("SpScanAdapter: Status %X, '%wZ'\n", Status, &KeyName);
+
+            if (DevInstRegKey)
+                ZwClose(DevInstRegKey);
+
+            continue;
+        }
+
+        Status = SpGetRegistryValue(KeyHandle, L"ScanDisconnectedDevices", &KeyValueInfo);
+
+        ZwClose(KeyHandle);
+
+        if (DevInstRegKey)
+        {
+            ZwClose(DevInstRegKey);
+            DevInstRegKey = NULL;
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            //ScsiDebugPrintInt(2, "SpScanAdapter: Error %#08lx opening %wZ\\ScanDisconnectedDevices value\n", Status, &KeyName);
+            DPRINT1("SpScanAdapter: Status %X, '%wZ\\ScanDisconnectedDevices'\n", Status, &KeyName);
+            continue;
+        }
+
+        if (KeyValueInfo->Type == REG_DWORD && *(PULONG)Add2Ptr(KeyValueInfo, KeyValueInfo->DataOffset))
+            IsScanDisconnectedDevices = TRUE;
+
+        ExFreePool(KeyValueInfo);
+    }
+
+    Status = SpRequestValidAdapterPowerStateSynchronous(DeviceExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpScanAdapter: Status %X\n", Status);
+    }
+    else
+    {
+        DPRINT("SpScanAdapter: %X, %X\n", DeviceExtension->CreateInitiatorLU, DeviceExtension->InitiatorLun);
+
+        if (DeviceExtension->CreateInitiatorLU == 1 && !DeviceExtension->InitiatorLun)
+        {
+            DeviceExtension->InitiatorLun = SpCreateInitiatorLU(DeviceExtension, (DeviceExtension->NumberOfBuses - 1));
+            if (!DeviceExtension->InitiatorLun)
+            {
+                //ScsiDebugPrintInt(0, "SpScanBus: failed to create initiator LUN for FDO %p bus %d\n", DeviceExtension->CommonExtension.SelfDevice, DeviceExtension->NumberOfBuses - 1);
+                DPRINT1("SpScanAdapter: failed to create initiator LUN for FDO %p bus %X\n", DeviceExtension->CommonExtension.SelfDevice, (DeviceExtension->NumberOfBuses - 1));
+            }
+        }
+
+        for (ix = 0; ix < DeviceExtension->NumberOfBuses; ix++)
+        {
+            Status = SpScanBus(DeviceExtension, ix, IsScanDisconnectedDevices, LunExtension);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("SpScanAdapter: Status %X\n", Status);
+                break;
+            }
+        }
+    }
+
+    InterlockedDecrement(&SpPAGELOCKLockCount);
+    MmUnlockPagableImageSection(ImageSectionHandle);
+
+    SpDeleteLogicalUnit(LunExtension);
+
+    ASSERT(DeviceExtension->RescanLun == NULL);
 }
 
 VOID
@@ -2866,14 +3068,6 @@ SpGetInterruptState(
     }
 
     return TRUE;
-}
-
-VOID
-FASTCALL
-GetNextLuRequest(
-    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
-{
-    UNIMPLEMENTED_DBGBREAK();
 }
 
 VOID
