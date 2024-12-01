@@ -776,8 +776,193 @@ SpCreateLogicalUnit(
     _In_ BOOLEAN IsScsi1,
     _Out_ PSCSI_PORT_LUN_EXTENSION* OutLunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_SRB_DATA SpecificLuExtension = NULL;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PVOID DeviceIdentifierPage = NULL;
+    UNICODE_STRING DestinationString;
+    PCHAR SerialNumber = NULL;
+    PDEVICE_OBJECT Pdo = NULL;
+    WCHAR SourceString[64];
+    PIRP Irp;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpCreateLogicalUnit: Beginning scan of adapter %p\n", DeviceExtension);
+
+    Irp = IoAllocateIrp(1, FALSE);
+    if (!Irp)
+    {
+        //ScsiDebugPrintInt(0, "SpCreateLogicalUnit: Could not allocate request sense irp\n");
+        DPRINT1("SpCreateLogicalUnit: Could not allocate request sense irp\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    DPRINT("SpCreateLogicalUnit: Request sense Irp %p\n", Irp);
+
+    if (IsTemporary)
+    {
+        swprintf(SourceString, L"%wsPort%xRescan", DeviceExtension->DeviceNameBuffer, DeviceExtension->PortScsiPort);
+        ASSERT(DeviceExtension->RescanLun == NULL);
+    }
+    else
+    {
+        swprintf(SourceString, L"%wsPort%xPath%xTarget%xLun%x", DeviceExtension->DeviceNameBuffer, DeviceExtension->PortScsiPort, Path, Target, Lun);
+    }
+
+    RtlInitUnicodeString(&DestinationString, SourceString);
+
+    if (DeviceExtension->SpecificLuExtensionSize)
+    {
+        SpecificLuExtension = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, DeviceExtension->SpecificLuExtensionSize, 'HPcS');
+        if (!SpecificLuExtension)
+        {
+            DPRINT1("SpCreateLogicalUnit: STATUS_INSUFFICIENT_RESOURCES\n");
+            IoFreeIrp(Irp);
+            *OutLunExtension = NULL;
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+        RtlZeroMemory(SpecificLuExtension, DeviceExtension->SpecificLuExtensionSize);
+
+        DPRINT("SpCreateLogicalUnit: SpecificLuExtension %p, SpecificLuExtensionSize %X\n", SpecificLuExtension, DeviceExtension->SpecificLuExtensionSize);
+    }
+
+    if (IsTemporary)
+    {
+        SerialNumber = ExAllocatePoolWithTag(PagedPool, 0xFF, 'yPcS');
+        if (!SerialNumber)
+        {
+            DPRINT1("SpCreateLogicalUnit: STATUS_INSUFFICIENT_RESOURCES\n");
+
+            if (SpecificLuExtension)
+                ExFreePoolWithTag(SpecificLuExtension, 'HPcS');
+
+            IoFreeIrp(Irp);
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        DeviceIdentifierPage = ExAllocatePoolWithTag(PagedPool, 0xFF, 'yPcS');
+        if (!DeviceIdentifierPage)
+        {
+            DPRINT1("SpCreateLogicalUnit: STATUS_INSUFFICIENT_RESOURCES\n");
+
+            if (SpecificLuExtension)
+                ExFreePoolWithTag(SpecificLuExtension, 'HPcS');
+
+            IoFreeIrp(Irp);
+            ExFreePoolWithTag(SerialNumber, 'yPcS');
+
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        RtlZeroMemory(SerialNumber, 0xFF);
+        RtlZeroMemory(DeviceIdentifierPage, 0xFF);
+    }
+
+    Status = IoCreateDevice(DeviceExtension->CommonExtension.SelfDevice->DriverObject,
+                            sizeof(SCSI_PORT_LUN_EXTENSION),
+                            &DestinationString,
+                            FILE_DEVICE_MASS_STORAGE,
+                            FILE_DEVICE_SECURE_OPEN,
+                            FALSE,
+                            &Pdo);
+    if (!NT_SUCCESS(Status))
+    {
+        //ScsiDebugPrintInt(1, "ScsiBusCreatePdo: Error %#08lx creating device object\n", Status);
+        DPRINT1("SpCreateLogicalUnit: Status %X\n", Status);
+
+        if (SpecificLuExtension)
+            ExFreePoolWithTag(SpecificLuExtension, 'HPcS');
+
+        IoFreeIrp(Irp);
+
+        ExFreePoolWithTag(SerialNumber, 'yPcS');
+        ExFreePoolWithTag(DeviceIdentifierPage, 'yPcS');
+
+        *OutLunExtension = NULL;
+
+        return Status;
+    }
+
+    Pdo->StackSize = 1;
+    Pdo->Flags |= 0x1000;
+    Pdo->Flags |= 0x10;
+
+    Pdo->AlignmentRequirement = DeviceExtension->CommonExtension.SelfDevice->AlignmentRequirement;
+
+    LunExtension = Pdo->DeviceExtension;
+    RtlZeroMemory(LunExtension, sizeof(*LunExtension));
+
+    LunExtension->CommonExtension.IsPdo = 1;
+    LunExtension->CommonExtension.SelfDevice = Pdo;
+    LunExtension->CommonExtension.LowDevice = DeviceExtension->CommonExtension.SelfDevice;
+
+    if (IsScsi1)
+        LunExtension->CommonExtension.MajorFunction = Scsi1DeviceMajorFunctionTable;
+    else
+        LunExtension->CommonExtension.MajorFunction = DeviceMajorFunctionTable;
+
+    LunExtension->CommonExtension.WmiInitialized = 0;
+
+    if (DeviceExtension->CommonExtension.WmiDataProvider)
+        LunExtension->CommonExtension.WmiDataProvider = 1;
+
+    ExInitializeNPagedLookasideList(&LunExtension->CommonExtension.LookAsideList, NULL, NULL, 0, 0x18, 'lPcS', 0x40);//FIXME
+
+    LunExtension->CommonExtension.CurrentPnpState = 0xFF;
+    LunExtension->CommonExtension.PreviousPnpState = 0xFF;
+
+    KeInitializeEvent(&LunExtension->CommonExtension.Event, SynchronizationEvent, FALSE);
+
+    LunExtension->RequestTimeoutCounter = 0xFFFFFFFF;
+    LunExtension->Port = DeviceExtension->PortScsiPort;
+    LunExtension->SpecificLuExtension = SpecificLuExtension;
+
+    LunExtension->PathId = 0xFF;
+    LunExtension->TargetId = 0xFF;
+    LunExtension->Lun = 0xFF;
+
+    LunExtension->DeviceExtension = DeviceExtension;
+    LunExtension->QueueDepth = 0xFF;
+
+    InitializeListHead(&LunExtension->SrbDataList);
+    InitializeListHead(&LunExtension->BlockedRequests);
+
+    LunExtension->CommonExtension.CurrentDeviceState = 1;
+    LunExtension->CommonExtension.CurrentSystemState = 1;
+
+    LunExtension->Capacity = 0xFFFFFFFF;
+    LunExtension->IsTemporary = IsTemporary;
+
+    LunExtension->QueueZoneCount = 4;
+    LunExtension->QueueZoneLength = 0x3FFFFFFF;
+
+    LunExtension->MinQueueSector[0] = 0;
+    LunExtension->MinQueueSector[1] = 0x3FFFFFFF;
+    LunExtension->MinQueueSector[2] = 0x7FFFFFFE;
+    LunExtension->MinQueueSector[3] = 0xBFFFFFFD;
+
+    LunExtension->MaxQueueSector[0] = 0x3FFFFFFE;
+    LunExtension->MaxQueueSector[1] = 0x7FFFFFFD;
+    LunExtension->MaxQueueSector[2] = 0xBFFFFFFC;
+    LunExtension->MaxQueueSector[3] = 0xFFFFFFFE;
+
+    LunExtension->QueueZones[0] = 1;
+    LunExtension->QueueZones[1] = 2;
+    LunExtension->QueueZones[2] = 3;
+    LunExtension->QueueZones[3] = 0;
+
+    RtlInitAnsiString(&LunExtension->SerialNumber, SerialNumber);
+
+    if (SerialNumber)
+        LunExtension->SerialNumber.MaximumLength = 0xFF;
+
+    LunExtension->DeviceIdentifierPage = DeviceIdentifierPage;
+
+    Pdo->Flags &= ~DO_DEVICE_INITIALIZING;
+
+    *OutLunExtension = LunExtension;
+
+    return Status;
 }
 
 VOID

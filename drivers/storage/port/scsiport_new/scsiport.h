@@ -155,9 +155,17 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
 {
     COMMON_EXTENSION CommonExtension;
     ULONG LuFlags;
+    ULONG Port;
+    BOOLEAN DeviceClaimed;
+    BOOLEAN IsEnumerated;
+    BOOLEAN IsMissing;
+    BOOLEAN IsVisible;
+    BOOLEAN IsMismatchedDevice;
+    BOOLEAN IsTemporary;
     UCHAR PathId;
     UCHAR TargetId;
     UCHAR Lun;
+    PVOID SpecificLuExtension;
     struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
     PVOID CurrentLockRequest;
     struct _SCSI_PORT_LUN_EXTENSION* ReadyLogicalUnit;
@@ -165,8 +173,23 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     LONG RequestTimeoutCounter;
     LIST_ENTRY SrbDataList;
     PSCSI_PORT_SRB_DATA CurrentUntaggedRequest;
+    UCHAR QueueDepth;
     PVOID ActiveFailedRequest;
     PVOID BlockedFailedRequest;
+    ANSI_STRING SerialNumber;
+    PVPD_IDENTIFICATION_PAGE DeviceIdentifierPage;
+    ULONG DeviceIdentifierPageSize;
+    ULONG Capacity;
+    ULONG QueueZoneCount;
+    ULONG QueueZoneLength;
+    ULONG MinQueueSector[4];
+    ULONG MaxQueueSector[4];
+    ULONG CurrentQueueZone;
+    ULONG QueuePerZone;
+    ULONG QueueSector[4];
+    UCHAR QueuePerBlock[4];
+    ULONG QueueZones[4];
+    LIST_ENTRY BlockedRequests;
 } SCSI_PORT_LUN_EXTENSION, *PSCSI_PORT_LUN_EXTENSION;
 
 typedef struct _SCSI_PORT_LUN_ENTRY
