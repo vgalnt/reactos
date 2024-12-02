@@ -1263,7 +1263,40 @@ SpAddLogicalUnitToBin(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_LUN_EXTENSION CurrentLun;
+    PSCSI_PORT_LUN_ENTRY LunEntry;
+    KIRQL Irql;
+
+    DPRINT("SpAddLogicalUnitToBin: %p %p\n", DeviceExtension, LunExtension);
+
+    LunEntry = &DeviceExtension->LunList[(LunExtension->TargetId + LunExtension->Lun) % 8];
+
+    KeAcquireSpinLock(&DeviceExtension->SpinLock, &Irql);
+    KeAcquireSpinLockAtDpcLevel(&LunEntry->SpinLock);
+
+    if (LunEntry->LunExtension)
+    {
+        CurrentLun = LunEntry->LunExtension;
+        do
+        {
+            if (CurrentLun == LunExtension)
+                break;
+
+            CurrentLun = CurrentLun->NextLogicalUnit;
+        }
+        while (CurrentLun);
+
+        ASSERTMSG("Logical Unit already in list: ", CurrentLun == NULL);
+    }
+
+    ASSERTMSG("Logical Unit not properly initialized: ", (LunExtension->DeviceExtension == DeviceExtension));
+    ASSERTMSG("Logical Unit is already on a list: ", LunExtension->NextLogicalUnit == NULL);
+
+    LunExtension->NextLogicalUnit = LunEntry->LunExtension;
+    LunEntry->LunExtension = LunExtension;
+
+    KeReleaseSpinLockFromDpcLevel(&LunEntry->SpinLock);
+    KeReleaseSpinLock(&DeviceExtension->SpinLock, Irql);
 }
 
 VOID
