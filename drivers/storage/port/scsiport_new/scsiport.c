@@ -2854,7 +2854,26 @@ SpSrbIsBypassRequest(
     _In_ PSCSI_REQUEST_BLOCK Srb,
     _In_ UCHAR LuFlags)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ASSERT((LuFlags & 0x41) != 0x41);//(LU_QUEUE_FROZEN | LU_QUEUE_LOCKED)
+
+    if (!(Srb->SrbFlags & 0x80010))
+        return FALSE;
+
+    if (!(Srb->SrbFlags & 0x80000))
+        return TRUE;
+
+    //ScsiDebugPrintInt(2, "SpSrbIsBypassRequest: Srb %#08lx is marked to bypass locked queue\n", Srb);
+    DPRINT("SpSrbIsBypassRequest: Srb %p is marked to bypass locked queue\n", Srb);
+
+    if (LuFlags & 0xC0)
+    {
+        //ScsiDebugPrintInt(1, "SpSrbIsBypassRequest: Queue is locked - %#08lx is a bypass srb\n", Srb);
+        DPRINT("SpSrbIsBypassRequest: Queue is locked %p is a bypass srb\n", Srb);
+        return TRUE;
+    }
+
+    //ScsiDebugPrintInt(3, "SpSrbIsBypassRequest: Queue is not locked - not a bypass request\n");
+    DPRINT("SpSrbIsBypassRequest: Queue is not locked - not a bypass request\n");
     return FALSE;
 }
 
