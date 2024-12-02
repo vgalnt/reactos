@@ -2681,8 +2681,31 @@ SpDispatchRequest(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    NTSTATUS Status;
+
+    DeviceExtension = LunExtension->CommonExtension.LowDevice->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Srb = IoStack->Parameters.Scsi.Srb;
+
+    DPRINT("SpDispatchRequest: %p, %p, (%X:%X) %p (%X:%X)\n",
+        DeviceExtension, LunExtension, IoStack->MajorFunction, IoStack->MinorFunction, Srb, Srb->Function, Srb->Cdb[0]);
+
+    ASSERT(((PCOMMON_EXTENSION) LunExtension->CommonExtension.SelfDevice->DeviceExtension)->IsPdo);
+    ASSERT(((PSCSI_PORT_SRB_DATA)(Srb->OriginalRequest))->Type == 0x7770);//SRB_DATA_TYPE
+
+    if (LunExtension->CommonExtension.DeviceIdleDetection)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    ASSERT(IoStack->MajorFunction == IRP_MJ_SCSI);
+
+    Status = DeviceExtension->CommonExtension.MajorFunction[IRP_MJ_SCSI](LunExtension->CommonExtension.LowDevice, Irp);
+    DPRINT("SpDispatchRequest: Status %X\n\n", Status);
+    return Status;
 }
 
 NTSTATUS
