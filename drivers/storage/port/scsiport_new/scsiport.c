@@ -1238,8 +1238,23 @@ NTAPI
 SpIsInitiatorLU(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+
+    DeviceExtension = LunExtension->DeviceExtension;
+
+    if (!DeviceExtension->PortConfig)
+        return FALSE;
+
+    if (!DeviceExtension->CreateInitiatorLU)
+        return FALSE;
+
+    if (LunExtension->PathId != DeviceExtension->NumberOfBuses)
+        return FALSE;
+
+    if (LunExtension->TargetId != DeviceExtension->PortConfig->InitiatorBusId[DeviceExtension->NumberOfBuses - 1])
+        return FALSE;
+
+    return (LunExtension->Lun == 0);
 }
 
 VOID
