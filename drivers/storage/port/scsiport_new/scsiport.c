@@ -1186,8 +1186,51 @@ GetLogicalUnitExtensionEx(
     _In_ PSTR File,
     _In_ ULONG Line)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PSCSI_PORT_LUN_EXTENSION RetLunExtension = NULL;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PSCSI_PORT_LUN_ENTRY LunEntry;
+    ULONG Idx;
+    KIRQL Irql;
+
+    DPRINT("GetLogicalUnitExtensionEx: (%p) %X, %X, %X\n", DeviceExtension, PathId, TargetId, Lun);
+
+    Idx = ((TargetId + Lun) % 8);
+    LunEntry = &DeviceExtension->LunList[Idx];
+
+    if (IsLock)
+        KeAcquireSpinLock(&DeviceExtension->LunList[Idx].SpinLock, &Irql);
+
+    for (LunExtension = LunEntry->LunExtension;
+         LunExtension;
+         LunExtension = LunExtension->NextLogicalUnit)
+    {
+        if (LunExtension->TargetId != TargetId ||
+            LunExtension->PathId != PathId ||
+            LunExtension->Lun != Lun)
+        {
+            continue;
+        }
+
+        if (RetLunExtension)
+        {
+            //ScsiDebugPrintInt(0, "GetLogicalUnitExtension: Found duplicate for (%d,%d,%d) in list: %#08lx %s & %#08lx %s\n",
+            //                  PathId, TargetId, Lun, RetLunExtension, (RetLunExtension->IsMissing ? "missing" : ""), LunExtension, (LunExtension->IsMissing ? "missing" : ""));
+            DPRINT("GetLogicalUnitExtensionEx: Found duplicate for (%X,%X,%X) in list: %p %s & %X %s\n",
+                   PathId, TargetId, Lun, RetLunExtension, (RetLunExtension->IsMissing ? "missing" : ""), LunExtension, (LunExtension->IsMissing ? "missing" : ""));
+
+            ASSERTMSG("Duplicate found in lun list - this is bad\n", FALSE);
+        }
+
+        RetLunExtension = LunExtension;
+    }
+
+    if (Tag && RetLunExtension)
+        SpAcquireRemoveLockEx(RetLunExtension->CommonExtension.SelfDevice, Tag, File, Line);
+
+    if (IsLock)
+        KeReleaseSpinLock(&DeviceExtension->LunList[Idx].SpinLock, Irql);
+
+    return RetLunExtension;
 }
 
 VOID
