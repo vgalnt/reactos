@@ -180,6 +180,8 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     struct _SCSI_PORT_LUN_EXTENSION* AbortLogicalUnit;
     LONG RequestTimeoutCounter;
     LIST_ENTRY SrbDataList;
+    PSCSI_PORT_SRB_DATA PendingRequest;
+    PSCSI_PORT_SRB_DATA BusyRequest;
     PSCSI_PORT_SRB_DATA CurrentUntaggedRequest;
     UCHAR QueueDepth;
     INQUIRYDATA InquiryData;

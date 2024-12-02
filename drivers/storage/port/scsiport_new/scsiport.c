@@ -4209,13 +4209,218 @@ ScsiPortCompletionDpc(
     while (((InterlockedCompareExchange((PLONG)&DeviceExtension->DpcFlags, 0, 0x20000)) & 4) == 4);
 }
 
+BOOLEAN
+NTAPI
+SpTimeoutSynchronized(
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+SpTransferBlockedRequestsToAdapter(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
+SpDispatchRequest(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 ScsiPortTickHandler(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PSCSI_PORT_LUN_ENTRY LunEntry;
+    PSCSI_PORT_SRB_DATA PendingSrbData;
+    PSCSI_PORT_SRB_DATA SrbData;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    PLIST_ENTRY Entry;
+    PIRP Irp;
+    LONG ix;
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    DPRINT1("ScsiPortTickHandler: %p\n", DeviceExtension);
+
+    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+
+    if (DeviceExtension->CommonExtension.WmiInitialized && DeviceExtension->CommonExtension.WmiDataProvider)
+    {
+        UNIMPLEMENTED_ONCE;
+    }
+
+    if (DeviceExtension->TimeOut > 0)
+    {
+        DeviceExtension->TimeOut--;
+
+        if (!DeviceExtension->TimeOut)
+        {
+            if (DeviceExtension->SynchronizeFunction(DeviceExtension->InterruptObject, SpTimeoutSynchronized, DeviceObject))
+            {
+                UNIMPLEMENTED_DBGBREAK();
+                //SpLogPortTimeoutError(..);
+            }
+
+            KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+        }
+    }
+
+    LunEntry = DeviceExtension->LunList;
+    ix = 8;
+
+    while (TRUE)
+    {
+        KeAcquireSpinLockAtDpcLevel(&LunEntry->SpinLock);
+        LunExtension = LunEntry->LunExtension;
+
+        DPRINT("ScsiPortTickHandler: [%X] %X, %X\n", ix, LunEntry, LunEntry->LunExtension);
+
+NextLunLunExtension:
+
+        DPRINT("ScsiPortTickHandler: %X, %X\n", LunEntry, LunEntry->LunExtension);
+
+        if (LunExtension)
+        {
+            DPRINT("ScsiPortTickHandler: %p, %X, RequestTimeoutCounter %X\n", LunExtension, LunExtension->LuFlags, LunExtension->RequestTimeoutCounter);
+
+            if (LunExtension->LuFlags & 8)
+            {
+                SrbData = LunExtension->BusyRequest;
+                ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+
+                if ((LunExtension->LuFlags & 4) || ((LunExtension->LuFlags & 0x41) && !(SrbData->CurrentSrb->SrbFlags & 0x80000)))
+                {
+                    LunExtension = LunExtension->NextLogicalUnit;
+                    goto NextLunLunExtension;
+                }
+                else
+                {
+                    //ScsiDebugPrintInt(1, "ScsiPortTickHandler: Retrying busy status request\n");
+                    DPRINT("ScsiPortTickHandler: Retrying busy status request (%X)\n", LunExtension->LuFlags);
+
+                    if (LunExtension->LuFlags & 0x20)
+                    {
+                        //ScsiDebugPrintInt(0, "ScsiPortTickHandler: Requeing pending request %p before starting busy request %p\n", LunExtension->PendingRequest, SrbData->CurrentSrb);
+                        DPRINT("ScsiPortTickHandler: Requeing pending request %p before starting busy request %p\n", LunExtension->PendingRequest, SrbData->CurrentSrb);
+
+                        PendingSrbData = LunExtension->PendingRequest;
+                        LunExtension->LuFlags &= ~0x22;
+                        LunExtension->PendingRequest = NULL;
+
+                        if (!KeInsertByKeyDeviceQueue(&LunExtension->CommonExtension.SelfDevice->DeviceQueue, &PendingSrbData->CurrentIrp->Tail.Overlay.DeviceQueueEntry, PendingSrbData->CurrentSrb->QueueSortKey))
+                            KeInsertByKeyDeviceQueue(&LunExtension->CommonExtension.SelfDevice->DeviceQueue, &PendingSrbData->CurrentIrp->Tail.Overlay.DeviceQueueEntry, PendingSrbData->CurrentSrb->QueueSortKey);
+                    }
+
+                    LunExtension->LuFlags &= ~0x18;
+                    LunExtension->BusyRequest = NULL;
+
+                    KeReleaseSpinLockFromDpcLevel(&LunEntry->SpinLock);
+
+                    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+                    IoStartPacket(DeviceObject, SrbData->CurrentIrp, NULL, NULL);
+                    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+                }
+            }
+            else if (!LunExtension->RequestTimeoutCounter)
+            {
+                LunExtension->RequestTimeoutCounter = 0xFFFFFFFF;
+
+                //ScsiDebugPrintInt(1, "ScsiPortTickHandler: Request timed out on PDO:%p\n", LunExtension->CommonExtension.SelfDevice);
+                DPRINT("ScsiPortTickHandler: Request timed out on PDO:%p\n", LunExtension->CommonExtension.SelfDevice);
+                DbgBreakPoint();
+            }
+            else if (LunExtension->RequestTimeoutCounter > 0)
+            {
+                DPRINT("ScsiPortTickHandler: %X, RequestTimeoutCounter %X\n", LunExtension, LunExtension->RequestTimeoutCounter);
+
+                LunExtension->RequestTimeoutCounter--;
+                LunExtension = LunExtension->NextLogicalUnit;
+                goto NextLunLunExtension;
+            }
+            else
+            {
+                DPRINT("ScsiPortTickHandler: %X, RequestTimeoutCounter %X\n", LunExtension, LunExtension->RequestTimeoutCounter);
+
+                if (LunExtension->LuFlags & 0x100)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+
+                LunExtension = LunExtension->NextLogicalUnit;
+                goto NextLunLunExtension;
+            }
+        }
+        else
+        {
+            KeReleaseSpinLockFromDpcLevel(&LunEntry->SpinLock);
+            LunEntry++;
+            ix--;
+            if (!ix)
+                break;
+        }
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+    while (TRUE)
+    {
+        KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SrbDataSpinLock);
+
+        if (!IsListEmpty(&DeviceExtension->BlockedRequestList))
+        {
+            Entry = RemoveHeadList(&DeviceExtension->BlockedRequestList);
+        }
+        else if (DeviceExtension->BlockedLun == (PVOID)&DeviceExtension->BlockedLun)
+        {
+            Entry = NULL;
+        }
+        else
+        {
+            SpTransferBlockedRequestsToAdapter(DeviceExtension);
+            Entry = RemoveHeadList(&DeviceExtension->BlockedRequestList);
+        }
+
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SrbDataSpinLock);
+
+        if (!Entry)
+            break;
+
+        Irp = CONTAINING_RECORD(Entry, IRP, Tail.Overlay.DeviceQueueEntry);
+        ASSERT(Irp->Type == IO_TYPE_IRP);
+
+        SrbData = SpAllocateSrbData(DeviceExtension, Irp, NULL);
+        if (!SrbData)
+            break;
+
+        DPRINT("ScsiPortTickHandler: SrbData %X\n", SrbData);
+
+        IoStack = IoGetCurrentIrpStackLocation(Irp);
+        Srb = IoStack->Parameters.Scsi.Srb;
+        SrbData->LunExtension = IoStack->DeviceObject->DeviceExtension;
+
+        ASSERT(SrbData->LunExtension->CommonExtension.IsPdo);
+
+        SrbData->CurrentIrp = Irp;
+        SrbData->CurrentSrb = Srb;
+        Srb->OriginalRequest = SrbData;
+
+        SpDispatchRequest(SrbData->LunExtension, Irp);
+    }
 }
 
 VOID
