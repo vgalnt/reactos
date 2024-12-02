@@ -1330,8 +1330,74 @@ NTAPI
 SpTranslateScsiStatus(
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UCHAR SrbStatus;
+
+    DPRINT("SpTranslateScsiStatus: %p, %X\n", Srb, Srb->SrbStatus);
+
+    SrbStatus = (Srb->SrbStatus & 0x3F);
+
+    if (SrbStatus == SRB_STATUS_NO_DEVICE)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        return STATUS_DEVICE_DOES_NOT_EXIST;
+    }
+
+    if (SrbStatus == SRB_STATUS_TIMEOUT)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_IO_TIMEOUT\n");
+        return STATUS_IO_TIMEOUT;
+    }
+
+    if (SrbStatus == SRB_STATUS_SELECTION_TIMEOUT)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_DEVICE_NOT_CONNECTED\n");
+        return STATUS_DEVICE_NOT_CONNECTED;
+    }
+
+    if (SrbStatus == SRB_STATUS_COMMAND_TIMEOUT)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_IO_TIMEOUT\n");
+        return STATUS_IO_TIMEOUT;
+    }
+
+    if (SrbStatus == SRB_STATUS_NO_HBA)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        return STATUS_DEVICE_DOES_NOT_EXIST;
+    }
+
+    if (SrbStatus == SRB_STATUS_DATA_OVERRUN)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_BUFFER_OVERFLOW\n");
+        return STATUS_BUFFER_OVERFLOW;
+    }
+
+    if (SrbStatus == SRB_STATUS_BAD_SRB_BLOCK_LENGTH)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_INVALID_DEVICE_REQUEST\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    if (SrbStatus == SRB_STATUS_INVALID_LUN)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        return STATUS_DEVICE_DOES_NOT_EXIST;
+    }
+
+    if (SrbStatus == SRB_STATUS_INVALID_TARGET_ID)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        return STATUS_DEVICE_DOES_NOT_EXIST;
+    }
+
+    if (SrbStatus == SRB_STATUS_BAD_FUNCTION)
+    {
+        DPRINT1("SpTranslateScsiStatus: STATUS_INVALID_DEVICE_REQUEST\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    DPRINT1("SpTranslateScsiStatus: STATUS_IO_DEVICE_ERROR (%X)\n", SrbStatus);
+    return STATUS_IO_DEVICE_ERROR;
 }
 
 NTSTATUS
