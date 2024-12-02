@@ -407,6 +407,12 @@ SpInitializePerformanceParams(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension
 );
 
+NTSTATUS
+NTAPI
+SpBuildDeviceMapEntry(
+    _In_ PVOID DeviceObjectExtension
+);
+
 #endif /* _SCSIPORT_H_ */
 
 /* EOF */

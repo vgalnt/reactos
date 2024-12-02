@@ -107,6 +107,15 @@ SpReleaseRemoveLock(
 
 VOID
 NTAPI
+SpWaitForRemoveLock(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PVOID Tag)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 SpCreateScsiDirectory(VOID)
 {
     OBJECT_ATTRIBUTES ObjectAttributes;
@@ -1165,6 +1174,94 @@ SpSetVerificationMarks(
     KeLowerIrql(Irql);
 }
 
+PSCSI_PORT_LUN_EXTENSION
+NTAPI
+GetLogicalUnitExtensionEx(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR PathId,
+    _In_ UCHAR TargetId,
+    _In_ UCHAR Lun,
+    _In_ PVOID Tag,
+    _In_ BOOLEAN IsLock,
+    _In_ PSTR File,
+    _In_ ULONG Line)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+VOID
+NTAPI
+SpSetLogicalUnitAddress(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ UCHAR PathId,
+    _In_ UCHAR TargetId,
+    _In_ UCHAR Lun)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+IssueInquiry(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ BOOLEAN EnableVitalProductData,
+    _In_ UCHAR PageCode,
+    _Out_ PVOID OutInquiry,
+    _Out_ UCHAR* OutBytesReturned)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+SpCheckSpecialDeviceFlags(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PINQUIRYDATA InquiryData)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+BOOLEAN
+NTAPI
+SpGetDeviceIdentifiers(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ BOOLEAN IsNewDevice)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+SpClearLogicalUnitAddress(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+BOOLEAN
+NTAPI
+SpRemoveLogicalUnit(
+    _In_ PSCSI_PORT_LUN_EXTENSION logicalUnit, UCHAR Minor)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
+SpCloneAndSwapLogicalUnit(
+    _In_ PSCSI_PORT_LUN_EXTENSION TemplateLun,
+    _In_ PINQUIRYDATA InquiryData,
+    _In_ ULONG InquiryDataSize,
+    _Out_ PSCSI_PORT_LUN_EXTENSION* OutLunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 SpInquireLogicalUnit(
@@ -1177,8 +1274,229 @@ SpInquireLogicalUnit(
     _Out_ PSCSI_PORT_LUN_EXTENSION* OutLunExtension,
     _Out_ BOOLEAN* OutIsCheckingNext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PSCSI_PORT_LUN_EXTENSION LunForSwap;
+    INQUIRYDATA InquiryData;
+    UCHAR InquiryDataSize;
+    BOOLEAN IsMismatchedDevice = FALSE;
+    BOOLEAN IsExistingDevice;
+    BOOLEAN IsNewDevice = FALSE;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpInquireLogicalUnit: %p (%X:%X:%X) %p\n", DeviceExtension, PathId, TargetId, Lun, RescanLun);
+
+    *OutLunExtension = NULL;
+    *OutIsCheckingNext = TRUE;
+
+    //ASSERT("TargetId != BreakOnTarget");
+
+    LunExtension = GetLogicalUnitExtensionEx(DeviceExtension, PathId, TargetId, Lun, SpInquireLogicalUnit, TRUE, __FILE__, __LINE__);
+
+    if (LunExtension)
+    {
+        if (LunExtension->IsMissing)
+        {
+            //ScsiDebugPrintInt(1, "SpInquireLogicalUnit: logical unit @ (%d,%d,%d) (%#p) is marked as missing and will not be rescanned\n", PathId, TargetId, Lun, LunExtension->CommonExtension.SelfDevice);
+            DPRINT1("SpInquireLogicalUnit: logical unit @ (%X,%X,%X) (%p) is marked as missing and will not be rescanned\n", PathId, TargetId, Lun, LunExtension->CommonExtension.SelfDevice);
+            SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, SpInquireLogicalUnit);
+            return STATUS_DEVICE_DOES_NOT_EXIST;
+        }
+    }
+    else
+    {
+        if (!RescanLun)
+        {
+            DPRINT1("SpInquireLogicalUnit: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        ASSERT(RescanLun->IsTemporary == TRUE);
+
+        SpAcquireRemoveLockEx(RescanLun->CommonExtension.SelfDevice, ULongToPtr(0xABCDABCD), __FILE__, __LINE__);
+        SpAcquireRemoveLockEx(RescanLun->CommonExtension.SelfDevice, SpInquireLogicalUnit, __FILE__, __LINE__);
+
+        SpSetLogicalUnitAddress(RescanLun, PathId, TargetId, Lun);
+
+        LunForSwap = LunExtension = RescanLun;
+        IsNewDevice = TRUE;
+    }
+
+    //ScsiDebugPrintInt(2, "SpInquireTarget: Try %s device @ Bus %d, Target %d, Lun %d\n", (LunExtension ? "existing" : "new"), PathId, TargetId, Lun);
+    DPRINT("SpInquireLogicalUnit: Try %s device @ Bus %X, Target %X, Lun %X\n", (LunExtension ? "existing" : "new"), PathId, TargetId, Lun);
+
+    Status = IssueInquiry(LunExtension, FALSE, 0, &InquiryData, &InquiryDataSize);
+    DPRINT("SpInquireLogicalUnit: %p (%X:%X:%X) %X\n", DeviceExtension, PathId, TargetId, Lun, InquiryDataSize);
+
+    if (!NT_SUCCESS(Status))
+    {
+        *OutIsCheckingNext = FALSE;
+    }
+    else
+    {
+        SpCheckSpecialDeviceFlags(LunExtension, &InquiryData);
+
+        if (InquiryData.DeviceTypeQualifier == 0)
+        {
+            IsExistingDevice = TRUE;
+        }
+        else if (InquiryData.DeviceTypeQualifier == 1)
+        {
+            if (Lun == 0)
+            {
+               if (InquiryData.HiSupport || LunExtension->SpecialTargetList[2] == 1)
+                   IsExistingDevice = TRUE;
+               else
+                   IsExistingDevice = FALSE;
+            }
+            else
+            {
+                IsExistingDevice = Param5;
+            }
+        }
+        else if (InquiryData.DeviceTypeQualifier == 3)
+        {
+            IsExistingDevice = FALSE;
+        }
+        else
+        {
+            IsExistingDevice = TRUE;
+        }
+
+        if (!IsExistingDevice)
+        {
+            Status = STATUS_NO_SUCH_DEVICE;
+        }
+        else if (!IsNewDevice)
+        {
+            IsMismatchedDevice = FALSE;
+
+            if (InquiryData.DeviceType != LunExtension->InquiryData.DeviceType)
+            {
+                //ScsiDebugPrintInt(1, "SpInquireTarget: Found different type of device @ (%d,%d,%d)\n", PathId, TargetId, Lun);
+                DPRINT1("SpInquireLogicalUnit: Found different type of device @ (%X,%X,%X)\n", PathId, TargetId, Lun);
+
+                IsMismatchedDevice = TRUE;
+                Status = STATUS_NO_SUCH_DEVICE;
+            }
+            else if (InquiryData.DeviceTypeQualifier != LunExtension->InquiryData.DeviceTypeQualifier)
+            {
+                //ScsiDebugPrintInt(1, "SpInquireLogicalUnit: Device @ (%d,%d,%d) type qualifier was %d is now %d\n", PathId, TargetId, Lun, LunExtension->InquiryData.DeviceTypeQualifier, InquiryData.DeviceTypeQualifier);
+                DPRINT1("SpInquireLogicalUnit: Device @ (%X,%X,%X) type qualifier was %X is now %X\n", PathId, TargetId, Lun, LunExtension->InquiryData.DeviceTypeQualifier, InquiryData.DeviceTypeQualifier);
+
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+        else
+        {
+            //ScsiDebugPrintInt((1, "SpInquireTarget: Found new %sDevice at address (%d,%d,%d)\n", (InquiryData.RemovableMedia ? "Removable " : ""), PathId, TargetId, Lun));
+            DPRINT("SpInquireTarget: Found new %sDevice at address (%X,%X,%X)\n", (InquiryData.RemovableMedia ? "Removable " : ""), PathId, TargetId, Lun);
+        }
+
+        if (NT_SUCCESS(Status) && !IsMismatchedDevice)
+        {
+            IsMismatchedDevice = SpGetDeviceIdentifiers(LunExtension, IsNewDevice);
+            if (!IsMismatchedDevice)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        LunExtension->IsMissing = FALSE;
+
+        DPRINT("SpInquireLogicalUnit: (%X:%X:%X) %X IsNewDevice %X\n", PathId, TargetId, Lun, Status, IsNewDevice);
+
+        if (IsNewDevice)
+        {
+            SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, SpInquireLogicalUnit);
+            LunExtension = NULL;
+
+            SpWaitForRemoveLock(RescanLun->CommonExtension.SelfDevice, ULongToPtr(0xABCDABCD));
+            SpClearLogicalUnitAddress(RescanLun);
+        }
+        else if (!LunExtension->IsEnumerated)
+        {
+            LunExtension->CommonExtension.CurrentPnpState = 2;
+
+            SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, SpInquireLogicalUnit);
+
+            LunExtension->IsVisible = TRUE;
+
+            ASSERT(LunExtension->IsEnumerated == FALSE);
+            ASSERT(LunExtension->IsMissing == TRUE);
+            ASSERT(LunExtension->IsVisible == TRUE);
+
+            SpRemoveLogicalUnit(LunExtension, IRP_MN_REMOVE_DEVICE);
+
+            if (IsMismatchedDevice)
+                Status = SpInquireLogicalUnit(DeviceExtension, PathId, TargetId, Lun, Param5, RescanLun, OutLunExtension, OutIsCheckingNext);
+
+            DPRINT("SpInquireLogicalUnit: Status %X\n", Status);
+            return Status;
+        }
+        else if (IsMismatchedDevice)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+    else
+    {
+        LunExtension->IsMissing = FALSE;
+
+        if (IsNewDevice)
+        {
+            Status = SpCloneAndSwapLogicalUnit(LunExtension, &InquiryData, InquiryDataSize, &LunForSwap);
+
+            if (NT_SUCCESS(Status))
+                LunExtension = LunForSwap;
+            else
+                LunExtension = NULL;
+
+            ASSERT(LunExtension != RescanLun);
+
+            IsNewDevice = FALSE;
+        }
+        else
+        {
+            if (InquiryData.DeviceTypeQualifier != LunExtension->InquiryData.DeviceTypeQualifier)
+            {
+                LunExtension->InquiryData.DeviceTypeQualifier = InquiryData.DeviceTypeQualifier;
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+
+        if (LunExtension)
+        {
+            if (LunExtension->InquiryData.DeviceTypeQualifier == 1)
+            {
+                LunExtension->IsVisible = FALSE;
+                SpBuildDeviceMapEntry(LunExtension);
+            }
+            else
+            {
+                LunExtension->IsVisible = TRUE;
+            }
+
+            if (InquiryData.RemovableMedia & 0x80)
+                LunExtension->CommonExtension.SelfDevice->Characteristics |= 1;
+
+            ASSERT(LunExtension->IsTemporary != TRUE);
+        }
+
+        *OutLunExtension = LunExtension;
+    }
+
+    if (LunExtension)
+    {
+        ASSERT(LunExtension != RescanLun);
+        SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, SpInquireLogicalUnit);
+    }
+
+    DPRINT("SpInquireLogicalUnit: Status %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
@@ -6023,22 +6341,6 @@ ScsiPortMoveMemory(
     _In_ ULONG Length)
 {
     UNIMPLEMENTED_DBGBREAK();
-}
-
-PSCSI_PORT_LUN_EXTENSION
-NTAPI
-GetLogicalUnitExtensionEx(
-    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
-    _In_ UCHAR PathId,
-    _In_ UCHAR TargetId,
-    _In_ UCHAR Lun,
-    _In_ PVOID Tag,
-    _In_ BOOLEAN IsLock,
-    _In_ PSTR File,
-    _In_ ULONG Line)
-{
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
 }
 
 VOID
