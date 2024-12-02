@@ -1233,6 +1233,24 @@ GetLogicalUnitExtensionEx(
     return RetLunExtension;
 }
 
+BOOLEAN
+NTAPI
+SpIsInitiatorLU(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+SpAddLogicalUnitToBin(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 VOID
 NTAPI
 SpSetLogicalUnitAddress(
@@ -1241,7 +1259,22 @@ SpSetLogicalUnitAddress(
     _In_ UCHAR TargetId,
     _In_ UCHAR Lun)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    DPRINT("SpSetLogicalUnitAddress: %p\n", LunExtension);
+
+    ASSERT(((PCOMMON_EXTENSION)LunExtension->CommonExtension.SelfDevice->DeviceExtension)->IsPdo);
+
+    if (!SpIsInitiatorLU(LunExtension))
+    {
+        ASSERT(LunExtension->PathId == 0xFF);
+        ASSERT(LunExtension->TargetId == 0xFF);
+        ASSERT(LunExtension->Lun == 0xFF);
+    }
+
+    LunExtension->PathId = PathId;
+    LunExtension->TargetId = TargetId;
+    LunExtension->Lun = Lun;
+
+    SpAddLogicalUnitToBin(LunExtension->DeviceExtension, LunExtension);
 }
 
 NTSTATUS
