@@ -415,6 +415,22 @@ SpBuildDeviceMapEntry(
     _In_ PVOID DeviceObjectExtension
 );
 
+NTSTATUS
+NTAPI
+ScsiPortGlobalDispatch(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp
+);
+
+PSCSI_PORT_SRB_DATA
+NTAPI
+SpAllocateSrbData(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PIRP Irp,
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension
+);
+
+
 #endif /* _SCSIPORT_H_ */
 
 /* EOF */

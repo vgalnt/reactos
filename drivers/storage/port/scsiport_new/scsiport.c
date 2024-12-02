@@ -2665,12 +2665,122 @@ ScsiPortPdoCreateClose(
 
 NTSTATUS
 NTAPI
-ScsiPortPdoScsi(
-    _In_ PDEVICE_OBJECT DeviceObject,
+SpClaimLogicalUnit(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PIRP Irp,
+    _In_ BOOLEAN IsStartLun)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpDispatchRequest(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortPdoScsi(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PSCSI_PORT_SRB_DATA SrbData;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    LONG IsRemoved;
+
+    DPRINT("ScsiPortPdoScsi: %p\n", Pdo);
+
+    LunExtension = Pdo->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Srb = IoStack->Parameters.Scsi.Srb;
+
+    IsRemoved = SpAcquireRemoveLockEx(Pdo, Irp, __FILE__, __LINE__);
+    if (IsRemoved)
+    {
+        if (Srb->Function != SRB_FUNCTION_CLAIM_DEVICE &&
+            Srb->Function != SRB_FUNCTION_RELEASE_DEVICE &&
+            Srb->Function != SRB_FUNCTION_FLUSH_QUEUE &&
+            !(Srb->SrbFlags & 0x80010))
+        {
+            Irp->IoStatus.Status = STATUS_DEVICE_DOES_NOT_EXIST;
+            SpReleaseRemoveLock(Pdo, Irp);
+            SpCompleteRequest(Pdo, Irp, NULL, 0);
+            return STATUS_DEVICE_DOES_NOT_EXIST;
+        }
+    }
+
+    Srb->PathId = LunExtension->PathId;
+    Srb->TargetId = LunExtension->TargetId;
+    Srb->Lun = LunExtension->Lun;
+
+    Srb->QueueTag = 0xFF;
+
+    ASSERT(LunExtension->CommonExtension.LowDevice->DriverObject->MajorFunction[IRP_MJ_SCSI] != NULL);
+    ASSERT(LunExtension->CommonExtension.LowDevice->DriverObject->MajorFunction[IRP_MJ_SCSI] == ScsiPortGlobalDispatch);
+
+    if (Srb->Function == 0x10)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (Srb->Function == SRB_FUNCTION_CLAIM_DEVICE ||
+             Srb->Function == SRB_FUNCTION_RELEASE_DEVICE ||
+             Srb->Function == SRB_FUNCTION_REMOVE_DEVICE)
+    {
+        Irp->IoStatus.Status = SpClaimLogicalUnit(LunExtension->CommonExtension.LowDevice->DeviceExtension, LunExtension, Irp, FALSE);
+        SpReleaseRemoveLock(Pdo, Irp);
+        SpCompleteRequest(Pdo, Irp, NULL, 0);
+        return Irp->IoStatus.Status;
+    }
+    else if (Srb->Function == 4)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (Srb->Function == SRB_FUNCTION_FLUSH_QUEUE)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else if (Srb->Function == 0x18 || Srb->Function == 0x19)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        if (!(Srb->SrbFlags & 0x80010))
+        {
+            SrbData = SpAllocateSrbData(LunExtension->DeviceExtension, Irp, LunExtension);
+            if (!SrbData)
+            {
+                //ScsiDebugPrintInt(1, "ScsiPortPdoScsi: Insufficient resources to allocate SRB_DATA structure\n");
+                DPRINT1("ScsiPortPdoScsi: Insufficient resources to allocate SRB_DATA structure\n");
+                return STATUS_SUCCESS;
+            }
+
+            DPRINT("ScsiPortPdoScsi: %p\n", SrbData);
+        }
+        else
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+
+    SrbData->CurrentIrp = Irp;
+    SrbData->CurrentSrb = Srb;
+    SrbData->LunExtension = LunExtension;
+
+    Srb->OriginalRequest = SrbData;
+
+    DPRINT("ScsiPortPdoScsi: %p, %p\n", SrbData, SrbData->CurrentSrb);
+
+    return SpDispatchRequest(LunExtension, Irp);
 }
 
 NTSTATUS
@@ -4672,16 +4782,6 @@ SpTransferBlockedRequestsToAdapter(
 {
     UNIMPLEMENTED_DBGBREAK();
     return FALSE;
-}
-
-NTSTATUS
-NTAPI
-SpDispatchRequest(
-    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
-    _In_ PIRP Irp)
-{
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
 }
 
 VOID
