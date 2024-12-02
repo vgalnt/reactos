@@ -173,6 +173,7 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     UCHAR PathId;
     UCHAR TargetId;
     UCHAR Lun;
+    UCHAR RetryBusyRequests;
     PVOID SpecificLuExtension;
     struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
     PVOID CurrentLockRequest;

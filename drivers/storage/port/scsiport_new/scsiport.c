@@ -2840,12 +2840,197 @@ ScsiPortFdoDeviceControl(
 
 NTSTATUS
 NTAPI
-ScsiPortFdoDispatch(
+SpRerouteLegacyRequest(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+SpSrbIsBypassRequest(
+    _In_ PSCSI_REQUEST_BLOCK Srb,
+    _In_ UCHAR LuFlags)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortFdoDispatch(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
+{
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PSCSI_PORT_SRB_DATA SrbData = NULL;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    LONG IsRemoved;
+    ULONG Zone;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Srb = IoStack->Parameters.Scsi.Srb;
+
+    DPRINT("ScsiPortFdoDispatch: %p, %X, %X\n", Fdo->DeviceExtension, IoStack->MajorFunction, Srb->Function);
+
+    IsRemoved = SpAcquireRemoveLockEx(Fdo, Irp, __FILE__, __LINE__);
+    if (IsRemoved)
+    {
+       UNIMPLEMENTED_DBGBREAK();
+    }
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    if (DeviceExtension->CommonExtension.CurrentSystemState > 5 &&
+        DeviceExtension->CommonExtension.CurrentDeviceState != 1)
+    {
+        ASSERT(DeviceExtension->Flags2 & 0x40);//deviceExtension->NeedsShutdown == TRUE
+
+        if (Srb->Function != 0x19 && Srb->Function != 0x18)
+        {
+            DPRINT1("ScsiPortFdoDispatch: STATUS_POWER_STATE_INVALID\n");
+            Irp->IoStatus.Status = STATUS_POWER_STATE_INVALID;
+            SpReleaseRemoveLock(Fdo, Irp);
+            SpCompleteRequest(Fdo, Irp, SrbData, 0);
+            return STATUS_POWER_STATE_INVALID;
+        }
+    }
+
+    if (Srb->OriginalRequest == Irp)
+    {
+        LunExtension = GetLogicalUnitExtensionEx(DeviceExtension, Srb->PathId, Srb->TargetId, Srb->Lun, NULL, TRUE, __FILE__, __LINE__);
+        if (!LunExtension)
+        {
+            //ScsiDebugPrintInt(1, "ScsiPortFdoDispatch: Bad logical unit address.\n");
+            DPRINT1("ScsiPortFdoDispatch: (STATUS_NO_SUCH_DEVICE) Bad logical unit address.\n");
+            Srb->SrbStatus = 8;
+            Irp->IoStatus.Status = STATUS_NO_SUCH_DEVICE;
+            SpReleaseRemoveLock(Fdo, Irp);
+            SpCompleteRequest(Fdo, Irp, NULL, 0);
+            return STATUS_NO_SUCH_DEVICE;
+        }
+
+        if (Srb->Function == 2 || Srb->Function == 0 || Srb->Function == 4 || Srb->Function == 0x15)
+            return SpRerouteLegacyRequest(Fdo, Irp);
+    }
+    else
+    {
+        SrbData = Srb->OriginalRequest;
+        ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+        ASSERT(SrbData->CurrentIrp == Irp);
+
+        LunExtension = SrbData->LunExtension;
+        ASSERT(LunExtension != NULL);
+    }
+
+    switch (Srb->Function)
+    {
+        case 7:
+        case 8:
+        {
+            if (!DeviceExtension->CachesData)
+            {
+                Status = Irp->IoStatus.Status = STATUS_SUCCESS;
+                Srb->SrbStatus = 1;
+                break;
+            }
+
+            //ScsiDebugPrintInt(2, "ScsiPortFdoDispatch: Sending flush or shutdown request.\n");
+            DPRINT("ScsiPortFdoDispatch: Sending flush or shutdown request.\n");
+        }
+        case 0:
+        case 2:
+        case 0x17:
+        case 0x18:
+        case 0x19:
+        {
+            IoMarkIrpPending(Irp);
+
+            if (SpSrbIsBypassRequest(Srb, LunExtension->LuFlags))
+            {
+                //ScsiDebugPrintInt(2, "ScsiPortFdoDispatch: Bypass frozen queue, IRP %#p\n", Irp);
+                DPRINT("ScsiPortFdoDispatch: Bypass frozen queue, IRP %#p\n", Irp);
+                IoStartPacket(Fdo, Irp, NULL, NULL);
+                return STATUS_PENDING;
+            }
+
+            KeRaiseIrql(DISPATCH_LEVEL, &Irql);
+            if (LunExtension->LuFlags & 0x41)
+            {
+                //ScsiDebugPrintInt(1, "ScsiPortFdoDispatch: Irp %#p put in frozen queue %#p!\n", Irp, LunExtension);
+                DPRINT("ScsiPortFdoDispatch: Irp %p put in frozen queue %p!\n", Irp, LunExtension);
+            }
+
+            Zone = (Srb->QueueSortKey / LunExtension->QueueZoneLength);
+            if (Zone >= LunExtension->QueueZoneCount)
+            {
+                //ScsiDebugPrintInt(0, "ScsiPortFdoDispatch: zone out of range srb:%p lu:%p zone:%d\n", Srb, LunExtension, Zone);
+                DPRINT("ScsiPortFdoDispatch: Zone out of range (%p %p %X)\n", Srb, LunExtension, Zone);
+                Zone = (LunExtension->QueueZoneCount - 1);
+            }
+
+            if (!KeInsertByKeyDeviceQueue(&LunExtension->CommonExtension.SelfDevice->DeviceQueue, &Irp->Tail.Overlay.DeviceQueueEntry, Srb->QueueSortKey))
+            {
+                LunExtension->RetryBusyRequests = 0;
+
+                if (LunExtension->LuFlags & 0x41)
+                {
+                    //ScsiDebugPrintInt(1, "ScsiPortFdoDispatch: Queue was empty - issuing request anyway\n");
+                    DPRINT("ScsiPortFdoDispatch: Queue was empty - issuing request anyway\n");
+                }
+
+                IoStartPacket(Fdo, Irp, NULL, NULL);
+            }
+
+            KeLowerIrql(Irql);
+
+            return STATUS_PENDING;
+        }
+        case 4:
+        case 0x15:
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        case 0x12:
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        case 0x10:
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            return STATUS_PENDING;
+        }
+        case 1:
+        case 5:
+        case 6:
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        default:
+        {
+            //ScsiDebugPrintInt(1, "ScsiPortFdoDispatch: Unsupported function, SRB %p\n", Srb);
+            DPRINT1("ScsiPortFdoDispatch: Unsupported function (%p)\n", Srb);
+            Srb->SrbStatus = 6;
+            Status = STATUS_INVALID_DEVICE_REQUEST;
+            break;
+        }
+    }
+
+    SpReleaseRemoveLock(Fdo, Irp);
+
+    SpCompleteRequest(Fdo, Irp, SrbData, 0);
+
+    DPRINT1("ScsiPortFdoDispatch: Status %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
