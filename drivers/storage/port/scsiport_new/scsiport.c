@@ -1327,6 +1327,23 @@ SpSetLogicalUnitAddress(
 
 NTSTATUS
 NTAPI
+SpSendSrbSynchronous(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb,
+    _In_ PIRP Irp,
+    _In_ PMDL Mdl,
+    _In_ PVOID TransferBuffer,
+    _In_ ULONG TransferBufferLength,
+    _In_ PSENSE_DATA SenseInfoBuffer,
+    _In_ UCHAR SenseInfoBufferLength,
+    _Out_ ULONG* OutBytesReturned)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 IssueInquiry(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _In_ BOOLEAN EnableVitalProductData,
@@ -1334,8 +1351,78 @@ IssueInquiry(
     _Out_ PVOID OutInquiry,
     _Out_ UCHAR* OutBytesReturned)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    SCSI_REQUEST_BLOCK Srb;
+    PCDB Cdb;
+    ULONG BytesReturned;
+    UCHAR AllocationLength;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IssueInquiry: %p\n", LunExtension);
+
+    DeviceExtension = LunExtension->DeviceExtension;
+
+    ASSERT(DeviceExtension->InquiryData != NULL);
+    ASSERT(DeviceExtension->InquirySenseData != NULL);
+
+    IoInitializeIrp(DeviceExtension->InquiryIrp, IoSizeOfIrp(1), 1);
+
+    RtlZeroMemory(DeviceExtension->InquiryData, 0x100);
+    RtlZeroMemory(DeviceExtension->InquirySenseData, sizeof(*DeviceExtension->InquirySenseData));
+    RtlZeroMemory(&Srb, sizeof(Srb));
+
+    Srb.Function = 0;
+    Srb.Length = sizeof(Srb);
+    Srb.SrbFlags = 0x48;
+    Srb.TimeOutValue = DeviceExtension->TimeoutValue;
+    Srb.CdbLength = 6;
+
+    AllocationLength = (EnableVitalProductData == FALSE ? INQUIRYDATABUFFERSIZE : 0xFF);
+
+    Cdb = (PCDB)Srb.Cdb;
+
+    Cdb->CDB6INQUIRY3.OperationCode = 0x12;
+    Cdb->CDB6INQUIRY3.EnableVitalProductData = (EnableVitalProductData ? 1 : 0);
+
+    if (EnableVitalProductData == FALSE)
+    {
+        ASSERT(PageCode == 0);
+    }
+
+    Cdb->CDB6INQUIRY3.PageCode = PageCode;
+    Cdb->CDB6INQUIRY3.AllocationLength = AllocationLength;
+
+    Status = SpSendSrbSynchronous(LunExtension,
+                                  &Srb,
+                                  DeviceExtension->InquiryIrp,
+                                  DeviceExtension->InquiryMdl,
+                                  DeviceExtension->InquiryData,
+                                  AllocationLength,
+                                  DeviceExtension->InquirySenseData,
+                                  sizeof(*DeviceExtension->InquirySenseData),
+                                  &BytesReturned);
+
+    BytesReturned = (UCHAR)BytesReturned;
+    ASSERT(BytesReturned <= AllocationLength);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IssueInquiry: Status %X\n", Status);
+
+        //if (BreakOnMissingLun && LunExtension->IsTemporary != 1)
+        //    ASSERT(LunExtension->IsTemporary == TRUE);
+
+        return Status;
+    }
+
+    if (OutInquiry != DeviceExtension->InquiryData)
+        RtlCopyMemory(OutInquiry, DeviceExtension->InquiryData, BytesReturned);
+
+    DPRINT("IssueInquiry: BytesReturned %X\n", BytesReturned);
+    *OutBytesReturned = BytesReturned;
+
+    return Status;
 }
 
 VOID
