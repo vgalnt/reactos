@@ -1327,6 +1327,15 @@ SpSetLogicalUnitAddress(
 
 NTSTATUS
 NTAPI
+SpTranslateScsiStatus(
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 SpSendSrbSynchronous(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb,
@@ -1338,8 +1347,169 @@ SpSendSrbSynchronous(
     _In_ UCHAR SenseInfoBufferLength,
     _Out_ ULONG* OutBytesReturned)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+    KEVENT Event;
+    ULONG Retry = 0;
+    UCHAR SrbStatus;
+    NTSTATUS Status;
+
+    DPRINT("SpSendSrbSynchronous: %p\n", LunExtension);
+
+    while (TRUE)
+    {
+        KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+        if (!Irp)
+        {
+            Irp = IoAllocateIrp(LunExtension->CommonExtension.SelfDevice->StackSize, 0);
+            if (!Irp)
+            {
+                DPRINT1("SpSendSrbSynchronous: STATUS_INSUFFICIENT_RESOURCES\n");
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+        }
+
+        if (TransferBuffer)
+        {
+            ASSERT(TransferBufferLength != 0);
+
+            if (!Mdl)
+            {
+                Mdl = IoAllocateMdl(TransferBuffer, TransferBufferLength, FALSE, FALSE, NULL);
+                if (!Mdl)
+                {
+                    DPRINT1("SpSendSrbSynchronous: STATUS_INSUFFICIENT_RESOURCES\n");
+                    IoFreeIrp(Irp);
+                    return STATUS_INSUFFICIENT_RESOURCES;
+                }
+
+                MmBuildMdlForNonPagedPool(Mdl);
+            }
+
+            Irp->MdlAddress = Mdl;
+        }
+        else
+        {
+            ASSERT(TransferBufferLength == 0);
+            ASSERT(!ARGUMENT_PRESENT(Mdl));
+        }
+
+        IoStack = IoGetNextIrpStackLocation(Irp);
+        IoStack->MajorFunction = IRP_MJ_SCSI;
+        IoStack->MinorFunction = 1;
+        IoStack->Parameters.Scsi.Srb = Srb;
+
+        Srb->ScsiStatus = 0;
+        Srb->SrbStatus = 0;
+        Srb->OriginalRequest = Irp;
+
+        if (SenseInfoBuffer)
+        {
+            Srb->SenseInfoBuffer = SenseInfoBuffer;
+            Srb->SenseInfoBufferLength = SenseInfoBufferLength;
+        }
+        else
+        {
+            Srb->SrbFlags |= 0x20;
+            Srb->SenseInfoBuffer = NULL;
+            Srb->SenseInfoBufferLength = 0;
+        }
+
+        if (Mdl)
+        {
+            Srb->DataBuffer = MmGetMdlVirtualAddress(Mdl);
+            Srb->DataTransferLength = TransferBufferLength;
+        }
+        else
+        {
+            Srb->DataBuffer = NULL;
+            Srb->DataTransferLength = 0;
+        }
+
+        IoSetCompletionRoutine(Irp, SpSignalCompletion, &Event, TRUE, TRUE, TRUE);
+
+        KeEnterCriticalRegion();
+
+        IoCallDriver(LunExtension->CommonExtension.SelfDevice, Irp);
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+        *OutBytesReturned = Irp->IoStatus.Information;
+
+        SrbStatus = (Srb->SrbStatus & 0x3F);
+        Status = Irp->IoStatus.Status;
+
+        DPRINT("SpSendSrbSynchronous: Status %X\n", Status);
+
+        if (!Srb->SrbStatus)
+        {
+            ASSERT(!NT_SUCCESS(Status));
+            break;
+        }
+
+        if (SrbStatus == 1)
+        {
+            Status = STATUS_SUCCESS;
+            break;
+        }
+
+        //ScsiDebugPrintInt(2, "SpSendSrbSynchronous: Command failed SRB status %x\n", Srb->SrbStatus);
+        DPRINT("SpSendSrbSynchronous: Command failed SRB status %X\n", Srb->SrbStatus);
+
+        if (Srb->SrbStatus & 0x40)
+        {
+            //ScsiDebugPrintInt(3, "SpSendSrbSynchronous: Unfreeze Queue TID %d\n", Srb->TargetId);
+            DPRINT("SpSendSrbSynchronous: Unfreeze Queue TID %X\n", Srb->TargetId);
+            LunExtension->LuFlags &= ~1;
+            GetNextLuRequestWithoutLock(LunExtension);
+        }
+
+        if (SrbStatus == 0x12)
+        {
+            //ScsiDebugPrintInt(1, "SpSendSrbSynchronous: Data underrun at TID %d\n", LunExtension->TargetId);
+            DPRINT("SpSendSrbSynchronous: Data underrun at TID %X\n", LunExtension->TargetId);
+            Status = STATUS_SUCCESS;
+            break;
+        }
+
+        if ((Srb->SrbStatus & 0x80) && SenseInfoBuffer->FileMark == 5)
+        {
+            DPRINT1("SpSendSrbSynchronous: STATUS_INVALID_DEVICE_REQUEST\n");
+            Status = STATUS_INVALID_DEVICE_REQUEST;
+            break;
+        }
+
+        if (SrbStatus == 0xA)
+        {
+            Status = SpTranslateScsiStatus(Srb);
+            DPRINT1("SpSendSrbSynchronous: Status %X\n", Status);
+            break;
+        }
+
+        if (SrbStatus == 8)
+        {
+            Status = SpTranslateScsiStatus(Srb);
+            DPRINT1("SpSendSrbSynchronous: Status %X\n", Status);
+            break;
+        }
+
+        Retry++;
+        if (Retry >= 2)
+        {
+            Status = SpTranslateScsiStatus(Srb);
+            DPRINT1("SpSendSrbSynchronous: Retry %X, Status %X\n", Retry, Status);
+            break;
+        }
+
+        //ScsiDebugPrintInt(2, "SpSendSrbSynchronous: Retry %d\n", Retry);
+        DPRINT1("SpSendSrbSynchronous: Retry %X\n", Retry);
+
+        KeLeaveCriticalRegion();
+        continue;
+    }
+
+    KeLeaveCriticalRegion();
+    DPRINT("SpSendSrbSynchronous: ret Status %X\n", Status);
+    return Status;
 }
 
 NTSTATUS
