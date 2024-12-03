@@ -76,11 +76,16 @@ typedef struct _SCSI_PORT_SRB_DATA
     PIRP CurrentIrp;
     PSCSI_REQUEST_BLOCK CurrentSrb;
     PVOID CompletedRequests;
+    ULONG NumberOfMapRegisters;
+    LONG DataBufferOffsetToMdlVA;
     ULONG OriginalDataTransferLength;
     struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
     LONG QueueTag;
+    NTSTATUS Status;
     PMDL RemappedMdl;
+    PVOID DataBuffer;
     PVOID ScatterGatherList;
+    ULONG SpScatterGather[94];
 } SCSI_PORT_SRB_DATA, *PSCSI_PORT_SRB_DATA;
 
 typedef struct _SCSI_PORT_INTERRUPT_DATA
@@ -176,10 +181,12 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     UCHAR RetryBusyRequests;
     PVOID SpecificLuExtension;
     struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
+    LONG QueueLockCount;
     PVOID CurrentLockRequest;
     struct _SCSI_PORT_LUN_EXTENSION* NextLogicalUnit;
     struct _SCSI_PORT_LUN_EXTENSION* ReadyLogicalUnit;
     struct _SCSI_PORT_LUN_EXTENSION* AbortLogicalUnit;
+    PSCSI_REQUEST_BLOCK AbortSrb;
     LONG RequestTimeoutCounter;
     LIST_ENTRY SrbDataList;
     PSCSI_PORT_SRB_DATA PendingRequest;
@@ -326,6 +333,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     ULONG UncachedExtAlignment;
     ULONG TimeoutValue;
     BOOLEAN IsRequestQueue;
+    ULONG SgListSize;
     ULONG ResetHoldTime;
     PVOID InitiatorLun;
     UCHAR CreateInitiatorLU;

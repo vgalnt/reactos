@@ -696,13 +696,306 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+SpRequestValidPowerState(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+SpAllocateSrbExtension(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb,
+    _Out_ BOOLEAN* OutIsStartNextPacket,
+    _Out_ BOOLEAN* OutIsTaggedRequest)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+VOID
+NTAPI
+SpReceiveScatterGather(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp,
+    _In_ PSCATTER_GATHER_LIST ScatterGather,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+IO_ALLOCATION_ACTION
+NTAPI
+ScsiPortAllocationRoutine(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp,
+    _In_ PVOID MapRegisterBase,
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+BOOLEAN
+NTAPI
+SpStartIoSynchronized(
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 VOID
 NTAPI
 ScsiPortStartIo(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PDMA_OPERATIONS DmaOperations;
+    PSCSI_PORT_SRB_DATA SrbData;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    PVOID SgBuffer;
+    ULONG SgLength;
+    BOOLEAN IsStartNextPacket;
+    BOOLEAN IsTaggedRequest;
+    NTSTATUS Status;
+
+    //ScsiDebugPrintInt(3, "ScsiPortStartIo: Enter routine\n");
+    DPRINT("ScsiPortStartIo: %p\n", Fdo->DeviceExtension);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    if (IoStack->MajorFunction != IRP_MJ_SCSI)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return;
+    }
+
+    Srb = IoStack->Parameters.Scsi.Srb;
+    Srb->SrbStatus = 0;
+
+    if (Srb->Function == 0)
+        Srb->ScsiStatus = 0;
+
+    SrbData = Srb->OriginalRequest;
+    ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+
+    LunExtension = SrbData->LunExtension;
+    ASSERT(LunExtension != NULL);
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    if (DeviceExtension->CommonExtension.IsRemoved)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (LunExtension->LuFlags & 0x20)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    Srb->SrbFlags |= DeviceExtension->CommonExtension.DefaultRequestFlags;
+
+    Status = SpRequestValidPowerState(DeviceExtension, LunExtension, Srb);
+    if (Status == STATUS_PENDING)
+    {
+        ASSERT(!(DeviceExtension->Flags & 0x800));//PD_PENDING_DEVICE_REQUEST
+        IoStartNextPacket(Fdo, FALSE);
+        DPRINT("ScsiPortStartIo: ret %X\n", Status);
+        return;
+    }
+
+    if (Srb->SrbFlags & 0x80000)
+    {
+        //ScsiDebugPrintInt(1, "ScsiPortStartIo: Handling power bypass IRP %#p\n", Irp);
+        DPRINT("ScsiPortStartIo: Handling power bypass IRP %p\n", Irp);
+    }
+
+    ASSERT(Irp == Fdo->CurrentIrp);
+
+    //DPRINT("ScsiPortStartIo: %X %X\n", DeviceExtension->IsSrbExtensions, DeviceExtension->IsRequestQueue);
+    if (!DeviceExtension->IsSrbExtensions && !DeviceExtension->IsRequestQueue)
+    {
+        Srb->SrbExtension = NULL;
+        Srb->QueueTag = 0xFF;
+    }
+    else
+    {
+        IsStartNextPacket = FALSE;
+
+        if (!SpAllocateSrbExtension(DeviceExtension, LunExtension, Srb, &IsStartNextPacket, &IsTaggedRequest))
+        {
+            if (!IsStartNextPacket)
+                return;
+
+            ASSERT(!(DeviceExtension->Flags & 0x800));//PD_PENDING_DEVICE_REQUEST
+
+            IoStartNextPacket(Fdo, FALSE);
+            return;
+        }
+
+        if (!IsTaggedRequest)
+        {
+            Srb->QueueTag = 0xFF;
+        }
+        else
+        {
+            if (!Srb->Function)
+            {
+                if (Srb->QueueAction != 0x20 && Srb->QueueAction != 0x21 && Srb->QueueAction != 0x22)
+                {
+                    //ScsiDebugPrintInt(1, "ScsiPortStartIo: Invalid QueueAction (%02x) SRB:%p irp:%p\n", Srb->QueueAction, Srb, Irp);
+                    DPRINT("ScsiPortStartIo: Invalid QueueAction %X (%p, %p)\n", Srb->QueueAction, Srb, Irp);
+                    Srb->QueueAction = 0x20;
+                }
+            }
+
+            Srb->QueueTag = (UCHAR)SrbData->QueueTag;
+        }
+    }
+
+    SrbData->OriginalDataTransferLength = Srb->DataTransferLength;
+
+    if (Srb->Function == 0x10)
+    {
+        ASSERT(LunExtension->AbortSrb == NULL);
+        LunExtension->AbortSrb = Srb;
+    }
+    else if (Srb->Function == 0x19)
+    {
+        //ScsiDebugPrintInt(1, "ScsiPortStartIo: Power %s request %#p in start-io routine\n", (Srb->Function == 0x18 ? "lock" : "unlock"), Irp);
+        DPRINT("ScsiPortStartIo: Power %s request %p in start-io routine\n", (Srb->Function == 0x18 ? "lock" : "unlock"), Irp);
+
+        KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+
+        if (Srb->Function == 0x18)
+        {
+            InterlockedExchangeAdd(&LunExtension->QueueLockCount, 1);
+            LunExtension->LuFlags |= 0x40;
+        }
+        else if (LunExtension->LuFlags & 0x40)
+        {
+            ASSERT(LunExtension->QueueLockCount != 0);
+
+            if (!InterlockedDecrement(&LunExtension->QueueLockCount))
+                LunExtension->LuFlags &= ~0x40;
+        }
+
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+        Srb->SrbStatus = 1;
+    }
+
+    DmaOperations = DeviceExtension->DmaAdapter->DmaOperations;
+
+    if (Srb->SrbFlags & 0xC0)
+    {
+        SrbData->DataBuffer = Srb->DataBuffer;
+        SrbData->DataBufferOffsetToMdlVA = ((ULONG_PTR)Srb->DataBuffer - (ULONG_PTR)(MmGetMdlVirtualAddress(Irp->MdlAddress)));
+
+        if (DeviceExtension->NeedPhAddrForMasterDma)
+        {
+
+            SrbData->NumberOfMapRegisters = ADDRESS_AND_SIZE_TO_SPAN_PAGES(Srb->DataBuffer, Srb->DataTransferLength);
+
+            if (SrbData->NumberOfMapRegisters <= 0x11)
+            {
+                if (!DeviceExtension->SgListSize)
+                {
+                    DmaOperations->CalculateScatterGatherList(DeviceExtension->DmaAdapter,
+                                                              NULL,
+                                                              NULL,
+                                                              0x11000,
+                                                              &DeviceExtension->SgListSize,
+                                                              NULL);
+                }
+
+                if (DeviceExtension->SgListSize <= 0x178)//FIXME
+                {
+                    SgBuffer = &SrbData->SpScatterGather;
+                    SgLength = DeviceExtension->SgListSize;
+                }
+                else
+                {
+                    SgBuffer = NULL;
+                    SgLength = 0;
+                }
+            }
+            else
+            {
+                SgBuffer = NULL;
+                SgLength = 0;
+            }
+
+            Status = DmaOperations->BuildScatterGatherList(DeviceExtension->DmaAdapter,
+                                                           DeviceExtension->CommonExtension.SelfDevice,
+                                                           Irp->MdlAddress,
+                                                           Srb->DataBuffer,
+                                                           Srb->DataTransferLength,
+                                                           SpReceiveScatterGather,
+                                                           SrbData,
+                                                           ((Srb->SrbFlags & SRB_FLAGS_DATA_OUT) ? TRUE : FALSE),
+                                                           SgBuffer,
+                                                           SgLength);
+            if (NT_SUCCESS(Status))
+            {
+                DPRINT("ScsiPortStartIo: Status %X\n", Status);
+                return;
+            }
+
+            //ScsiDebugPrintInt(0, "ScsiPortStartIo: BuildScatterGatherList failed: adapter %p srb %p SgListSize %d sgBufferLen %d mapRegs %d (%08x)\n",
+            //                  DeviceExtension, Srb, DeviceExtension->SgListSize, Irp, SrbData->NumberOfMapRegisters, Status);
+            DPRINT("ScsiPortStartIo: BuildScatterGatherList failed: %p, %p, %X, %X %X (%X)\n",
+                   DeviceExtension, Srb, DeviceExtension->SgListSize, Irp, SrbData->NumberOfMapRegisters, Status);
+
+            Srb->SrbStatus = 0x30;
+            Srb->ScsiStatus = 0xFF;
+            SrbData->Status = Status;
+
+            goto Finish;
+        }
+
+        if (DeviceExtension->MapBuffers == 1 ||
+            (Srb->Function == 2 || (Srb->Function == 0 && (Srb->Cdb[0] != 0x2A || Srb->Cdb[0] != 0x28))))
+        {
+            if (Irp->MdlAddress)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+    }
+
+    if (!InterlockedIncrement(&DeviceExtension->ActiveRequestCount) && !DeviceExtension->NeedPhAddrForMasterDma)
+    {
+        if (DeviceExtension->DmaAdapter)
+        {
+            DmaOperations->AllocateAdapterChannel(DeviceExtension->DmaAdapter,
+                                                  Fdo,
+                                                  DeviceExtension->IoScsiCapabilities.MaximumPhysicalPages,
+                                                  ScsiPortAllocationRoutine,
+                                                  LunExtension);
+            return;
+        }
+    }
+
+Finish:
+
+    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+    DeviceExtension->SynchronizeFunction(DeviceExtension->InterruptObject, SpStartIoSynchronized, Fdo);
+    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+    DPRINT("ScsiPortStartIo: Status %X\n", Status);
 }
 
 VOID
