@@ -703,8 +703,58 @@ SpRequestValidPowerState(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    DPRINT("SpRequestValidPowerState: %p\n", Srb);
+
+    if (Srb->Function == 0x19 || Srb->Function == 0x18)
+        return STATUS_SUCCESS;
+
+    if (LunExtension->CommonExtension.CurrentDeviceState == 1)
+    {
+        if (LunExtension->CommonExtension.CurrentSystemState == 1 || Srb->SrbFlags & 0x80000)
+        {
+            ASSERT(DeviceExtension->CommonExtension.CurrentDeviceState == PowerDeviceD0);
+            ASSERT(DeviceExtension->CommonExtension.CurrentSystemState == PowerSystemWorking);
+            return STATUS_SUCCESS;
+        }
+    }
+    else if (Srb->SrbFlags & 0x80000)
+    {
+        ASSERT(!(Srb->SrbFlags & 0x80000));//SRB_FLAGS_BYPASS_LOCKED_QUEUE
+    }
+
+    ASSERT(!(LunExtension->LuFlags & 0x20));//LU_PENDING_LU_REQUEST
+
+    //ScsiDebugPrintInt(4, "ScsiPortStartIo: logical unit (%d,%d,%d) [%#p] is in power state (%d,%d) - must power up for irp %#p\n",
+    //                  Srb->PathId, Srb->TargetId, Srb->Lun, LunExtension->CommonExtension.SelfDevice,
+    //                  LunExtension->CommonExtension.CurrentDeviceState, LunExtension->CommonExtension.CurrentSystemState,
+    //                  ((PSCSI_PORT_SRB_DATA)Srb->OriginalRequest)->CurrentIrp);
+
+    DPRINT("SpRequestValidPowerState: (%X:%X:%X) [%p] is in power state (%X,%X) - must power up for irp %p\n",
+           Srb->PathId, Srb->TargetId, Srb->Lun, LunExtension->CommonExtension.SelfDevice,
+           LunExtension->CommonExtension.CurrentDeviceState, LunExtension->CommonExtension.CurrentSystemState,
+           ((PSCSI_PORT_SRB_DATA)Srb->OriginalRequest)->CurrentIrp);
+
+    ASSERT(LunExtension->PendingRequest == NULL);
+
+    LunExtension->LuFlags |= 0x22;
+    LunExtension->PendingRequest = Srb->OriginalRequest;
+
+    if (LunExtension->CommonExtension.CurrentSystemState == 1)
+    {
+        if (LunExtension->CommonExtension.RequestedDeviceState != 1)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+    else
+    {
+        //ScsiDebugPrintInt(1, "SpRequestValidPowerState: can't power up target since it's in system state %d\n", LunExtension->CommonExtension.CurrentSystemState);
+        DPRINT("SpRequestValidPowerState: can't power up target since it's in system state %X\n", LunExtension->CommonExtension.CurrentSystemState);
+
+        LunExtension->CommonExtension.RequestedDeviceState = 1;
+    }
+
+    return STATUS_PENDING;
 }
 
 BOOLEAN

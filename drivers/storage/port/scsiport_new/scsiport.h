@@ -155,6 +155,7 @@ typedef struct _COMMON_EXTENSION
     PDRIVER_DISPATCH* MajorFunction;
     SYSTEM_POWER_STATE CurrentSystemState;
     DEVICE_POWER_STATE CurrentDeviceState;
+    DEVICE_POWER_STATE RequestedDeviceState;
     PULONG DeviceIdleDetection;
     LONG RemoveLock;
     KEVENT Event;
