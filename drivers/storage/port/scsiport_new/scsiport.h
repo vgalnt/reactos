@@ -78,6 +78,7 @@ typedef struct _SCSI_PORT_SRB_DATA
     PVOID CompletedRequests;
     ULONG NumberOfMapRegisters;
     LONG DataBufferOffsetToMdlVA;
+    PVOID RequestSenseSave;
     ULONG OriginalDataTransferLength;
     struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
     LONG QueueTag;
@@ -85,6 +86,7 @@ typedef struct _SCSI_PORT_SRB_DATA
     PMDL RemappedMdl;
     PVOID DataBuffer;
     PVOID ScatterGatherList;
+    UCHAR SenseInfoBufferLength;
     ULONG SpScatterGather[94];
 } SCSI_PORT_SRB_DATA, *PSCSI_PORT_SRB_DATA;
 
@@ -441,6 +443,12 @@ SpAllocateSrbData(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension
 );
 
+BOOLEAN
+NTAPI
+SpSrbIsBypassRequest(
+    _In_ PSCSI_REQUEST_BLOCK Srb,
+    _In_ UCHAR LuFlags
+);
 
 #endif /* _SCSIPORT_H_ */
 

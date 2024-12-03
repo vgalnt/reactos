@@ -766,8 +766,168 @@ SpAllocateSrbExtension(
     _Out_ BOOLEAN* OutIsStartNextPacket,
     _Out_ BOOLEAN* OutIsTaggedRequest)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PSCSI_PORT_SRB_DATA SrbData;
+    PVOID* SrbExtensionList;
+    PVOID SrbExtension;
+
+    DPRINT("SpAllocateSrbExtension: %X, %X, %X\n", DeviceExtension->IsRequestQueue, Srb->Function, Srb->SrbFlags);
+
+    SrbData = Srb->OriginalRequest;
+    ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+
+    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+
+    if (!DeviceExtension->IsRequestQueue)
+    {
+        *OutIsTaggedRequest = FALSE;
+
+        Srb->QueueTag = 0xFF;
+        LunExtension->CurrentUntaggedRequest = SrbData;
+    }
+    else if (Srb->Function == 0x10)
+    {
+        ASSERT(FALSE);
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+        DPRINT("SpAllocateSrbExtension: ret FALSE\n");
+        return FALSE;
+    }
+    else if ((Srb->SrbFlags & (DeviceExtension->MultipleRequestPerLu == TRUE ? STATUS_TIMEOUT : 2)) && !(Srb->SrbFlags & 4))
+    {
+        *OutIsTaggedRequest = TRUE;
+
+        if (LunExtension->LuFlags & 4)
+        {
+            //ScsiDebugPrintInt(1, "SCSIPORT: SpAllocateSrbExtension: Marking tagged request as pending.\n");
+            DPRINT("SpAllocateSrbExtension: Marking tagged request as pending.\n");
+
+            ASSERT(!(LunExtension->LuFlags & 0x20));//LU_PENDING_LU_REQUEST
+            ASSERT(LunExtension->PendingRequest == NULL);
+
+            LunExtension->LuFlags |= 0x20;
+            LunExtension->LuFlags |= 2;
+            LunExtension->PendingRequest = SrbData;
+
+            *OutIsStartNextPacket = TRUE;
+
+            KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+            DPRINT("SpAllocateSrbExtension: ret FALSE\n");
+            return FALSE;
+        }
+    }
+    else if ((IsListEmpty(&LunExtension->SrbDataList) && !(LunExtension->LuFlags & 4)) ||
+             SpSrbIsBypassRequest(Srb, LunExtension->LuFlags))
+    {
+        *OutIsTaggedRequest = FALSE;
+
+        Srb->QueueTag = 0xFF;
+        LunExtension->CurrentUntaggedRequest = SrbData;
+    }
+    else
+    {
+        *OutIsTaggedRequest = FALSE;
+
+        ASSERT(!(LunExtension->LuFlags & 0x20));//LU_PENDING_LU_REQUEST
+
+        LunExtension->LuFlags |= 0x20;
+        LunExtension->LuFlags |= 2;
+        LunExtension->PendingRequest = SrbData;
+
+        *OutIsStartNextPacket = TRUE;
+
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+        DPRINT("SpAllocateSrbExtension: ret FALSE\n");
+        return FALSE;
+    }
+
+    ASSERT(Srb->QueueTag != 0);
+
+    if (!DeviceExtension->IsSrbExtensions)
+    {
+        Srb->SrbExtension = NULL;
+
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+        DPRINT("SpAllocateSrbExtension: ret TRUE\n");
+        return TRUE;
+    }
+
+    SrbExtensionList = DeviceExtension->SrbExtensionList;
+    if (!SrbExtensionList)
+    {
+        DeviceExtension->Flags |= 0x800;
+
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+        DPRINT("SpAllocateSrbExtension: ret FALSE\n");
+        return FALSE;
+    }
+
+    DeviceExtension->SrbExtensionList = SrbExtensionList;
+
+    if (DeviceExtension->VerifierExtension)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        SrbExtension = NULL;
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+    Srb->SrbExtension = SrbExtension;
+
+    if (!SrbExtension)
+        Srb->SrbExtension = SrbExtensionList;
+
+    if (Srb->Function == 0x17)
+    {
+        DPRINT("SpAllocateSrbExtension: ret TRUE\n");
+        return TRUE;
+    }
+
+    if (!DeviceExtension->AutoRequestSense)
+    {
+        DPRINT("SpAllocateSrbExtension: ret TRUE\n");
+        return TRUE;
+    }
+
+    if (!Srb->SenseInfoBuffer)
+    {
+        DPRINT("SpAllocateSrbExtension: ret TRUE\n");
+        return TRUE;
+    }
+
+    SrbData->RequestSenseSave = Srb->SenseInfoBuffer;
+    SrbData->SenseInfoBufferLength = Srb->SenseInfoBufferLength;
+
+    if (Srb->SenseInfoBufferLength <= (sizeof(SENSE_DATA) + DeviceExtension->SenseDataBytes))
+    {
+        Srb->SenseInfoBufferLength = (sizeof(SENSE_DATA) + DeviceExtension->SenseDataBytes);
+
+        if (DeviceExtension->VerifierExtension)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else
+        {
+            Srb->SenseInfoBuffer = Add2Ptr(SrbExtensionList, DeviceExtension->SrbExtensionSize);
+        }
+    }
+    else
+    {
+        //ScsiDebugPrintInt(1, "SpAllocateSrbExtension: SenseInfoBuffer too big SenseInfoBufferLength:%x MaxSupported:%x\n",
+        //                  Srb->SenseInfoBufferLength, DeviceExtension->SenseDataBytes + sizeof(SENSE_DATA));
+        DPRINT("SpAllocateSrbExtension: SenseInfoBuffer too big (SenseInfoBufferLength %X, MaxSupported %X)\n",
+               Srb->SenseInfoBufferLength, DeviceExtension->SenseDataBytes + sizeof(SENSE_DATA));
+
+        Srb->SrbFlags |= 0x20;
+    }
+
+    DPRINT("SpAllocateSrbExtension: ret TRUE\n");
+    return TRUE;
 }
 
 VOID
