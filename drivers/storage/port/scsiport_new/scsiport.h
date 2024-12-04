@@ -76,6 +76,7 @@ typedef struct _SCSI_PORT_SRB_DATA
     PIRP CurrentIrp;
     PSCSI_REQUEST_BLOCK CurrentSrb;
     PVOID CompletedRequests;
+    PVOID MapRegisterBase;
     ULONG NumberOfMapRegisters;
     LONG DataBufferOffsetToMdlVA;
     PVOID RequestSenseSave;

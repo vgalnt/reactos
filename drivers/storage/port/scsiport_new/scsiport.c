@@ -930,6 +930,73 @@ SpAllocateSrbExtension(
     return TRUE;
 }
 
+PMDL
+NTAPI
+SpBuildMdlForMappedTransfer(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDMA_ADAPTER DmaAdapter,
+    _In_ PMDL MdlAddress,
+    _In_ PVOID DataBuffer,
+    _In_ ULONG DataTransferLength,
+    _In_ PSCATTER_GATHER_ELEMENT ScatterGatherList,
+    _In_ ULONG NumberOfElements)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PMDL
+NTAPI
+SpPrepareReservedMdlForUse(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_PORT_SRB_DATA SrbData,
+    _In_ PSCSI_REQUEST_BLOCK Srb,
+    _In_ ULONG SgElements)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+VOID
+NTAPI
+SpFreeSrbExtension(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PVOID SrbExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+PVOID
+NTAPI
+SpGetSystemAddressForMdlSafe(
+    _In_ PMDL MemoryDescriptorList,
+    _In_ MM_PAGE_PRIORITY Priority)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PVOID
+NTAPI
+SpMapLockedPagesWithReservedMapping(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb,
+    _In_ PSCSI_PORT_SRB_DATA SrbData,
+    _In_ PMDL MemoryDescriptorList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+BOOLEAN
+NTAPI
+SpStartIoSynchronized(
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 VOID
 NTAPI
 SpReceiveScatterGather(
@@ -938,7 +1005,239 @@ SpReceiveScatterGather(
     _In_ PSCATTER_GATHER_LIST ScatterGather,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_SRB_DATA SrbData = Context;
+    PSCSI_REQUEST_BLOCK Srb = SrbData->CurrentSrb;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PDMA_OPERATIONS DmaOperations;
+    PVOID SystemVa;
+    PMDL Mdl;
+    KIRQL Irql;
+    UCHAR ix;
+
+    DPRINT("SpReceiveScatterGather: %p, %p\n", ScatterGather, Context);
+
+    SrbData->MapRegisterBase = ScatterGather;
+    SrbData->ScatterGatherList = &ScatterGather[1];
+
+    DeviceExtension = Fdo->DeviceExtension;
+    DmaOperations = DeviceExtension->DmaAdapter->DmaOperations;
+
+    if (DeviceExtension->MapBuffers != 1)
+    {
+        if (Srb->Function != 2 && (Srb->Function != 0 || Srb->Cdb[0] == 0x2A || Srb->Cdb[0] == 0x28))
+        {
+            SrbData->RemappedMdl = NULL;
+            goto Finish;
+        }
+    }
+
+    Mdl = Irp->MdlAddress;
+
+    for (ix = 0; ; ix = 1)
+    {
+        while (TRUE)
+        {
+            if (DeviceExtension->IsRemapBuffers || ix == 1)
+            {
+                Mdl = SpBuildMdlForMappedTransfer(Fdo,
+                                                  DeviceExtension->DmaAdapter,
+                                                  SrbData->CurrentIrp->MdlAddress,
+                                                  Srb->DataBuffer,
+                                                  Srb->DataTransferLength,
+                                                  SrbData->ScatterGatherList,
+                                                  ScatterGather->NumberOfElements);
+
+                if (!Mdl && DeviceExtension->ReservedMdl)
+                {
+                    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+                    Mdl = SpPrepareReservedMdlForUse(DeviceExtension, SrbData, Srb, ScatterGather->NumberOfElements);
+
+                    if (Mdl == ULongToPtr(0xFFFFFFFF))
+                    {
+                        //ScsiDebugPrintInt(1, "SpReceiveScatterGather: reserve mdl in use - pending DevExt:%p srb:%p\n", DeviceExtension, Srb);
+                        DPRINT("SpReceiveScatterGather: reserve mdl in use - pending (%p, %p)\n", DeviceExtension, Srb);
+
+                        ASSERT(Irp == Fdo->CurrentIrp);
+                        DeviceExtension->Flags |= 0x800;
+
+                        if (Srb->SrbExtension)
+                        {
+                            if (Srb->Function != 0x17 && DeviceExtension->AutoRequestSense && Srb->SenseInfoBuffer)
+                            {
+                                ASSERT(SrbData->RequestSenseSave != NULL || Srb->SenseInfoBuffer == NULL);
+                                UNIMPLEMENTED_DBGBREAK();
+                            }
+
+                            SpFreeSrbExtension(DeviceExtension, Srb->SrbExtension);
+                        }
+
+                        DmaOperations->PutScatterGatherList(DeviceExtension->DmaAdapter,
+                                                            SrbData->MapRegisterBase,
+                                                            (Srb->SrbFlags & 0x40 ? FALSE : TRUE));
+                        SrbData->ScatterGatherList = NULL;
+
+                        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+                        return;
+                    }
+
+                    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+                }
+
+                SrbData->RemappedMdl = Mdl;
+                break;
+            }
+
+            SrbData->RemappedMdl = NULL;
+
+            if (!ScsiPortVerifierInitialized)
+                break;
+
+            if (ix)
+            {
+                SrbData->Status = STATUS_INSUFFICIENT_RESOURCES;
+                Srb->SrbStatus = 0x30;
+                Srb->ScsiStatus = 0xFF;
+                goto Finish;
+            }
+
+            ix = 1;
+        }
+
+        if (!Mdl)
+        {
+            SrbData->Status = STATUS_INSUFFICIENT_RESOURCES;
+            Srb->SrbStatus = 0x30;
+            Srb->ScsiStatus = 0xFF;
+            goto Finish;
+        }
+
+        if (SrbData->RemappedMdl)
+        {
+            SystemVa = MmMapLockedPagesSpecifyCache(Mdl, KernelMode, MmCached, NULL, 0, (Irp->RequestorMode != 0 ? 0x10 : 0x20));
+            if (SystemVa)
+            {
+                if (!SrbData->RemappedMdl)
+                    Srb->DataBuffer = Add2Ptr(SystemVa, SrbData->DataBufferOffsetToMdlVA);
+                else
+                    Srb->DataBuffer = SystemVa;
+
+                goto Finish;
+            }
+
+            break;
+        }
+
+        SystemVa = SpGetSystemAddressForMdlSafe(Mdl, (Irp->RequestorMode != 0 ? 0x10 : 0x20));
+        if (SystemVa)
+        {
+            if (!SrbData->RemappedMdl)
+                Srb->DataBuffer = Add2Ptr(SystemVa, SrbData->DataBufferOffsetToMdlVA);
+            else
+                Srb->DataBuffer = SystemVa;
+
+            goto Finish;
+        }
+
+        if (ix || Mdl->ByteCount <= Srb->DataTransferLength)
+            break;
+    }
+
+    if (!DeviceExtension->ReservedMapping)
+    {
+        //ScsiDebugPrintInt(1, "SpReceiveScatterGather: Couldn't get system VA for irp 0x%08p\n", Irp);
+        DPRINT("SpReceiveScatterGather: Couldn't get system VA for irp %p\n", Irp);
+
+        Srb->SrbStatus = 0x30;
+        Srb->ScsiStatus = 0xFF;
+        SrbData->Status = STATUS_INSUFFICIENT_RESOURCES;
+
+        if (SrbData->RemappedMdl)
+        {
+            IoFreeMdl(SrbData->RemappedMdl);
+            SrbData->RemappedMdl = NULL;
+        }
+
+        goto Finish;
+    }
+
+    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+
+    SystemVa = SpMapLockedPagesWithReservedMapping(DeviceExtension, Srb, SrbData, Mdl);
+    if (SystemVa == ULongToPtr(0xFFFFFFFF))
+    {
+        //ScsiDebugPrintInt(1, "SpReceiveScatterGather: reserve range in use - pending DevExt:%p srb:%p\n", DeviceExtension, Srb);
+        DPRINT("SpReceiveScatterGather: reserve range in use - pending (%p, %p)\n", DeviceExtension, Srb);
+
+        ASSERT(Irp == Fdo->CurrentIrp);
+        DeviceExtension->Flags |= 0x800;
+
+        if (Srb->SrbExtension)
+        {
+            if (Srb->Function != 0x17 && DeviceExtension->AutoRequestSense && Srb->SenseInfoBuffer)
+            {
+                ASSERT(SrbData->RequestSenseSave != NULL || Srb->SenseInfoBuffer == NULL);
+                UNIMPLEMENTED_DBGBREAK();
+            }
+
+            SpFreeSrbExtension(DeviceExtension, Srb->SrbExtension);
+        }
+
+        DmaOperations->PutScatterGatherList(DeviceExtension->DmaAdapter,
+                                            SrbData->MapRegisterBase,
+                                            (Srb->SrbFlags & 0x40 ? FALSE : TRUE));
+        SrbData->ScatterGatherList = NULL;
+
+        if (SrbData->RemappedMdl)
+        {
+            if (SrbData->Flags & 0x40000000)
+            {
+                SrbData->Flags &= ~0x40000000;
+                DeviceExtension->Flags &= ~0x00400000;
+            }
+            else
+            {
+                IoFreeMdl(SrbData->RemappedMdl);
+            }
+
+            SrbData->RemappedMdl = NULL;
+        }
+
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+        return;
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+    if (SystemVa)
+    {
+        if (!SrbData->RemappedMdl)
+            Srb->DataBuffer = Add2Ptr(SystemVa, SrbData->DataBufferOffsetToMdlVA);
+        else
+            Srb->DataBuffer = SystemVa;
+
+        goto Finish;
+    }
+
+    //ScsiDebugPrintInt(1, "SpReceiveScatterGather: Couldn't get system VA for irp 0x%08p\n", Irp);
+    DPRINT("SpReceiveScatterGather: Couldn't get system VA for irp %p\n", Irp);
+
+    Srb->SrbStatus = 0x30;
+    Srb->ScsiStatus = 0xFF;
+    SrbData->Status = STATUS_INSUFFICIENT_RESOURCES;
+
+    if (SrbData->RemappedMdl)
+    {
+        IoFreeMdl(SrbData->RemappedMdl);
+        SrbData->RemappedMdl = NULL;
+    }
+
+Finish:
+
+    InterlockedIncrement(&DeviceExtension->ActiveRequestCount);
+
+    KeAcquireSpinLock(&DeviceExtension->SpinLock, &Irql);
+    DeviceExtension->SynchronizeFunction(DeviceExtension->InterruptObject, SpStartIoSynchronized, Fdo);
+    KeReleaseSpinLock(&DeviceExtension->SpinLock, Irql);
 }
 
 IO_ALLOCATION_ACTION
@@ -951,15 +1250,6 @@ ScsiPortAllocationRoutine(
 {
     UNIMPLEMENTED_DBGBREAK();
     return 0;
-}
-
-BOOLEAN
-NTAPI
-SpStartIoSynchronized(
-    _In_ PVOID Context)
-{
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
 }
 
 VOID
