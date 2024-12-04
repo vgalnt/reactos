@@ -1614,13 +1614,85 @@ Finish:
     DPRINT("ScsiPortStartIo: Status %X\n", Status);
 }
 
+BOOLEAN
+NTAPI
+SpTransferBlockedRequestsToAdapter(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 VOID
 FASTCALL
 SpFreeSrbData(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ PSCSI_PORT_SRB_DATA SrbData)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    LONG SrbDataLock;
+    PIRP Irp;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    PSCSI_PORT_SRB_DATA OriginalRequest;
+    KIRQL Irql;
+
+    DPRINT("SpFreeSrbData: %p, %p\n", DeviceExtension, SrbData);
+
+    ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+    ASSERT(SrbData->CurrentIrp == NULL);
+    ASSERT(SrbData->CurrentSrb == NULL);
+    ASSERT(SrbData->CompletedRequests == NULL);
+
+    SrbDataLock = InterlockedIncrement(&DeviceExtension->FreeSrbDataLock);
+
+    SrbData->Flags = 0;
+
+    if (InterlockedCompareExchangePointer((PVOID)&DeviceExtension->SrbData, SrbData, NULL))
+    {
+        ExFreeToNPagedLookasideList(&DeviceExtension->SrbDataLookAsideList, SrbData);
+        goto Exit;
+    }
+
+    if (SrbDataLock != 1)
+        goto Exit;
+
+    while (TRUE)
+    {
+        KeAcquireSpinLock(&DeviceExtension->SrbDataSpinLock, &Irql);
+
+        if (IsListEmpty(&DeviceExtension->BlockedRequestList))
+        {
+            if (!SpTransferBlockedRequestsToAdapter(DeviceExtension))
+                break;
+        }
+
+        OriginalRequest = InterlockedExchangePointer((PVOID)&DeviceExtension->SrbData, NULL);
+        if (!OriginalRequest)
+            break;
+
+        Irp = CONTAINING_RECORD(RemoveHeadList(&DeviceExtension->BlockedRequestList), IRP, Tail);
+
+        KeReleaseSpinLock(&DeviceExtension->SrbDataSpinLock, Irql);
+
+        IoStack = IoGetCurrentIrpStackLocation(Irp);
+        Srb = IoStack->Parameters.Scsi.Srb;
+
+        ASSERT((((PCOMMON_EXTENSION) (IoStack->DeviceObject)->DeviceExtension)->IsPdo));
+
+        OriginalRequest->CurrentIrp = Irp;
+        OriginalRequest->CurrentSrb = Srb;
+        OriginalRequest->LunExtension = IoStack->DeviceObject->DeviceExtension;
+
+        Srb->OriginalRequest = OriginalRequest;
+
+        SpDispatchRequest(OriginalRequest->LunExtension, Irp);
+    }
+
+    KeReleaseSpinLock(&DeviceExtension->SrbDataSpinLock, Irql);
+
+Exit:
+
+    InterlockedDecrement(&DeviceExtension->FreeSrbDataLock);
 }
 
 VOID
@@ -6241,15 +6313,6 @@ BOOLEAN
 NTAPI
 SpTimeoutSynchronized(
     _In_ PVOID Context)
-{
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
-}
-
-BOOLEAN
-NTAPI
-SpTransferBlockedRequestsToAdapter(
-    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
     UNIMPLEMENTED_DBGBREAK();
     return FALSE;

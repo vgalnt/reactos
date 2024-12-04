@@ -336,6 +336,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     PMDL ReservedMdl;
     ULONG RemainInReducedMaxQueueState;
     ULONG UncachedExtAlignment;
+    LONG FreeSrbDataLock;
     ULONG TimeoutValue;
     BOOLEAN IsRequestQueue;
     ULONG SgListSize;
@@ -456,6 +457,13 @@ VOID
 NTAPI
 SpRequestCompletionDpc(
     _In_ PDEVICE_OBJECT DeviceObject
+);
+
+NTSTATUS
+NTAPI
+SpDispatchRequest(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PIRP Irp
 );
 
 #endif /* _SCSIPORT_H_ */
