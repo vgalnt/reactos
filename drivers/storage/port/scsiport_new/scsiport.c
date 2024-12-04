@@ -5713,7 +5713,17 @@ NTAPI
 SpDecrementActiveRequestCount(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    if (InterlockedDecrement(&DeviceExtension->ActiveRequestCount) >= 0)
+        return;
+
+    if (DeviceExtension->PortConfig->Master)
+        return;
+
+    if (!DeviceExtension->DmaAdapter)
+        return;
+
+    DeviceExtension->MapRegisterBase = NULL;
+    DeviceExtension->DmaAdapter->DmaOperations->FreeAdapterChannel(DeviceExtension->DmaAdapter);
 }
 
 VOID
