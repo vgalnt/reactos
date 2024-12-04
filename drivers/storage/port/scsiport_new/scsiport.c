@@ -6485,8 +6485,25 @@ ScsiPortInterrupt(
     _In_ PKINTERRUPT Interrupt,
     _In_ PVOID ServiceContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PDEVICE_OBJECT DeviceObject = ServiceContext;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    BOOLEAN Result;
+  
+    DeviceExtension = DeviceObject->DeviceExtension;
+
+    DPRINT("ScsiPortInterrupt: %p\n", DeviceExtension);
+
+    if (DeviceExtension->InterruptData.Flags & 0x84000)
+        return FALSE;
+
+    Result = DeviceExtension->HwInterrupt(DeviceExtension->HwDeviceExtension);
+
+    UNIMPLEMENTED_ONCE;
+
+    if (DeviceExtension->InterruptData.Flags & 4)
+        SpRequestCompletionDpc(ServiceContext);
+
+    return Result;
 }
 
 VOID
