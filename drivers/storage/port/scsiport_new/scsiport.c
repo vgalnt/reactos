@@ -25,6 +25,9 @@ KSPIN_LOCK ScsiGlobalAdapterListSpinLock;
 PVOID ScsiDirectory = NULL;
 PSCSI_PORT_GUID_INTERFACE_MAPPING SpGuidInterfaceMappingList;
 HANDLE ScsiDeviceMapKey = ULongToPtr(0xFFFFFFFF);
+ULONG ScsiSimulateNoVaCounter = 0;
+ULONG ScsiSimulateNoVaInterval = 0;
+BOOLEAN ScsiSimulateNoVaBreak = TRUE;
 LONG SpPAGELOCKLockCount = 0;
 LONG LockLowWatermark = 0;
 BOOLEAN ScsiPortLegacyAdapterDetection = FALSE;
@@ -969,11 +972,33 @@ SpFreeSrbExtension(
 PVOID
 NTAPI
 SpGetSystemAddressForMdlSafe(
-    _In_ PMDL MemoryDescriptorList,
+    _In_ PMDL Mdl,
     _In_ MM_PAGE_PRIORITY Priority)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PVOID SystemVa;
+
+    ScsiSimulateNoVaCounter++;
+
+    if (!ScsiSimulateNoVaInterval || Priority == 0x20 || (ScsiSimulateNoVaCounter % ScsiSimulateNoVaInterval))
+    {
+        if (Mdl->MdlFlags & 5)
+            SystemVa = Mdl->MappedSystemVa;
+        else
+            SystemVa = MmMapLockedPagesSpecifyCache(Mdl, KernelMode, MmCached, NULL, 0, Priority);
+    }
+    else if (Mdl->MdlFlags & 5)
+    {
+        DbgPrint("SpGetSystemAddressForMdlSafe - not failing since MDL %p is already mapped\n", Mdl);
+        SystemVa = Mdl->MappedSystemVa;
+    }
+    else
+    {
+        DbgPrint("SpGetSystemAddressForMdlSafe - failing this MDL mapping (%p, %X, %X)\n", Mdl, ScsiSimulateNoVaInterval, ScsiSimulateNoVaCounter);
+        ASSERT(ScsiSimulateNoVaBreak == FALSE);
+        SystemVa = NULL;
+    }
+
+    return SystemVa;
 }
 
 PVOID
