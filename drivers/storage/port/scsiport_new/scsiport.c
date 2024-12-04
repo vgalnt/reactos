@@ -5710,12 +5710,333 @@ SpGetInterruptState(
 
 VOID
 NTAPI
+SpDecrementActiveRequestCount(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+SpForceRequestIntoLuQueue(
+    _In_ PKDEVICE_QUEUE DeviceQueue,
+    _In_ PKDEVICE_QUEUE_ENTRY DeviceQueueEntry,
+    _In_ ULONG QueueSortKey,
+    _In_ PVOID BusyRequest)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
 SpProcessCompletedRequest(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ PSCSI_PORT_SRB_DATA SrbData,
     _Out_ BOOLEAN* OutIsStartIo)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PREAD_CAPACITY_DATA ReadCapacity;
+    PDMA_OPERATIONS DmaOperations;
+    PSENSE_DATA RequestSense;
+    PSCSI_REQUEST_BLOCK Srb;
+    PDEVICE_OBJECT Fdo;
+    PIRP Irp;
+    FOUR_BYTE MaxLba;
+    BOOLEAN IsSenseInfo;
+    UCHAR RetryBusyRequests;
+    UCHAR Align;
+
+    DPRINT("SpProcessCompletedRequest: %p\n", DeviceExtension);
+
+    ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE;
+
+    Srb = SrbData->CurrentSrb;
+    Irp = SrbData->CurrentIrp;
+
+    LunExtension = SrbData->LunExtension;
+
+    Fdo = DeviceExtension->CommonExtension.SelfDevice;
+
+    if (Srb->SrbFlags & 0xC0)
+    {
+        Srb->DataBuffer = SrbData->DataBuffer;
+
+        if (DeviceExtension->MapBuffers || SrbData->RemappedMdl || Srb->Cdb[0] == SCSIOP_READ_CAPACITY)
+        {
+            if (Srb->Cdb[0] == SCSIOP_READ_CAPACITY && Srb->SrbStatus == 1)
+            {
+                ASSERT(Srb->DataBuffer != NULL);
+
+                if (Srb->DataTransferLength == 8)
+                {
+                    ReadCapacity = Srb->DataBuffer;
+                    REVERSE_BYTES(&MaxLba, &ReadCapacity->LogicalBlockAddress);
+
+                    if ((MaxLba.AsULong + 1) != LunExtension->Capacity &&
+                        (MaxLba.AsULong + 1) >= LunExtension->QueueZoneCount)
+                    {
+                        LunExtension->QueueZoneLength = (((MaxLba.AsULong + LunExtension->QueueZoneCount) &
+                                                         ~(LunExtension->QueueZoneCount - 1)) / LunExtension->QueueZoneCount);
+
+                        LunExtension->MinQueueSector[0] = (0 * LunExtension->QueueZoneLength);
+                        LunExtension->MinQueueSector[1] = (1 * LunExtension->QueueZoneLength);
+                        LunExtension->MinQueueSector[2] = (2 * LunExtension->QueueZoneLength);
+                        LunExtension->MinQueueSector[3] = (3 * LunExtension->QueueZoneLength);
+
+                        LunExtension->MaxQueueSector[0] = (1 * LunExtension->QueueZoneLength - 1);
+                        LunExtension->MaxQueueSector[1] = (2 * LunExtension->QueueZoneLength - 1);
+                        LunExtension->MaxQueueSector[2] = (3 * LunExtension->QueueZoneLength - 1);
+                        LunExtension->MaxQueueSector[3] = MaxLba.AsULong;
+
+                        //ScsiDebugPrintInt(1, "SpProcessCompletedRequest:
+                        //                  SRB:%p (p:%d t:%d l:%d) Capacity:%x\n", Srb, Srb->PathId, Srb->TargetId, Srb->Lun, MaxLba.AsULong + 1);
+                        DPRINT("SpProcessCompletedRequest: %p (p:%X t:%X l:%X) Capacity %X\n",
+                               Srb, Srb->PathId, Srb->TargetId, Srb->Lun, MaxLba.AsULong + 1);
+                    }
+                }
+            }
+
+            if (SrbData->RemappedMdl)
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+    }
+
+    if (SrbData->MapRegisterBase)
+    {
+        DmaOperations = DeviceExtension->DmaAdapter->DmaOperations;
+
+        if (DeviceExtension->NeedPhAddrForMasterDma == 1)
+        {
+            DmaOperations->PutScatterGatherList(DeviceExtension->DmaAdapter,
+                                                SrbData->MapRegisterBase,
+                                                ((Srb->SrbFlags & SRB_FLAGS_DATA_IN) ? FALSE : TRUE));
+            SrbData->ScatterGatherList = NULL;
+        }
+        else
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        SrbData->MapRegisterBase = NULL;
+    }
+
+    if (SrbData == LunExtension->CurrentUntaggedRequest)
+    {
+        ASSERT(SrbData->CurrentSrb->QueueTag == 0xFF);//SP_UNTAGGED
+        LunExtension->CurrentUntaggedRequest = NULL;
+    }
+
+    if (SrbData->Flags & 0x20000000)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (Srb->SrbFlags & 4)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    Irp->IoStatus.Information = Srb->DataTransferLength;
+
+    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+
+    if (Srb->SrbExtension)
+    {
+        if (Srb->Function != 0x17 && DeviceExtension->AutoRequestSense && Srb->SenseInfoBuffer)
+        {
+            ASSERT(SrbData->RequestSenseSave != NULL || Srb->SenseInfoBuffer == NULL);
+
+            if (Srb->SrbStatus & 0x80)
+            {
+                if (Srb->SrbFlags & 0x200000)
+                {
+                    Align = (((Srb->SenseInfoBufferLength + 3) & ~3) - Srb->SenseInfoBufferLength);
+                    RequestSense = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, (Srb->SenseInfoBufferLength + Align + 8), 'iPcS');
+
+                    if (RequestSense)
+                    {
+                        Srb->SrbFlags |= 0x400400;
+                        *(PULONG)((ULONG_PTR)RequestSense + Align + Srb->SenseInfoBufferLength) = DeviceExtension->PortScsiPort;
+                        SrbData->RequestSenseSave = RequestSense;
+                    }
+                    else
+                    {
+                        Srb->SenseInfoBufferLength = SrbData->SenseInfoBufferLength;
+                    }
+                }
+                else
+                {
+                    Srb->SenseInfoBufferLength = SrbData->SenseInfoBufferLength;
+                }
+
+                RtlCopyMemory(SrbData->RequestSenseSave, Srb->SenseInfoBuffer, Srb->SenseInfoBufferLength);
+            }
+            else
+            {
+                Srb->SenseInfoBufferLength = SrbData->SenseInfoBufferLength;
+            }
+
+            Srb->SenseInfoBuffer = SrbData->RequestSenseSave;
+        }
+
+        if (DeviceExtension->VerifierExtension)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else
+        {
+            *((PVOID *)Srb->SrbExtension) = DeviceExtension->SrbExtensionList;
+            DeviceExtension->SrbExtensionList = Srb->SrbExtension;
+        }
+    }
+
+    LunExtension->QueueCount--;
+
+    if (DeviceExtension->Flags & 0x800)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if ((Srb->SrbStatus & 0x3F) == 1)
+    {
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+
+        if (!(Srb->SrbFlags & 0x10) && LunExtension->RequestTimeoutCounter == 0xFFFFFFFF)
+            GetNextLuRequest(LunExtension);
+        else
+            KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+        //ScsiDebugPrintInt(3, "SpProcessCompletedRequests: Iocompletion IRP %p\n", Irp);
+        DPRINT("SpProcessCompletedRequests: %p\n", Irp);
+
+        Srb->OriginalRequest = Irp;
+
+        SpDecrementActiveRequestCount(DeviceExtension);
+        SpReleaseRemoveLock(Fdo, Irp);
+
+        SpCompleteRequest(Fdo, Irp, SrbData, 1);
+        return;
+    }
+
+    if (Srb->SrbStatus == 0x30)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        Irp->IoStatus.Status = SpTranslateScsiStatus(Srb);
+        DPRINT1("SpProcessCompletedRequest: Status %X\n", Irp->IoStatus.Status);
+    }
+
+    //ScsiDebugPrintInt(2, "SpProcessCompletedRequests: Queue frozen TID %d\n", Srb->TargetId);
+    DPRINT("SpProcessCompletedRequest: TID %X\n", Srb->TargetId);
+
+    if ((Srb->ScsiStatus == 8 || Srb->SrbStatus == 5 || Srb->ScsiStatus == 0x28) && !(Srb->SrbFlags & 0x10))
+    {
+        //ScsiDebugPrintInt(1, "SCSIPORT: Busy SRB status %x, SCSI status %x)\n", Srb->SrbStatus, Srb->ScsiStatus);
+        DPRINT("SpProcessCompletedRequest: SRB %X, SCSI %X\n", Srb->SrbStatus, Srb->ScsiStatus);
+
+        Srb->DataTransferLength = SrbData->OriginalDataTransferLength;
+
+        if ((LunExtension->LuFlags & 8) && !(Srb->SrbFlags & 0x80000))
+        {
+            //ScsiDebugPrintInt(1, "SpProcessCompletedRequest: Requeuing busy request\n");
+            DPRINT("SpProcessCompletedRequest: Requeuing busy\n");
+
+            Srb->SrbStatus = 0;
+            Srb->ScsiStatus = 0;
+
+            SpForceRequestIntoLuQueue(&LunExtension->CommonExtension.SelfDevice->DeviceQueue,
+                                      &Irp->Tail.Overlay.DeviceQueueEntry,
+                                      Srb->QueueSortKey,
+                                      LunExtension->BusyRequest);
+
+            KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+            SpDecrementActiveRequestCount(DeviceExtension);
+            return;
+        }
+
+        RetryBusyRequests = LunExtension->RetryBusyRequests++;
+        if (RetryBusyRequests < 20)
+        {
+            Srb->SrbStatus = 0;
+            Srb->ScsiStatus = 0;
+
+            LunExtension->LuFlags |= 8;
+            LunExtension->BusyRequest = SrbData;
+
+            KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+            SpDecrementActiveRequestCount(DeviceExtension);
+            return;
+        }
+
+        if (!(LunExtension->LuFlags & 0x40) && !(Srb->SrbFlags & 0x100))
+        {
+            Srb->SrbStatus |= 0x40;
+            LunExtension->LuFlags |= 1;
+        }
+
+        LunExtension->LuFlags &= ~0x10;
+
+        //ErrorLogEntry...
+        UNIMPLEMENTED_ONCE;
+
+        Irp->IoStatus.Status = STATUS_DEVICE_NOT_READY;
+    }
+
+    IsSenseInfo = (Srb->ScsiStatus == 2 && !(Srb->SrbStatus & 0x80) && Srb->SenseInfoBuffer && Srb->SenseInfoBufferLength);
+
+    if (IsSenseInfo || !(Srb->SrbFlags & 0x100))
+    {
+        if (!(LunExtension->LuFlags & 0x40) &&
+            (!(Srb->SrbFlags & 0x100) || IsSenseInfo))
+        {
+            Srb->SrbStatus |= 0x40;
+            LunExtension->LuFlags |= 1;
+        }
+
+        if (!IsSenseInfo)
+        {
+            ASSERTMSG("Srb is failed request but doesn't indicate needing requests sense: ",
+                      ((SrbData != LunExtension->ActiveFailedRequest) && (SrbData != LunExtension->BlockedFailedRequest)));
+
+            KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+        }
+        else if (LunExtension->LuFlags & 8)
+        {
+            //ScsiDebugPrintInt(1, "SpProcessCompletedRequest: Requeueing busy request to allow request sense.\n");
+            DPRINT("SpProcessCompletedRequest: Requeueing busy request to allow request sense.\n");
+
+            if (!KeInsertByKeyDeviceQueue(&LunExtension->CommonExtension.SelfDevice->DeviceQueue,
+                                          &LunExtension->BusyRequest->CurrentIrp->Tail.Overlay.DeviceQueueEntry,
+                                          Srb->QueueSortKey))
+            {
+                //ScsiDebugPrintInt(3, "SpProcessCompletedRequests: Iocompletion IRP %p\n", Irp);
+                DPRINT("SpProcessCompletedRequests: Iocompletion IRP %p\n", Irp);
+                ASSERT(FALSE);
+                KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+            }
+            else
+            {
+                UNIMPLEMENTED_DBGBREAK();
+            }
+        }
+    }
+    else
+    {
+        if (LunExtension->RequestTimeoutCounter == 0xFFFFFFFF)
+            GetNextLuRequest(LunExtension);
+        else
+            KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+    }
+
+    SpDecrementActiveRequestCount(DeviceExtension);
+    SpReleaseRemoveLock(Fdo, Irp);
+    SpCompleteRequest(Fdo, Irp, SrbData, 1);
 }
 
 VOID
