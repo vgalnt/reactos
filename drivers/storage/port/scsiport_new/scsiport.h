@@ -197,6 +197,7 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     PSCSI_PORT_SRB_DATA BusyRequest;
     PSCSI_PORT_SRB_DATA CurrentUntaggedRequest;
     UCHAR QueueDepth;
+    UCHAR QueueCount;
     INQUIRYDATA InquiryData;
     PVOID ActiveFailedRequest;
     PVOID BlockedFailedRequest;
@@ -449,6 +450,12 @@ NTAPI
 SpSrbIsBypassRequest(
     _In_ PSCSI_REQUEST_BLOCK Srb,
     _In_ UCHAR LuFlags
+);
+
+VOID
+NTAPI
+SpRequestCompletionDpc(
+    _In_ PDEVICE_OBJECT DeviceObject
 );
 
 #endif /* _SCSIPORT_H_ */

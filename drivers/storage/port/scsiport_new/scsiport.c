@@ -1018,8 +1018,99 @@ NTAPI
 SpStartIoSynchronized(
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PDEVICE_OBJECT Fdo = Context;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PSCSI_PORT_SRB_DATA SrbData;
+    PSCSI_REQUEST_BLOCK Srb;
+    BOOLEAN Result;
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    //ScsiDebugPrintInt(3, "ScsiPortStartIoSynchronized: Enter routine\n");
+    DPRINT("SpStartIoSynchronized: %p\n", DeviceExtension);
+
+    Srb = IoGetCurrentIrpStackLocation(Fdo->CurrentIrp)->Parameters.Scsi.Srb;
+
+    SrbData = Srb->OriginalRequest;
+    ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+
+    LunExtension = SrbData->LunExtension;
+    DeviceExtension->SrbDataLunExt = LunExtension;
+
+    if (DeviceExtension->InterruptData.Flags & 0x80000)
+    {
+        Srb->SrbFlags |= 0x80010;
+        Srb->SrbStatus = 0x11;
+    }
+    else if (DeviceExtension->InterruptData.Flags & 0x80)
+    {
+        DeviceExtension->InterruptData.Flags |= 0x100;
+        return TRUE;
+    }
+
+    DeviceExtension->Flags |= 1;
+
+    if (Srb->SrbFlags & 4)
+        DeviceExtension->Flags &= ~0x1000;
+
+    LunExtension->QueueCount++;
+
+    if (Srb->SrbFlags & 0x10)
+    {
+        ASSERT(Srb->Function != SRB_FUNCTION_ABORT_COMMAND);
+
+        if (SpSrbIsBypassRequest(Srb, LunExtension->LuFlags))
+            LunExtension->LuFlags &= ~4;
+
+        LunExtension->RequestTimeoutCounter = Srb->TimeOutValue;
+    }
+    else
+    {
+        LunExtension->LuFlags |= 2;
+    }
+
+    Srb->SrbFlags |= 0x10000;
+
+    if (Srb->QueueTag == 0xFF)
+        LunExtension->CurrentUntaggedRequest = SrbData;
+    else
+        InsertTailList(&LunExtension->SrbDataList, &SrbData->Link);
+
+    if (Srb->SrbStatus)
+    {
+        //ScsiDebugPrintInt(1, "SpStartIoSynchronized: Completeing successful srb %#p before miniport\n", Srb);
+        DPRINT("SpStartIoSynchronized: Completeing successful srb %p before miniport\n", Srb);
+
+        ScsiPortNotification(RequestComplete, DeviceExtension->HwDeviceExtension, Srb);
+        ScsiPortNotification(NextRequest, DeviceExtension->HwDeviceExtension);
+
+        Result = Srb->SrbStatus;
+    }
+    else
+    {
+        DeviceExtension->TimeOut = Srb->TimeOutValue;
+
+        if (LunExtension->RequestTimeoutCounter == -1)
+            LunExtension->RequestTimeoutCounter = Srb->TimeOutValue;
+
+        if (Srb->SrbFlags & 0xC0)
+        {
+            if (!Srb->Function)
+            {
+                if ((Srb->Cdb[0] == 0x2A || Srb->Cdb[0] == 0x28) && !DeviceExtension->MapBuffers)
+                    Srb->DataBuffer = NULL;
+            }
+        }
+
+        Result = DeviceExtension->HwStartIo(DeviceExtension->HwDeviceExtension, Srb);
+        DPRINT("SpStartIoSynchronized: ret %X\n", Result);
+    }
+
+    if (DeviceExtension->InterruptData.Flags & 4)
+        SpRequestCompletionDpc(Fdo);
+
+    return Result;
 }
 
 VOID
