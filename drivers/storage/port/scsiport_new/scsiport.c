@@ -5734,7 +5734,11 @@ SpForceRequestIntoLuQueue(
     _In_ ULONG QueueSortKey,
     _In_ PVOID BusyRequest)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    if (!KeInsertByKeyDeviceQueue(DeviceQueue, DeviceQueueEntry, QueueSortKey))
+    {
+        ASSERT(BusyRequest != NULL);
+        KeInsertByKeyDeviceQueue(DeviceQueue, DeviceQueueEntry, QueueSortKey);
+    }
 }
 
 VOID
@@ -6445,7 +6449,34 @@ SpMiniPortTimerDpc(
     _In_ PVOID SystemArgument1,
     _In_ PVOID SystemArgument2)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_OBJECT Fdo = DeferredContext;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    DPRINT1("SpMiniPortTimerDpc: %p, %X, %p\n", DeviceExtension, DeviceExtension->InterruptData.Flags, DeviceExtension->HwTimerInt);
+
+    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
+
+    if (!(DeviceExtension->InterruptData.Flags & 0x80000))
+    {
+        if (DeviceExtension->HwTimerInt)
+            DeviceExtension->SynchronizeFunction(DeviceExtension->InterruptObject,
+                                                 DeviceExtension->HwTimerInt,
+                                                 DeviceExtension->HwDeviceExtension);
+    }
+
+    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+    if (DeviceExtension->InterruptData.Flags & 4)
+    {
+        DPRINT1("SpMiniPortTimerDpc: %X\n", DeviceExtension->InterruptData.Flags);
+        SpRequestCompletionDpc(Fdo);
+    }
+    else
+    {
+        DPRINT1("SpMiniPortTimerDpc: %p, %X\n", DeviceExtension, DeviceExtension->InterruptData.Flags);
+    }
 }
 
 BOOLEAN
