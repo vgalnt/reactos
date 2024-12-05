@@ -2784,8 +2784,31 @@ NTAPI
 SpRemoveLogicalUnitFromBinSynchronized(
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PSCSI_PORT_LUN_EXTENSION LunExtension = Context;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION* pLunExtension;
+    UCHAR Hash;
+
+    DeviceExtension = LunExtension->DeviceExtension;
+    Hash = ((LunExtension->TargetId + LunExtension->Lun) % 8);
+
+    ASSERT(Hash < 8);//NUMBER_LOGICAL_UNIT_BINS
+
+    DeviceExtension->SrbDataLunExt = NULL;
+
+    for (pLunExtension = &DeviceExtension->LunList[Hash].LunExtension;
+         *pLunExtension;
+         pLunExtension = &(*pLunExtension)->NextLogicalUnit)
+    {
+        if (*pLunExtension == LunExtension)
+        {
+            *pLunExtension = LunExtension->NextLogicalUnit;
+            LunExtension->NextLogicalUnit = NULL;
+            return TRUE;
+        }
+    }
+
+    return TRUE;
 }
 
 VOID
