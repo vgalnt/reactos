@@ -160,6 +160,8 @@ typedef struct _COMMON_EXTENSION
     DEVICE_POWER_STATE CurrentDeviceState;
     DEVICE_POWER_STATE RequestedDeviceState;
     PULONG DeviceIdleDetection;
+    PVOID WmiScsiPortRegInfoBuf;
+    ULONG WmiScsiPortRegInfoBufSize;
     LONG RemoveLock;
     KEVENT Event;
     NPAGED_LOOKASIDE_LIST LookAsideList;
@@ -204,6 +206,7 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     PVOID BlockedFailedRequest;
     PLUN_LIST TargetLunList;
     ULONG SpecialTargetList[6];
+    UCHAR VpdFlags;
     ANSI_STRING SerialNumber;
     PVPD_IDENTIFICATION_PAGE DeviceIdentifierPage;
     ULONG DeviceIdentifierPageSize;

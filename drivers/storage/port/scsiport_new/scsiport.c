@@ -3122,8 +3122,53 @@ NTAPI
 SpPrepareLogicalUnitForReuse(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PVOID SpecificLuExtension;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+
+    DPRINT("SpPrepareLogicalUnitForReuse: %p\n", LunExtension);
+
+    ASSERT(((PCOMMON_EXTENSION) LunExtension->CommonExtension.SelfDevice->DeviceExtension)->IsPdo);
+    ASSERT(LunExtension->CommonExtension.WmiInitialized == FALSE);
+    ASSERT(LunExtension->CommonExtension.WmiScsiPortRegInfoBuf == NULL);
+    ASSERT(LunExtension->CommonExtension.WmiScsiPortRegInfoBufSize == 0);
+    ASSERT(LunExtension->CommonExtension.RemoveLock == 0);
+
+    KeClearEvent(&LunExtension->CommonExtension.Event);
+
+    LunExtension->PathId = 0xFF;
+    LunExtension->TargetId = 0xFF;
+    LunExtension->Lun = 0xFF;
+
+    DeviceExtension = LunExtension->DeviceExtension;
+
+    if (!LunExtension->SpecificLuExtension && DeviceExtension->SpecificLuExtensionSize)
+    {
+        SpecificLuExtension = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, DeviceExtension->SpecificLuExtensionSize, 'HPcS');
+        if (!SpecificLuExtension)
+        {
+            DPRINT1("SpPrepareLogicalUnitForReuse: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        LunExtension->SpecificLuExtension = SpecificLuExtension;
+    }
+
+    if (LunExtension->SpecificLuExtension)
+        RtlZeroMemory(LunExtension->SpecificLuExtension, DeviceExtension->SpecificLuExtensionSize);
+
+    LunExtension->IsMissing = FALSE;
+    LunExtension->IsVisible = FALSE;
+
+    ASSERT(LunExtension->IsEnumerated == FALSE);
+
+    LunExtension->VpdFlags &= ~3;
+
+    LunExtension->CommonExtension.IsRemoved = FALSE;
+
+    RtlZeroMemory(LunExtension->SerialNumber.Buffer, LunExtension->SerialNumber.MaximumLength);
+    LunExtension->SerialNumber.Length = 0;
+
+    return STATUS_SUCCESS;
 }
 
 VOID
