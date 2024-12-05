@@ -114,7 +114,22 @@ SpWaitForRemoveLock(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PVOID Tag)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+
+    PAGED_CODE();
+
+    DeviceExtension = DeviceObject->DeviceExtension;
+    DeviceExtension->CommonExtension.IsRemoved = 1;
+
+    SpReleaseRemoveLock(DeviceObject, Tag);
+
+    //ScsiDebugPrintInt(4, "SpWaitForRemoveLock - Reference count is now %d\n", DeviceExtension->CommonExtension.RemoveLock);
+    DPRINT("SpWaitForRemoveLock: (%X)\n", DeviceExtension->CommonExtension.RemoveLock);
+
+    KeWaitForSingleObject(&DeviceExtension->CommonExtension.Event, Executive, KernelMode, FALSE, NULL);
+
+    //ScsiDebugPrintInt(4, "SpWaitForRemoveLock - removing device %#p\n", DeviceObject);
+    DPRINT("SpWaitForRemoveLock: removing %p\n", DeviceObject);
 }
 
 VOID
