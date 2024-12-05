@@ -1991,7 +1991,18 @@ NTAPI
 GetNextLuRequestWithoutLock(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    KIRQL Irql;
+
+    PAGED_CODE();
+    ASSERT(SpPAGELOCKLockCount != 0);
+
+    KeRaiseIrql(DISPATCH_LEVEL, &Irql);
+    KeAcquireSpinLockAtDpcLevel(&LunExtension->DeviceExtension->SpinLock);
+
+    GetNextLuRequest(LunExtension);
+
+    KeLowerIrql(Irql);
+    PAGED_CODE();
 }
 
 NTSTATUS
