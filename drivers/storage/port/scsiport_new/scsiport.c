@@ -2899,8 +2899,123 @@ SpGetDeviceIdentifiers(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _In_ BOOLEAN IsNewDevice)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    PVPD_SUPPORTED_PAGES_PAGE VpdSupportedPages;
+    PVPD_SERIAL_NUMBER_PAGE VpdSerialNumber;
+    ANSI_STRING AnsiString;
+    ULONG ix;
+    UCHAR BytesReturned;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpGetDeviceIdentifiers: %p, %X, %p\n", LunExtension, IsNewDevice, LunExtension->DeviceExtension->InquiryData);
+
+    VpdSupportedPages = LunExtension->DeviceExtension->InquiryData;
+
+    if (IsNewDevice || (LunExtension->VpdFlags & 1))
+    {
+        if (LunExtension->SpecialTargetList[4])
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else
+        {
+            Status = IssueInquiry(LunExtension, TRUE, 0, (PVOID)VpdSupportedPages, &BytesReturned);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("SpGetDeviceIdentifiers: Status %X\n", Status);
+                return TRUE;
+            }
+
+            if (BytesReturned < 4)
+            {
+                DPRINT1("SpGetDeviceIdentifiers: BytesReturned %X\n", BytesReturned);
+                return TRUE;
+            }
+
+            for (ix = 0; ix < VpdSupportedPages->PageLength; ix++)
+            {
+                if (VpdSupportedPages->SupportedPageList[ix] == 0x80)
+                {
+                    if (IsNewDevice)
+                        LunExtension->VpdFlags |= 2;
+                }
+                else if (VpdSupportedPages->SupportedPageList[ix] == 0x83) 
+                {
+                    LunExtension->VpdFlags |= 1;
+                }
+            }
+        }
+
+        if ((LunExtension->VpdFlags & 1) && !LunExtension->DeviceIdentifierPage)
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+    }
+
+    if (LunExtension->VpdFlags & 2)
+    {
+        VpdSerialNumber = LunExtension->DeviceExtension->InquiryData;
+
+        Status = IssueInquiry(LunExtension, TRUE, 0x80, (PVOID)VpdSerialNumber, &BytesReturned);
+        if (!NT_SUCCESS(Status))
+        {
+            //ScsiDebugPrintInt(0, "SpGetDeviceIdentifiers: Error %#08lx retreiving serial number page from lun %#p\n", Status, LunExtension);
+            DPRINT("SpGetDeviceIdentifiers: Error %X retreiving serial number page from lun %p\n", Status, LunExtension);
+            return TRUE;
+        }
+
+        RtlZeroMemory(Add2Ptr(VpdSerialNumber->SerialNumber, VpdSerialNumber->PageLength), (0x100 - (VpdSerialNumber->PageLength + 4)));
+
+        if (LunExtension->SpecialTargetList[5])
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        RtlInitAnsiString(&AnsiString, (PCHAR)&VpdSerialNumber->SerialNumber);
+
+        if (IsNewDevice)
+        {
+            ASSERT(LunExtension->SerialNumber.MaximumLength != 0);
+            ASSERT(LunExtension->SerialNumber.Buffer != NULL);
+
+            RtlCopyString(&LunExtension->SerialNumber, &AnsiString);
+        }
+        else if (LunExtension->SerialNumber.Buffer || !AnsiString.Length)
+        {
+            if (!RtlEqualString(&AnsiString, &LunExtension->SerialNumber, FALSE))
+            {
+                //ScsiDebugPrintInt(1, "SpInquireLogicalUnit: serial number mismatch\n");
+                DPRINT1("SpGetDeviceIdentifiers: serial number mismatch\n");
+                return FALSE;
+            }
+        }
+        else
+        {
+            ASSERT("FALSE");
+        }
+    }
+
+    if (!(LunExtension->VpdFlags & 1))
+    {
+        LunExtension->DeviceIdentifierPageSize = 0;
+        return TRUE;
+    }
+
+    Status = IssueInquiry(LunExtension, TRUE, 0x83, LunExtension->DeviceExtension->InquiryData, &BytesReturned);
+    if (!NT_SUCCESS(Status))
+    {
+        //ScsiDebugPrintInt(1, "SpGetDeviceIdentifiers: Error %#08lx retreiving serial number page from lun %#p\n", Status, LunExtension);
+        DPRINT("SpGetDeviceIdentifiers: Error %X retreiving serial number page from lun %p\n", Status, LunExtension);
+        return TRUE;
+    }
+
+    ASSERT(LunExtension->DeviceIdentifierPage != NULL);
+    ASSERT((BytesReturned <= VPD_MAX_BUFFER_SIZE) || (LunExtension->DeviceIdentifierPageSize == 0));
+
+    LunExtension->DeviceIdentifierPageSize = (BytesReturned <= 0xFF ? BytesReturned : 0xFF);
+    RtlCopyMemory(LunExtension->DeviceIdentifierPage, LunExtension->DeviceExtension->InquiryData, LunExtension->DeviceIdentifierPageSize);
+
+    return TRUE;
 }
 
 BOOLEAN
