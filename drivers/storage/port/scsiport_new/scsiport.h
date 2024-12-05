@@ -183,6 +183,7 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     UCHAR TargetId;
     UCHAR Lun;
     UCHAR RetryBusyRequests;
+    ULONG SortKey;
     PVOID SpecificLuExtension;
     struct _SCSI_PORT_DEVICE_EXTENSION* DeviceExtension;
     LONG QueueLockCount;

@@ -1980,10 +1980,102 @@ SpCreateLogicalUnit(
 
 VOID
 FASTCALL
+UpdateQueuePointers(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PSCSI_REQUEST_BLOCK Srb)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+FASTCALL
 GetNextLuRequest(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PKDEVICE_QUEUE_ENTRY DeviceQueueEntry;
+    PSCSI_PORT_SRB_DATA SrbData;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_REQUEST_BLOCK Srb;
+    PIRP Irp;
+
+    DPRINT("GetNextLuRequest: %p\n", LunExtension);
+
+    DeviceExtension = LunExtension->DeviceExtension;
+
+    if (!(LunExtension->LuFlags & 2))
+        goto Exit;
+
+    if (LunExtension->QueueCount >= LunExtension->QueueDepth)
+        goto Exit;
+
+    if (LunExtension->LuFlags & 0x41)
+    {
+        //ScsiDebugPrintInt(1, "ScsiPort: GetNextLuRequest: Ignoring a get next lu call for %#p - \n", LunExtension);
+        DPRINT("GetNextLuRequest: Ignoring a get next lu call for %p\n", LunExtension);
+
+        if (LunExtension->LuFlags & 1)
+        {
+            //ScsiDebugPrintInt(1, "\tQueue is frozen\n");
+            DPRINT("\tQueue is frozen\n");
+        }
+
+        if (!(LunExtension->LuFlags & 0x40))
+            goto Exit;
+
+        //ScsiDebugPrintInt(1, "\tQueue is locked\n");
+        DPRINT("\tQueue is locked\n");
+
+        goto Exit;
+    }
+
+    if (!(LunExtension->LuFlags & 0x3C))
+    {
+        LunExtension->LuFlags &= ~2;
+
+        DeviceQueueEntry = KeRemoveByKeyDeviceQueueIfBusy(&LunExtension->CommonExtension.SelfDevice->DeviceQueue, LunExtension->SortKey);
+        if (!DeviceQueueEntry)
+            goto Exit;
+
+        Irp = CONTAINING_RECORD(DeviceQueueEntry, IRP, Tail.Overlay.DeviceQueueEntry);
+
+        IoStack = IoGetCurrentIrpStackLocation(Irp);
+        Srb = IoStack->Parameters.Scsi.Srb;
+        SrbData = Srb->OriginalRequest;
+
+        ASSERT(SrbData->Type == 0x7770);//SRB_DATA_TYPE
+
+        UpdateQueuePointers(LunExtension, Srb);
+
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+        IoStartPacket(DeviceExtension->CommonExtension.SelfDevice, Irp, NULL, NULL);
+        return;
+    }
+
+    if (IsListEmpty(&LunExtension->SrbDataList) && !(LunExtension->LuFlags & 0x1C))
+    {
+        ASSERT(LunExtension->CurrentUntaggedRequest == NULL);
+
+        LunExtension->LuFlags &= ~0x22;
+
+        SrbData = LunExtension->PendingRequest;
+
+        LunExtension->PendingRequest = 0;
+        LunExtension->RetryBusyRequests = 0;
+
+        KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
+
+        IoStartPacket(DeviceExtension->CommonExtension.SelfDevice, SrbData->CurrentIrp, NULL, NULL);
+        return;
+    }
+
+    //ScsiDebugPrintInt(1, "ScsiPort: GetNextLuRequest:  Ignoring a get next lu call.\n");
+    DPRINT("GetNextLuRequest:  Ignoring a get next lu call.\n");
+
+Exit:
+
+    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
 }
 
 VOID
