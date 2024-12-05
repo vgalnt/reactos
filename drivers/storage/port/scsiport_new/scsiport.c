@@ -2766,7 +2766,131 @@ SpCheckSpecialDeviceFlags(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _In_ PINQUIRYDATA InquiryData)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING KeyName;
+    HANDLE DevInstRegKey = NULL;
+    HANDLE KeyHandle = NULL;
+    ULONG SpecialTargetList[6] = {0};
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    //ScsiDebugPrintInt(1, "SpCheckSpecialDeviceFlags - checking flags for %#p\n", LunExtension);
+    DPRINT("SpCheckSpecialDeviceFlags: %p\n", LunExtension);
+
+    //_SEH2_TRY
+
+    //ScsiDebugPrintInt(2, "SpCheckSpecialDeviceFlags - trying control list\n");
+    DPRINT("SpCheckSpecialDeviceFlags: trying control list\n");
+
+    RtlInitUnicodeString(&KeyName, L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\ScsiPort\\SpecialTargetList");
+    InitializeObjectAttributes(&ObjectAttributes, &KeyName, (OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE), NULL, NULL);
+
+    Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+
+    if (NT_SUCCESS(Status))
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        //ScsiDebugPrintInt(2, "SpCheckSpecialDeviceFlags - error %#08lx opening key %wZ\n", Status, &KeyName);
+        DPRINT("SpCheckSpecialDeviceFlags: (%X) '%wZ'\n", Status, &KeyName);
+    }
+
+    //_SEH2_FINALLY
+
+    if (KeyHandle)
+    {
+        ZwClose(KeyHandle);
+        KeyHandle = NULL;
+    }
+
+    //_SEH2_TRY
+
+    //ScsiDebugPrintInt(2, "SpCheckSpecialDeviceFlags - trying adapter list\n");
+    DPRINT("SpCheckSpecialDeviceFlags: trying adapter list\n");
+
+    Status = IoOpenDeviceRegistryKey(LunExtension->DeviceExtension->LowerPdo, PLUGPLAY_REGKEY_DEVICE, KEY_READ, &DevInstRegKey);
+
+    if (NT_SUCCESS(Status))
+    {
+        RtlInitUnicodeString(&KeyName, L"ScsiPort\\SpecialTargetList");
+        InitializeObjectAttributes(&ObjectAttributes, &KeyName, (OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE), DevInstRegKey, NULL);
+
+        Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+
+        if (NT_SUCCESS(Status))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+        }
+        else
+        {
+            //ScsiDebugPrintInt(2, "SpCheckSpecialDeviceFlags - error %#08lx opening adapter devnode key %wZ\n", Status, &KeyName);
+            DPRINT("SpCheckSpecialDeviceFlags: error %X opening '%wZ'\n", Status, &KeyName);
+        }
+    }
+    else
+    {
+        //ScsiDebugPrintInt(2, "SpCheckSpecialDeviceFlags - error %#08lx opening adapter devnode key\n", Status);
+        DPRINT("SpCheckSpecialDeviceFlags: error %X opening adapter devnode key\n", Status);
+    }
+
+    //_SEH2_FINALLY
+
+    if (DevInstRegKey)
+    {
+        ZwClose(DevInstRegKey);
+        DevInstRegKey = NULL;
+
+        if (KeyHandle)
+        {
+            ZwClose(KeyHandle);
+            KeyHandle = NULL;
+        }
+    }
+
+    //_SEH2_TRY
+
+    Status = IoOpenDeviceRegistryKey(LunExtension->CommonExtension.SelfDevice, PLUGPLAY_REGKEY_DEVICE, KEY_READ, &DevInstRegKey);
+
+    if (NT_SUCCESS(Status))
+    {
+        RtlInitUnicodeString(&KeyName, L"ScsiPort\\SpecialTargetList");
+        InitializeObjectAttributes(&ObjectAttributes, &KeyName, (OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE), DevInstRegKey, NULL);
+
+        Status = ZwOpenKey(&KeyHandle, KEY_READ, &ObjectAttributes);
+
+        if (NT_SUCCESS(Status))
+        {
+            UNIMPLEMENTED_DBGBREAK();
+            //SpProcessSpecialControllerFlags(KeyHandle, SpecialTargetList);
+        }
+        else
+        {
+            //ScsiDebugPrintInt(2, "SpCheckSpecialDeviceFlags - error %#08lx opening device devnode key %wZ\n", Status, &KeyName);
+            DPRINT("SpCheckSpecialDeviceFlags: error %X opening '%wZ'\n", Status, &KeyName);
+        }
+    }
+    else
+    {
+        //ScsiDebugPrintInt(2, "SpCheckSpecialDeviceFlags - error %#08lx opening device devnode key\n", Status);
+        DPRINT("SpCheckSpecialDeviceFlags: error %X opening device devnode key\n", Status);
+    }
+
+    //_SEH2_FINALLY
+
+    if (DevInstRegKey)
+    {
+        ZwClose(DevInstRegKey);
+
+        if (KeyHandle)
+        {
+            ZwClose(KeyHandle);
+            KeyHandle = NULL;
+        }
+    }
+
+    RtlCopyMemory(LunExtension->SpecialTargetList, SpecialTargetList, sizeof(LunExtension->SpecialTargetList));
 }
 
 BOOLEAN
@@ -3387,7 +3511,51 @@ SpPurgeTarget(
     _In_ UCHAR PathId,
     _In_ UCHAR TargetId)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_LUN_ENTRY LunEntry;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    KIRQL Irql;
+    LONG ix;
+
+    PAGED_CODE();
+    DPRINT("SpPurgeTarget: %p, %X, %X\n", DeviceExtension, PathId, TargetId);
+
+    ASSERT(SpPAGELOCKLockCount != 0);
+
+    KeRaiseIrql(DISPATCH_LEVEL, &Irql);
+
+    LunEntry = DeviceExtension->LunList;
+    ix = 8;
+    do
+    {
+        KeAcquireSpinLockAtDpcLevel(&LunEntry->SpinLock);
+
+        for (LunExtension = LunEntry->LunExtension; LunExtension; LunExtension = LunExtension->NextLogicalUnit)
+        {
+            ASSERT(LunExtension->IsTemporary == FALSE);
+
+            if (LunExtension->PathId == PathId)
+            {
+                if (LunExtension->TargetId == TargetId && LunExtension->NeedsVerification == 1)
+                {
+                    //ScsiDebugPrintInt(EnumDebug, "SpPurgeTarget:
+                    //                  Lun (%x,%x,%x) is still marked and will be made missing\n", LunExtension->PathId, LunExtension->TargetId, LunExtension->Lun);
+                    DPRINT1("SpPurgeTarget: Lun (%X,%X,%X) is still marked and will be made missing\n",
+                            LunExtension->PathId, LunExtension->TargetId, LunExtension->Lun);
+
+                    LunExtension->IsMissing = TRUE;
+                }
+            }
+        }
+
+        KeReleaseSpinLockFromDpcLevel(&LunEntry->SpinLock);
+
+        LunEntry++;
+        ix--;
+    }
+    while (ix);
+
+    KeLowerIrql(Irql);
+    DPRINT("SpPurgeTarget: exit %p, %X, %X\n", DeviceExtension, PathId, TargetId);
 }
 
 NTSTATUS
