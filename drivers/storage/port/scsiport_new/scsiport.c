@@ -3533,7 +3533,12 @@ NTAPI
 SpClearVerificationMark(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PAGED_CODE();
+
+    ASSERT(LunExtension->IsTemporary == FALSE);
+    ASSERT(LunExtension->NeedsVerification == TRUE);
+
+    LunExtension->NeedsVerification = FALSE;
 }
 
 NTSTATUS
