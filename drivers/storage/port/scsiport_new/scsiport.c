@@ -2779,13 +2779,46 @@ SpGetDeviceIdentifiers(
     return FALSE;
 }
 
+BOOLEAN
+NTAPI
+SpRemoveLogicalUnitFromBinSynchronized(
+    _In_ PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
 VOID
 NTAPI
 SpRemoveLogicalUnitFromBin(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    KIRQL Irql;
+
+    DPRINT("SpRemoveLogicalUnitFromBin: %p, %p\n", DeviceExtension, LunExtension);
+
+    KeAcquireSpinLock(&DeviceExtension->SpinLock, &Irql);
+    KeAcquireSpinLockAtDpcLevel(&DeviceExtension->LunList[(LunExtension->TargetId + LunExtension->Lun) % 8].SpinLock);
+
+    DeviceExtension->SynchronizeFunction(DeviceExtension->InterruptObject,
+                                         SpRemoveLogicalUnitFromBinSynchronized,
+                                         LunExtension);
+
+    KeReleaseSpinLockFromDpcLevel(&DeviceExtension->LunList[(LunExtension->TargetId + LunExtension->Lun) % 8].SpinLock);
+    KeReleaseSpinLock(&DeviceExtension->SpinLock, Irql);
+
+    if (LunExtension->IsTemporary)
+        return;
+
+    if (!LunExtension->IsMismatchedDevice && !LunExtension->IsMissing)
+        return;
+
+    //ScsiDebugPrintInt(1, "SpRemoveLogicalUnitFromBin: Signalling for rescan after removal of mismatched lun %p\n", LunExtension);
+    DPRINT1("SpRemoveLogicalUnitFromBin: Signalling for rescan after removal of mismatched lun %p\n", LunExtension);
+
+    DeviceExtension->RunEnumSync = 1;
+    IoInvalidateDeviceRelations(DeviceExtension->LowerPdo, 0);
 }
 
 VOID
