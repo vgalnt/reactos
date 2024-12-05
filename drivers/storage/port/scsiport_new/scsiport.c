@@ -8769,11 +8769,39 @@ ScsiPortLogError(
 VOID
 NTAPI
 ScsiPortMoveMemory(
-    _Out_ PVOID Destination,
-    _In_ PVOID Source,
+    _Out_ PVOID WriteBuffer,
+    _In_ PVOID ReadBuffer,
     _In_ ULONG Length)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PUCHAR Destination1;
+    PULONG Destination2;
+    PUCHAR Source1;
+    PULONG Source2;
+
+#if defined(_M_AMD64)
+  #error FIXME
+#endif
+
+    if ((Length & 3) || ((ULONG_PTR)WriteBuffer & 3) || ((ULONG_PTR)ReadBuffer & 3))
+    {
+        for (Destination1 = WriteBuffer, Source1 = ReadBuffer;
+             Length > 0;
+             Length--, Destination1++, Source1++)
+        {
+            *Destination1 = *Source1;
+        }
+
+        return;
+    }
+
+    Length /= sizeof(ULONG);
+
+    for (Destination2 = WriteBuffer, Source2 = ReadBuffer;
+         Length > 0;
+         Length--, Destination2++, Source2++)
+    {
+        *Destination2 = *Source2;
+    }
 }
 
 VOID
