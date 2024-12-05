@@ -470,6 +470,19 @@ SpDispatchRequest(
     _In_ PIRP Irp
 );
 
+NTSTATUS
+NTAPI
+SpInquireLogicalUnit(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ UCHAR PathId,
+    _In_ UCHAR TargetId,
+    _In_ UCHAR Lun,
+    _In_ BOOLEAN Param5,
+    _In_ PSCSI_PORT_LUN_EXTENSION RescanLun,
+    _Out_ PSCSI_PORT_LUN_EXTENSION* OutLunExtension,
+    _Out_ BOOLEAN* OutIsCheckingNext
+);
+
 #endif /* _SCSIPORT_H_ */
 
 /* EOF */

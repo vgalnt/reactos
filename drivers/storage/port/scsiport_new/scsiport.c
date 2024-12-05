@@ -3115,8 +3115,126 @@ SpCloneAndSwapLogicalUnit(
     _In_ ULONG InquiryDataSize,
     _Out_ PSCSI_PORT_LUN_EXTENSION* OutLunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_DRIVER_EXTENSION SpDriverExtension;
+    PSCSI_PORT_LUN_EXTENSION NewLun;
+    PVOID DeviceIdentifierPage = 0;
+    PCHAR SerialNumberBuffer = 0;
+    UCHAR Path;
+    UCHAR Target;
+    UCHAR Lun;
+    NTSTATUS Status;
+
+    DPRINT("SpCloneAndSwapLogicalUnit: %p\n", TemplateLun);
+
+    DeviceExtension = TemplateLun->DeviceExtension;
+    SpDriverExtension = IoGetDriverObjectExtension(DeviceExtension->CommonExtension.SelfDevice->DriverObject, ScsiPortInitialize);
+
+    ASSERT(((PCOMMON_EXTENSION)TemplateLun->CommonExtension.SelfDevice->DeviceExtension)->IsPdo);
+    ASSERT(TemplateLun->IsTemporary);
+
+    *OutLunExtension = NULL;
+
+    NewLun = GetLogicalUnitExtensionEx(DeviceExtension, TemplateLun->PathId, TemplateLun->TargetId, TemplateLun->Lun, NULL, TRUE, __FILE__, __LINE__);
+    ASSERT(NewLun == TemplateLun);
+
+    SpReleaseRemoveLock(TemplateLun->CommonExtension.SelfDevice, SpInquireLogicalUnit);
+    SpWaitForRemoveLock(TemplateLun->CommonExtension.SelfDevice, ULongToPtr(0xABCDABCD));
+
+    Path = TemplateLun->PathId;
+    Target = TemplateLun->TargetId;
+    Lun = TemplateLun->Lun;
+
+    SpClearLogicalUnitAddress(TemplateLun);
+
+    if (TemplateLun->SerialNumber.Length)
+    {
+        DPRINT("SpCloneAndSwapLogicalUnit: TemplateLun->SerialNumber.Length %X\n", TemplateLun->SerialNumber.Length);
+        SerialNumberBuffer = ExAllocatePoolWithTag(PagedPool, (TemplateLun->SerialNumber.Length + 2), 'YPcS');
+        if (!SerialNumberBuffer)
+        {
+            DPRINT1("SpCloneAndSwapLogicalUnit: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    if (TemplateLun->DeviceIdentifierPageSize)
+    {
+        DeviceIdentifierPage = ExAllocatePoolWithTag(PagedPool, 0xFF, 'YPcS');
+        if (!DeviceIdentifierPage)
+        {
+            if (SerialNumberBuffer)
+                ExFreePoolWithTag(SerialNumberBuffer, 'YPcS');
+
+            DPRINT1("SpCloneAndSwapLogicalUnit: STATUS_INSUFFICIENT_RESOURCES\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    if (SpDriverExtension->BusType == 1 && (InquiryData->ANSIVersion == 0 || InquiryData->ANSIVersion == 1 || TemplateLun->SpecialTargetList[3]))
+        Status = SpCreateLogicalUnit(DeviceExtension, Path, Target, Lun, FALSE, TRUE, &NewLun);
+    else
+        Status = SpCreateLogicalUnit(DeviceExtension, Path, Target, Lun, FALSE, FALSE, &NewLun);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpCloneAndSwapLogicalUnit: Status %X\n", Status);
+
+        if (SerialNumberBuffer)
+            ExFreePoolWithTag(SerialNumberBuffer, 'YPcS');
+
+        if (DeviceIdentifierPage)
+            ExFreePoolWithTag(DeviceIdentifierPage, 'YPcS');
+
+        return Status;
+    }
+
+    NewLun->SpecificLuExtension = TemplateLun->SpecificLuExtension;
+    TemplateLun->SpecificLuExtension = NULL;
+
+    NewLun->LuFlags = TemplateLun->LuFlags;
+    NewLun->IsVisible = TemplateLun->IsVisible;
+    NewLun->TargetLunList = TemplateLun->TargetLunList;
+
+    RtlCopyMemory(NewLun->SpecialTargetList, TemplateLun->SpecialTargetList, sizeof(NewLun->SpecialTargetList));
+
+    NewLun->NeedsVerification = TemplateLun->NeedsVerification;
+
+    NewLun->CommonExtension.DefaultRequestFlags = TemplateLun->CommonExtension.DefaultRequestFlags;
+    NewLun->CommonExtension.SelfDevice->Characteristics |= (TemplateLun->CommonExtension.SelfDevice->Characteristics & 1);
+
+    NewLun->VpdFlags ^= ((TemplateLun->VpdFlags ^ NewLun->VpdFlags) & 1);
+    NewLun->VpdFlags ^= ((NewLun->VpdFlags ^ TemplateLun->VpdFlags) & 2);
+
+    if (SerialNumberBuffer)
+    {
+        NewLun->SerialNumber.Length = TemplateLun->SerialNumber.Length;
+        NewLun->SerialNumber.MaximumLength = (TemplateLun->SerialNumber.Length + 2);
+        NewLun->SerialNumber.Buffer = SerialNumberBuffer;
+
+        RtlCopyMemory(SerialNumberBuffer, TemplateLun->SerialNumber.Buffer, NewLun->SerialNumber.MaximumLength);
+    }
+
+    if (DeviceIdentifierPage)
+    {
+        NewLun->DeviceIdentifierPage = DeviceIdentifierPage;
+        NewLun->DeviceIdentifierPageSize = TemplateLun->DeviceIdentifierPageSize;
+
+        RtlCopyMemory(NewLun->DeviceIdentifierPage, TemplateLun->DeviceIdentifierPage, TemplateLun->DeviceIdentifierPageSize);
+    }
+
+    ASSERT(InquiryDataSize <= sizeof(INQUIRYDATA));
+
+    RtlCopyMemory(&NewLun->InquiryData, InquiryData, InquiryDataSize);
+
+    SpAcquireRemoveLockEx(NewLun->CommonExtension.SelfDevice, ULongToPtr(0xABCDABCD), __FILE__, __LINE__);
+    SpAcquireRemoveLockEx(NewLun->CommonExtension.SelfDevice, SpInquireLogicalUnit, __FILE__, __LINE__);
+
+    SpSetLogicalUnitAddress(NewLun, Path, Target, Lun);
+
+    *OutLunExtension = NewLun;
+
+    return Status;
 }
 
 NTSTATUS
