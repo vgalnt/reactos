@@ -2781,10 +2781,26 @@ SpGetDeviceIdentifiers(
 
 VOID
 NTAPI
-SpClearLogicalUnitAddress(
+SpRemoveLogicalUnitFromBin(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
     UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+SpClearLogicalUnitAddress(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    ASSERT(((PCOMMON_EXTENSION)LunExtension->CommonExtension.SelfDevice->DeviceExtension)->IsPdo);
+    ASSERT(LunExtension->IsTemporary == TRUE);
+
+    SpRemoveLogicalUnitFromBin(LunExtension->DeviceExtension, LunExtension);
+
+    LunExtension->PathId = 0xFF;
+    LunExtension->TargetId = 0xFF;
+    LunExtension->Lun = 0xFF;
 }
 
 BOOLEAN
