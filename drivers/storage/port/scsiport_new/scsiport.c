@@ -8193,6 +8193,17 @@ Exit:
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+SpExtractDeviceRelations(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _In_ DEVICE_RELATION_TYPE Type,
+    _In_ PDEVICE_RELATIONS* OutDeviceRelations)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 SpQueryDeviceRelationsCompletion(
@@ -8200,7 +8211,43 @@ SpQueryDeviceRelationsCompletion(
     _In_ PSCSI_PORT_ENUM_REQUEST EnumRequest,
     _In_ NTSTATUS Unused)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PDEVICE_RELATIONS DeviceRelations;
+    PVOID Request;
+    PIRP Irp;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpQueryDeviceRelationsCompletion: %p\n", DeviceExtension);
+
+    ASSERT(!(((PSCSI_PORT_DEVICE_EXTENSION)(DeviceExtension->CommonExtension.SelfDevice)->DeviceExtension)->CommonExtension.IsPdo));
+    ASSERT(Unused != STATUS_USER_APC);
+
+    Status = SpExtractDeviceRelations(DeviceExtension, BusRelations, &DeviceRelations);
+    if (NT_SUCCESS(Status))
+    {
+        //ScsiDebugPrintInt(2, "SpQueryDeviceRelationsCompletion: Found %d devices on adapter %#p\n", DeviceRelations->Count, DeviceExtension);
+        DPRINT1("SpQueryDeviceRelationsCompletion: Found %X devices on adapter %p\n", DeviceRelations->Count, DeviceExtension);
+
+        for (ix = 0; ix < DeviceRelations->Count; ix++)
+        {
+            //ScsiDebugPrintInt(2, "/t#%2d: device %#p\n", ix, DeviceRelations->Objects[ix]);
+            DPRINT1("    [%X] device %p\n", ix, DeviceRelations->Objects[ix]);
+        }
+    }
+
+    Request = InterlockedCompareExchangePointer((PVOID)&DeviceExtension->AsyncEnumRequest, &DeviceExtension->EnumRequest, NULL);
+    ASSERT(Request == NULL);
+
+    Irp = EnumRequest->Irp;
+    Irp->IoStatus.Status = Status;
+
+    if (!NT_SUCCESS(Status))
+        Irp->IoStatus.Information = 0;
+    else
+        Irp->IoStatus.Information = (ULONG_PTR)DeviceRelations;
+
+    DPRINT("SpQueryDeviceRelationsCompletion: exit %p\n", DeviceExtension);
 }
 
 VOID
