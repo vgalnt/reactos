@@ -2291,7 +2291,7 @@ GetLogicalUnitExtensionEx(
     ULONG Idx;
     KIRQL Irql;
 
-    DPRINT("GetLogicalUnitExtensionEx: (%p) %X, %X, %X\n", DeviceExtension, PathId, TargetId, Lun);
+    //DPRINT("GetLogicalUnitExtensionEx: (%p) %X, %X, %X\n", DeviceExtension, PathId, TargetId, Lun);
 
     Idx = ((TargetId + Lun) % 8);
     LunEntry = &DeviceExtension->LunList[Idx];
@@ -8200,8 +8200,120 @@ SpExtractDeviceRelations(
     _In_ DEVICE_RELATION_TYPE Type,
     _In_ PDEVICE_RELATIONS* OutDeviceRelations)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PDEVICE_RELATIONS DeviceRelations;
+    ULONG Size;
+    ULONG ix;
+    UCHAR TargetId;
+    UCHAR PathId;
+    UCHAR Lun;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpExtractDeviceRelations: %p\n", DeviceExtension);
+
+    Status = KeWaitForSingleObject(&DeviceExtension->EnumMutex, Executive, KernelMode, FALSE, NULL);
+    if (Status == STATUS_USER_APC)
+        Status = STATUS_REQUEST_ABORTED;
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpExtractDeviceRelations: Status %X\n", Status);
+        return Status;
+    }
+
+    ix = 0;
+
+    for (PathId = 0; PathId < DeviceExtension->NumberOfBuses; PathId++)
+    {
+        for (TargetId = 0; TargetId < DeviceExtension->MaximumNumberOfTargets; TargetId++)
+        {
+            for (Lun = 0; Lun < 0xFF; Lun++)
+            {
+                LunExtension = GetLogicalUnitExtensionEx(DeviceExtension, PathId, TargetId, Lun, NULL, TRUE, __FILE__, __LINE__);
+                if (!LunExtension)
+                    continue;
+
+                ASSERT(LunExtension->IsTemporary == FALSE);
+
+                if (!LunExtension->IsMissing && LunExtension->IsVisible)
+                {
+                    if (LunExtension->CommonExtension.IsRemoved < 2)
+                        ix++;
+                    else
+                        ASSERT(FALSE);
+                }
+            }
+        }
+    }
+
+    Size = (sizeof(DEVICE_RELATIONS) + (ix * sizeof(PDEVICE_OBJECT)));
+
+    DeviceRelations = ExAllocatePoolWithTag(PagedPool, Size, 'uPcS');
+    if (!DeviceRelations)
+    {
+        //ScsiDebugPrintInt(1, "SpExtractDeviceRelations: unable to allocate %d bytes for device relations\n", Size);
+        DPRINT1("SpExtractDeviceRelations: unable to allocate %X bytes for device relations\n", Size);
+        KeReleaseMutex(&DeviceExtension->EnumMutex, FALSE);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(DeviceRelations, Size);
+
+    ix = 0;
+    for (PathId = 0; PathId < DeviceExtension->NumberOfBuses; PathId++)
+    {
+        for (TargetId = 0; TargetId < DeviceExtension->MaximumNumberOfTargets; TargetId++)
+        {
+            for (Lun = 0; Lun < 0xFF; Lun++)
+            {
+                LunExtension = GetLogicalUnitExtensionEx(DeviceExtension, PathId, TargetId, Lun, NULL, TRUE, __FILE__, __LINE__);
+                if (!LunExtension)
+                    continue;
+
+                ASSERT(LunExtension->IsTemporary == FALSE);
+
+                if (LunExtension->IsMissing)
+                {
+                    //ScsiDebugPrintInt(1, "SpExtractDeviceRelations: PDO %p logical unit (%d,%d,%d) is missing and will not be returned\n", LunExtension->CommonExtension.SelfDevice, PathId, TargetId, Lun);
+                    DPRINT1("SpExtractDeviceRelations: PDO %p logical unit (%X,%X,%X) is missing and will not be returned\n", LunExtension->CommonExtension.SelfDevice, PathId, TargetId, Lun);
+                    LunExtension->IsEnumerated = FALSE;
+                }
+                else if (LunExtension->CommonExtension.IsRemoved >= 2)
+                {
+                    ASSERT(FALSE);
+                    LunExtension->IsEnumerated = FALSE;
+                }
+                else if (!LunExtension->IsVisible)
+                {
+                    LunExtension->IsEnumerated = FALSE;
+                }
+                else
+                {
+                    Status = ObReferenceObjectByPointer(LunExtension->CommonExtension.SelfDevice, 0, NULL, KernelMode);
+
+                    if (NT_SUCCESS(Status))
+                    {
+                        LunExtension->IsEnumerated = TRUE;
+                        DeviceRelations->Objects[ix] = LunExtension->CommonExtension.SelfDevice;
+                        ix++;
+                    }
+                    else
+                    {
+                        //ScsiDebugPrintInt(1, "SpFdoExtractDeviceRelations: status %#08lx while referenceing object %#p\n", Status, DeviceRelations->Objects[ix]);
+                        DPRINT1("SpExtractDeviceRelations: Status %X while referenceing object %p\n", Status, DeviceRelations->Objects[ix]);
+                    }
+                }
+            }
+        }
+    }
+
+    DeviceRelations->Count = ix;
+    *OutDeviceRelations = DeviceRelations;
+
+    KeReleaseMutex(&DeviceExtension->EnumMutex, FALSE);
+
+    DPRINT("SpExtractDeviceRelations: ret STATUS_SUCCESS\n");
+    return STATUS_SUCCESS;
 }
 
 VOID
