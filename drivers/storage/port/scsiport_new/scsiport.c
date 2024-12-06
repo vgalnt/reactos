@@ -3541,14 +3541,200 @@ SpClearVerificationMark(
     LunExtension->NeedsVerification = FALSE;
 }
 
+PLUN_LIST
+NTAPI
+AdjustReportLuns(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PLUN_LIST LunList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 NTSTATUS
 NTAPI
 IssueReportLuns(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _Out_ PLUN_LIST* OutLunList)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PLUN_LIST LunListDataBuffer;
+    PIO_STACK_LOCATION IoStack;
+    SCSI_REQUEST_BLOCK Srb;
+    PSENSE_DATA SenseData;
+    KEVENT Event;
+    PIRP Irp;
+    PMDL Mdl;
+    ULONG LunListLength;
+    ULONG Size = 0x10;
+    ULONG ix;
+    LONG jx;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("IssueReportLuns: %X\n", LunExtension);
+
+    DeviceExtension = LunExtension->DeviceExtension;
+    SenseData = DeviceExtension->InquirySenseData;
+    Irp = DeviceExtension->InquiryIrp;
+
+    KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+    ix = 0;
+    while (TRUE)
+    {
+        LunListDataBuffer = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, Size, 'xPcS');
+        if (!LunListDataBuffer)
+        {
+            //ScsiDebugPrintInt(1, "IssueReportLuns: Can't allocate report luns data buffer\n");
+            DPRINT1("IssueReportLuns: Can't allocate report luns data buffer\n");
+            *OutLunList = NULL;
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
+        Mdl = IoAllocateMdl(LunListDataBuffer, Size, FALSE, FALSE, NULL);
+        if (!Mdl)
+        {
+            //ScsiDebugPrintInt(1, "IssueReportLuns: Can't allocate data buffer MDL\n");
+            DPRINT1("IssueReportLuns: Can't allocate data buffer MDL\n");
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
+        }
+
+        MmBuildMdlForNonPagedPool(Mdl);
+
+        jx = 3;
+        while (TRUE)
+        {
+            jx--;
+
+            IoInitializeIrp(Irp, IoSizeOfIrp(1), 1);
+
+            IoStack = IoGetNextIrpStackLocation(Irp);
+            Irp->MdlAddress = Mdl;
+
+            RtlZeroMemory(&Srb, sizeof(Srb));
+
+            IoStack->Parameters.Scsi.Srb = &Srb;
+            IoStack->MajorFunction = IRP_MJ_SCSI;
+            IoStack->MinorFunction = 1;
+
+            IoSetCompletionRoutine(Irp, SpSignalCompletion, &Event, TRUE, TRUE, TRUE);
+
+            Srb.Length = sizeof(Srb);
+            Srb.Function = 0;
+            Srb.SrbStatus = 0;
+            Srb.ScsiStatus = 0;
+            Srb.PathId = LunExtension->PathId;
+            Srb.TargetId = LunExtension->TargetId;
+            Srb.Lun = LunExtension->Lun;
+            Srb.CdbLength = 0xC;
+            Srb.SenseInfoBufferLength = 0x12;
+            Srb.SrbFlags = 0x48;
+            Srb.DataTransferLength = Size;
+            Srb.TimeOutValue = DeviceExtension->TimeoutValue;
+            Srb.DataBuffer = MmGetMdlVirtualAddress(Irp->MdlAddress);
+            Srb.SenseInfoBuffer = SenseData;
+            Srb.NextSrb = NULL;
+            Srb.OriginalRequest = Irp;
+
+            Srb.Cdb[0] = SCSIOP_REPORT_LUNS;
+            Srb.Cdb[6] = (Size >> 24); // AllocationLength[0]
+            Srb.Cdb[7] = (Size >> 16); // AllocationLength[1]
+            Srb.Cdb[8] = (Size >> 8);  // AllocationLength[2]
+            Srb.Cdb[9] = (UCHAR)Size;  // AllocationLength[3]
+
+            IoCallDriver(LunExtension->CommonExtension.SelfDevice, Irp);
+            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+            Status = Irp->IoStatus.Status;
+
+            if (SRB_STATUS(Srb.SrbStatus) == 1)
+            {
+                Status = STATUS_SUCCESS;
+                break;
+            }
+
+            //ScsiDebugPrintInt(2, "IssueReportLuns: failed SRB status %x\n", Srb.SrbStatus);
+            DPRINT("IssueReportLuns: failed SRB status %X\n", Srb.SrbStatus);
+
+            if (Srb.SrbStatus & 0x40)
+            {
+                //ScsiDebugPrintInt(3, "IssueInquiry: Unfreeze Queue TID %d\n", Srb.TargetId);
+                DPRINT("IssueInquiry: Unfreeze Queue TID %X\n", Srb.TargetId);
+
+                LunExtension->LuFlags &= ~1;
+
+                KeAcquireSpinLock(&DeviceExtension->SpinLock, &Irql);
+                GetNextLuRequest(LunExtension);
+                KeLowerIrql(Irql);
+            }
+
+            if ((Srb.SrbStatus & 0x80) && SenseData->SenseKey == 5)
+            {
+                Status = STATUS_INVALID_DEVICE_REQUEST;
+                break;
+            }
+
+            if (SRB_STATUS(Srb.SrbStatus) == 0xA || SRB_STATUS(Srb.SrbStatus) == 8)
+            {
+                Status = STATUS_NO_SUCH_DEVICE;
+                break;
+            }
+
+            if (!jx)
+                break;
+        }
+
+        IoFreeMdl(Mdl);
+
+        if (NT_SUCCESS(Status))
+        {
+            LunListLength = LunListDataBuffer->LunListLength[3] |
+                            (LunListDataBuffer->LunListLength[2] << 8) |
+                            (LunListDataBuffer->LunListLength[1] << 16) |
+                            (LunListDataBuffer->LunListLength[0] << 24);
+
+            if (Size >= (LunListLength + sizeof(LUN_LIST)))
+                break;
+
+            Size = (LunListLength + sizeof(LUN_LIST));
+
+            ExFreePool(LunListDataBuffer);
+            LunListDataBuffer = NULL;
+
+            Status = STATUS_INVALID_DEVICE_REQUEST;
+        }
+
+        ix++;
+        if (ix >= 2)
+            break;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("IssueReportLuns: LunExtension %X\n", LunExtension);
+
+        *OutLunList = NULL;
+
+        if (!LunListDataBuffer)
+            return Status;
+
+        ExFreePoolWithTag(LunListDataBuffer, 'xPcS');
+
+        return Status;
+    }
+
+    *OutLunList = AdjustReportLuns(LunExtension->CommonExtension.SelfDevice->DriverObject, LunListDataBuffer);
+
+    ASSERT(*OutLunList != NULL);
+    ASSERT(LunListDataBuffer != NULL);
+
+    if (*OutLunList != LunListDataBuffer)
+        ExFreePoolWithTag(LunListDataBuffer, 'xPcS');
+
+    return Status;
 }
 
 NTSTATUS
