@@ -4099,7 +4099,56 @@ NTAPI
 SpDeleteLogicalUnit(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PAGED_CODE();
+    DPRINT("SpDeleteLogicalUnit: %p\n", LunExtension);
+
+    ASSERT(LunExtension->ReadyLogicalUnit == NULL);
+    ASSERT(LunExtension->PendingRequest == NULL);
+    ASSERT(LunExtension->BusyRequest == NULL);
+    ASSERT(LunExtension->QueueCount == 0);
+    ASSERT(LunExtension->PathId == 0xff);
+    ASSERT(LunExtension->TargetId == 0xff);
+    ASSERT(LunExtension->Lun == 0xff);
+
+    if (LunExtension->CommonExtension.WmiInitialized)
+    {
+        IoWMIRegistrationControl(LunExtension->CommonExtension.SelfDevice, 2);
+        LunExtension->CommonExtension.WmiInitialized = 0;
+
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    ExDeleteNPagedLookasideList(&LunExtension->CommonExtension.LookAsideList);
+
+    if (LunExtension->SpecificLuExtension)
+    {
+        ExFreePool(LunExtension->SpecificLuExtension);
+        LunExtension->SpecificLuExtension = NULL;
+    }
+
+    if (LunExtension->SerialNumber.Buffer)
+    {
+        ExFreePool(LunExtension->SerialNumber.Buffer);
+        RtlInitAnsiString(&LunExtension->SerialNumber, NULL);
+    }
+
+    if (LunExtension->DeviceIdentifierPage)
+    {
+        ExFreePool(LunExtension->DeviceIdentifierPage);
+        LunExtension->DeviceIdentifierPage = NULL;
+    }
+
+    if (LunExtension->IsTemporary)
+    {
+        LunExtension->DeviceExtension->RescanLun = LunExtension;
+        LunExtension->DeviceExtension->RescanLun = NULL;
+    }
+    else
+    {
+        ASSERT(LunExtension->DeviceExtension->RescanLun != LunExtension);
+    }
+
+    IoDeleteDevice(LunExtension->CommonExtension.SelfDevice);
 }
 
 VOID
