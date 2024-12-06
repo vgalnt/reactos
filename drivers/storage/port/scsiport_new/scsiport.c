@@ -1790,7 +1790,21 @@ SpCompleteEnumRequest(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    SpAcquireRemoveLockEx(DeviceExtension->CommonExtension.SelfDevice, &DeviceExtension, __FILE__, __LINE__);
+    SpReleaseRemoveLock(DeviceExtension->CommonExtension.SelfDevice, Irp);
+
+    if (!NT_SUCCESS(Irp->IoStatus.Status))
+    {
+        DPRINT1("SpCompleteEnumRequest: Status %X for %p\n", Irp->IoStatus.Status, DeviceExtension);
+        SpCompleteRequest(DeviceExtension->CommonExtension.SelfDevice, Irp, NULL, 0);
+    }
+    else
+    {
+        IoCopyCurrentIrpStackLocationToNext(Irp);
+        IoCallDriver(DeviceExtension->CommonExtension.LowDevice, Irp);
+    }
+
+    SpReleaseRemoveLock(DeviceExtension->CommonExtension.SelfDevice, &DeviceExtension);
 }
 
 NTSTATUS
