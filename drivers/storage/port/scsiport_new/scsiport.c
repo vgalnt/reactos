@@ -3547,8 +3547,64 @@ AdjustReportLuns(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PLUN_LIST LunList)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    LUN_LIST_ENTRY LunListEntry;
+    LUN_LIST_LENGTH Luns;
+    PLUN_LIST RetLunList;
+    ULONG Count = 0;
+    ULONG MaxLines;
+    ULONG Size;
+    UCHAR ix;
+    ULONG jx;
+
+    Luns.LunListLength[0] = LunList->LunListLength[3];
+    Luns.LunListLength[1] = LunList->LunListLength[2];
+    Luns.LunListLength[2] = LunList->LunListLength[1];
+    Luns.LunListLength[3] = LunList->LunListLength[0];
+
+    DPRINT("AdjustReportLuns: %p, %X\n", LunList, Luns.AsUlong);
+
+    Size = (0x48 + Luns.AsUlong); // FIXME
+
+    RetLunList = ExAllocatePoolWithTag(NonPagedPool, Size, 'xPcS');
+    if (!RetLunList)
+    {
+        DPRINT1("AdjustReportLuns: Allocate failed\n");
+        return LunList;
+    }
+    RtlZeroMemory(RetLunList, Size);
+
+    for (ix = 0; ix < 8; ix++)
+    {
+        RetLunList->Lun[ix][1] = ix;
+        Count++;
+    }
+
+    MaxLines = (Luns.AsUlong / 8);
+
+    for (jx = 0; jx < MaxLines; jx++)
+    {
+        LunListEntry.LunListEntry[0] = LunList->Lun[jx][0];
+        LunListEntry.LunListEntry[1] = LunList->Lun[jx][1];
+
+        if ((LunListEntry.AsUshort & 0x3FFF) >= 8)
+        {
+            RtlCopyMemory(&RetLunList->Lun[ix], &LunList->Lun[jx], 8);
+
+            ix++;
+            Count++;
+        }
+    }
+
+    RtlCopyMemory(RetLunList->Reserved, LunList->Reserved, sizeof(RetLunList->Reserved));
+
+    Luns.AsUlong = (Count * 8);
+
+    RetLunList->LunListLength[0] = Luns.LunListLength[3];
+    RetLunList->LunListLength[1] = Luns.LunListLength[2];
+    RetLunList->LunListLength[2] = Luns.LunListLength[1];
+    RetLunList->LunListLength[3] = Luns.LunListLength[0];
+
+    return RetLunList;
 }
 
 NTSTATUS
