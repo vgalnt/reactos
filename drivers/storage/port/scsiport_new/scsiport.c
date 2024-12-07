@@ -66,6 +66,28 @@ SCSI_PORT_LUN_LIST ScsiPortDefaultLunList =
     }
 };
 
+SCSI_PORT_DEVICE_TYPE_STRINGS DeviceTypeInfo[18] =
+{
+    {"Disk", "GenDisk", L"DiskPeripheral", 1},
+    {"Sequential", 0, L"TapePeripheral", 1},
+    {"Printer", "GenPrinter", L"PrinterPeripheral", 0},
+    {"Processor", 0, L"OtherPeripheral", 0},
+    {"Worm", "GenWorm", L"WormPeripheral", 1},
+    {"CdRom", "GenCdRom", L"CdRomPeripheral", 1},
+    {"Scanner", "GenScanner", L"ScannerPeripheral", 0},
+    {"Optical", "GenOptical", L"OpticalDiskPeripheral", 1},
+    {"Changer", "ScsiChanger", L"MediumChangerPeripheral", 1},
+    {"Net", "ScsiNet", L"CommunicationsPeripheral", 0},
+    {"ASCIT8", "ScsiASCIT8", L"ASCPrePressGraphicsPeripheral", 0},
+    {"ASCIT8", "ScsiASCIT8", L"ASCPrePressGraphicsPeripheral", 0},
+    {"Array", "ScsiArray", L"ArrayPeripheral", 0},
+    {"Enclosure", "ScsiEnclosure", L"EnclosurePeripheral", 0},
+    {"RBC", "ScsiRBC", L"RBCPeripheral", 1},
+    {"CardReader", "ScsiCardReader", L"CardReaderPeripheral", 0},
+    {"Bridge", "ScsiBridge", L"BridgePeripheral", 0},
+    {"Other", "ScsiOther", L"OtherPeripheral", 0}
+};
+
 /* FUNCTIONS *****************************************************************/
 
 ULONG
@@ -4607,8 +4629,13 @@ NTAPI
 SpGetDeviceTypeInfo(
     _In_ UCHAR DeviceType)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PAGED_CODE();
+    DPRINT("SpGetDeviceTypeInfo: DeviceType %X\n", DeviceType);
+
+    if (DeviceType < 18)
+        return &DeviceTypeInfo[DeviceType];
+    else
+        return &DeviceTypeInfo[17];//{"Other", "ScsiOther", L"OtherPeripheral", 0}
 }
 
 NTSTATUS
