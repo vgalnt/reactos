@@ -4734,13 +4734,144 @@ ScsiPortGetDeviceId(
 
 NTSTATUS
 NTAPI
-ScsiPortGetHardwareIds(
+ScsiPortDetermineGenId(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PINQUIRYDATA InquiryData,
-    _In_ PUNICODE_STRING MultiString)
+    _Out_ CHAR* OutGenId)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+CopyField(
+    _Out_ PUCHAR Destination,
+    _In_ PUCHAR Source,
+    _In_ ULONG Length,
+    _In_ UCHAR DefaultCharacter)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+NTSTATUS
+NTAPI
+ScsiPortStringArrayToMultiString(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PUNICODE_STRING MultiString,
+    _In_ PCHAR* Ids)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortGetHardwareIds(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PINQUIRYDATA InquiryData,
+    _In_ UNICODE_STRING* OutUnicodeId)
+{
+    PSCSI_PORT_DEVICE_TYPE_STRINGS DeviceTypeInfo;
+    CHAR GenIdStr[0x28];
+    CHAR IdStr[0x40];
+    PCHAR Ids[7];
+    ULONG Size;
+    ULONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortGetHardwareIds: %p\n", InquiryData);
+
+    RtlZeroMemory(Ids, sizeof(Ids));
+    RtlZeroMemory(GenIdStr, sizeof(GenIdStr));
+
+    Status = ScsiPortDetermineGenId(DriverObject, InquiryData, GenIdStr);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ScsiPortGetHardwareIds: Status %X\n", Status);
+        return Status;
+    }
+
+    //_SEH2_TRY;
+
+    DeviceTypeInfo = SpGetDeviceTypeInfo(InquiryData->DeviceTypeQualifier & 0x1F);
+
+    for (ix = 0; ix < 6; ix++)
+    {
+        RtlZeroMemory(IdStr, sizeof(IdStr));
+
+        if (ix == 0)
+        {
+            sprintf(IdStr, "SCSI\\%s", DeviceTypeInfo->DeviceTypeString);
+
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->VendorId, 8, '_');
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->ProductId, 0x10, '_');
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->ProductRevisionLevel, 4, '_');
+        }
+        else if (ix == 1)
+        {
+            sprintf(IdStr, "SCSI\\%s", DeviceTypeInfo->DeviceTypeString);
+
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->VendorId, 8, '_');
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->ProductId, 0x10, '_');
+        }
+        else if (ix == 2)
+        {
+            sprintf(IdStr, "SCSI\\%s", DeviceTypeInfo->DeviceTypeString);
+
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->VendorId, 8, '_');
+        }
+        else if (ix == 3)
+        {
+            sprintf(IdStr, "SCSI\\");
+
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->VendorId, 8, '_');
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->ProductId, 0x10, '_');
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->ProductRevisionLevel, 1, '_');
+        }
+        else if (ix == 4)
+        {
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->VendorId, 8, '_');
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->ProductId, 0x10, '_');
+            CopyField((PUCHAR)&IdStr[strlen(IdStr)], InquiryData->ProductRevisionLevel, 1, '_');
+        }
+        else if (ix == 5)
+        {
+            RtlCopyMemory(IdStr, GenIdStr, strlen(GenIdStr));
+        }
+        else
+        {
+            ASSERT(FALSE);
+        }
+
+        Size = strlen(IdStr);
+        if (!Size)
+            break;
+
+        Ids[ix] = ExAllocatePoolWithTag(PagedPool, (Size + 1), 'dPcS');
+        if (!Ids[ix])
+        {
+            Status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Finish;
+        }
+
+        RtlCopyMemory(Ids[ix], IdStr, (Size + 1));
+    }
+
+    Status = ScsiPortStringArrayToMultiString(DriverObject, OutUnicodeId, Ids);
+
+Finish:
+
+    //_SEH2_FINALLY;
+
+    for (ix = 0; ix < 6; ix++)
+    {
+        if (Ids[ix])
+            ExFreePoolWithTag(Ids[ix], 'dPcS');
+    }
+
+    return Status;
 }
 
 NTSTATUS
