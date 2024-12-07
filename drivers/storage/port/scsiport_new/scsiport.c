@@ -4760,13 +4760,77 @@ PortGetMPIODeviceList(
 
 BOOLEAN
 NTAPI
+PortpMPIOLoaded(VOID)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
+PortpFindMPIOSupportedDevice(
+    _In_ PUNICODE_STRING VendorId,
+    _In_ PUNICODE_STRING MPIOSupportedDeviceList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+BOOLEAN
+NTAPI
 PortIsDeviceMPIOSupported(
     _In_ PUNICODE_STRING MPIOSupportedDeviceList,
     _In_ PCHAR VendorId,
     _In_ PCHAR ProductId)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return FALSE;
+    UNICODE_STRING ProductIdUn;
+    UNICODE_STRING VendorIdUn;
+    ANSI_STRING ProductIdAnsi;
+    ANSI_STRING VendorIdAnsi;
+    NTSTATUS Status;
+    BOOLEAN Result = FALSE;
+
+    PAGED_CODE();
+
+    if (!MPIOSupportedDeviceList->MaximumLength)
+        return FALSE;
+
+    if (!PortpMPIOLoaded())
+        return FALSE;
+
+    RtlInitAnsiString(&VendorIdAnsi, VendorId);
+    RtlInitAnsiString(&ProductIdAnsi, ProductId);
+
+    VendorIdUn.MaximumLength = (0x1E * 2);//30
+
+    VendorIdUn.Buffer = ExAllocatePoolWithTag(PagedPool, (0x1E * 2), 'LMiP');
+    if (!VendorIdUn.Buffer)
+    {
+        DPRINT1("PortIsDeviceMPIOSupported: Allocate failed\n");
+        return FALSE;
+    }
+
+    Status = RtlAnsiStringToUnicodeString(&VendorIdUn, &VendorIdAnsi, FALSE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PortIsDeviceMPIOSupported: Status %X\n", Status);
+        goto Exit;
+    }
+
+    Status = RtlAnsiStringToUnicodeString(&ProductIdUn, &ProductIdAnsi, TRUE);
+    {
+        DPRINT1("PortIsDeviceMPIOSupported: Status %X\n", Status);
+        goto Exit;
+    }
+
+    Status = RtlAppendUnicodeStringToString(&VendorIdUn, &ProductIdUn);
+    if (NT_SUCCESS(Status))
+        Result = PortpFindMPIOSupportedDevice(&VendorIdUn, MPIOSupportedDeviceList);
+
+Exit:
+
+    ExFreePoolWithTag(VendorIdUn.Buffer, 'LMiP');
+    return Result;
 }
 
 NTSTATUS
