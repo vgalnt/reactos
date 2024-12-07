@@ -4626,10 +4626,83 @@ NTSTATUS
 NTAPI
 ScsiPortGetDeviceId(
     _In_ PDEVICE_OBJECT Pdo,
-    _In_ PUNICODE_STRING UnicodeString)
+    _In_ UNICODE_STRING* OutUnicodeId)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_TYPE_STRINGS DeviceType;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PINQUIRYDATA InquiryData;
+    ANSI_STRING AnsiId;
+    PCHAR InquiryName;
+    PCHAR InquiryId;
+    PCHAR IdString;
+    ULONG Length;
+    ULONG ix;
+    ULONG jx;
+    CHAR IdBuffer[256];
+
+    LunExtension = Pdo->DeviceExtension;
+    InquiryData = &LunExtension->InquiryData;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortGetDeviceId: %p\n", LunExtension);
+
+    ASSERT(OutUnicodeId != NULL);
+
+    RtlZeroMemory(IdBuffer, sizeof(IdBuffer));
+
+    DeviceType = SpGetDeviceTypeInfo(InquiryData->DeviceTypeQualifier & 0x1F);
+    sprintf(IdBuffer, "SCSI\\%s", DeviceType->DeviceTypeString);
+
+    IdString = &IdBuffer[strlen(IdBuffer)];
+    ASSERT(*IdString == '\0');
+
+    for (ix = 0; ix < 3; ix++)
+    {
+        if (ix == 0)
+        {
+            InquiryName = "Ven";
+            InquiryId = (PCHAR)InquiryData->VendorId;
+            Length = sizeof(InquiryData->VendorId);
+        }
+        else if (ix == 1)
+        {
+            InquiryName = "Prod";
+            InquiryId = (PCHAR)InquiryData->ProductId;
+            Length = sizeof(InquiryData->ProductId);
+        }
+        else if (ix == 2)
+        {
+            InquiryName = "Rev";
+            InquiryId = (PCHAR)InquiryData->ProductRevisionLevel;
+            Length = sizeof(InquiryData->ProductRevisionLevel);
+        }
+
+        for (; Length > 0; Length--)
+        {
+            if (InquiryId[Length - 1] != ' ' && InquiryId[Length - 1] != 0)
+                break;
+        }
+
+        sprintf(IdString, "&%s_", InquiryName);
+        IdString += (strlen(InquiryName) + 2);
+
+        for (jx = 0; jx < Length; jx++)
+        {
+            if (InquiryId[jx] == ' ')
+                *IdString++ = '_';
+            else
+                *IdString++ = InquiryId[jx];
+        }
+
+        ASSERT(*IdString == '\0');
+    }
+
+    RtlInitAnsiString(&AnsiId, IdBuffer);
+
+    //ScsiDebugPrintInt(1, "DeviceId for logical unit %#p is %Z\n", Pdo, &AnsiId);
+    DPRINT("ScsiPortGetDeviceId: DeviceId for logical unit %p is '%Z'\n", Pdo, &AnsiId);
+
+    return RtlAnsiStringToUnicodeString(OutUnicodeId, &AnsiId, TRUE);
 }
 
 NTSTATUS
