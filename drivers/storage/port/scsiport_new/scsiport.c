@@ -4572,12 +4572,412 @@ ScsiPortPdoDeviceControl(
 
 NTSTATUS
 NTAPI
+ScsiPortInitLogicalUnit(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortStartLogicalUnit(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+PSCSI_PORT_DEVICE_TYPE_STRINGS
+NTAPI
+SpGetDeviceTypeInfo(
+    _In_ UCHAR DeviceType)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+NTSTATUS
+NTAPI
+SpQueryDeviceText(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ DEVICE_TEXT_TYPE DeviceTextType,
+    _In_ LCID LocaleId, PWCHAR* OutDeviceText)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortGetDeviceId(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PUNICODE_STRING UnicodeString)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortGetHardwareIds(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PINQUIRYDATA InquiryData,
+    _In_ PUNICODE_STRING MultiString)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortGetCompatibleIds(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PINQUIRYDATA InquiryData,
+    _In_ PUNICODE_STRING MultiString)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortGetInstanceId(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PUNICODE_STRING UnicodeString)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ScsiPortPdoPnp(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_TYPE_STRINGS DeviceType;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PDEVICE_CAPABILITIES Capabilities;
+    PDEVICE_RELATIONS DeviceRelations;
+    PIO_STACK_LOCATION IoStack;
+    UNICODE_STRING IdString;
+    LONG IsRemoved;
+    PWSTR Id;
+    BOOLEAN IsMultiline;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortPdoPnp: %p, %p\n", Pdo, Irp);
+
+    LunExtension = Pdo->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    IsRemoved = SpAcquireRemoveLockEx(Pdo, Irp, __FILE__, __LINE__); 
+    ASSERT(IsRemoved != 2);//REMOVE_COMPLETE
+
+    DPRINT("ScsiPortPdoPnp: MinorFunction %X IsRemoved %X\n", IoStack->MinorFunction, IsRemoved);
+
+    switch (IoStack->MinorFunction)
+    {
+        case IRP_MN_START_DEVICE:
+        {
+            if (!LunExtension->CommonExtension.CurrentPnpState)
+            {
+                Irp->IoStatus.Status = STATUS_SUCCESS;
+                break;
+            }
+
+            if (!LunExtension->CommonExtension.IsInitialized)
+            {
+                Status = ScsiPortInitLogicalUnit(LunExtension);
+                if (!NT_SUCCESS(Status))
+                {
+                    DPRINT1("ScsiPortPdoPnp: Status %p\n", Status);
+                    Irp->IoStatus.Status = Status;
+                    break;
+                }
+            }
+
+            LunExtension->CommonExtension.IsInitialized = TRUE;
+
+            Status = ScsiPortStartLogicalUnit(LunExtension);
+            if (NT_SUCCESS(Status))
+            {
+                LunExtension->CommonExtension.CurrentPnpState = 0;
+                LunExtension->CommonExtension.PreviousPnpState = 0xFF;
+            }
+
+            Irp->IoStatus.Status = Status;
+            break;
+        }
+        case IRP_MN_QUERY_REMOVE_DEVICE:
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_QUERY_REMOVE_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_REMOVE_DEVICE:
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_REMOVE_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_CANCEL_REMOVE_DEVICE:
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_CANCEL_REMOVE_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_STOP_DEVICE:
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_STOP_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_QUERY_STOP_DEVICE:
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_QUERY_STOP_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_CANCEL_STOP_DEVICE:
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_CANCEL_STOP_DEVICE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_QUERY_DEVICE_RELATIONS:
+        {
+            DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_DEVICE_RELATIONS\n");
+
+            if (IoStack->Parameters.QueryDeviceRelations.Type != TargetDeviceRelation)
+                break;
+
+            DeviceRelations = ExAllocatePoolWithTag(PagedPool, sizeof(*DeviceRelations), 'uPcS');
+            if (!DeviceRelations)
+            {
+                DPRINT1("ScsiPortPdoPnp: STATUS_INSUFFICIENT_RESOURCES\n");
+                Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+                break;
+            }
+
+            DeviceRelations->Count = 1;
+            DeviceRelations->Objects[0] = Pdo;
+
+            ObReferenceObject(Pdo);
+
+            Irp->IoStatus.Status = STATUS_SUCCESS;
+            Irp->IoStatus.Information = (ULONG_PTR)DeviceRelations;
+
+            break;
+        }
+        case IRP_MN_QUERY_INTERFACE:
+        {
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_QUERY_INTERFACE\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        case IRP_MN_QUERY_CAPABILITIES:
+        {
+            DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_CAPABILITIES\n");
+
+            Capabilities = IoStack->Parameters.DeviceCapabilities.Capabilities;
+            Capabilities->RawDeviceOK = 1;
+
+            DeviceType = SpGetDeviceTypeInfo(LunExtension->InquiryData.DeviceTypeQualifier & 0x1F);
+
+            if (DeviceType && DeviceType->Unknown)
+                Capabilities->SilentInstall = 1;
+
+            Capabilities->Address = LunExtension->TargetId;
+
+            Irp->IoStatus.Status = STATUS_SUCCESS;
+            break;
+        }
+        case IRP_MN_QUERY_RESOURCES:
+        {
+            DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_RESOURCES\n");
+
+            Irp->IoStatus.Information = 0;
+            Irp->IoStatus.Status = STATUS_SUCCESS;
+
+            SpReleaseRemoveLock(Pdo, Irp);
+            SpCompleteRequest(Pdo, Irp, NULL, 0);
+
+            return STATUS_SUCCESS;
+        }
+        case IRP_MN_QUERY_RESOURCE_REQUIREMENTS:
+        {
+            DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_RESOURCE_REQUIREMENTS\n");
+
+            Irp->IoStatus.Information = 0;
+            Irp->IoStatus.Status = STATUS_SUCCESS;
+
+            SpReleaseRemoveLock(Pdo, Irp);
+            SpCompleteRequest(Pdo, Irp, NULL, 0);
+
+            return STATUS_SUCCESS;
+        }
+        case IRP_MN_QUERY_DEVICE_TEXT:
+        {
+            DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_DEVICE_TEXT\n");
+
+            Status = SpQueryDeviceText(Pdo,
+                                       IoStack->Parameters.QueryDeviceText.DeviceTextType,
+                                       IoStack->Parameters.QueryDeviceText.LocaleId,
+                                       (PWCHAR *)&Irp->IoStatus.Information);
+
+            Irp->IoStatus.Status = Status;
+            break;
+        }
+        case IRP_MN_FILTER_RESOURCE_REQUIREMENTS:
+        {
+            DPRINT("ScsiPortPdoPnp: IRP_MN_FILTER_RESOURCE_REQUIREMENTS\n");
+            //UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        case IRP_MN_READ_CONFIG:
+        {
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_READ_CONFIG\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        case IRP_MN_WRITE_CONFIG:
+        {
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_WRITE_CONFIG\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        case IRP_MN_EJECT:
+        {
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_EJECT\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        case IRP_MN_SET_LOCK:
+        {
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_SET_LOCK\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        case IRP_MN_QUERY_ID:
+        {
+            //ScsiDebugPrintInt(2, "ScsiPortPnp: got IRP_MN_QUERY_ID\n");
+            DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_ID\n");
+
+            RtlInitUnicodeString(&IdString, NULL);
+
+            switch (IoStack->Parameters.QueryId.IdType)
+            {
+                case 0:
+                {
+                    Status = ScsiPortGetDeviceId(Pdo, &IdString);
+                    IsMultiline = FALSE;
+                    break;
+                }
+                case 1:
+                {
+                    Status = ScsiPortGetHardwareIds(Pdo->DriverObject, &LunExtension->InquiryData, &IdString);
+                    IsMultiline = TRUE;
+                    break;
+                }
+                case 2:
+                {
+                    Status = ScsiPortGetCompatibleIds(Pdo->DriverObject, &LunExtension->InquiryData, &IdString);
+                    IsMultiline = TRUE;
+                    break;
+                }
+                case 3:
+                {
+                    Status = ScsiPortGetInstanceId(Pdo, &IdString);
+                    IsMultiline = FALSE;
+                    break;
+                }
+                default:
+                {
+                    Status = Irp->IoStatus.Status;
+                    Irp->IoStatus.Information = 0;
+                    IsMultiline = FALSE;
+                    break;
+                }
+            }
+
+            Irp->IoStatus.Status = Status;
+
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("ScsiPortPdoPnp: Status %X\n", Status);
+                Irp->IoStatus.Information = 0;
+            }
+            else
+            {
+                for (Id = IdString.Buffer; *Id; )
+                {
+                    //DPRINT("ScsiPortPdoPnp: '%C'\n", *Id);
+
+                    if (*Id <= L' '  || *Id > 0x007F || *Id == L',')
+                    {
+                        *Id = L'_';
+                    }
+
+                    Id++;
+
+                    if (*Id == 0 && IsMultiline)
+                        Id++;
+                }
+
+                Irp->IoStatus.Information = (ULONG_PTR)IdString.Buffer;
+            }
+
+            SpReleaseRemoveLock(Pdo, Irp);
+            SpCompleteRequest(Pdo, Irp, NULL, 0);
+
+            return Status;
+        }
+        case IRP_MN_QUERY_PNP_DEVICE_STATE:
+        {
+            //ScsiDebugPrintInt(1, "ScsiPortPdoPnp: QUERY_DEVICE_STATE for PDO %#x\n", Pdo);
+            DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_PNP_DEVICE_STATE\n");
+
+            if (LunExtension->CommonExtension.PagingPathCount)
+            {
+                //ScsiDebugPrintInt(1, "ScsiPortPdoPnp: QUERY_DEVICE_STATE: %#x - not disableable\n", Pdo);
+                DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_PNP_DEVICE_STATE: %X - not disableable\n", Pdo);
+                Irp->IoStatus.Information |= 0x20;
+            }
+
+            Irp->IoStatus.Status = STATUS_SUCCESS;
+
+            SpReleaseRemoveLock(Pdo, Irp);
+            SpCompleteRequest(Pdo, Irp, NULL, 0);
+
+            return STATUS_SUCCESS;
+        }
+        case IRP_MN_QUERY_BUS_INFORMATION:
+            DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_BUS_INFORMATION\n");
+            //UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_DEVICE_USAGE_NOTIFICATION:
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_DEVICE_USAGE_NOTIFICATION\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_SURPRISE_REMOVAL:
+            DPRINT1("ScsiPortPdoPnp: IRP_MN_SURPRISE_REMOVAL\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_QUERY_LEGACY_BUS_INFORMATION:
+            DPRINT("ScsiPortPdoPnp: IRP_MN_QUERY_LEGACY_BUS_INFORMATION\n");
+            //UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        default:
+            DPRINT1("ScsiPortPdoPnp: MinorFunction %X IsRemoved %X\n", IoStack->MinorFunction, IsRemoved);
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+    }
+
+    SpReleaseRemoveLock(Pdo, Irp);
+    SpCompleteRequest(Pdo, Irp, NULL, 0);
+
+    return Irp->IoStatus.Status;
 }
 
 NTSTATUS

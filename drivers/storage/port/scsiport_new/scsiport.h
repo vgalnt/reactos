@@ -392,6 +392,14 @@ typedef struct _SCSI_PORT_LUN_LIST
     UCHAR Lun[0x10][8];
 } SCSI_PORT_LUN_LIST, *PSCSI_PORT_LUN_LIST;
 
+typedef struct _SCSI_PORT_DEVICE_TYPE_STRINGS
+{
+    PCSTR DeviceTypeString;
+    PCSTR GenericTypeString;
+    PWSTR PeripheralTypeString;
+    UCHAR Unknown;
+} SCSI_PORT_DEVICE_TYPE_STRINGS, *PSCSI_PORT_DEVICE_TYPE_STRINGS;
+
 /* FUNCTIONS ****************************************************************/
 
 #ifndef Add2Ptr
