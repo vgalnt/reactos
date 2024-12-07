@@ -4738,8 +4738,24 @@ PortGetMPIODeviceList(
     _In_ PUNICODE_STRING PathString,
     _In_ PUNICODE_STRING MPIOSupportedDeviceList)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    WCHAR DefaultString[2];
+
+    PAGED_CODE();
+
+    DefaultString[0] = 0;
+    DefaultString[1] = 0;
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].EntryContext = MPIOSupportedDeviceList;
+    QueryTable[0].DefaultData = DefaultString;
+    QueryTable[0].Flags = 0x30;
+    QueryTable[0].Name = L"MPIOSupportedDeviceList";
+    QueryTable[0].DefaultType = REG_MULTI_SZ;
+    QueryTable[0].DefaultLength = sizeof(DefaultString);
+
+    return RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE, PathString->Buffer, QueryTable, NULL, NULL);
 }
 
 BOOLEAN
