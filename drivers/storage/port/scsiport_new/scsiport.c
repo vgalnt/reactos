@@ -4830,8 +4830,65 @@ ScsiPortStringArrayToMultiString(
     _In_ PUNICODE_STRING MultiString,
     _In_ PCHAR* Ids)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UNICODE_STRING UnicodeString;
+    ANSI_STRING AnsiString;
+    UCHAR ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortStringArrayToMultiString: %p\n", MultiString);
+
+    ASSERT(MultiString->Buffer == NULL);
+
+    RtlInitUnicodeString(MultiString, NULL);
+
+    ix = 0;
+    while (Ids[ix])
+    {
+        DPRINT("ScsiPortStringArrayToMultiString: [%X] '%s'\n", ix, Ids[ix]);
+        RtlInitAnsiString(&AnsiString, Ids[ix]);
+
+        if (NlsMbCodePageTag)
+            MultiString->Length += (USHORT)RtlxAnsiStringToUnicodeSize(&AnsiString);
+        else
+            MultiString->Length += (USHORT)(2 * AnsiString.Length + 2);
+
+        ix++;
+    }
+
+    ASSERT(MultiString->Length != 0);
+
+    MultiString->MaximumLength = (MultiString->Length + 2);
+
+    MultiString->Buffer = ExAllocatePoolWithTag(PagedPool, MultiString->MaximumLength, 'dPcS');
+    if (!MultiString->Buffer)
+    {
+        DPRINT1("ScsiPortStringArrayToMultiString: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(MultiString->Buffer, MultiString->MaximumLength);
+
+    UnicodeString.Length = MultiString->Length;
+    UnicodeString.MaximumLength = MultiString->MaximumLength;
+    UnicodeString.Buffer = MultiString->Buffer;
+
+    ix = 0;
+    while (Ids[ix])
+    {
+        RtlInitAnsiString(&AnsiString, Ids[ix]);
+
+        Status = RtlAnsiStringToUnicodeString(&UnicodeString, &AnsiString, 0);
+        ASSERT(NT_SUCCESS(Status));
+
+        DPRINT("ScsiPortStringArrayToMultiString: [%X] '%wZ'\n", ix, &UnicodeString);
+
+        UnicodeString.Buffer += ((UnicodeString.Length + 2) / 2);
+        UnicodeString.MaximumLength -= (UnicodeString.Length + 2);
+
+        ix++;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
