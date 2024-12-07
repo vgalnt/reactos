@@ -27,6 +27,7 @@ PSCSI_PORT_GUID_INTERFACE_MAPPING SpGuidInterfaceMappingList;
 HANDLE ScsiDeviceMapKey = ULongToPtr(0xFFFFFFFF);
 ULONG ScsiSimulateNoVaCounter = 0;
 ULONG ScsiSimulateNoVaInterval = 0;
+ULONG SpPowerIdleTimeout = 0xFFFFFFFF;
 BOOLEAN ScsiSimulateNoVaBreak = TRUE;
 LONG SpPAGELOCKLockCount = 0;
 LONG LockLowWatermark = 0;
@@ -4575,8 +4576,21 @@ NTAPI
 ScsiPortInitLogicalUnit(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+    DPRINT("ScsiPortInitLogicalUnit: %p\n", LunExtension);
+
+    LunExtension->CommonExtension.DeviceIdleDetection = 
+        PoRegisterDeviceForIdleDetection(LunExtension->CommonExtension.SelfDevice,
+                                         SpPowerIdleTimeout,
+                                         SpPowerIdleTimeout,
+                                         PowerDeviceD3);
+
+    UNIMPLEMENTED_ONCE;
+    //ScsiPortInitPdoWmi(LunExtension);
+
+    SpBuildDeviceMapEntry(LunExtension);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
