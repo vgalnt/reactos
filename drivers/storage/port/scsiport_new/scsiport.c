@@ -5115,10 +5115,22 @@ NTAPI
 ScsiPortGetCompatibleIds(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PINQUIRYDATA InquiryData,
-    _In_ PUNICODE_STRING MultiString)
+    _Out_ UNICODE_STRING* OutUnicodeId)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_TYPE_STRINGS DeviceTypeInfo;
+    CHAR DeviceType[0x1C];
+    PCHAR Ids[3];
+
+    Ids[0] = DeviceType;
+    Ids[1] = "SCSI\\RAW";
+    Ids[2] = NULL;
+
+    DeviceTypeInfo = SpGetDeviceTypeInfo((InquiryData->DeviceTypeQualifier & 0x1F));
+    sprintf(DeviceType, "SCSI\\%s", DeviceTypeInfo->DeviceTypeString);
+
+    DPRINT("ScsiPortGetCompatibleIds: '%s'\n", Ids[0]);
+
+    return ScsiPortStringArrayToMultiString(DriverObject, OutUnicodeId, Ids);
 }
 
 NTSTATUS
