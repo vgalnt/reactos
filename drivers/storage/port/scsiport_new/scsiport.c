@@ -4820,7 +4820,37 @@ CopyField(
     _In_ ULONG Length,
     _In_ UCHAR DefaultCharacter)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG ix;
+    BOOLEAN IsCopyDefault = FALSE;
+
+    PAGED_CODE();
+    DPRINT("CopyField: %X\n", Length);
+
+    for (ix = 0; ix < Length; ix++)
+    {
+        if (IsCopyDefault)
+        {
+            Destination[ix] = DefaultCharacter;
+            continue;
+        }
+
+        if (!Source[ix])
+        {
+            IsCopyDefault = TRUE;
+            Destination[ix] = DefaultCharacter;
+            continue;
+        }
+
+        if (Source[ix] <= ' ' || Source[ix] > 0x7F || Source[ix] == ',')
+        {
+            Destination[ix] = DefaultCharacter;
+            continue;
+        }
+
+        Destination[ix] = Source[ix];
+    }
+
+    Destination[ix] = 0;
 }
 
 NTSTATUS
