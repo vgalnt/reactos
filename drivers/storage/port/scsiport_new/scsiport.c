@@ -4734,13 +4734,82 @@ ScsiPortGetDeviceId(
 
 NTSTATUS
 NTAPI
+PortGetMPIODeviceList(
+    _In_ PUNICODE_STRING PathString,
+    _In_ PUNICODE_STRING MPIOSupportedDeviceList)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+BOOLEAN
+NTAPI
+PortIsDeviceMPIOSupported(
+    _In_ PUNICODE_STRING MPIOSupportedDeviceList,
+    _In_ PCHAR VendorId,
+    _In_ PCHAR ProductId)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+NTSTATUS
+NTAPI
 ScsiPortDetermineGenId(
     _In_ PDRIVER_OBJECT DriverObject,
     _In_ PINQUIRYDATA InquiryData,
     _Out_ CHAR* OutGenId)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_TYPE_STRINGS DeviceTypeInfo;
+    PSCSI_PORT_DRIVER_EXTENSION SpDriverExtension;
+    UNICODE_STRING MPIOSupportedDeviceList;
+    CHAR ProductId[0x14];
+    CHAR VendorId[0xC];
+    CHAR GenId[0x28];
+    NTSTATUS Status;
+
+    PAGED_CODE();
+
+    DeviceTypeInfo = SpGetDeviceTypeInfo(InquiryData->DeviceTypeQualifier & 0x1F);
+
+    RtlZeroMemory(GenId, sizeof(GenId));
+    RtlCopyMemory(GenId, DeviceTypeInfo->GenericTypeString, strlen(DeviceTypeInfo->GenericTypeString));
+
+    if (InquiryData->DeviceTypeQualifier & 0x1F)
+        goto Finish;
+
+    SpDriverExtension = IoGetDriverObjectExtension(DriverObject, ScsiPortInitialize);
+    ASSERT(SpDriverExtension != NULL);
+
+    if (SpDriverExtension->MPIOSupportedDeviceList.Buffer)
+    {
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        RtlInitUnicodeString(&MPIOSupportedDeviceList, L"\\REGISTRY\\MACHINE\\SYSTEM\\CurrentControlSet\\Control\\MPDEV");
+
+        Status = PortGetMPIODeviceList(&MPIOSupportedDeviceList, &SpDriverExtension->MPIOSupportedDeviceList);
+        if (!NT_SUCCESS(Status))
+            goto Finish;
+    }
+
+    RtlZeroMemory(VendorId, 9);
+    RtlCopyMemory(VendorId, InquiryData->VendorId, 8);
+
+    RtlZeroMemory(ProductId, 0x11);
+    RtlCopyMemory(ProductId, InquiryData->ProductId, 0x10);
+
+    if (PortIsDeviceMPIOSupported(&SpDriverExtension->MPIOSupportedDeviceList, VendorId, ProductId))
+    {
+        RtlCopyMemory(GenId, "MPIODisk", 8);
+    }
+
+Finish:
+
+    RtlCopyMemory(OutGenId, GenId, strlen(GenId));
+
+    return STATUS_SUCCESS;
 }
 
 VOID

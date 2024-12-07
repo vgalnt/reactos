@@ -25,6 +25,7 @@ typedef struct _SCSIPORT_DRIVER_EXTENSION
 {
     PDRIVER_OBJECT DriverObject;
     UNICODE_STRING RegistryPath;
+    UNICODE_STRING MPIOSupportedDeviceList;
     PSCSI_HW_CHAIN_ENTRY ChainHeader;
     LONG Counter;
     ULONG BusType;
