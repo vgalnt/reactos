@@ -5137,10 +5137,29 @@ NTSTATUS
 NTAPI
 ScsiPortGetInstanceId(
     _In_ PDEVICE_OBJECT Pdo,
-    _In_ PUNICODE_STRING UnicodeString)
+    _In_ UNICODE_STRING* OutUnicodeId)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    CHAR SourceString[0x40];
+    ANSI_STRING AnsiString;
+
+    LunExtension = Pdo->DeviceExtension;
+
+    PAGED_CODE();
+    ASSERT(OutUnicodeId != NULL);
+
+    if (SpLegacyInstanceId)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        sprintf(SourceString, "%02x%02x%02x", LunExtension->PathId, LunExtension->TargetId, LunExtension->Lun);
+    }
+
+    RtlInitAnsiString(&AnsiString, SourceString);
+
+    return RtlAnsiStringToUnicodeString(OutUnicodeId, &AnsiString, TRUE);
 }
 
 NTSTATUS
