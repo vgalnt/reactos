@@ -4585,12 +4585,91 @@ SpQueryPnpInterfaceFlags(
 
 NTSTATUS
 NTAPI
-ScsiPortPdoDeviceControl(
+SpPdoHandleIoctlScsiGetAddress(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpPdoHandleIoctlStorageQueryProperty(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortPdoDeviceControl(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    ULONG IoControlCode;
+    NTSTATUS Status;
+
+    DeviceExtension = Pdo->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    IoControlCode = IoStack->Parameters.DeviceIoControl.IoControlCode;
+
+    DPRINT("ScsiPortPdoDeviceControl: %p\n", Pdo);
+
+    if (SpAcquireRemoveLockEx(Pdo, Irp, __FILE__, __LINE__))
+    {
+        SpReleaseRemoveLock(Pdo, Irp);
+        Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        Irp->IoStatus.Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        goto Finish;
+    }
+
+    ASSERT(DeviceExtension->CommonExtension.IsPdo);
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+
+    if (IoControlCode == IOCTL_SCSI_GET_ADDRESS)
+        return SpPdoHandleIoctlScsiGetAddress(Pdo, Irp);
+
+    if (IoControlCode == IOCTL_SCSI_GET_DUMP_POINTERS)
+    {
+        IoSkipCurrentIrpStackLocation(Irp);
+        SpReleaseRemoveLock(Pdo, Irp);
+        return IoCallDriver(DeviceExtension->CommonExtension.LowDevice, Irp);
+    }
+
+    if (IoControlCode == IOCTL_SCSI_PASS_THROUGH)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == IOCTL_SCSI_PASS_THROUGH_DIRECT)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == IOCTL_STORAGE_QUERY_PROPERTY)
+        return SpPdoHandleIoctlStorageQueryProperty(Pdo, Irp);
+
+    //ScsiDebugPrintInt(1, "ScsiPortPdoDeviceControl: unsupported IOCTL %08x\n", IoControlCode);
+    DPRINT("ScsiPortPdoDeviceControl: unsupported IOCTL %p\n", IoControlCode);
+
+    SpReleaseRemoveLock(Pdo, Irp);
+
+    Status = STATUS_INVALID_DEVICE_REQUEST;
+    Irp->IoStatus.Status = STATUS_INVALID_DEVICE_REQUEST;
+
+Finish:
+
+    SpCompleteRequest(Pdo, Irp, NULL, 0);
+    return Status;
 }
 
 NTSTATUS
