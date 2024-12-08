@@ -4595,12 +4595,35 @@ SpPdoHandleIoctlScsiGetAddress(
 
 NTSTATUS
 NTAPI
-SpPdoHandleIoctlStorageQueryProperty(
+ScsiPortQueryPropertyPdo(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpPdoHandleIoctlStorageQueryProperty(
+    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PIRP Irp)
+{
+    PIO_STACK_LOCATION IoStack;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    PAGED_CODE();
+    DPRINT("SpPdoHandleIoctlStorageQueryProperty: %p\n", Pdo);
+
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength >= sizeof(STORAGE_PROPERTY_QUERY))
+        return ScsiPortQueryPropertyPdo(Pdo, Irp);
+
+    Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
+    SpReleaseRemoveLock(Pdo, Irp);
+
+    SpCompleteRequest(Pdo, Irp, NULL, 0);
+    return STATUS_INVALID_PARAMETER;
 }
 
 NTSTATUS
