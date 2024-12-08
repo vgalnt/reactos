@@ -5580,8 +5580,67 @@ SpClaimLogicalUnit(
     _In_ PIRP Irp,
     _In_ BOOLEAN IsStartLun)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_REQUEST_BLOCK Srb;
+    NTSTATUS Status;
+    PVOID ImageSectionHandle;
+    KIRQL Irql;
+
+    PAGED_CODE();
+    DPRINT("SpClaimLogicalUnit: %p, %p, %X\n", DeviceExtension, LunExtension, IsStartLun);
+
+    Srb = IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb;
+
+    if (IsStartLun)
+    {
+        Status = ScsiPortStartLogicalUnit(LunExtension);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("SpClaimLogicalUnit: Status %X\n", Status);
+            Srb->SrbStatus = 4;
+            return Status;
+        }
+
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    ImageSectionHandle = MmLockPagableDataSection(SpClaimLogicalUnit);
+    InterlockedIncrement(&SpPAGELOCKLockCount);
+    KeAcquireSpinLock(&DeviceExtension->SpinLock, &Irql);
+
+    if (Srb->Function == SRB_FUNCTION_RELEASE_DEVICE)
+    {
+        LunExtension->DeviceClaimed = FALSE;
+        KeReleaseSpinLock(&DeviceExtension->SpinLock, Irql);
+        Srb->SrbStatus = 1;
+        return STATUS_SUCCESS;
+    }
+
+    if (LunExtension->DeviceClaimed)
+    {
+        KeReleaseSpinLock(&DeviceExtension->SpinLock, Irql);
+        Srb->SrbStatus = 5;
+        return STATUS_DEVICE_BUSY;
+    }
+
+    if (Srb->Function == SRB_FUNCTION_CLAIM_DEVICE)
+        LunExtension->DeviceClaimed = TRUE;
+
+    if (Srb->Function == SRB_FUNCTION_ATTACH_DEVICE)
+    {
+        ASSERT(FALSE);
+        LunExtension->CommonExtension.SelfDevice = Srb->DataBuffer;
+    }
+
+    Srb->DataBuffer = LunExtension->CommonExtension.SelfDevice;
+
+    KeReleaseSpinLock(&DeviceExtension->SpinLock, Irql);
+
+    Srb->SrbStatus = 1;
+
+    InterlockedDecrement(&SpPAGELOCKLockCount);
+    MmUnlockPagableImageSection(ImageSectionHandle);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
