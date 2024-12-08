@@ -4643,10 +4643,80 @@ NTAPI
 SpQueryDeviceText(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ DEVICE_TEXT_TYPE DeviceTextType,
-    _In_ LCID LocaleId, PWCHAR* OutDeviceText)
+    _In_ LCID LocaleId,
+    _Out_ PWCHAR* OutDeviceText)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_TYPE_STRINGS DeviceType;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    UNICODE_STRING UnicodeString;
+    ANSI_STRING AnsiString;
+    CHAR DeviceText[0x100];
+    PCHAR Ptr;
+    LONG ix;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("SpQueryDeviceText: %p, %X\n", Pdo, DeviceTextType);
+
+    RtlInitUnicodeString(&UnicodeString, NULL);
+
+    if (DeviceTextType != DeviceTextDescription &&
+        DeviceTextType != DeviceTextLocationInformation)
+    {
+        DPRINT1("SpQueryDeviceText: STATUS_NOT_SUPPORTED (%p, %X)\n", Pdo, DeviceTextType);
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    LunExtension = Pdo->DeviceExtension;
+
+    if (DeviceTextType == DeviceTextLocationInformation)
+    {
+        sprintf(DeviceText, "Bus Number %d, Target ID %d, LUN %d", LunExtension->PathId, LunExtension->TargetId, LunExtension->Lun);
+        goto Finish;
+    }
+
+    DeviceType = SpGetDeviceTypeInfo(LunExtension->InquiryData.DeviceTypeQualifier & 0x1F);
+
+    RtlZeroMemory(DeviceText, sizeof(DeviceText));
+    RtlCopyMemory(DeviceText, LunExtension->InquiryData.VendorId, 8);
+
+    ix = 8;
+    do
+    {
+        Ptr = &DeviceText[ix];
+        if (DeviceText[ix] && DeviceText[ix] != ' ')
+            break;
+        ix--;
+        *Ptr = 0;
+    }
+    while (ix >= 0);
+
+    sprintf(&DeviceText[ix + 1], " ");
+
+    Ptr = &DeviceText[ix + 2];
+
+    RtlCopyMemory(Ptr, LunExtension->InquiryData.ProductId, 0x10);
+
+    ix = 0x10;
+    do
+    {
+        if (Ptr[ix] && Ptr[ix] != ' ')
+            break;
+
+        Ptr[ix--] = 0;
+    }
+    while (ix >= 0);
+
+    sprintf(&Ptr[ix + 1], " SCSI %s Device", DeviceType->DeviceTypeString);
+
+Finish:
+
+    RtlInitAnsiString(&AnsiString, DeviceText);
+    Status = RtlAnsiStringToUnicodeString(&UnicodeString, &AnsiString, TRUE);
+
+    *OutDeviceText = UnicodeString.Buffer;
+
+    return Status;
 }
 
 NTSTATUS
