@@ -4620,8 +4620,50 @@ NTAPI
 ScsiPortStartLogicalUnit(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    RTL_QUERY_REGISTRY_TABLE QueryTable[2];
+    HANDLE DevInstRegKey;
+    ULONG DefaultData = 0;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortStartLogicalUnit: %p\n", LunExtension);
+
+    Status = IoOpenDeviceRegistryKey(LunExtension->CommonExtension.SelfDevice, 1, KEY_READ, &DevInstRegKey);
+    if (!NT_SUCCESS(Status))
+    {
+        //ScsiDebugPrintInt(1, "SpStartDevice: Error opening instance key for pdo [%#08lx]\n", Status);
+        DPRINT("ScsiPortStartLogicalUnit: Error opening instance key for pdo [%X]\n", Status);
+        goto Finish;
+    }
+
+    RtlZeroMemory(QueryTable, sizeof(QueryTable));
+
+    QueryTable[0].Name = L"DefaultRequestFlags";
+    QueryTable[0].EntryContext = &LunExtension->CommonExtension.DefaultRequestFlags;
+    QueryTable[0].Flags = 0x20;
+    QueryTable[0].DefaultType = REG_DWORD;
+    QueryTable[0].DefaultData = &DefaultData;
+    QueryTable[0].DefaultLength = sizeof(ULONG);
+
+    Status = RtlQueryRegistryValues((RTL_REGISTRY_HANDLE | RTL_REGISTRY_OPTIONAL), DevInstRegKey, QueryTable, NULL, NULL);
+
+    LunExtension->CommonExtension.DefaultRequestFlags &= 0xC;
+
+    //ScsiDebugPrintInt(1, "SpStartDevice: Default SRB flags for (%d,%d,%d) are %#08lx\n",
+    //                  LunExtension->PathId, LunExtension->TargetId, LunExtension->Lun, LunExtension->CommonExtension.DefaultRequestFlags);
+    DPRINT("ScsiPortStartLogicalUnit: Default SRB flags for (%X:%X:%X) are %X\n",
+           LunExtension->PathId, LunExtension->TargetId, LunExtension->Lun, LunExtension->CommonExtension.DefaultRequestFlags);
+
+    ZwClose(DevInstRegKey);
+
+Finish:
+
+    if (LunExtension->QueueLockCount > 0)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    return Status;
 }
 
 PSCSI_PORT_DEVICE_TYPE_STRINGS
