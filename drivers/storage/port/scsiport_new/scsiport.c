@@ -4595,12 +4595,111 @@ SpPdoHandleIoctlScsiGetAddress(
 
 NTSTATUS
 NTAPI
+SpBuildDeviceDescriptor(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PSTORAGE_DEVICE_DESCRIPTOR Descriptor,
+    _Inout_ ULONG* OutDescriptorSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpBuildDeviceIdDescriptor(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ PSTORAGE_DEVICE_ID_DESCRIPTOR IdDescriptor,
+    _Inout_ ULONG* OutDescriptorSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ScsiPortQueryPropertyPdo(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PSTORAGE_PROPERTY_QUERY PropertyQuery;
+    ULONG DescriptorSize;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortQueryPropertyPdo: %p\n", Pdo);
+
+    LunExtension = Pdo->DeviceExtension;
+
+    ASSERT(Irp->IoStatus.Information == 0);
+    ASSERT(LunExtension->CommonExtension.IsPdo);
+
+    DescriptorSize = IoGetCurrentIrpStackLocation(Irp)->Parameters.DeviceIoControl.OutputBufferLength;
+
+    PropertyQuery = Irp->AssociatedIrp.SystemBuffer;
+
+    if (PropertyQuery->PropertyId == 0)
+    {
+        if (PropertyQuery->QueryType == 0)
+        {
+            Status = SpBuildDeviceDescriptor(LunExtension, Irp->AssociatedIrp.SystemBuffer, &DescriptorSize);
+
+            Irp->IoStatus.Information = DescriptorSize;
+            if (Status == STATUS_PENDING)
+                return Status;
+        }
+        else if (PropertyQuery->QueryType == 1)
+        {
+            Status = STATUS_SUCCESS;
+        }
+        else
+        {
+            DPRINT1("ScsiPortQueryPropertyPdo: STATUS_INVALID_PARAMETER_1\n");
+            Status = STATUS_INVALID_PARAMETER_1;
+        }
+    }
+    else
+    {
+        if (PropertyQuery->PropertyId == 1 ||
+            PropertyQuery->PropertyId != 2)
+        {
+            IoSkipCurrentIrpStackLocation(Irp);
+            SpReleaseRemoveLock(Pdo, Irp);
+            return IoCallDriver(LunExtension->CommonExtension.LowDevice, Irp);
+        }
+
+        LunExtension = Pdo->DeviceExtension;
+
+        if (!LunExtension->DeviceIdentifierPage)
+        {
+            DPRINT("ScsiPortQueryPropertyPdo: STATUS_NOT_SUPPORTED\n");
+            Status = STATUS_NOT_SUPPORTED;
+        }
+        else if (PropertyQuery->QueryType == 1)
+        {
+            Status = STATUS_SUCCESS;
+        }
+        else if (PropertyQuery->QueryType == PropertyStandardQuery)
+        {
+            Status = SpBuildDeviceIdDescriptor(LunExtension, Irp->AssociatedIrp.SystemBuffer, &DescriptorSize);
+
+            Irp->IoStatus.Information = DescriptorSize;
+            if (Status == STATUS_PENDING)
+                return Status;
+        }
+        else
+        {
+            DPRINT1("ScsiPortQueryPropertyPdo: STATUS_INVALID_PARAMETER_1\n");
+            Status = STATUS_INVALID_PARAMETER_1;
+        }
+    }
+
+    Irp->IoStatus.Status = Status;
+
+    SpReleaseRemoveLock(Pdo, Irp);
+
+    SpCompleteRequest(Pdo, Irp, NULL, 1);
+    return Status;
 }
 
 NTSTATUS
