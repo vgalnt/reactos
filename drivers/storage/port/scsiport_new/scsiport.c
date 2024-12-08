@@ -8974,8 +8974,98 @@ NTAPI
 SpBuildLogicalUnitDeviceMapEntry(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PWSTR PeripheralTypeString;
+    PHANDLE KeyHandle;
+    UNICODE_STRING UnicodeString;
+    UNICODE_STRING ValueName;
+    ANSI_STRING AnsiString;
+    ULONG Disposition;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    ASSERT(LunExtension->IsTemporary == FALSE);
+
+    //ScsiDebugPrintInt(1, "SpBuildDeviceMapEntry: Building map entry for lun %p\n", LunExtension);
+    DPRINT("SpBuildLogicalUnitDeviceMapEntry: %p\n", LunExtension);
+
+    DeviceExtension = LunExtension->DeviceExtension;
+
+    if (!DeviceExtension->DeviceMapEntry)
+    {
+        DPRINT1("SpBuildLogicalUnitDeviceMapEntry: STATUS_UNSUCCESSFUL\n");
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    if (LunExtension->TargetIdHandle && LunExtension->LogicalUnitIdHandle)
+        return STATUS_SUCCESS;
+
+    Status = SpCreateNumericKey(DeviceExtension->DeviceMapEntry[LunExtension->PathId].ScsiBusHandle,
+                                LunExtension->TargetId,
+                                L"Target Id ",
+                                1,
+                                &LunExtension->TargetIdHandle,
+                                &Disposition);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpBuildLogicalUnitDeviceMapEntry: Status %X\n", Status);
+        return Status;
+    }
+
+    KeyHandle = &LunExtension->LogicalUnitIdHandle;
+
+    Status = SpCreateNumericKey(LunExtension->TargetIdHandle,
+                                LunExtension->Lun,
+                                L"Logical Unit Id ",
+                                1,
+                                &LunExtension->LogicalUnitIdHandle,
+                                &Disposition);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("SpBuildLogicalUnitDeviceMapEntry: Status %X\n", Status);
+        return Status;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"Identifier");
+
+    AnsiString.Buffer = (PCHAR)LunExtension->InquiryData.VendorId;
+    AnsiString.MaximumLength = 0x1C;
+    AnsiString.Length = 0x1C;
+
+    Status = RtlAnsiStringToUnicodeString(&UnicodeString, &AnsiString, TRUE);
+    if (NT_SUCCESS(Status))
+    {
+        ZwSetValueKey(*KeyHandle, &ValueName, 0, REG_SZ, UnicodeString.Buffer, (UnicodeString.Length + 2));
+        RtlFreeUnicodeString(&UnicodeString);
+    }
+
+    PeripheralTypeString = SpGetDeviceTypeInfo(LunExtension->InquiryData.DeviceTypeQualifier & 0x1F)->PeripheralTypeString;
+    RtlInitUnicodeString(&ValueName, L"Type");
+
+    ZwSetValueKey(*KeyHandle, &ValueName, 0, REG_SZ, PeripheralTypeString, (2 * wcslen(PeripheralTypeString) + 2));
+
+    RtlInitUnicodeString(&ValueName, L"InquiryData");
+    ZwSetValueKey(*KeyHandle, &ValueName, 0, REG_BINARY, &LunExtension->InquiryData, INQUIRYDATABUFFERSIZE);
+
+    if (LunExtension->SerialNumber.Length)
+    {
+        RtlInitUnicodeString(&ValueName, L"SerialNumber");
+
+        Status = RtlAnsiStringToUnicodeString(&UnicodeString, &LunExtension->SerialNumber, 1);
+        if (NT_SUCCESS(Status))
+        {
+            ZwSetValueKey(*KeyHandle, &ValueName, 0, REG_SZ, UnicodeString.Buffer, (UnicodeString.Length + 2));
+            RtlFreeUnicodeString(&UnicodeString);
+        }
+    }
+
+    if (LunExtension->DeviceIdentifierPage)
+    {
+        RtlInitUnicodeString(&ValueName, L"DeviceIdentifierPage");
+        ZwSetValueKey(*KeyHandle, &ValueName, 0, REG_BINARY, LunExtension->DeviceIdentifierPage, LunExtension->DeviceIdentifierPageSize);
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS

@@ -203,6 +203,8 @@ typedef struct _SCSI_PORT_LUN_EXTENSION
     UCHAR QueueDepth;
     UCHAR QueueCount;
     INQUIRYDATA InquiryData;
+    HANDLE TargetIdHandle;
+    HANDLE LogicalUnitIdHandle;
     PVOID ActiveFailedRequest;
     PVOID BlockedFailedRequest;
     PLUN_LIST TargetLunList;
@@ -490,6 +492,17 @@ SpInquireLogicalUnit(
     _In_ PSCSI_PORT_LUN_EXTENSION RescanLun,
     _Out_ PSCSI_PORT_LUN_EXTENSION* OutLunExtension,
     _Out_ BOOLEAN* OutIsCheckingNext
+);
+
+NTSTATUS
+NTAPI
+SpCreateNumericKey(
+    _In_ HANDLE RootKeyHandle,
+    _In_ ULONG NumericValue,
+    _In_ PWSTR String,
+    _In_ BOOLEAN IsNewKey,
+    _Out_ HANDLE* OutHandle,
+    _Out_ ULONG* OutDisposition
 );
 
 #endif /* _SCSIPORT_H_ */
