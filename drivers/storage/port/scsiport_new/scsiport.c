@@ -6051,12 +6051,69 @@ SpHandleIoctlScsiMiniport(
 
 NTSTATUS
 NTAPI
+SpBuildAdapterDescriptor(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
+    _Out_ STORAGE_ADAPTER_DESCRIPTOR* AdapterDescriptor,
+    _Out_ ULONG* OutDescriptorSize)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ScsiPortQueryProperty(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP QueryIrp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSTORAGE_PROPERTY_QUERY PropertyQuery;
+    ULONG BufferSize;
+    NTSTATUS Status;
+
+    PropertyQuery = QueryIrp->AssociatedIrp.SystemBuffer;
+    DeviceExtension = Fdo->DeviceExtension;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortQueryProperty: %p, %X\n", DeviceExtension, PropertyQuery->QueryType);
+
+    ASSERT(!DeviceExtension->CommonExtension.IsPdo);
+    ASSERT(QueryIrp->IoStatus.Information == 0);
+
+    if (PropertyQuery->QueryType >= PropertyMaskQuery)
+    {
+        DPRINT1("ScsiPortQueryProperty: STATUS_INVALID_PARAMETER_1\n");
+        return STATUS_INVALID_PARAMETER_1;
+    }
+
+    if (PropertyQuery->PropertyId == StorageDeviceProperty)
+    {
+        DPRINT1("ScsiPortQueryProperty: STATUS_INVALID_DEVICE_REQUEST\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    if (PropertyQuery->PropertyId == StorageDeviceIdProperty)
+    {
+        DPRINT1("ScsiPortQueryProperty: STATUS_INVALID_DEVICE_REQUEST\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    if (PropertyQuery->PropertyId != StorageAdapterProperty)
+    {
+        DPRINT1("ScsiPortQueryProperty: STATUS_INVALID_PARAMETER_1\n");
+        return STATUS_INVALID_PARAMETER_1;
+    }
+
+    if (PropertyQuery->QueryType == PropertyExistsQuery)
+        return STATUS_SUCCESS;
+
+    BufferSize = QueryIrp->Tail.Overlay.CurrentStackLocation->Parameters.DeviceIoControl.OutputBufferLength;
+
+    Status = SpBuildAdapterDescriptor(DeviceExtension, QueryIrp->AssociatedIrp.SystemBuffer, &BufferSize);
+
+    QueryIrp->IoStatus.Information = BufferSize;
+
+    return Status;
 }
 
 NTSTATUS
