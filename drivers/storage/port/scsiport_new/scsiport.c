@@ -6051,12 +6051,43 @@ SpHandleIoctlScsiMiniport(
 
 NTSTATUS
 NTAPI
+ScsiPortQueryProperty(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP QueryIrp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 SpHandleIoctlStorageQueryProperty(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    PAGED_CODE();
+    DPRINT("SpHandleIoctlStorageQueryProperty: %p\n", Fdo);
+
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength >= sizeof(STORAGE_PROPERTY_QUERY))
+    {
+        Status = ScsiPortQueryProperty(Fdo, Irp);
+        ASSERT(Status != STATUS_PENDING);
+    }
+    else
+    {
+        Status = STATUS_INVALID_PARAMETER;
+    }
+
+    Irp->IoStatus.Status = Status;
+    SpReleaseRemoveLock(Fdo, Irp);
+
+    SpCompleteRequest(Fdo, Irp, NULL, 0);
+    return Status;
 }
 
 NTSTATUS
