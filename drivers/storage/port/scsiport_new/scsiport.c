@@ -4589,8 +4589,43 @@ SpPdoHandleIoctlScsiGetAddress(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    PIO_STACK_LOCATION IoStack;
+    PSCSI_ADDRESS Address;
+    NTSTATUS Status;
+  
+    LunExtension = Pdo->DeviceExtension;
+
+    PAGED_CODE();
+    DPRINT("SpPdoHandleIoctlScsiGetAddress: %p\n", LunExtension);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.DeviceIoControl.OutputBufferLength >= sizeof(SCSI_ADDRESS))
+    {
+        Address = Irp->AssociatedIrp.SystemBuffer;
+
+        Address->Length = sizeof(SCSI_ADDRESS);
+        Address->PortNumber = (UCHAR)LunExtension->Port;
+
+        Address->PathId = LunExtension->PathId;
+        Address->TargetId = LunExtension->TargetId;
+        Address->Lun = LunExtension->Lun;
+
+        Status = STATUS_SUCCESS;
+        Irp->IoStatus.Information = sizeof(SCSI_ADDRESS);
+    }
+    else
+    {
+        Status = STATUS_BUFFER_TOO_SMALL;
+    }
+
+    Irp->IoStatus.Status = Status;
+
+    SpReleaseRemoveLock(Pdo, Irp);
+    SpCompleteRequest(Pdo, Irp, NULL, 0);
+
+    return Status;
 }
 
 NTSTATUS
