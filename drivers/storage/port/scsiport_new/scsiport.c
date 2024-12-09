@@ -6041,12 +6041,129 @@ ScsiPortFdoCreateClose(
 
 NTSTATUS
 NTAPI
-ScsiPortFdoDeviceControl(
+SpHandleIoctlScsiMiniport(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpHandleIoctlStorageQueryProperty(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+ScsiPortFdoDeviceControl(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
+{
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    ULONG IoControlCode;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortFdoDeviceControl: %p\n", Fdo);
+
+    Irp->IoStatus.Information = 0;
+
+    DeviceExtension = Fdo->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (SpAcquireRemoveLockEx(Fdo, Irp, __FILE__, __LINE__))
+    {
+        Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        goto Finish;
+    }
+
+    Status = SpRequestValidAdapterPowerStateSynchronous(DeviceExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ScsiPortFdoDeviceControl: Status %X\n", Status);
+        goto Finish;
+    }
+
+    IoControlCode = IoStack->Parameters.DeviceIoControl.IoControlCode;
+
+    if (IoControlCode == IOCTL_SCSI_MINIPORT)
+        return SpHandleIoctlScsiMiniport(Fdo, Irp);
+
+    if (IoControlCode == IOCTL_SCSI_GET_INQUIRY_DATA)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == IOCTL_SCSI_GET_CAPABILITIES)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == IOCTL_SCSI_RESCAN_BUS)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == IOCTL_SCSI_GET_DUMP_POINTERS)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == IOCTL_SCSI_PASS_THROUGH)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == IOCTL_SCSI_PASS_THROUGH_DIRECT)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == IOCTL_STORAGE_QUERY_PROPERTY)
+        return SpHandleIoctlStorageQueryProperty(Fdo, Irp);
+
+    if (IoControlCode == IOCTL_STORAGE_RESET_BUS)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == IOCTL_STORAGE_BREAK_RESERVATION)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IoControlCode == OBSOLETE_IOCTL_STORAGE_RESET_BUS)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    //ScsiDebugPrintInt(1, "ScsiPortDeviceControl: Unsupported IOCTL (%x)\n", IoStack->Parameters.DeviceIoControl.IoControlCode);
+    DPRINT("ScsiPortDeviceControl: Unsupported IOCTL (%X)\n", IoStack->Parameters.DeviceIoControl.IoControlCode);
+
+    Status = STATUS_INVALID_DEVICE_REQUEST;
+
+Finish:
+
+    Irp->IoStatus.Status = Status;
+    SpReleaseRemoveLock(Fdo, Irp);
+    SpCompleteRequest(Fdo, Irp, NULL, 0);
+    return Status;
 }
 
 NTSTATUS
