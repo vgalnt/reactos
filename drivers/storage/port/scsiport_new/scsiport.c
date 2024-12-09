@@ -6056,8 +6056,44 @@ SpBuildAdapterDescriptor(
     _Out_ STORAGE_ADAPTER_DESCRIPTOR* AdapterDescriptor,
     _Out_ ULONG* OutDescriptorSize)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DRIVER_EXTENSION SpDriverExtension;
+    STORAGE_ADAPTER_DESCRIPTOR Descriptor;
+    ULONG DescriptorSize;
+
+    PAGED_CODE();
+    DPRINT("SpBuildAdapterDescriptor: %p\n", DeviceExtension);
+
+    ASSERT(!(((PCOMMON_EXTENSION) DeviceExtension->CommonExtension.SelfDevice->DeviceExtension)->IsPdo));
+
+    SpDriverExtension = IoGetDriverObjectExtension(DeviceExtension->CommonExtension.SelfDevice->DriverObject, ScsiPortInitialize);
+    ASSERT(SpDriverExtension != NULL);
+
+    Descriptor.Version = sizeof(Descriptor);
+    Descriptor.Size = sizeof(Descriptor);
+
+    Descriptor.MaximumTransferLength = DeviceExtension->IoScsiCapabilities.MaximumTransferLength;
+    Descriptor.MaximumPhysicalPages = DeviceExtension->IoScsiCapabilities.MaximumPhysicalPages;
+    Descriptor.AlignmentMask = DeviceExtension->IoScsiCapabilities.AlignmentMask;
+
+    Descriptor.AdapterUsesPio = DeviceExtension->IoScsiCapabilities.AdapterUsesPio;
+    Descriptor.AdapterScansDown = DeviceExtension->IoScsiCapabilities.AdapterScansDown;
+    Descriptor.CommandQueueing = DeviceExtension->IoScsiCapabilities.TaggedQueuing;
+    Descriptor.AcceleratedTransfer = TRUE;
+
+    Descriptor.BusType = (UCHAR)SpDriverExtension->BusType;
+    Descriptor.BusMajorVersion = 2;
+    Descriptor.BusMinorVersion = 0;
+
+    if (*OutDescriptorSize < sizeof(Descriptor))
+        DescriptorSize = *OutDescriptorSize;
+    else
+        DescriptorSize = sizeof(Descriptor);
+
+    RtlCopyMemory(AdapterDescriptor, &Descriptor, DescriptorSize);
+
+    *OutDescriptorSize = DescriptorSize;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
