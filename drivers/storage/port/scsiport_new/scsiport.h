@@ -348,7 +348,7 @@ typedef struct _SCSI_PORT_DEVICE_EXTENSION
     BOOLEAN IsRequestQueue;
     ULONG SgListSize;
     ULONG ResetHoldTime;
-    PVOID InitiatorLun;
+    PSCSI_PORT_LUN_EXTENSION InitiatorLun[8];
     UCHAR CreateInitiatorLU;
     PSCSI_PORT_LUN_EXTENSION BlockedLun;
 } SCSI_PORT_DEVICE_EXTENSION, *PSCSI_PORT_DEVICE_EXTENSION;

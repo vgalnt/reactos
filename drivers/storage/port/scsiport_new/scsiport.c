@@ -4286,12 +4286,12 @@ SpScanAdapter(
     }
     else
     {
-        DPRINT("SpScanAdapter: %X, %X\n", DeviceExtension->CreateInitiatorLU, DeviceExtension->InitiatorLun);
+        DPRINT("SpScanAdapter: %X, %X\n", DeviceExtension->CreateInitiatorLU, DeviceExtension->InitiatorLun[0]);
 
-        if (DeviceExtension->CreateInitiatorLU == 1 && !DeviceExtension->InitiatorLun)
+        if (DeviceExtension->CreateInitiatorLU == 1 && !DeviceExtension->InitiatorLun[0])
         {
-            DeviceExtension->InitiatorLun = SpCreateInitiatorLU(DeviceExtension, (DeviceExtension->NumberOfBuses - 1));
-            if (!DeviceExtension->InitiatorLun)
+            DeviceExtension->InitiatorLun[0] = SpCreateInitiatorLU(DeviceExtension, (DeviceExtension->NumberOfBuses - 1));
+            if (!DeviceExtension->InitiatorLun[0])
             {
                 //ScsiDebugPrintInt(0, "SpScanBus: failed to create initiator LUN for FDO %p bus %d\n", DeviceExtension->CommonExtension.SelfDevice, DeviceExtension->NumberOfBuses - 1);
                 DPRINT1("SpScanAdapter: failed to create initiator LUN for FDO %p bus %X\n", DeviceExtension->CommonExtension.SelfDevice, (DeviceExtension->NumberOfBuses - 1));
@@ -6209,7 +6209,81 @@ SpFindSafeLogicalUnit(
     _In_ UCHAR PathId,
     _In_ PVOID Tag)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    UCHAR ix;
+    KIRQL Irql;
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    DPRINT("SpFindSafeLogicalUnit: %p, %X\n", DeviceExtension, PathId);
+
+    ASSERT(!(((PCOMMON_EXTENSION) (Fdo)->DeviceExtension)->IsPdo));
+
+    if (DeviceExtension->CreateInitiatorLU != 1)
+    {
+        LunExtension = NULL;
+    }
+    else if (PathId == 0xFF)
+    {
+        for (ix = 0; ix < 8; ix++)
+        {
+            LunExtension = DeviceExtension->InitiatorLun[ix];
+            if (!LunExtension)
+                continue;
+
+            if (!SpAcquireRemoveLockEx(LunExtension->CommonExtension.SelfDevice, Tag, __FILE__, __LINE__))
+                break;
+
+            SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, Tag);
+
+            LunExtension = NULL;
+        }
+    }
+    else if (!DeviceExtension->InitiatorLun[PathId])
+    {
+        LunExtension = NULL;
+    }
+    else if (SpAcquireRemoveLockEx(DeviceExtension->InitiatorLun[PathId]->CommonExtension.SelfDevice, Tag, __FILE__, __LINE__))
+    {
+        SpReleaseRemoveLock(DeviceExtension->InitiatorLun[PathId]->CommonExtension.SelfDevice, Tag);
+        LunExtension = NULL;
+    }
+    else
+    {
+        LunExtension = DeviceExtension->InitiatorLun[PathId];
+    }
+
+    if (LunExtension)
+    {
+        //ScsiDebugPrintInt(1, "SpFindSafeLogicalUnit: using initiator LU %p\n", LunExtension);
+        DPRINT("SpFindSafeLogicalUnit: using initiator LU %p\n", LunExtension);
+        return LunExtension;
+    }
+
+    for (ix = 0; ix < 8; ix++)
+    {
+        KeAcquireSpinLock(&DeviceExtension->LunList[ix].SpinLock, &Irql);
+
+        for (LunExtension = DeviceExtension->LunList[ix].LunExtension;
+             LunExtension != NULL;
+             LunExtension = LunExtension->NextLogicalUnit)
+        {
+            if (!LunExtension->IsTemporary && (PathId == 0xFF || LunExtension->PathId == PathId))
+            {
+                if (!SpAcquireRemoveLockEx(LunExtension->CommonExtension.SelfDevice, Tag, __FILE__, __LINE__))
+                {
+                    KeReleaseSpinLock(&DeviceExtension->LunList[ix].SpinLock, Irql);
+                    return LunExtension;
+                }
+
+                SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, Tag);
+            }
+        }
+
+        KeReleaseSpinLock(&DeviceExtension->LunList[ix].SpinLock, Irql);
+    }
+
     return NULL;
 }
 
