@@ -6686,8 +6686,39 @@ SpRerouteLegacyRequest(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    NTSTATUS Status;
+
+    DPRINT("SpRerouteLegacyRequest: %p\n", Fdo->DeviceExtension);
+
+    LunExtension = GetLogicalUnitExtensionEx(Fdo->DeviceExtension,
+                                             IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb->PathId,
+                                             IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb->TargetId,
+                                             IoGetCurrentIrpStackLocation(Irp)->Parameters.Scsi.Srb->Lun,
+                                             Add2Ptr(Irp, 1),
+                                             TRUE,
+                                             __FILE__,
+                                             __LINE__);
+    SpReleaseRemoveLock(Fdo, Irp);
+
+    if (!LunExtension)
+    {
+        DPRINT1("SpRerouteLegacyRequest: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        Irp->IoStatus.Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        IoCompleteRequest(Irp, 0);
+        return STATUS_DEVICE_DOES_NOT_EXIST;
+    }
+
+    ObReferenceObject(LunExtension->CommonExtension.SelfDevice);
+    SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, Add2Ptr(Irp, 1));
+
+    IoSkipCurrentIrpStackLocation(Irp);
+
+    Status = IoCallDriver(LunExtension->CommonExtension.SelfDevice, Irp);
+
+    ObDereferenceObject(LunExtension->CommonExtension.SelfDevice);
+
+    return Status;
 }
 
 BOOLEAN
