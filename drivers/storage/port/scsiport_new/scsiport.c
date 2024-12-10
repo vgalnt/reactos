@@ -4646,8 +4646,77 @@ SpBuildDeviceIdDescriptor(
     _In_ PSTORAGE_DEVICE_ID_DESCRIPTOR IdDescriptor,
     _Inout_ ULONG* OutDescriptorSize)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PVPD_IDENTIFICATION_DESCRIPTOR VpdDescriptor;
+    PVPD_IDENTIFICATION_PAGE DeviceIdPage;
+    PSTORAGE_IDENTIFIER Identifier;
+    ULONG PageLength;
+    ULONG Count = 0;
+    ULONG Length;
+    USHORT Size;
+
+    PAGED_CODE();
+    DPRINT("SpBuildDeviceIdDescriptor: %p\n", LunExtension);
+
+    ASSERT(((PCOMMON_EXTENSION) LunExtension->CommonExtension.SelfDevice->DeviceExtension)->IsPdo);
+    ASSERT(IdDescriptor != NULL);
+    ASSERT(LunExtension->DeviceIdentifierPage != NULL);
+
+    if (*OutDescriptorSize < 8)
+    {
+        DPRINT1("SpBuildDeviceIdDescriptor: STATUS_INVALID_PARAMETER (%X)\n", *OutDescriptorSize);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    RtlZeroMemory(IdDescriptor, *OutDescriptorSize);
+
+    IdDescriptor->Version = sizeof(STORAGE_DEVICE_ID_DESCRIPTOR);
+    IdDescriptor->Size = 0xC;
+
+    DeviceIdPage = LunExtension->DeviceIdentifierPage;
+
+    DPRINT("SpBuildDeviceIdDescriptor: %X, %X\n", LunExtension->DeviceIdentifierPageSize, DeviceIdPage->PageLength);
+
+    if (LunExtension->DeviceIdentifierPageSize >= DeviceIdPage->PageLength)
+        PageLength = DeviceIdPage->PageLength;
+    else
+        PageLength = LunExtension->DeviceIdentifierPageSize;
+
+    Identifier = (PSTORAGE_IDENTIFIER)IdDescriptor->Identifiers;
+
+    for (Length = 0; Length < PageLength; Length += (VpdDescriptor->IdentifierLength + 4))
+    {
+        DPRINT("SpBuildDeviceIdDescriptor: Length %X\n", Length);
+
+        VpdDescriptor = Add2Ptr(&DeviceIdPage[1], Length);
+        Size = ((VpdDescriptor->IdentifierLength + sizeof(STORAGE_IDENTIFIER)) & ~3);
+
+        IdDescriptor->Size += Size;
+
+        if (IdDescriptor->Size <= *OutDescriptorSize)
+        {
+            Identifier->CodeSet = VpdDescriptor->CodeSet;
+            Identifier->Type = VpdDescriptor->IdentifierType;
+            Identifier->Association = VpdDescriptor->Association;
+            Identifier->IdentifierSize = VpdDescriptor->IdentifierLength;
+            Identifier->NextOffset = Size;
+
+            RtlCopyMemory(Identifier->Identifier, &VpdDescriptor[1], VpdDescriptor->IdentifierLength);
+
+            Identifier = Add2Ptr(Identifier, Size);
+        }
+
+        Count++;
+    }
+
+    if (*OutDescriptorSize >= 0xC)
+        IdDescriptor->NumberOfIdentifiers = Count;
+
+    if (IdDescriptor->Size >= *OutDescriptorSize)
+        *OutDescriptorSize = *OutDescriptorSize;
+    else
+        *OutDescriptorSize = IdDescriptor->Size;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
