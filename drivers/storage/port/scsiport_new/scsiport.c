@@ -9,7 +9,7 @@
 
 #include "scsiport.h"
 
-//#define NDEBUG
+#define NDEBUG
 //#include <debug.h>
 #include "debug.h"
 
@@ -5915,8 +5915,39 @@ ScsiPortPdoCreateClose(
     _In_ PDEVICE_OBJECT Pdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    LONG IsRemoved;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortPdoCreateClose: %p\n", Pdo);
+
+    ASSERT((((PCOMMON_EXTENSION) (Pdo)->DeviceExtension)->IsPdo));
+
+    LunExtension = Pdo->DeviceExtension;
+
+    IsRemoved = SpAcquireRemoveLockEx(Pdo, Irp, __FILE__, __LINE__);
+
+    if (!IoGetCurrentIrpStackLocation(Irp)->MajorFunction)
+    {
+        if (IsRemoved)
+        {
+            DPRINT1("ScsiPortPdoCreateClose: STATUS_DEVICE_DOES_NOT_EXIST\n");
+            Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        }
+        else if (LunExtension->IsTemporary == TRUE)
+        {
+            DPRINT1("ScsiPortPdoCreateClose: STATUS_DEVICE_NOT_READY\n");
+            Status = STATUS_DEVICE_NOT_READY;
+        }
+    }
+
+    Irp->IoStatus.Status = Status;
+
+    SpReleaseRemoveLock(Pdo, Irp);
+
+    SpCompleteRequest(Pdo, Irp, NULL, 0);
+    return Status;
 }
 
 NTSTATUS
