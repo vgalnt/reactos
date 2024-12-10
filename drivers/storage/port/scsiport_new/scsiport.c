@@ -6170,8 +6170,36 @@ ScsiPortFdoCreateClose(
     _In_ PDEVICE_OBJECT Fdo,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    LONG IsRemoved;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    PAGED_CODE();
+    DPRINT("ScsiPortFdoCreateClose: %p\n", DeviceExtension);
+
+    IsRemoved = SpAcquireRemoveLockEx(Fdo, Irp, __FILE__, __LINE__);
+
+    if (IoGetCurrentIrpStackLocation(Irp)->MajorFunction == IRP_MJ_CREATE)
+    {
+        if (IsRemoved)
+        {
+            DPRINT1("ScsiPortFdoCreateClose: STATUS_DEVICE_DOES_NOT_EXIST\n");
+            Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        }
+        else if (DeviceExtension->CommonExtension.CurrentPnpState)
+        {
+            DPRINT1("ScsiPortFdoCreateClose: STATUS_DEVICE_NOT_READY\n");
+            Status = STATUS_DEVICE_NOT_READY;
+        }
+    }
+
+    Irp->IoStatus.Status = Status;
+    SpReleaseRemoveLock(Fdo, Irp);
+
+    SpCompleteRequest(Fdo, Irp, NULL, 1);
+    return Status;
 }
 
 NTSTATUS
