@@ -6204,12 +6204,35 @@ ScsiPortFdoCreateClose(
 
 NTSTATUS
 NTAPI
-SpHandleIoctlScsiMiniport(
-    _In_ PDEVICE_OBJECT Fdo,
+SpSendMiniPortIoctl(
+    _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ PIRP Irp)
 {
     UNIMPLEMENTED_DBGBREAK();
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SpHandleIoctlScsiMiniport(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ PIRP Irp)
+{
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    NTSTATUS Status;
+
+    DeviceExtension = Fdo->DeviceExtension;
+
+    PAGED_CODE();
+    DPRINT("SpHandleIoctlScsiMiniport: %p\n", DeviceExtension);
+
+    Status = SpSendMiniPortIoctl(DeviceExtension, Irp);
+    Irp->IoStatus.Status = Status;
+
+    SpReleaseRemoveLock(Fdo, Irp);
+
+    SpCompleteRequest(Fdo, Irp, NULL, 0);
+    return Status;
 }
 
 NTSTATUS
