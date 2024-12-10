@@ -6202,14 +6202,144 @@ ScsiPortFdoCreateClose(
     return Status;
 }
 
+PSCSI_PORT_LUN_EXTENSION
+NTAPI
+SpFindSafeLogicalUnit(
+    _In_ PDEVICE_OBJECT Fdo,
+    _In_ UCHAR PathId,
+    _In_ PVOID Tag)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
 NTSTATUS
 NTAPI
 SpSendMiniPortIoctl(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_LUN_EXTENSION LunExtension;
+    IO_STATUS_BLOCK IoStatusBlock;
+    LARGE_INTEGER StartingOffset;
+    PIO_STACK_LOCATION IoStack;
+    PSRB_IO_CONTROL SrbControl;
+    SCSI_REQUEST_BLOCK Srb;
+    PIRP Request;
+    KEVENT Event;
+    ULONG OutputBufferLength;
+    ULONG InputBufferLength;
+    ULONG ReturnedBytes;
+    ULONG Size;
+
+    PAGED_CODE();
+    DPRINT("SpSendMiniPortIoctl: %p\n", DeviceExtension);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Irp->IoStatus.Information = 0;
+    SrbControl = Irp->AssociatedIrp.SystemBuffer;
+
+    InputBufferLength = IoStack->Parameters.DeviceIoControl.InputBufferLength;
+    if (InputBufferLength < sizeof(SRB_IO_CONTROL))
+    {
+        DPRINT1("SpSendMiniPortIoctl: STATUS_INVALID_PARAMETER\n");
+        Irp->IoStatus.Status = STATUS_INVALID_PARAMETER;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (SrbControl->HeaderLength != sizeof(SRB_IO_CONTROL))
+    {
+        DPRINT1("SpSendMiniPortIoctl: STATUS_REVISION_MISMATCH\n");
+        Irp->IoStatus.Status = STATUS_REVISION_MISMATCH;
+        return STATUS_REVISION_MISMATCH;
+    }
+
+    Size = (SrbControl->Length + sizeof(SRB_IO_CONTROL));
+
+    if (Size < sizeof(SRB_IO_CONTROL))
+    {
+        DPRINT1("SpSendMiniPortIoctl: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (Size < SrbControl->Length)
+    {
+        DPRINT1("SpSendMiniPortIoctl: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    OutputBufferLength = IoStack->Parameters.DeviceIoControl.OutputBufferLength;
+
+    if (OutputBufferLength < Size && InputBufferLength < Size)
+    {
+        DPRINT1("SpSendMiniPortIoctl: STATUS_BUFFER_TOO_SMALL\n");
+        Irp->IoStatus.Status = STATUS_BUFFER_TOO_SMALL;
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    LunExtension = SpFindSafeLogicalUnit(DeviceExtension->CommonExtension.SelfDevice, 0xFF, Irp);
+    if (!LunExtension)
+    {
+        DPRINT1("SpSendMiniPortIoctl: STATUS_DEVICE_DOES_NOT_EXIST\n");
+        Irp->IoStatus.Status = STATUS_DEVICE_DOES_NOT_EXIST;
+        return STATUS_DEVICE_DOES_NOT_EXIST;
+    }
+
+    ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    StartingOffset.QuadPart = 1;
+
+    Request = IoBuildSynchronousFsdRequest(IRP_MJ_SCSI,
+                                           DeviceExtension->CommonExtension.SelfDevice,
+                                           SrbControl,
+                                           Size,
+                                           &StartingOffset,
+                                           &Event,
+                                           &IoStatusBlock);
+    if (!Request)
+    {
+        SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, Irp);
+        Irp->IoStatus.Status = STATUS_INSUFFICIENT_RESOURCES;
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    IoStack = IoGetNextIrpStackLocation(Request);
+
+    IoStack->MajorFunction = IRP_MJ_SCSI;
+    IoStack->MinorFunction = 1;
+
+    RtlZeroMemory(&Srb, sizeof(Srb));
+    IoStack->Parameters.Scsi.Srb = &Srb;
+
+    Srb.PathId = LunExtension->PathId;
+    Srb.TargetId = LunExtension->TargetId;
+    Srb.Lun = LunExtension->Lun;
+
+    Srb.Function = 2;
+    Srb.Length = sizeof(Srb);
+    Srb.SrbFlags = 0x1C0;
+    Srb.QueueAction = 0x20;
+    Srb.OriginalRequest = Request;
+    Srb.DataBuffer = SrbControl;
+    Srb.DataTransferLength = Size;
+    Srb.TimeOutValue = SrbControl->Timeout;
+
+    if (IoCallDriver(DeviceExtension->CommonExtension.SelfDevice, Request) == STATUS_PENDING)
+        KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+
+    if (Srb.DataTransferLength > OutputBufferLength)
+        ReturnedBytes = OutputBufferLength;
+    else
+        ReturnedBytes = Srb.DataTransferLength;
+
+    Irp->IoStatus.Information = ReturnedBytes;
+    Irp->IoStatus.Status = IoStatusBlock.Status;
+
+    SpReleaseRemoveLock(LunExtension->CommonExtension.SelfDevice, Irp);
+
+    return Irp->IoStatus.Status;
 }
 
 NTSTATUS
