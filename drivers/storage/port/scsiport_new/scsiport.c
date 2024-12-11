@@ -88,6 +88,14 @@ SCSI_PORT_DEVICE_TYPE_STRINGS DeviceTypeInfo[18] =
     {"Other", "ScsiOther", L"OtherPeripheral", 0}
 };
 
+PCHAR PowerMinorStrings[4] =
+{
+    "IRP_MN_WAIT_WAKE",
+    "IRP_MN_POWER_SEQUENCE",
+    "IRP_MN_SET_POWER",
+    "IRP_MN_QUERY_POWER"
+};
+
 /* FUNCTIONS *****************************************************************/
 
 ULONG
@@ -10784,11 +10792,109 @@ ScsiPortSystemControlIrp(
 NTSTATUS
 NTAPI
 ScsiPortDispatchPower(
-    _In_ PDEVICE_OBJECT Pdo,
+    _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
+    PCOMMON_EXTENSION CommonExtension;
+    PIO_STACK_LOCATION IoStack;
+    POWER_STATE_TYPE PowerType;
+    POWER_STATE State;
+    NTSTATUS Status;
+
+    CommonExtension = DeviceObject->DeviceExtension;
+    DeviceExtension = DeviceObject->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    //ScsiDebugPrintInt(4, "ScsiPortDispatchPower: irp %p is %s for %s %p\n",
+    //                  Irp, PowerMinorStrings[IoStack->MinorFunction], ((IsPdo) ? "fdo" : "pdo"), DeviceObject);
+    DPRINT1("ScsiPortDispatchPower: irp %p is %s for %s %p\n",
+           Irp, PowerMinorStrings[IoStack->MinorFunction], (CommonExtension->IsPdo ? "pdo" : "fdo"), DeviceObject);
+
+    Status = Irp->IoStatus.Status;
+
+    switch (IoStack->MinorFunction)
+    {
+        case IRP_MN_WAIT_WAKE:
+            DPRINT1("ScsiPortDispatchPower: IRP_MN_WAIT_WAKE FIXME!\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_SET_POWER:
+        {
+            PowerType = IoStack->Parameters.Power.Type;
+            State = IoStack->Parameters.Power.State;
+
+            //ScsiDebugPrintInt(4, "ScsiPortDispatchPower: SET_POWER type %d state %d\n", PowerType, State.SystemState);
+            DPRINT("ScsiPortDispatchPower: SET_POWER type %X state %X\n", PowerType, State.SystemState);
+
+            if (PowerType == DevicePowerState)
+            {
+                ASSERT(State.DeviceState >= PowerDeviceUnspecified);
+                ASSERT(State.DeviceState < PowerDeviceMaximum);
+            }
+            else
+            {
+                ASSERT(State.SystemState >= PowerSystemUnspecified);
+                ASSERT(State.SystemState < PowerSystemMaximum);
+            }
+
+            if (State.SystemState != 1)
+                PoSetPowerState(DeviceObject, PowerType, State);
+
+            if (PowerType == DevicePowerState || State.SystemState <= 5)
+            {
+                if (CommonExtension->IsPdo)
+                {
+                    UNIMPLEMENTED_DBGBREAK();
+                }
+            }
+            else
+            {
+                if (CommonExtension->IsPdo)
+                {
+                    Status = STATUS_SUCCESS;
+                    break;
+                }
+
+                if (!(DeviceExtension->Flags2 & 0x40))
+                {
+                    PoStartNextPowerIrp(Irp);
+                    IoCopyCurrentIrpStackLocationToNext(Irp);
+                    return PoCallDriver(CommonExtension->LowDevice, Irp);
+                }
+            }
+
+            if ((DeviceExtension->Flags2 & 0x10) && State.SystemState != 1)
+            {
+                Status = STATUS_SUCCESS;
+                break;
+            }
+
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+        }
+        case IRP_MN_QUERY_POWER:
+            DPRINT1("ScsiPortDispatchPower: IRP_MN_QUERY_POWER FIXME!\n");
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+
+        case IRP_MN_POWER_SEQUENCE:
+            DPRINT1("ScsiPortDispatchPower: IRP_MN_POWER_SEQUENCE FIXME!\n");
+            UNIMPLEMENTED_DBGBREAK();
+
+        default:
+            DPRINT1("ScsiPortDispatchPower: NOT SUPPORTED! MinorFunction %X\n", IoStack->MinorFunction);
+            UNIMPLEMENTED_DBGBREAK();
+            break;
+    }
+
+    PoStartNextPowerIrp(Irp);
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 VOID
