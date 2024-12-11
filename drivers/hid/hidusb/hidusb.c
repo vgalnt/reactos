@@ -453,8 +453,11 @@ HidUsb_ReadReportCompletion(
         //
         // FIXME handle error
         //
-        ASSERT(Urb->UrbHeader.Status == USBD_STATUS_SUCCESS || Urb->UrbHeader.Status == USBD_STATUS_DEVICE_GONE);
-
+        //ASSERT(Urb->UrbHeader.Status == USBD_STATUS_SUCCESS || Urb->UrbHeader.Status == USBD_STATUS_DEVICE_GONE);
+        if ((Urb->UrbHeader.Status != USBD_STATUS_SUCCESS && Urb->UrbHeader.Status != USBD_STATUS_DEVICE_GONE))
+        {
+            DPRINT1("[HIDUSB] HidUsb_ReadReportCompletion %p Status %X Urb Status %X\n", Irp, Irp->IoStatus, Urb->UrbHeader.Status);
+        }
         //
         // free the urb
         //
