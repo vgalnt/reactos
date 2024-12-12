@@ -132,7 +132,8 @@ MiFindInitializationCode(
                     Section->Name[6] == 'F')
                 {
                     DPRINT1("MiFindInitializationCode: FIXME\n");
-                    ASSERT(FALSE);
+                    //ASSERT(FALSE);
+                    UNIMPLEMENTED_ONCE;
                 }
                 else if (*(PULONG)&Section->Name[4] == 'CEPS')
                 {
