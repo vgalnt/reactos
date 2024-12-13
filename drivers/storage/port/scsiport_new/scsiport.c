@@ -12079,7 +12079,11 @@ ScsiPortNotification(
             ASSERT(Srb->SrbStatus != SRB_STATUS_SUCCESS || Srb->ScsiStatus == SCSISTAT_GOOD || Srb->Function != SRB_FUNCTION_EXECUTE_SCSI);
 
             if (!(Srb->SrbFlags & 0x10000))
+            {
+                DPRINT("ScsiPortNotification: %p, %X\n", Srb, Srb->SrbFlags);
+                va_end(ap);
                 return;
+            }
 
             Srb->SrbFlags &= ~0x10000;
 
