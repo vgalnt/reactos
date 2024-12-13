@@ -31,6 +31,8 @@ ULONG SpPowerIdleTimeout = 0xFFFFFFFF;
 BOOLEAN ScsiSimulateNoVaBreak = TRUE;
 LONG SpPAGELOCKLockCount = 0;
 LONG LockLowWatermark = 0;
+ULONG SpPerZoneLimit = 1000;
+ULONG SpPerBlockLimit = 5;
 BOOLEAN ScsiPortLegacyAdapterDetection = FALSE;
 BOOLEAN Sp64BitPhysicalAddresses = FALSE;
 BOOLEAN SpRemapBuffersByDefault = FALSE;
@@ -2038,13 +2040,100 @@ SpCreateLogicalUnit(
     return Status;
 }
 
+ULONG
+NTAPI
+GetZone(
+    _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
+    _In_ ULONG QueueSortKey)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
 VOID
 FASTCALL
 UpdateQueuePointers(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _In_ PSCSI_REQUEST_BLOCK Srb)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG QueueSortKey;
+    ULONG OldQueueZone;
+    ULONG QueueSector;
+    ULONG QueueZone;
+    ULONG Key = 0;
+    FOUR_BYTE Lba;
+
+    OldQueueZone = LunExtension->CurrentQueueZone;
+    QueueSortKey = Srb->QueueSortKey;
+    QueueSector = Srb->QueueSortKey;
+
+    if (Srb->Cdb[0] == 0x28 || Srb->Cdb[0] == 0x2A)
+    {
+        Lba.Byte0 = Srb->Cdb[5];
+        Lba.Byte1 = Srb->Cdb[4];
+        Lba.Byte2 = Srb->Cdb[3];
+        Lba.Byte3 = Srb->Cdb[2];
+
+        if (Lba.AsULong != QueueSortKey)
+        {
+            //ScsiDebugPrintInt(1, "UpdateQueuePointers: QueueSortKey != LBA srb:%p lba:%x qsk:%x\n", Srb, Lba, QueueSortKey);
+            DPRINT("UpdateQueuePointers: QueueSortKey != LBA (srb %p, lba %X, qsk %X)\n", Srb, Lba, QueueSortKey);
+        }
+    }
+
+    if (QueueSortKey < LunExtension->SortKey || QueueSortKey >= LunExtension->MaxQueueSector[OldQueueZone])
+    {
+        LunExtension->QueueSector[OldQueueZone] = LunExtension->MinQueueSector[OldQueueZone];
+        LunExtension->QueuePerBlock[OldQueueZone] = 0;
+        LunExtension->QueuePerZone = 0;
+
+        QueueZone = GetZone(LunExtension, QueueSortKey);
+        LunExtension->CurrentQueueZone = QueueZone;
+        QueueSector = LunExtension->QueueSector[QueueZone];
+
+        //ScsiDebugPrintInt(1, "UpdateQueuePointers: leaving zone:%d entering zone:%d nextSector:%08x\n", OldQueueZone, QueueZone, LunExtension->QueueSector[QueueZone]);
+        DPRINT("UpdateQueuePointers: leaving zone %X, entering zone %X, nextSector %X\n", OldQueueZone, QueueZone, LunExtension->QueueSector[QueueZone]);
+
+        LunExtension->SortKey = QueueSector;
+
+        return;
+    }
+
+    LunExtension->QueuePerZone++;
+
+    if (QueueSortKey == LunExtension->SortKey)
+    {
+        ++LunExtension->QueuePerBlock[OldQueueZone];
+
+        if (LunExtension->QueuePerBlock[OldQueueZone] >= SpPerBlockLimit)
+        {
+            //ScsiDebugPrintInt(1, "UpdateQueuePointers: max dups LU:%p sector:%x zone:%d\n", LunExtension, QueueSector, OldQueueZone);
+            DPRINT("UpdateQueuePointers: max dups LU %p, sector %X, zone %X\n", LunExtension, QueueSector, OldQueueZone);
+            LunExtension->QueuePerBlock[OldQueueZone] = 0;
+            Key = 1;
+        }
+    }
+    else
+    {
+        LunExtension->QueuePerBlock[OldQueueZone] = 0;
+    }
+
+    if (LunExtension->QueuePerZone < SpPerZoneLimit)
+    {
+        LunExtension->SortKey = (QueueSector + Key);
+        return;
+    }
+
+    //ScsiDebugPrintInt(1, "UpdateQueuePointers: reached quota LU:%p saving:%x dups:%x (%d,%d)\n", LunExtension, QueueSector + Key, LunExtension->QueuePerBlock[OldQueueZone], OldQueueZone, LunExtension->QueueZones[OldQueueZone]);
+    DPRINT("UpdateQueuePointers: reached quota LU %p, saving %X, dups %X (%X,%X)\n", LunExtension, QueueSector + Key, LunExtension->QueuePerBlock[OldQueueZone], OldQueueZone, LunExtension->QueueZones[OldQueueZone]);
+
+    LunExtension->QueueSector[OldQueueZone] = (QueueSector + Key);
+    LunExtension->QueuePerBlock[OldQueueZone] = 0;
+    LunExtension->QueuePerZone = 0;
+
+    LunExtension->CurrentQueueZone = LunExtension->QueueZones[OldQueueZone];
+    QueueSector = LunExtension->QueueSector[LunExtension->QueueZones[OldQueueZone]];
+    LunExtension->SortKey = QueueSector;
 }
 
 VOID
