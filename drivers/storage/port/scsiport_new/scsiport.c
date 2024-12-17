@@ -12191,7 +12191,7 @@ ScsiPortNotification(
 
         case 0x7:
             DPRINT1("ScsiPortNotification: BusChangeDetected\n");
-            DbgBreakPoint();
+            //DbgBreakPoint();
             DeviceExtension->InterruptData.Flags |= 0x40000;
             break;
 
