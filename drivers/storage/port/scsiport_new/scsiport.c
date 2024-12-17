@@ -842,7 +842,7 @@ SpAllocateSrbExtension(
         DPRINT("SpAllocateSrbExtension: ret FALSE\n");
         return FALSE;
     }
-    else if ((Srb->SrbFlags & (DeviceExtension->MultipleRequestPerLu == TRUE ? STATUS_TIMEOUT : 2)) && !(Srb->SrbFlags & 4))
+    else if ((Srb->SrbFlags & (DeviceExtension->MultipleRequestPerLu == TRUE ? 0x102 : 2)) && !(Srb->SrbFlags & 4))
     {
         *OutIsTaggedRequest = TRUE;
 
@@ -915,7 +915,7 @@ SpAllocateSrbExtension(
         return FALSE;
     }
 
-    DeviceExtension->SrbExtensionList = SrbExtensionList;
+    DeviceExtension->SrbExtensionList = *SrbExtensionList;
 
     if (DeviceExtension->VerifierExtension)
     {
@@ -928,10 +928,10 @@ SpAllocateSrbExtension(
 
     KeReleaseSpinLockFromDpcLevel(&DeviceExtension->SpinLock);
 
-    Srb->SrbExtension = SrbExtension;
-
     if (!SrbExtension)
         Srb->SrbExtension = SrbExtensionList;
+    else
+        Srb->SrbExtension = SrbExtension;
 
     if (Srb->Function == 0x17)
     {
@@ -954,27 +954,28 @@ SpAllocateSrbExtension(
     SrbData->RequestSenseSave = Srb->SenseInfoBuffer;
     SrbData->SenseInfoBufferLength = Srb->SenseInfoBufferLength;
 
-    if (Srb->SenseInfoBufferLength <= (sizeof(SENSE_DATA) + DeviceExtension->SenseDataBytes))
-    {
-        Srb->SenseInfoBufferLength = (sizeof(SENSE_DATA) + DeviceExtension->SenseDataBytes);
-
-        if (DeviceExtension->VerifierExtension)
-        {
-            UNIMPLEMENTED_DBGBREAK();
-        }
-        else
-        {
-            Srb->SenseInfoBuffer = Add2Ptr(SrbExtensionList, DeviceExtension->SrbExtensionSize);
-        }
-    }
-    else
+    if (Srb->SenseInfoBufferLength > (sizeof(SENSE_DATA) + DeviceExtension->SenseDataBytes))
     {
         //ScsiDebugPrintInt(1, "SpAllocateSrbExtension: SenseInfoBuffer too big SenseInfoBufferLength:%x MaxSupported:%x\n",
         //                  Srb->SenseInfoBufferLength, DeviceExtension->SenseDataBytes + sizeof(SENSE_DATA));
         DPRINT("SpAllocateSrbExtension: SenseInfoBuffer too big (SenseInfoBufferLength %X, MaxSupported %X)\n",
-               Srb->SenseInfoBufferLength, DeviceExtension->SenseDataBytes + sizeof(SENSE_DATA));
+               Srb->SenseInfoBufferLength, (sizeof(SENSE_DATA) + DeviceExtension->SenseDataBytes));
 
         Srb->SrbFlags |= 0x20;
+
+        DPRINT("SpAllocateSrbExtension: ret TRUE\n");
+        return TRUE;
+    }
+
+    Srb->SenseInfoBufferLength = (sizeof(SENSE_DATA) + DeviceExtension->SenseDataBytes);
+
+    if (DeviceExtension->VerifierExtension)
+    {
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        Srb->SenseInfoBuffer = Add2Ptr(SrbExtensionList, DeviceExtension->SrbExtensionSize);
     }
 
     DPRINT("SpAllocateSrbExtension: ret TRUE\n");
