@@ -8681,6 +8681,7 @@ SpGetInterruptState(
     PSCSI_PORT_DEVICE_EXTENSION DeviceExtension;
     PSCSI_PORT_LUN_EXTENSION LunExtension;
     PSCSI_PORT_SRB_DATA SrbData;
+    PSCSI_PORT_SRB_DATA srbData;
     PSCSI_REQUEST_BLOCK Srb;
     ULONG OldDpcFlags;
     ULONG ix;
@@ -8751,6 +8752,7 @@ SpGetInterruptState(
         {
             if (LunExtension->SrbDataList.Flink != &SrbData->Link)
             {
+                DPRINT("SpGetInterruptState: %p, %X, %X\n", SrbData, LunExtension->SrbDataList.Flink, &SrbData->Link);
                 RemoveEntryList(&SrbData->Link);
                 continue;
             }
@@ -8764,7 +8766,8 @@ SpGetInterruptState(
             continue;
         }
 
-        UNIMPLEMENTED_DBGBREAK();
+        srbData = CONTAINING_RECORD(LunExtension->SrbDataList.Flink, SCSI_PORT_SRB_DATA, Link);
+        LunExtension->RequestTimeoutCounter = srbData->CurrentSrb->TimeOutValue;
     }
 
     return TRUE;
