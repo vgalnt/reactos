@@ -9338,7 +9338,7 @@ ScsiPortTickHandler(
     LONG ix;
 
     DeviceExtension = DeviceObject->DeviceExtension;
-    DPRINT1("ScsiPortTickHandler: %p\n", DeviceExtension);
+    DPRINT("ScsiPortTickHandler: %p\n", DeviceExtension);
 
     KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
 
@@ -9519,7 +9519,7 @@ SpMiniPortTimerDpc(
 
     DeviceExtension = Fdo->DeviceExtension;
 
-    DPRINT1("SpMiniPortTimerDpc: %p, %X, %p\n", DeviceExtension, DeviceExtension->InterruptData.Flags, DeviceExtension->HwTimerInt);
+    DPRINT("SpMiniPortTimerDpc: %p, %X, %p\n", DeviceExtension, DeviceExtension->InterruptData.Flags, DeviceExtension->HwTimerInt);
 
     KeAcquireSpinLockAtDpcLevel(&DeviceExtension->SpinLock);
 
@@ -9535,12 +9535,12 @@ SpMiniPortTimerDpc(
 
     if (DeviceExtension->InterruptData.Flags & 4)
     {
-        DPRINT1("SpMiniPortTimerDpc: %X\n", DeviceExtension->InterruptData.Flags);
+        DPRINT("SpMiniPortTimerDpc: %X\n", DeviceExtension->InterruptData.Flags);
         SpRequestCompletionDpc(Fdo);
     }
     else
     {
-        DPRINT1("SpMiniPortTimerDpc: %p, %X\n", DeviceExtension, DeviceExtension->InterruptData.Flags);
+        DPRINT("SpMiniPortTimerDpc: %p, %X\n", DeviceExtension, DeviceExtension->InterruptData.Flags);
     }
 }
 
