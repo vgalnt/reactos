@@ -2047,8 +2047,17 @@ GetZone(
     _In_ PSCSI_PORT_LUN_EXTENSION LunExtension,
     _In_ ULONG QueueSortKey)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return 0;
+    ULONG ix;
+
+    for (ix = 0; ix < LunExtension->QueueZoneCount; ix++)
+    {
+        if (QueueSortKey <= LunExtension->MaxQueueSector[ix])
+            return ix;
+    }    
+
+    ASSERT(FALSE);
+
+    return (LunExtension->QueueZoneCount - 1);
 }
 
 VOID
