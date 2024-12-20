@@ -680,12 +680,28 @@ PPBridge_GetAdditionalResourceDescriptors(IN PPCI_CONFIGURATOR_CONTEXT Context,
 
 VOID
 NTAPI
-PPBridge_ResetDevice(IN PPCI_PDO_EXTENSION PdoExtension,
-                     IN PPCI_COMMON_HEADER PciData)
+PPBridge_ResetDevice(
+    _In_ PPCI_PDO_EXTENSION PdoExtension,
+    _In_ PPCI_COMMON_HEADER PciData)
 {
-    UNREFERENCED_PARAMETER(PdoExtension);
-    UNREFERENCED_PARAMETER(PciData);
-    UNIMPLEMENTED_DBGBREAK();
+    USHORT BridgeControl;
+
+    if (PciData->Command)
+        return;
+
+    if (!(PdoExtension->HackFlags & 0x400000000))
+        return;
+
+    ASSERT(!PdoExtension->OnDebugPath);
+
+    PciReadDeviceConfig(PdoExtension, &BridgeControl, FIELD_OFFSET(PCI_COMMON_HEADER, u.type1.BridgeControl), sizeof(USHORT));
+    BridgeControl |= 0x40;
+    PciWriteDeviceConfig(PdoExtension, &BridgeControl, FIELD_OFFSET(PCI_COMMON_HEADER, u.type1.BridgeControl), sizeof(USHORT));
+
+    KeStallExecutionProcessor(100);
+
+    BridgeControl &= ~0x40;
+    PciWriteDeviceConfig(PdoExtension, &BridgeControl, FIELD_OFFSET(PCI_COMMON_HEADER, u.type1.BridgeControl), sizeof(USHORT));
 }
 
 VOID
