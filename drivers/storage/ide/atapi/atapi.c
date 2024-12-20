@@ -9639,6 +9639,9 @@ AtapiDMACapable(
     if (RtlCompareMemory(Model, "WDC", 3) != 3)
         return TRUE;
 
+    if ((HwDeviceExtension->DeviceParameters[Idx].XferModeBitMap & 0x600) != 0x200)
+        return TRUE;
+
     UNIMPLEMENTED_DBGBREAK();
 
     return FALSE;
