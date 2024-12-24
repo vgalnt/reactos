@@ -619,7 +619,7 @@ typedef struct _ACPI_PSW_CONTEXT
     PDEVICE_EXTENSION DeviceExtension;
     BOOLEAN IsEnable;
     BOOLEAN Pad[3];
-    ULONG Unknown;
+    ULONG Count;
     PVOID CallBack;
     PVOID Context;
 } ACPI_PSW_CONTEXT, *PACPI_PSW_CONTEXT;

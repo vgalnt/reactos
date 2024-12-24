@@ -6128,12 +6128,85 @@ ACPIWakeEnableDisablePciDevice(
 VOID
 __cdecl
 ACPIWakeEnableDisableAsyncCallBack(
-    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ PAMLI_NAME_SPACE_OBJECT PowerObject,
     _In_ NTSTATUS InStatus,
-    _In_ PAMLI_OBJECT_DATA Data,
+    _In_ PAMLI_OBJECT_DATA InData,
     _In_ PVOID Context)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PACPI_PSW_CONTEXT PswContext = Context;
+    PACPI_PSW_CONTEXT NextPswContext;
+    PDEVICE_EXTENSION DeviceExtension;
+    PAMLI_FN_ASYNC_CALLBACK CallBack;
+    AMLI_OBJECT_DATA Data;
+    ULONG Count;
+    KIRQL Irql;
+    BOOLEAN IsWakeSupportListEmpty = TRUE;
+    NTSTATUS Status;
+
+    DeviceExtension = PswContext->DeviceExtension;
+
+    DPRINT1("ACPIWakeEnableDisableAsyncCallBack: InStatus %X\n", InStatus);
+
+    KeAcquireSpinLock(&AcpiPowerLock, &Irql);
+
+    RemoveEntryList(&PswContext->Link);
+
+    if (!NT_SUCCESS(InStatus))
+    {
+        if (PswContext->IsEnable)
+            Count = (DeviceExtension->PowerInfo.WakeSupportCount - PswContext->Count);
+        else
+            Count = (DeviceExtension->PowerInfo.WakeSupportCount + PswContext->Count);
+
+        DPRINT1("ACPIWakeEnableDisableAsyncCallBack - RefCount: %lx %s %lx = %lx\n",
+                DeviceExtension->PowerInfo.WakeSupportCount,
+                (PswContext->IsEnable ? "-" : "+"),
+                PswContext->Count,
+                Count);
+
+        if (PswContext->IsEnable)
+            DeviceExtension->PowerInfo.WakeSupportCount -= PswContext->Count;
+        else
+            DeviceExtension->PowerInfo.WakeSupportCount += PswContext->Count;
+    }
+
+    KeReleaseSpinLock(&AcpiPowerLock, Irql);
+
+    if ((DeviceExtension->Flags & 0x0800000000000000) && PswContext->IsEnable == TRUE)
+        ACPIWakeEnableDisablePciDevice(DeviceExtension, 1);
+
+    KeAcquireSpinLock(&AcpiPowerLock, &Irql);
+
+    if (!IsListEmpty(&DeviceExtension->PowerInfo.WakeSupportList))
+    {
+        IsWakeSupportListEmpty = FALSE;
+        NextPswContext = CONTAINING_RECORD(DeviceExtension->PowerInfo.WakeSupportList.Flink, ACPI_PSW_CONTEXT, Link);
+    }
+
+    KeReleaseSpinLock(&AcpiPowerLock, Irql);
+
+    CallBack = PswContext->CallBack;
+    CallBack(PowerObject, InStatus, InData, PswContext->Context);
+
+    ExFreeToNPagedLookasideList(&PswContextLookAsideList, PswContext);
+
+    if (IsWakeSupportListEmpty)
+        return;
+
+    RtlZeroMemory(&Data, sizeof(Data));
+
+    Data.DataType = 1;
+    Data.DataValue = ULongToPtr(NextPswContext->IsEnable != 0);
+
+    if ((DeviceExtension->Flags & 0x0800000000000000) && !NextPswContext->IsEnable)
+        ACPIWakeEnableDisablePciDevice(DeviceExtension, 0);
+
+    Status = AMLIAsyncEvalObject(PowerObject, NULL, 1, &Data, (PVOID)ACPIWakeEnableDisableAsyncCallBack, NextPswContext);
+
+    DPRINT1("ACPIWakeEnableDisableAsyncCallBack: Status %X\n", Status);
+
+    if (Status != STATUS_PENDING)
+        ACPIWakeEnableDisableAsyncCallBack(PowerObject, Status, NULL, NextPswContext);
 }
 
 NTSTATUS
@@ -6199,7 +6272,7 @@ ACPIWakeEnableDisableAsync(
         PswContext->CallBack = CallBack;
         PswContext->Context = Request;
         PswContext->DeviceExtension = DeviceExtension;
-        PswContext->Unknown = 1;
+        PswContext->Count = 1;
 
         KeAcquireSpinLock(&AcpiPowerLock, &Irql);
 
