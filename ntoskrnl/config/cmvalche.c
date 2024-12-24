@@ -679,7 +679,7 @@ CmpQueryKeyValueData(IN PCM_KEY_CONTROL_BLOCK Kcb,
             if (Length < MinimumSize)
             {
                 /* Then fail right now */
-                DPRINT1("CmpQueryKeyValueData: Length %X, MinimumSize %X\n", Length, MinimumSize);
+                DPRINT("CmpQueryKeyValueData: Length %X, MinimumSize %X\n", Length, MinimumSize);
                 *Status = STATUS_BUFFER_TOO_SMALL;
                 break;
             }
