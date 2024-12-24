@@ -265,8 +265,8 @@ PcMemGetBiosMemoryMap(PFREELDR_MEMORY_DESCRIPTOR MemoryMap, ULONG MaxMemoryMapSi
     while (PcBiosMapCount < MAX_BIOS_DESCRIPTORS)
     {
         /* ACPI 3.0/4.0: Set Extended Attributes to enabled/valid by default, in case entry has no E.A.. */
-        ((PBIOS_MEMORY_MAP)BIOSCALLBUFFER)->ExtendedAttributesAsULONG = 0;
-        //((PBIOS_MEMORY_MAP)BIOSCALLBUFFER)->ExtendedAttributes.Enabled_Reserved = 1;
+        ((PBIOS_MEMORY_MAP)BIOSCALLBUFFER)->ExtendedAttributesAsULONG = 0; /* FIXME Only for WINVER < WINVER_VISTA */
+        //((PBIOS_MEMORY_MAP)BIOSCALLBUFFER)->ExtendedAttributes.Enabled_Reserved = 1; /* FIXME */
 
         /* Setup the registers for the BIOS call */
         Regs.x.eax = 0x0000E820;
@@ -330,7 +330,7 @@ PcMemGetBiosMemoryMap(PFREELDR_MEMORY_DESCRIPTOR MemoryMap, ULONG MaxMemoryMapSi
             break;
         }
 
-      #if 0
+      #if 0 /* FIXME Only for WINVER < WINVER_VISTA */
         if (((PBIOS_MEMORY_MAP)BIOSCALLBUFFER)->ExtendedAttributes.Enabled_Reserved == 0)
         {
             WARN("Discarding disabled/invalid entry. (would-be-PcBiosMapCount = %lu)\n",
@@ -349,6 +349,10 @@ PcMemGetBiosMemoryMap(PFREELDR_MEMORY_DESCRIPTOR MemoryMap, ULONG MaxMemoryMapSi
 
         /* Copy data to global buffer */
         RtlCopyMemory(&PcBiosMemoryMap[PcBiosMapCount], (PVOID)BIOSCALLBUFFER, sizeof(BIOS_MEMORY_MAP));
+
+        /* FIXME Only for WINVER < WINVER_VISTA */
+        if (PcBiosMemoryMap[PcBiosMapCount].ExtendedAttributesAsULONG)
+            PcBiosMemoryMap[PcBiosMapCount].ExtendedAttributesAsULONG = 0;
 
         TRACE("BaseAddress: 0x%llx\n", PcBiosMemoryMap[PcBiosMapCount].BaseAddress);
         TRACE("Length: 0x%llx\n", PcBiosMemoryMap[PcBiosMapCount].Length);
