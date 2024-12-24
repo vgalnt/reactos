@@ -11385,6 +11385,145 @@ ACPIRangeFilterPICInterrupt(
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+ACPIRangeValidatePciMemoryResource(
+    _In_ PIO_RESOURCE_LIST IoList,
+    _In_ ULONG Idx,
+    _In_ PACPI_BIOS_MULTI_NODE Node,
+    _Out_ ULONG* OutErrors)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+NTAPI
+ACPIRangeValidatePciResources(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PIO_RESOURCE_REQUIREMENTS_LIST IoResource)
+{
+    PKEY_VALUE_PARTIAL_INFORMATION_ALIGN64 KeyInfo;
+    PACPI_BIOS_MULTI_NODE AcpiMultiNode;
+    PIO_RESOURCE_DESCRIPTOR Descriptor;
+    PIO_RESOURCE_LIST IoList;
+    ULONGLONG Length;
+    ULONG Errors = 0;
+    ULONG ix;
+    ULONG jx;
+    NTSTATUS Status;
+    struct
+    {
+        CM_FULL_RESOURCE_DESCRIPTOR Descriptor;
+        ACPI_BIOS_MULTI_NODE Node;
+    } *Package;
+
+    if (!IoResource)
+    {
+        DPRINT1("ACPIRangeValidatePciResources: No IoResList\n");
+        KeBugCheckEx(0xA5, 2, (ULONG_PTR)DeviceExtension, 2, 0);
+    }
+
+    Status = OSReadAcpiConfigurationData(&KeyInfo);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIRangeValidatePciResources: Cannot get Information %X\n", Status);
+        return;
+    }
+
+    Package = (PVOID)KeyInfo->Data;
+    AcpiMultiNode = &Package->Node;
+
+    IoList = &IoResource->List[0];
+
+    for (ix = 0; ix < IoResource->AlternativeLists; ix++)
+    {
+        DPRINT("ACPIRangeValidatePciResources: %p, %X\n", IoList, IoList->Count);
+
+        for (jx = 0; jx < IoList->Count; jx++)
+        {
+            Descriptor = &IoList->Descriptors[jx];
+
+            if (Descriptor->Type == CmResourceTypePort || Descriptor->Type == CmResourceTypeMemory)
+            {
+                Length = (Descriptor->u.Generic.MaximumAddress.QuadPart - Descriptor->u.Generic.MinimumAddress.QuadPart + 1);
+
+                if (Length > MAXULONG)
+                {
+                    DPRINT1("ACPI: Invalid IO/Mem Length > MAXULONG)\nACPI: PCI Entry [%X] %I64X:%I64X:%X:%X\n",
+                            jx,
+                            Descriptor->u.Generic.MinimumAddress.QuadPart,
+                            Descriptor->u.Generic.MaximumAddress.QuadPart,
+                            Length,
+                            Descriptor->u.Generic.Alignment);
+                    Errors++;                    
+                }
+
+                if (Length != Descriptor->u.Generic.Length)
+                {
+                    DPRINT1("ACPI: Invalid IO/Mem Length - (Max - Min + 1) != Length)\nACPI: PCI Entry [%X] %I64X:%I64X:%X:%X\n",
+                            jx,
+                            Descriptor->u.Generic.MinimumAddress.QuadPart,
+                            Descriptor->u.Generic.MaximumAddress.QuadPart,
+                            Descriptor->u.Generic.Length,
+                            Descriptor->u.Generic.Alignment);
+                    Errors++;                    
+                }
+
+                if (!Descriptor->u.Generic.Alignment)
+                {
+                    DPRINT1("ACPI: Invalid IO/Mem Alignment\nACPI: PCI Entry [%X] %I64X:%I64X:%X:%X\n",
+                            jx,
+                            Descriptor->u.Generic.MinimumAddress.QuadPart,
+                            Descriptor->u.Generic.MaximumAddress.QuadPart,
+                            Descriptor->u.Generic.Length,
+                            Descriptor->u.Generic.Alignment);
+                    Errors++;
+                }
+
+                if (Descriptor->u.Generic.MinimumAddress.LowPart & (Descriptor->u.Generic.Alignment - 1))
+                {
+                    DPRINT1("ACPI: Invalid IO/Mem Alignment - (Min & (Align - 1)\nACPI: PCI Entry [%X] %I64X:%I64X:%X:%X\n",
+                            jx,
+                            Descriptor->u.Generic.MinimumAddress.QuadPart,
+                            Descriptor->u.Generic.MaximumAddress.QuadPart,
+                            Descriptor->u.Generic.Length,
+                            Descriptor->u.Generic.Alignment);
+                    Errors++;
+                }
+            }
+
+            if (Descriptor->Type == CmResourceTypeBusNumber)
+            {
+                Length = (Descriptor->u.BusNumber.MaxBusNumber - Descriptor->u.BusNumber.MinBusNumber + 1);
+
+                if (Length != Descriptor->u.BusNumber.Length)
+                {
+                    DPRINT1("ACPI: Invalid BusNumber Length - (Max - Min + 1) != Length)\nACPI: PCI Entry [%X] %X:%X:%X\n",
+                            jx,
+                            Descriptor->u.BusNumber.MinBusNumber,
+                            Descriptor->u.BusNumber.MaxBusNumber,
+                            Descriptor->u.BusNumber.Length);
+                    Errors++;
+                }
+            }
+
+            if (Descriptor->Type == CmResourceTypeMemory)
+                ACPIRangeValidatePciMemoryResource(IoList, jx, AcpiMultiNode, &Errors);
+        }
+
+
+        IoList = (PIO_RESOURCE_LIST)(IoList->Descriptors + IoList->Count);
+    }
+
+    if (Errors)
+    {
+        DPRINT1("ACPIRangeValidatePciResources: FATAL BIOS ERROR - Need new BIOS to fix PCI problems\nThis machine will not boot after 8/26/98!!!!\n");
+        KeBugCheckEx(0xA5, 2, (ULONG_PTR)DeviceExtension, (ULONG_PTR)IoResource, (ULONG_PTR)AcpiMultiNode);
+    }
+
+    ExFreePool(KeyInfo);
+}
+
 NTSTATUS
 NTAPI
 ACPIBusIrpQueryResources(
@@ -11467,7 +11606,7 @@ ACPIBusIrpQueryResources(
             goto Finish;
         }
 
-        //ACPIRangeValidatePciResources(DeviceExtension, IoResource);
+        ACPIRangeValidatePciResources(DeviceExtension, IoResource);
     }
     else if (DeviceExtension->Flags & 0x0000000200000000)
     {
@@ -13495,7 +13634,7 @@ ACPIBusIrpQueryResourceRequirements(
 
     if (DeviceExtension->Flags & 0x0000000002000000)
     {
-        //ACPIRangeValidatePciResources(DeviceExtension, IoResource);
+        ACPIRangeValidatePciResources(DeviceExtension, IoResource);
 
         Status = ACPIRangeSubtract(&IoResource, RootDeviceExtension->ResourceList);
         if (!NT_SUCCESS(Status))
@@ -13506,7 +13645,7 @@ ACPIBusIrpQueryResourceRequirements(
             IoResource = NULL;
         }
 
-        //ACPIRangeValidatePciResources(DeviceExtension, IoResource);
+        ACPIRangeValidatePciResources(DeviceExtension, IoResource);
     }
     else if (DeviceExtension->Flags & 0x0000000200000000)
     {

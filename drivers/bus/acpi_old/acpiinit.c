@@ -374,11 +374,15 @@ NTAPI
 ACPILoadFindRSDT(VOID)
 {
     PKEY_VALUE_PARTIAL_INFORMATION_ALIGN64 KeyInfo;
-    PCM_PARTIAL_RESOURCE_LIST PartialResourceList;
     PACPI_BIOS_MULTI_NODE AcpiMultiNode;
     PRSDT Rsdt;
     PRSDT OutRsdt;
     NTSTATUS Status;
+    struct
+    {
+        CM_FULL_RESOURCE_DESCRIPTOR Descriptor;
+        ACPI_BIOS_MULTI_NODE Node;
+    } *Package;
 
     PAGED_CODE();
     DPRINT("ACPILoadFindRSDT()\n");
@@ -391,8 +395,8 @@ ACPILoadFindRSDT(VOID)
         return NULL;
     }
 
-    PartialResourceList = (PCM_PARTIAL_RESOURCE_LIST)KeyInfo->Data;
-    AcpiMultiNode = (PACPI_BIOS_MULTI_NODE)((PUCHAR)&PartialResourceList->PartialDescriptors[0] + sizeof(CM_PARTIAL_RESOURCE_LIST));
+    Package = (PVOID)KeyInfo->Data;
+    AcpiMultiNode = &Package->Node;
 
   #if !defined(_M_AMD64)
     ASSERT(AcpiMultiNode->RsdtAddress.HighPart == 0);
