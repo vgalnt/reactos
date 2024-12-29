@@ -4018,6 +4018,16 @@ Exit:
     return Status;
 }
 
+NTSTATUS
+__cdecl
+InitEvent(
+    _In_ PAMLI_HEAP Heap,
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 /* TERM HANDLERS ************************************************************/
 
 #if 1
@@ -4426,8 +4436,27 @@ NTSTATUS __cdecl Divide(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT 
 }
 NTSTATUS __cdecl Event(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    DPRINT("Event: %X, %X, %X\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = CreateNameSpaceObject(AmliContext->HeapCurrent,
+                                   TermContext->DataArgs->DataBuff,
+                                   AmliContext->Scope,
+                                   AmliContext->Owner,
+                                   &TermContext->NsObject,
+                                   0);
+
+    if (Status == STATUS_SUCCESS)
+        Status = InitEvent(AmliContext->HeapCurrent, TermContext->NsObject);
+
+    giIndent--;
+
+    DPRINT("Event: Status %X\n", Status);
+
+    return Status;
 }
 NTSTATUS __cdecl ExprOp1(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
