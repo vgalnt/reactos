@@ -4024,8 +4024,36 @@ InitEvent(
     _In_ PAMLI_HEAP Heap,
     _In_ PAMLI_NAME_SPACE_OBJECT NsObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    DPRINT("InitEvent: %X, %X\n", Heap, NsObject);
+
+    giIndent++;
+
+    NsObject->ObjData.DataType = 7;
+    NsObject->ObjData.DataLen = 8;
+
+    gdwcEVObjs++;
+
+    NsObject->ObjData.DataBuff = HeapAlloc(Heap, 'NVEH', NsObject->ObjData.DataLen);
+
+    if (NsObject->ObjData.DataBuff)
+    {
+        RtlZeroMemory(NsObject->ObjData.DataBuff, NsObject->ObjData.DataLen);
+        Status = STATUS_SUCCESS;
+    }
+    else
+    {
+        DPRINT1("InitEvent: failed to allocate Event object");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        //LogError(Status);
+    }
+
+    giIndent--;
+
+    DPRINT("InitEvent: Status %X\n", Status);
+
+    return Status;
 }
 
 /* TERM HANDLERS ************************************************************/
