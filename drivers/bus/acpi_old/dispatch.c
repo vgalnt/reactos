@@ -12604,6 +12604,11 @@ PnpiBiosMemoryToIoDescriptor(
         PACPI_FIXED_MEMORY32_DESCRIPTOR AcpiDesc = (PACPI_FIXED_MEMORY32_DESCRIPTOR)Data;
 
         Length = AcpiDesc->RangeLength;
+        if (!Length)
+        {
+            DPRINT1("PnpiBiosMemoryToIoDescriptor: %X, %X\n", AcpiDesc->BaseAddress, AcpiDesc->RangeLength);
+        }
+
         Align = 1;
 
         MinimumAddress = AcpiDesc->BaseAddress;
@@ -13678,18 +13683,19 @@ ACPIBusIrpQueryResourceRequirements(
         goto Exit;
     }
 
+    if (NT_SUCCESS(CrsStatus))
+        Status = STATUS_NOT_SUPPORTED;
+
     if (NT_SUCCESS(PrsStatus))
     {
         Status = PnpDeviceBiosResourcesToNtResources(DeviceExtension, PrsDataBuff, 0, &IoResource);
-
-        ASSERTMSG("The BIOS has reported inconsistent resources (_PRS). Please upgrade your BIOS.", NT_SUCCESS(Status));
-        DPRINT("ACPIBusIrpQueryResourceRequirements: Status %X\n", Status);
+        if (!NT_SUCCESS(Status))
+        {
+            //ASSERTMSG("The BIOS has reported inconsistent resources (_PRS). Please upgrade your BIOS.", NT_SUCCESS(Status));
+            DPRINT1("The BIOS has reported inconsistent resources (_PRS). Please upgrade your BIOS. (%X)\n", Status);
+        }
 
         ExFreePool(PrsDataBuff);
-    }
-    else if (NT_SUCCESS(CrsStatus))
-    {
-        Status = STATUS_NOT_SUPPORTED;
     }
 
     if (!NT_SUCCESS(Status) && NT_SUCCESS(CrsStatus))
@@ -13698,9 +13704,11 @@ ACPIBusIrpQueryResourceRequirements(
                                                      CrsDataBuff,
                                                      ((DeviceExtension->Flags & 0x0000000002000000) != 0),
                                                      &IoResource);
-
-        ASSERTMSG("The BIOS has reported inconsistent resources (_CRS). Please upgrade your BIOS.", NT_SUCCESS(Status));
-        DPRINT("ACPIBusIrpQueryResourceRequirements: Status %X\n", Status);
+        if (!NT_SUCCESS(Status))
+        {
+            //ASSERTMSG("The BIOS has reported inconsistent resources (_CRS). Please upgrade your BIOS.", NT_SUCCESS(Status));
+            DPRINT1("The BIOS has reported inconsistent resources (_CRS). Please upgrade your BIOS. (%X)\n", Status);
+        }
     }
 
     if (NT_SUCCESS(CrsStatus))
@@ -13727,6 +13735,7 @@ ACPIBusIrpQueryResourceRequirements(
             IoResource = NULL;
         }
 
+        /* KeBugCheckEx() if !NT_SUCCESS(Status) */
         ACPIRangeValidatePciResources(DeviceExtension, IoResource);
     }
     else if (DeviceExtension->Flags & 0x0000000200000000)
