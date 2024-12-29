@@ -11393,7 +11393,89 @@ ACPIRangeValidatePciMemoryResource(
     _In_ PACPI_BIOS_MULTI_NODE Node,
     _Out_ ULONG* OutErrors)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PACPI_E820_ENTRY Entry;
+    ULONGLONG Min;
+    ULONGLONG Max;
+    ULONG Alignment;
+    ULONG ix;
+
+    ASSERT(IoList != NULL);
+
+    if (!Node)
+    {
+        DPRINT1("ACPIRangeValidatePciMemoryResource: Node is NULL\n");
+        return;
+    }
+
+    Min = IoList->Descriptors[Idx].u.Memory.MinimumAddress.QuadPart;
+    Max = IoList->Descriptors[Idx].u.Memory.MaximumAddress.QuadPart;
+    Alignment = IoList->Descriptors[Idx].u.Memory.Alignment;
+
+    for (ix = 0; ix < Node->Count; ix++)
+    {
+        Entry = &Node->E820Entry[ix];
+
+        if (Entry->Type == 2)
+            continue;
+
+        if (Entry->Type == 4 || Entry->Type == 3)
+        {
+            ASSERT(Entry->Length.HighPart == 0);
+
+            if (Entry->Length.HighPart)
+            {
+                DPRINT1("ACPI: E820 Entry [%X] (type %X) Length = %I64X > 32bit\n", ix, Entry->Type, Entry->Length.QuadPart);
+                Entry->Length.HighPart = 0;
+            }
+        }
+
+        if (Max < (ULONGLONG)Entry->Base.QuadPart)
+            continue;
+
+        if (Min >= (ULONGLONG)(Entry->Base.QuadPart + Entry->Length.QuadPart))
+            continue;
+
+        DPRINT1("ACPI: E820 Entry %X (Type %I64X) (%I64X-%I64X) overlaps\n"
+                "ACPI: PCI Entry [%X] %I64X:%I64X:%X:%X\n",
+                ix, Entry->Type, Entry->Base.QuadPart, (Entry->Base.QuadPart + Entry->Length.QuadPart),
+                Idx,
+                IoList->Descriptors[Idx].u.Memory.MinimumAddress.QuadPart,
+                IoList->Descriptors[Idx].u.Memory.MaximumAddress.QuadPart,
+                IoList->Descriptors[Idx].u.Memory.Length, Alignment);
+
+        if (!(AcpiOverrideAttributes & 1))
+        {
+            ++*OutErrors;
+            DPRINT1("ACPIRangeValidatePciMemoryResource: *OutErrors %X\n", *OutErrors);
+            continue;
+        }
+
+        if (Entry->Type != 4)
+        {
+            ++*OutErrors;
+            DPRINT1("ACPIRangeValidatePciMemoryResource: *OutErrors %X\n", *OutErrors);
+            continue;
+        }
+
+        if (Max < (ULONGLONG)Entry->Base.QuadPart || Min >= (ULONGLONG)Entry->Base.QuadPart)
+        {
+            DPRINT1("ACPI: E820 Entry [%X] Overrides PCI Entry\n", ix);
+            continue;
+        }
+
+        IoList->Descriptors[Idx].u.Memory.MaximumAddress.QuadPart = ((ULONGLONG)Entry->Base.QuadPart - 1);
+
+        IoList->Descriptors[Idx].u.Memory.Length = (IoList->Descriptors[Idx].u.Memory.MaximumAddress.QuadPart -
+                                                    IoList->Descriptors[Idx].u.Memory.MinimumAddress.QuadPart + 1);
+
+        DPRINT1("ACPI: PCI Entry [%X] Changed to\nACPI: PCI Entry [%X] %I64X:%I64X:%X:%X\n",
+                Idx, Idx,
+                IoList->Descriptors[Idx].u.Memory.MinimumAddress.QuadPart,
+                IoList->Descriptors[Idx].u.Memory.MaximumAddress.QuadPart,
+                IoList->Descriptors[Idx].u.Memory.Length, Alignment);
+
+        DPRINT1("ACPI: E820 Entry [%X] Overrides PCI Entry\n", ix);
+    }
 }
 
 VOID
