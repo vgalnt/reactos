@@ -1459,7 +1459,7 @@ ParseCommand(
 
     if (Line)
     {
-        if (!SubstituteVars(Line, ParseLine, _T('%')))
+        if (!SubstituteVars((TCHAR *)Line, ParseLine, _T('%')))
             return NULL;
         bLineContinuations = FALSE;
     }
