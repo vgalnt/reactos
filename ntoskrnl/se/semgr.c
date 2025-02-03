@@ -35,8 +35,8 @@ extern ERESOURCE SepSubjectContextLock;
  * @return
  * Returns TRUE.
  */
-static
 CODE_SEG("INIT")
+static
 BOOLEAN
 SepInitExports(VOID)
 {
