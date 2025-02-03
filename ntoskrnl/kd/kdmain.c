@@ -158,6 +158,7 @@ KdDebuggerInitialize0(
     /* Call the providers at Phase 0 */
     for (i = 0; i < RTL_NUMBER_OF(DispatchTable); i++)
     {
+        memset(&DispatchTable[i], 0, sizeof(KD_DISPATCH_TABLE));
         DispatchTable[i].InitStatus = InitRoutines[i](&DispatchTable[i], 0);
         Success = (Success || NT_SUCCESS(DispatchTable[i].InitStatus));
     }
@@ -166,6 +167,9 @@ KdDebuggerInitialize0(
     return (Success ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL);
 }
 
+VOID
+NTAPI
+IoDeleteDriver(IN PDRIVER_OBJECT DriverObject);
 
 /**
  * @brief   Reinitialization routine.

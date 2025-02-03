@@ -45,7 +45,7 @@ static ULONG KdpScreenLineBufferPos = 0, KdpScreenLineLength = 0;
 
 KDP_DEBUG_MODE KdpDebugMode;
 LIST_ENTRY KdProviders = {&KdProviders, &KdProviders};
-KD_DISPATCH_TABLE DispatchTable[KdMax] = {0};
+KD_DISPATCH_TABLE DispatchTable[KdMax];
 
 PKDP_INIT_ROUTINE InitRoutines[KdMax] =
 {
