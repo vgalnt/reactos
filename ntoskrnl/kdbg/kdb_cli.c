@@ -1232,6 +1232,11 @@ KdbpCmdBackTrace(
     CONTEXT Context = *KdbCurrentTrapFrame;
     ULONG_PTR Frame = KeGetContextFrameRegister(&Context);
     ULONG_PTR Address;
+#ifdef _M_IX86
+    KDESCRIPTOR Gdtr;
+    USHORT TssSelector;
+    PKTSS Tss;
+#endif
 
     if (Argc >= 2)
     {
@@ -1287,10 +1292,6 @@ KdbpCmdBackTrace(
     }
 
 #ifdef _M_IX86
-    KDESCRIPTOR Gdtr;
-    USHORT TssSelector;
-    PKTSS Tss;
-
     /* Retrieve the Global Descriptor Table */
     Ke386GetGlobalDescriptorTable(&Gdtr.Limit);
 
