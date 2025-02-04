@@ -129,7 +129,7 @@ HalpPCISynchronizeType1(IN PBUS_HANDLER BusHandler,
 
     /* Acquire the lock */
     KeRaiseIrql(HIGH_LEVEL, OldIrql);
-    KeAcquireSpinLockAtDpcLevel(&HalpPCIConfigLock);
+    KiAcquireSpinLock(&HalpPCIConfigLock);
 }
 
 VOID
@@ -138,14 +138,15 @@ HalpPCIReleaseSynchronzationType1(IN PBUS_HANDLER BusHandler,
                                   IN KIRQL OldIrql)
 {
     PCI_TYPE1_CFG_BITS PciCfg1;
+    PPCIPBUSDATA BusData = (PPCIPBUSDATA)BusHandler->BusData;
 
     /* Clear the PCI Configuration Register */
     PciCfg1.u.AsULONG = 0;
-    WRITE_PORT_ULONG(((PPCIPBUSDATA)BusHandler->BusData)->Config.Type1.Address,
-                     PciCfg1.u.AsULONG);
+    WRITE_PORT_ULONG(BusData->Config.Type1.Address, PciCfg1.u.AsULONG);
 
     /* Release the lock */
-    KeReleaseSpinLock(&HalpPCIConfigLock, OldIrql);
+    KiReleaseSpinLock(&HalpPCIConfigLock);
+    KeLowerIrql(OldIrql);
 }
 
 TYPE1_READ(HalpPCIReadUcharType1, UCHAR)
@@ -174,7 +175,7 @@ HalpPCISynchronizeType2(IN PBUS_HANDLER BusHandler,
 
     /* Acquire the lock */
     KeRaiseIrql(HIGH_LEVEL, OldIrql);
-    KeAcquireSpinLockAtDpcLevel(&HalpPCIConfigLock);
+    KiAcquireSpinLock(&HalpPCIConfigLock);
 
     /* Setup the CSE Register */
     PciCfg2Cse.u.AsUCHAR = 0;
@@ -183,8 +184,7 @@ HalpPCISynchronizeType2(IN PBUS_HANDLER BusHandler,
     PciCfg2Cse.u.bits.Key = -1;
 
     /* Write the bus number and CSE */
-    WRITE_PORT_UCHAR(BusData->Config.Type2.Forward,
-                     (UCHAR)BusHandler->BusNumber);
+    WRITE_PORT_UCHAR(BusData->Config.Type2.Forward, (UCHAR)BusHandler->BusNumber);
     WRITE_PORT_UCHAR(BusData->Config.Type2.CSE, PciCfg2Cse.u.AsUCHAR);
 }
 
@@ -202,7 +202,8 @@ HalpPCIReleaseSynchronizationType2(IN PBUS_HANDLER BusHandler,
     WRITE_PORT_UCHAR(BusData->Config.Type2.Forward, 0);
 
     /* Release the lock */
-    KeReleaseSpinLock(&HalpPCIConfigLock, OldIrql);
+    KiReleaseSpinLock(&HalpPCIConfigLock);
+    KeLowerIrql(OldIrql);
 }
 
 TYPE2_READ(HalpPCIReadUcharType2, UCHAR)
@@ -652,6 +653,7 @@ HalpSetPCIData(IN PBUS_HANDLER BusHandler,
     /* Update the total length read */
     return Len;
 }
+
 #ifndef _MINIHAL_
 ULONG
 NTAPI

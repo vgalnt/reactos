@@ -1239,12 +1239,12 @@ VOID
 NTAPI
 HalpRegisterKdSupportFunctions(VOID)
 {
+#ifndef _MINIHAL_
     /* Register PCI Device Functions */
     KdSetupPciDeviceForDebugging = HalpSetupPciDeviceForDebugging;
     KdReleasePciDeviceforDebugging = HalpReleasePciDeviceForDebugging;
 
     /* Register memory functions */
-#ifndef _MINIHAL_
 #if (NTDDI_VERSION >= NTDDI_VISTA)
     KdMapPhysicalMemory64 = HalpMapPhysicalMemory64Vista;
     KdUnmapVirtualAddress = HalpUnmapVirtualAddressVista;

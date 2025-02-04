@@ -250,14 +250,14 @@ HalpCheckPowerButton(
     VOID
 );
 
-INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpRegisterKdSupportFunctions(
     VOID
 );
 
-INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 HalpSetupPciDeviceForDebugging(
@@ -265,7 +265,7 @@ HalpSetupPciDeviceForDebugging(
     IN OUT PDEBUG_DEVICE_DESCRIPTOR PciDevice
 );
 
-INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 HalpReleasePciDeviceForDebugging(

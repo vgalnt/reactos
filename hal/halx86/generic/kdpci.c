@@ -28,12 +28,14 @@ ULONG (*DPRINT0)(_In_ _Printf_format_string_ PCSTR Format, ...);
 #endif
 #endif
 
-PCI_TYPE1_CFG_CYCLE_BITS HalpPciDebuggingDevice[2] = {0};
+PCI_TYPE1_CFG_CYCLE_BITS HalpPciDebuggingDevice[2] = {{{0}}};
 
 /* FUNCTIONS ******************************************************************/
 
-static
+//#ifndef _MINIHAL_
+
 CODE_SEG("INIT")
+static
 ULONG
 HalpPciBarLength(
     _In_ ULONG CurrentBar,
@@ -66,8 +68,8 @@ HalpPciBarLength(
     return Length;
 }
 
-static
 CODE_SEG("INIT")
+static
 BOOLEAN
 HalpConfigureDebuggingDevice(
     _In_ PDEBUG_DEVICE_DESCRIPTOR PciDevice,
@@ -192,8 +194,8 @@ HalpConfigureDebuggingDevice(
     return TRUE;
 }
 
-static
 CODE_SEG("INIT")
+static
 BOOLEAN
 HalpMatchDebuggingDevice(
     _In_ PDEBUG_DEVICE_DESCRIPTOR PciDevice,
@@ -231,8 +233,8 @@ HalpMatchDebuggingDevice(
     return FALSE;
 }
 
-static
 CODE_SEG("INIT")
+static
 BOOLEAN
 HalpFindMatchingDebuggingDevice(
     _In_ PDEBUG_DEVICE_DESCRIPTOR PciDevice)
@@ -576,3 +578,5 @@ HalpSetupPciDeviceForDebugging(
 
     return STATUS_SUCCESS;
 }
+
+//#endif // _MINIHAL_
