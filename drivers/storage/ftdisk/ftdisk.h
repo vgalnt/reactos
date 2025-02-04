@@ -246,6 +246,21 @@ FtpPartitionArrivedHelper(
 
 NTSTATUS
 NTAPI
+FtpPartitionRemoved(
+    _In_ PROOT_EXTENSION RootExtension,
+    _In_ PIRP Irp
+);
+
+NTSTATUS
+NTAPI
+FtpPartitionRemovedHelper(
+    _In_ PROOT_EXTENSION RootExtension,
+    _In_ PDEVICE_OBJECT PartitionPdo,
+    _In_ PDEVICE_OBJECT WholeDiskPdo
+);
+
+NTSTATUS
+NTAPI
 FtpQueryPartitionInformation(
     _In_ PROOT_EXTENSION RootExtension,
     _In_ PDEVICE_OBJECT PartitionPdo,

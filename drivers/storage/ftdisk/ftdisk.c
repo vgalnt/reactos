@@ -25,6 +25,8 @@
   #pragma alloc_text(PAGE, FtpQueryRootId)
   #pragma alloc_text(PAGE, FtpPartitionArrived)
   #pragma alloc_text(PAGE, FtpPartitionArrivedHelper)
+  #pragma alloc_text(PAGE, FtpPartitionRemoved)
+  #pragma alloc_text(PAGE, FtpPartitionRemovedHelper)
   #pragma alloc_text(PAGE, FtpQueryPartitionInformation)
   #pragma alloc_text(PAGE, FtpCreateNewDevice)
   #pragma alloc_text(PAGE, FtpQueryDiskSignature)
@@ -1645,6 +1647,49 @@ FtpPartitionArrived(
     Status = FtpPartitionArrivedHelper(RootExtension, Partitions->PartitionPdo, Partitions->WholeDiskPdo);
 
     DPRINT("FtpPartitionArrived: Status %X\n", Status);
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
+FtpPartitionRemovedHelper(
+    _In_ PROOT_EXTENSION RootExtension,
+    _In_ PDEVICE_OBJECT PartitionPdo,
+    _In_ PDEVICE_OBJECT WholeDiskPdo)
+{
+    DPRINT1("FtpPartitionRemovedHelper: %p, %p, %p\n", RootExtension, PartitionPdo, WholeDiskPdo);
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+FtpPartitionRemoved(
+    _In_ PROOT_EXTENSION RootExtension,
+    _In_ PIRP Irp)
+{
+    PFT_PARTITION_ARRIVED Partitions;
+    PIO_STACK_LOCATION IoStack;
+    NTSTATUS Status;
+
+    DPRINT("FtpPartitionRemoved: RootExtension %p, Irp %p\n", RootExtension, Irp);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->Parameters.DeviceIoControl.InputBufferLength < sizeof(*Partitions))
+    {
+        DPRINT1("FtpPartitionRemoved: STATUS_INVALID_PARAMETER (%X)\n", IoStack->Parameters.DeviceIoControl.InputBufferLength);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    Partitions = Irp->AssociatedIrp.SystemBuffer;
+
+    DPRINT("FtpPartitionRemoved: %p, %p\n", Partitions->PartitionPdo, Partitions->WholeDiskPdo);
+
+    Status = FtpPartitionRemovedHelper(RootExtension, Partitions->PartitionPdo, Partitions->WholeDiskPdo);
+
+    DPRINT("FtpPartitionRemoved: Status %X\n", Status);
 
     return Status;
 }
