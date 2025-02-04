@@ -108,20 +108,6 @@ typedef struct _PCI_DRIVER_EXTENSION
     KSPIN_LOCK BusListLock;
 } PCI_DRIVER_EXTENSION, *PPCI_DRIVER_EXTENSION;
 
-typedef union _PCI_TYPE1_CFG_CYCLE_BITS
-{
-    struct
-    {
-        ULONG InUse:2;
-        ULONG RegisterNumber:6;
-        ULONG FunctionNumber:3;
-        ULONG DeviceNumber:5;
-        ULONG BusNumber:8;
-        ULONG Reserved2:8;
-    };
-    ULONG AsULONG;
-} PCI_TYPE1_CFG_CYCLE_BITS, *PPCI_TYPE1_CFG_CYCLE_BITS;
-
 /* We need a global variable to get the driver extension,
  * because at least InterfacePciDevicePresent has no
  * other way to get it... */
