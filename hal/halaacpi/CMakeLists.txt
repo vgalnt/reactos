@@ -21,6 +21,7 @@ list(APPEND HAL_SOURCE
     apic/apicacpi.c
     apic/apictimer.c
     apic/rtctimer.c
+    bus/kdpci.c
     bus/pcibus.c
     generic/i386/bios.c
     generic/i386/portio.c

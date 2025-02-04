@@ -222,6 +222,16 @@ HalpMarkAcpiHal(
     VOID
 );
 
+NTSTATUS
+NTAPI
+HalpOpenRegistryKey(
+    _In_ PHANDLE KeyHandle,
+    _In_ HANDLE RootKey,
+    _In_ PUNICODE_STRING KeyName,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ BOOLEAN Create
+);
+
 /* pic.c */
 VOID
 NTAPI
@@ -230,7 +240,7 @@ HalpInitializeLegacyPICs(
 );
 
 /* pcibus.c */
-INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 HalpSetupPciDeviceForDebugging(
@@ -238,7 +248,7 @@ HalpSetupPciDeviceForDebugging(
     _Inout_ OUT PDEBUG_DEVICE_DESCRIPTOR PciDevice
 );
 
-INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 HalpReleasePciDeviceForDebugging(

@@ -382,6 +382,13 @@ HalpPhase0SetPciDataByOffset(
     _In_ ULONG Offset,
     _In_ ULONG Length);
 
+CODE_SEG("INIT")
+VOID
+NTAPI
+HalpRegisterPciDebuggingDeviceInfo(
+    VOID
+);
+
 /* NON-LEGACY */
 
 ULONG
@@ -457,13 +464,6 @@ HalpFindBusAddressTranslation(
     OUT PPHYSICAL_ADDRESS TranslatedAddress,
     IN OUT PULONG_PTR Context,
     IN BOOLEAN NextBus
-);
-
-INIT_FUNCTION
-VOID
-NTAPI
-HalpRegisterPciDebuggingDeviceInfo(
-    VOID
 );
 
 /* LEGACY */
