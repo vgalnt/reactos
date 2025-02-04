@@ -121,8 +121,6 @@ BUS_HANDLER HalpFakePciBusHandler =
     NULL
 };
 
-PCI_TYPE1_CFG_CYCLE_BITS HalpPciDebuggingDevice[2] = {{{{0}}}};
-
 /* TYPE 1 FUNCTIONS **********************************************************/
 
 VOID
@@ -343,23 +341,141 @@ HalpWritePCIConfig(IN PBUS_HANDLER BusHandler,
 
 /* HAL PCI FOR DEBUGGING *****************************************************/
 
-INIT_FUNCTION
-NTSTATUS
-NTAPI
-HalpSetupPciDeviceForDebugging(IN PVOID LoaderBlock,
-                               IN OUT PDEBUG_DEVICE_DESCRIPTOR PciDevice)
+CODE_SEG("INIT")
+ULONG
+HalpPhase0GetPciDataByOffset(
+    _In_ ULONG Bus,
+    _In_ PCI_SLOT_NUMBER PciSlot,
+    _Out_writes_bytes_all_(Length) PVOID Buffer,
+    _In_ ULONG Offset,
+    _In_ ULONG Length)
 {
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    ULONG BytesLeft = Length;
+    PUCHAR BufferPtr = Buffer;
+    PCI_TYPE1_CFG_BITS PciCfg;
+
+#ifdef SARCH_XBOX
+    if (HalpXboxBlacklistedPCISlot(Bus, PciSlot))
+    {
+        RtlFillMemory(Buffer, Length, 0xFF);
+        return Length;
+    }
+#endif
+
+    PciCfg.u.AsULONG = 0;
+    PciCfg.u.bits.BusNumber = Bus;
+    PciCfg.u.bits.DeviceNumber = PciSlot.u.bits.DeviceNumber;
+    PciCfg.u.bits.FunctionNumber = PciSlot.u.bits.FunctionNumber;
+    PciCfg.u.bits.Enable = TRUE;
+
+    while (BytesLeft)
+    {
+        ULONG i;
+
+        PciCfg.u.bits.RegisterNumber = Offset / sizeof(ULONG);
+        WRITE_PORT_ULONG((PULONG)PCI_TYPE1_ADDRESS_PORT, PciCfg.u.AsULONG);
+
+        i = PCIDeref[Offset % sizeof(ULONG)][BytesLeft % sizeof(ULONG)];
+        switch (i)
+        {
+            case 0:
+            {
+                *(PULONG)BufferPtr = READ_PORT_ULONG((PULONG)PCI_TYPE1_DATA_PORT);
+
+                /* Number of bytes read */
+                i = sizeof(ULONG);
+                break;
+            }
+            case 1:
+            {
+                *BufferPtr = READ_PORT_UCHAR((PUCHAR)(PCI_TYPE1_DATA_PORT +
+                                             Offset % sizeof(ULONG)));
+                break;
+            }
+            case 2:
+            {
+                *(PUSHORT)BufferPtr = READ_PORT_USHORT((PUSHORT)(PCI_TYPE1_DATA_PORT +
+                                                                 Offset % sizeof(ULONG)));
+                break;
+            }
+
+            DEFAULT_UNREACHABLE;
+        }
+
+        Offset += i;
+        BufferPtr += i;
+        BytesLeft -= i;
+    }
+
+    return Length;
 }
 
-INIT_FUNCTION
-NTSTATUS
-NTAPI
-HalpReleasePciDeviceForDebugging(IN OUT PDEBUG_DEVICE_DESCRIPTOR PciDevice)
+CODE_SEG("INIT")
+ULONG
+HalpPhase0SetPciDataByOffset(
+    _In_ ULONG Bus,
+    _In_ PCI_SLOT_NUMBER PciSlot,
+    _In_reads_bytes_(Length) PVOID Buffer,
+    _In_ ULONG Offset,
+    _In_ ULONG Length)
 {
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    ULONG BytesLeft = Length;
+    PUCHAR BufferPtr = Buffer;
+    PCI_TYPE1_CFG_BITS PciCfg;
+
+#ifdef SARCH_XBOX
+    if (HalpXboxBlacklistedPCISlot(Bus, PciSlot))
+    {
+        return 0;
+    }
+#endif
+
+    PciCfg.u.AsULONG = 0;
+    PciCfg.u.bits.BusNumber = Bus;
+    PciCfg.u.bits.DeviceNumber = PciSlot.u.bits.DeviceNumber;
+    PciCfg.u.bits.FunctionNumber = PciSlot.u.bits.FunctionNumber;
+    PciCfg.u.bits.Enable = TRUE;
+
+    while (BytesLeft)
+    {
+        ULONG i;
+
+        PciCfg.u.bits.RegisterNumber = Offset / sizeof(ULONG);
+        WRITE_PORT_ULONG((PULONG)PCI_TYPE1_ADDRESS_PORT, PciCfg.u.AsULONG);
+
+        i = PCIDeref[Offset % sizeof(ULONG)][BytesLeft % sizeof(ULONG)];
+        switch (i)
+        {
+            case 0:
+            {
+                WRITE_PORT_ULONG((PULONG)PCI_TYPE1_DATA_PORT, *(PULONG)BufferPtr);
+
+                /* Number of bytes written */
+                i = sizeof(ULONG);
+                break;
+            }
+            case 1:
+            {
+                WRITE_PORT_UCHAR((PUCHAR)(PCI_TYPE1_DATA_PORT + Offset % sizeof(ULONG)),
+                                 *BufferPtr);
+                break;
+            }
+            case 2:
+            {
+                WRITE_PORT_USHORT((PUSHORT)(PCI_TYPE1_DATA_PORT + Offset % sizeof(ULONG)),
+                                  *(PUSHORT)BufferPtr);
+                break;
+            }
+
+            DEFAULT_UNREACHABLE;
+        }
+
+        Offset += i;
+        BufferPtr += i;
+        BytesLeft -= i;
+    }
+
+    return Length;
 }
 
 /* HAL PCI CALLBACKS *********************************************************/
@@ -706,36 +822,6 @@ HaliPciInterfaceWriteConfig(_In_ PBUS_HANDLER RootBusHandler,
 
     /* Return length */
     return Length;
-}
-
-INIT_FUNCTION
-VOID
-NTAPI
-HalpRegisterPciDebuggingDeviceInfo(VOID)
-{
-    BOOLEAN Found = FALSE;
-    ULONG ix;
-
-    PAGED_CODE();
-
-    /* Loop PCI debugging devices */
-    for (ix = 0; ix < 2; ix++)
-    {
-        /* Reserved bit is set if we found one */
-        if (HalpPciDebuggingDevice[ix].u.bits.Reserved1)
-        {
-            Found = TRUE;
-            break;
-        }
-    }
-
-    /* Bail out if there aren't any */
-    if (!Found)
-        return;
-
-    /* FIXME: TODO */
-    UNIMPLEMENTED_DBGBREAK("You have implemented the KD routines for searching PCI debugger"
-                           "devices, but you have forgotten to implement this routine\n");
 }
 
 INIT_FUNCTION

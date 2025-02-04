@@ -16,6 +16,7 @@ list(APPEND HAL_SOURCE
     acpi/dispatch.c
     acpi/halacpi.c
     acpi/halpnpdd.c
+    bus/kdpci.c
     bus/pcibus.c
     generic/i386/bios.c
     generic/i386/portio.c
