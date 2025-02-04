@@ -9,6 +9,7 @@
 #ifndef _KDSTUB_H_
 #define _KDNET_H_
 
+/* NTDDI_WINBLUE */
 #include <ntifs.h>
 
 typedef
@@ -157,7 +158,6 @@ void
     ULONG Tag
 );
 
-/* NTDDI_WINBLUE */
 typedef struct _KDNET_EXTENSIBILITY_IMPORTS
 {
     ULONG FunctionCount;
