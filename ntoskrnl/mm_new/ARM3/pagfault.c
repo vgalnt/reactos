@@ -1160,6 +1160,7 @@ MiCompleteProtoPteFault(
     MiUnlockPfnDb(OldIrql, APC_LEVEL);
 
     /* Remove special/caching bits */
+    ProtoProtect.u1.Long = 0;
     ProtoProtect.u1.e1.Protection = Protection;
     Protection &= MM_PROTECT_ACCESS;
 
