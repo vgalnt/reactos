@@ -444,7 +444,7 @@ MiInsertWsleHash(
                         else
                         {
                             ASSERT(Wsle[OldWsIndex].u1.e1.Hashed == 1);
-                            Wsle[OldWsIndex].u1.e1.Hashed == 0;
+                            Wsle[OldWsIndex].u1.e1.Hashed = 0;
 
                             HashEntry = OldHashEntry;
                             OldHashEntry->Key = 0;
