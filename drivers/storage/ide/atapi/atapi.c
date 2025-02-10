@@ -9167,7 +9167,7 @@ IdePortDeviceIsLs120(
     _In_ PIDENTIFY_DATA Identify)
 {
     ULONG ix;
-    CHAR Model[0x28];
+    CHAR Model[0x28+2] = {0};
 
     PAGED_CODE();
     DPRINT("IdePortDeviceIsLs120: %X\n", FdoExtension->ResourceData.CmdBlockBase);
