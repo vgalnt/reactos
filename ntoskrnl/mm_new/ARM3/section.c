@@ -3983,10 +3983,9 @@ MiFindImageSectionObject(
         ASSERT(MmPfnOwner == KeGetCurrentThread());
     }
 
-    if (!FileObject->SectionObjectPointer->ImageSectionObject)
-        goto Exit;
-
     ControlArea = FileObject->SectionObjectPointer->ImageSectionObject;
+    if (!ControlArea)
+        goto Exit;
 
     if (!ControlArea->u.Flags.GlobalOnlyPerSession)
         goto Exit;
