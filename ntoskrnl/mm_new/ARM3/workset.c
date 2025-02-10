@@ -534,7 +534,7 @@ MiRemoveWsleFromFreeList(
     {
         if ((Wsle[WsIndex - 1].u1.Long >> MM_FREE_WSLE_SHIFT) != WsIndex)
         {
-            Idx == -1;
+            Idx = -1;
         }
         else
         {
@@ -543,15 +543,15 @@ MiRemoveWsleFromFreeList(
     }
     else if (WsIndex == WsList->LastInitializedWsle)
     {
-        Idx == -1;
+        Idx = -1;
     }
     else if (Wsle[WsIndex + 1].u1.e1.Valid)
     {
-        Idx == -1;
+        Idx = -1;
     }
     else if ((Wsle[WsIndex + 1].u1.Long >> MM_FREE_WSLE_SHIFT) != WsIndex)
     {
-        Idx == -1;
+        Idx = -1;
     }
     else
     {
