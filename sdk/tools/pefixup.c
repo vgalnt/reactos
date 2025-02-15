@@ -21,6 +21,10 @@
 #include <pecoff.h>
 #include "../../dll/win32/dbghelp/compat.h"
 
+#ifndef ARRAY_SIZE
+  #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
+
 static const char* g_ApplicationName;
 static const char* g_Target;
 
@@ -130,8 +134,10 @@ static int add_loadconfig(unsigned char *buffer, PIMAGE_NT_HEADERS nt_header)
 
 static int driver_fixup(enum fixup_mode mode, unsigned char *buffer, PIMAGE_NT_HEADERS nt_header)
 {
+    unsigned int i;
+
     /* GNU LD just doesn't know what a driver is, and has notably no idea of paged vs non-paged sections */
-    for (unsigned int i = 0; i < nt_header->FileHeader.NumberOfSections; i++)
+    for (i = 0; i < nt_header->FileHeader.NumberOfSections; i++)
     {
         PIMAGE_SECTION_HEADER Section = IMAGE_FIRST_SECTION(nt_header) + i;
 
