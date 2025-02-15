@@ -330,19 +330,26 @@ function(set_module_type_toolchain MODULE TYPE)
     elseif(CPP_USE_RT)
         target_link_libraries(${MODULE} cpprt)
     endif()
+
     if((${TYPE} STREQUAL "win32dll") OR (${TYPE} STREQUAL "win32ocx") OR (${TYPE} STREQUAL "cpl"))
         add_target_link_flags(${MODULE} "/DLL")
-    elseif(${TYPE} STREQUAL "kernelmodedriver")
-        # Disable linker warning 4078 (multiple sections found with different attributes) for INIT section use
-        add_target_link_flags(${MODULE} "/DRIVER /SECTION:INIT,ERWD")
-    elseif(${TYPE} STREQUAL "wdmdriver")
-        add_target_link_flags(${MODULE} "/DRIVER /SECTION:INIT,ERWD")
+    elseif((${TYPE} STREQUAL kernel) OR (${TYPE} STREQUAL kerneldll) OR (${TYPE} STREQUAL kernelmodedriver) OR (${TYPE} STREQUAL wdmdriver))
+        # Mark INIT section as Executable Read Write Discardable
+        add_target_link_flags(${MODULE} "/SECTION:INIT,ERWD")
+
+        if(TYPE STREQUAL kernelmodedriver)
+            add_target_link_flags(${MODULE} "/DRIVER")
+        elseif(TYPE STREQUAL wdmdriver)
+            add_target_link_flags(${MODULE} "/DRIVER:WDM")
+        elseif (TYPE STREQUAL kernel)
+            # Mark .rsrc section as non-disposable non-pageable, as bugcheck code needs to access it
+            add_target_link_flags(${MODULE} "/SECTION:.rsrc,!DP")
+        endif()
     endif()
 
     if(RUNTIME_CHECKS)
         target_link_libraries(${MODULE} runtmchk)
     endif()
-
 endfunction()
 
 # Define those for having real libraries
