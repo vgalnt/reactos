@@ -21,21 +21,36 @@ Author:
 #if defined(__GNUC__) || defined(__clang__)
 
   #define INIT_FUNCTION __attribute__((section ("INIT")))
-
   #define DATA_SEG(segment) __attribute__((section(segment)))
   #define CODE_SEG(segment) __attribute__((section(segment)))
 
 #elif defined(_MSC_VER)
 
-  #pragma comment(linker, "/SECTION:INIT,ERW")
+  //#pragma comment(linker, "/SECTION:INIT,ERW")
 
   #if (_MSC_VER >= 1800) // Visual Studio 2013 / version 12.0
-    #define INIT_FUNCTION __declspec(code_seg("INIT"))
-    #define CODE_SEG(segment) __declspec(code_seg(segment))
+
+    #error Fixme!
+
+    //#define INIT_FUNCTION __declspec(code_seg("INIT"))
+    #define INIT_FUNCTION
+
+    //#define CODE_SEG(segment) __declspec(code_seg(segment))
+    #define CODE_SEG(segment)
+
   #else
-    #pragma section("INIT", read,execute,discard)
-    #define INIT_FUNCTION __pragma(code_seg("INIT"))
-    #define CODE_SEG(segment) __pragma(code_seg(segment))
+
+    #ifdef ALLOC_PRAGMA
+      //#pragma section("INIT", read,execute,discard)
+      #pragma section("INIT", code,read,write,execute,discard)
+
+      //#define INIT_FUNCTION __pragma(code_seg("INIT"))
+      #define INIT_FUNCTION
+
+      //#define CODE_SEG(segment) __pragma(code_seg(segment))
+      #define CODE_SEG(segment)
+    #endif
+
   #endif
 
   #define DATA_SEG(segment) __declspec(allocate(segment))
