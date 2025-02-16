@@ -1,13 +1,13 @@
 /* Make sure the INIT & .rsrc sections are at the end of the module so we can reclaim the space */
 SECTIONS
 {
-  INIT BLOCK(__section_alignment__) : ALIGN(__file_alignment__)
+  INIT BLOCK(__section_alignment__) : ALIGN(16)
   {
     __init_start__ = . ;
     *(INIT)
     __init_end__ = . ;
   }
-  .rsrc BLOCK(__section_alignment__) : ALIGN(__file_alignment__)
+  .rsrc BLOCK(__section_alignment__) : ALIGN(16)
   {
     __rsrc_start__ = . ;
     *(.rsrc)
