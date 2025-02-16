@@ -323,7 +323,7 @@ function(set_module_type_toolchain MODULE TYPE)
     add_target_link_flags(${MODULE} "-Wl,--major-image-version,5 -Wl,--minor-image-version,01")
     add_target_link_flags(${MODULE} "-Wl,--major-os-version,5 -Wl,--minor-os-version,01")
 
-    if((${TYPE} STREQUAL "kernelmodedriver") OR (${TYPE} STREQUAL "wdmdriver") OR (${TYPE} STREQUAL "kerneldll"))
+    if((${TYPE} STREQUAL "kernelmodedriver") OR (${TYPE} STREQUAL "wdmdriver") OR (${TYPE} STREQUAL "kerneldll") OR (${TYPE} STREQUAL "kernel"))
         add_target_link_flags(${MODULE} "-Wl,--exclude-all-symbols,-file-alignment=0x1000,-section-alignment=0x1000")
         if(${TYPE} STREQUAL "wdmdriver")
             add_target_link_flags(${MODULE} "-Wl,--wdmdriver")
