@@ -340,7 +340,7 @@ ApicWrite(ULONG Offset, ULONG Value)
 }
 
 /* apic.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI 
 DetectAcpiMP(
@@ -348,21 +348,21 @@ DetectAcpiMP(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalInitApicInterruptHandlers(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializeLocalUnit(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializePICs(
@@ -375,14 +375,14 @@ HalpInitializeApicAddressing(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI 
 HalpInitIntiInfo(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI 
 HalpInitializeIOUnits(
@@ -396,14 +396,14 @@ HalpGetApicInterruptDesc(
     _Out_ USHORT* OutIntI
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 HalpPmTimerScaleTimers(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 FASTCALL
 HalpPmTimerSpecialStall(
@@ -472,7 +472,7 @@ HalpSetVectorState(
 );
 
 /* apicacpi.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI 
 HalpInitMpInfo(

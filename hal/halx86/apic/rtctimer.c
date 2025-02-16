@@ -64,7 +64,7 @@ RtcSetClockRate(UCHAR ClockRate)
     HalpReleaseCmosSpinLock();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializeClock(VOID)

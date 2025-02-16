@@ -128,7 +128,7 @@ HalpReportSerialNumber(VOID)
     ZwClose(Handle);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpRegisterVector(IN UCHAR Flags,
@@ -146,7 +146,7 @@ HalpRegisterVector(IN UCHAR Flags,
     HalpIDTUsage[SystemVector].BusReleativeVector = (UCHAR)BusVector;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpBuildPartialFromIdt(IN ULONG Entry,
@@ -178,7 +178,7 @@ HalpBuildPartialFromIdt(IN ULONG Entry,
     TranslatedDescriptor->u.Interrupt.Level = HalpIDTUsage[Entry].Irql;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpBuildPartialFromAddress(IN INTERFACE_TYPE Interface,
@@ -299,7 +299,7 @@ HalpGetResourceSortValue(IN PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor,
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpReportResourceUsage(IN PUNICODE_STRING HalName,

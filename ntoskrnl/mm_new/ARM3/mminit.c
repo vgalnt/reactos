@@ -383,7 +383,7 @@ extern LIST_ENTRY MiDereferenceSegmentList;
 
 /* FUNCTIONS ******************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiNotifyMemoryEvents(VOID)
@@ -418,7 +418,7 @@ MiNotifyMemoryEvents(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MiCreateMemoryEvent(
@@ -537,7 +537,7 @@ CleanUp:
     return Status;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 MiInitializeMemoryEvents(VOID)
@@ -636,7 +636,7 @@ MmDumpArmPfnDatabase(
     UNIMPLEMENTED_DBGBREAK();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 PPHYSICAL_MEMORY_DESCRIPTOR
 NTAPI
 MmInitializeMemoryLimits(
@@ -734,7 +734,7 @@ MmInitializeMemoryLimits(
     return Buffer;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MmFreeLoaderBlock(
@@ -843,7 +843,7 @@ MmFreeLoaderBlock(
     ExFreePoolWithTag(Buffer, 'lMmM');
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiDbgDumpMemoryDescriptors(VOID)
@@ -924,7 +924,7 @@ MiScanMemoryDescriptors(
     MxOldFreeDescriptor = *MxFreeDescriptor;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiComputeColorInformation(VOID)
@@ -975,7 +975,7 @@ MiComputeColorInformation(VOID)
     KeGetCurrentPrcb()->SecondaryColorMask = MmSecondaryColorMask;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 PFN_NUMBER
 NTAPI
 MxGetNextPage(
@@ -1003,7 +1003,7 @@ MxGetNextPage(
     return Pfn;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiAddHalIoMappings(VOID)
@@ -1057,7 +1057,7 @@ MiAddHalIoMappings(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiSetSystemSize(VOID)
@@ -1134,7 +1134,7 @@ MiSetSystemSize(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiAdjustWorkingSetManagerParameters(
@@ -1148,7 +1148,7 @@ MiAdjustWorkingSetManagerParameters(
         MmPlentyFreePages *= 2;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiSetSystemCache(
@@ -1207,7 +1207,7 @@ MiSetSystemCache(
   #error FIXME
 #endif
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiBuildPagedPool(VOID)
@@ -1375,7 +1375,7 @@ MiBuildPagedPool(VOID)
     MiInitializeSystemSpaceMap(NULL);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 MmArmInitSystem(

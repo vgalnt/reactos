@@ -30,7 +30,7 @@ extern MMPTE ValidKernelPte;
 
 /* FUNCTIONS ******************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiDbgDumpAddressSpace(VOID)
@@ -76,7 +76,7 @@ DPRINT1("%p - %p (%X) %s\n", MmNonPagedPoolExpansionStart, MmNonPagedPoolEnd, _N
 
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MmInitBsmThread(VOID)
@@ -102,7 +102,7 @@ MmInitBsmThread(VOID)
     return Status;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 MmInitSystem(

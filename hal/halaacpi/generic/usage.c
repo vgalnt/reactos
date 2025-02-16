@@ -41,7 +41,7 @@ extern KAFFINITY HalpActiveProcessors;
 
 /* FUNCTIONS ******************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpRegisterVector(
@@ -215,7 +215,7 @@ HalpAddDescriptors(
     (*Descriptor)++;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpReportResourceUsage(

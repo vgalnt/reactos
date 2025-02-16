@@ -82,7 +82,7 @@ extern PFN_NUMBER MmLowestPhysicalPage;
 
 /* FUNCTIONS ******************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeSessionSpaceLayout(VOID)
@@ -139,7 +139,7 @@ MiInitializeSessionSpaceLayout(VOID)
                                          MM_ALLOCATION_GRANULARITY);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiComputeNonPagedPoolVa(
@@ -241,7 +241,7 @@ MiComputeNonPagedPoolVa(
         MmMaximumNonPagedPoolInBytes = (MmSizeOfNonPagedPoolInBytes + MI_MAX_NONPAGED_POOL_SIZE);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiMapPfnDatabase(
@@ -339,7 +339,7 @@ MiMapPfnDatabase(
     MxFreeDescriptor->PageCount = FreePageCount;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeColorTables(VOID)
@@ -387,7 +387,7 @@ MiInitializeColorTables(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 MiIsRegularMemory(
@@ -440,7 +440,7 @@ MiIsRegularMemory(
     return FALSE;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiBuildPfnDatabaseFromPages(
@@ -549,7 +549,7 @@ NextPTE:
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiBuildPfnDatabaseZeroPage(VOID)
@@ -576,7 +576,7 @@ MiBuildPfnDatabaseZeroPage(VOID)
     Pfn->u3.e1.CacheAttribute = MiNonCached;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiBuildPfnDatabaseFromLoaderBlock(
@@ -719,7 +719,7 @@ MiBuildPfnDatabaseFromLoaderBlock(
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiBuildPfnDatabaseSelf(VOID)
@@ -748,7 +748,7 @@ MiBuildPfnDatabaseSelf(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializePfnDatabase(
@@ -767,7 +767,7 @@ MiInitializePfnDatabase(
     MiBuildPfnDatabaseSelf();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MiInitMachineDependent(

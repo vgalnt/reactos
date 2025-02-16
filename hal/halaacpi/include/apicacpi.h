@@ -28,14 +28,14 @@ typedef struct _LOCAL_APIC
 #define LOCAL_APIC_SIZE sizeof(LOCAL_APIC)
 #include <poppack.h>
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI 
 HalpVerifyIOUnit(
     _In_ PIO_APIC_REGISTERS IOUnitRegs
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpMarkProcessorStarted(

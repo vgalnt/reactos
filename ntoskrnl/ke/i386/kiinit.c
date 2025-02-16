@@ -31,7 +31,7 @@ ULONGLONG BootCycles, BootCyclesEnd;
 
 /* FUNCTIONS *****************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 KiInitMachineDependent(VOID)
@@ -330,7 +330,7 @@ KiInitMachineDependent(VOID)
     KiSetCR0Bits();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 KiInitializePcr(IN ULONG ProcessorNumber,
@@ -396,7 +396,7 @@ KiInitializePcr(IN ULONG ProcessorNumber,
     Pcr->PrcbData.MultiThreadProcessorSet = Pcr->PrcbData.SetMember;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 KiInitializeKernel(IN PKPROCESS InitProcess,
@@ -619,7 +619,7 @@ KiInitializeKernel(IN PKPROCESS InitProcess,
     LoaderBlock->Prcb = 0;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 FASTCALL
 KiGetMachineBootPointers(IN PKGDTENTRY *Gdt,
@@ -660,7 +660,7 @@ KiGetMachineBootPointers(IN PKGDTENTRY *Gdt,
                               TssSelector.HighWord.Bytes.BaseHi << 24);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 KiSystemStartupBootStack(VOID)
@@ -712,7 +712,7 @@ KiMarkPageAsReadOnly(
     __invlpg(Address);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 KiSystemStartup(IN PLOADER_PARAMETER_BLOCK LoaderBlock)

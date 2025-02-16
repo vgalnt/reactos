@@ -218,7 +218,7 @@ ExpTimerApcKernelRoutine(IN PKAPC Apc,
 }
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 ExpInitializeTimerImplementation(VOID)
 {

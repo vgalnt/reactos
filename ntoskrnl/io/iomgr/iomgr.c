@@ -96,7 +96,7 @@ PLOADER_PARAMETER_BLOCK IopLoaderBlock;
 /* INIT FUNCTIONS ************************************************************/
 
 VOID
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 IopInitLookasideLists(VOID)
 {
@@ -243,7 +243,7 @@ IopInitLookasideLists(VOID)
 }
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 IopCreateObjectTypes(VOID)
 {
@@ -332,7 +332,7 @@ IopCreateObjectTypes(VOID)
 }
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 IopCreateRootDirectories(VOID)
 {
@@ -397,7 +397,7 @@ IopCreateRootDirectories(VOID)
 }
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 IoInitSystem(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 {

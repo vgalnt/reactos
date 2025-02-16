@@ -11,7 +11,7 @@ typedef struct _ACPI_CACHED_TABLE
 } ACPI_CACHED_TABLE, *PACPI_CACHED_TABLE;
 
 
-INIT_FUNCTION
+//INIT_FUNCTION
 PVOID
 NTAPI
 HalAcpiGetTable(
@@ -19,14 +19,14 @@ HalAcpiGetTable(
     IN ULONG Signature
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpCheckPowerButton(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 HalpSetupAcpiPhase0(
@@ -105,7 +105,7 @@ HalpAcpiGetTable(
     IN ULONG Signature
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpReportResourceUsage(
@@ -113,14 +113,14 @@ HalpReportResourceUsage(
     IN INTERFACE_TYPE InterfaceType
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializePciBus(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetNMICrashFlag(

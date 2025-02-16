@@ -249,7 +249,7 @@ HaliLocateHiberRanges(
     ASSERT(FALSE); // HalpDbgBreakPointEx();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitDma(VOID)

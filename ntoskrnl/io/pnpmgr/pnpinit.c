@@ -309,7 +309,7 @@ IopInitializeArbiters(VOID)
 }
 
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 PiInitCacheGroupInformation(VOID)
@@ -599,7 +599,7 @@ IopInitializePlugPlayNotification(VOID)
     KeInitializeGuardedMutex(&IopDeferredRegistrationLock);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 IopInitializePlugPlayServices(
@@ -2123,7 +2123,7 @@ Exit:
 }
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 IopMarkBootPartition(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
@@ -2197,7 +2197,7 @@ IopMarkBootPartition(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     return TRUE;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 FASTCALL
 IopInitializeBootDrivers(
@@ -2688,7 +2688,7 @@ Next:
     return TRUE;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 FASTCALL
 IopInitializeSystemDrivers(VOID)

@@ -32,7 +32,7 @@ static KTIMER MiBalancerTimer;
 
 /* FUNCTIONS ******************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MmInitializeBalancer(
@@ -66,7 +66,7 @@ MmInitializeBalancer(
     MiMemoryConsumers[MC_USER].PagesTarget = (NrAvailablePages - MiMinimumAvailablePages);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MmInitializeMemoryConsumer(
@@ -165,7 +165,7 @@ MmTrimUserMemory(
     return STATUS_SUCCESS;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitBalancerThread(VOID)

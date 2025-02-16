@@ -2368,7 +2368,7 @@ Fail:
     return Status;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiUpdateThunks(
@@ -2468,7 +2468,7 @@ MiUpdateThunks(
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiReloadBootLoadedDrivers(
@@ -2653,7 +2653,7 @@ MiReloadBootLoadedDrivers(
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MiBuildImportsForBootDrivers(VOID)
@@ -2897,7 +2897,7 @@ MiBuildImportsForBootDrivers(VOID)
     return STATUS_SUCCESS;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiLocateKernelSections(
@@ -2955,7 +2955,7 @@ MiLocateKernelSections(
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 MiInitializeLoadedModuleList(

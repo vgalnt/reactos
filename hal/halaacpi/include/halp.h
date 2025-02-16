@@ -125,7 +125,7 @@ HalpAllocateMapRegisters(
     _In_ PMAP_REGISTER_ENTRY Registers
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitDma(
@@ -133,7 +133,7 @@ HalpInitDma(
 );
 
 /* halinit.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalInitializeProcessor(
@@ -141,7 +141,7 @@ HalInitializeProcessor(
     IN PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 HalInitSystem(
@@ -149,7 +149,7 @@ HalInitSystem(
     IN PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetParameters(
@@ -164,7 +164,7 @@ HaliInitPnpDriver(
 );
 
 /* memory.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 ULONG_PTR
 NTAPI
 HalpAllocPhysicalMemory(
@@ -315,7 +315,7 @@ HaliSetSystemInformation(
 );
 
 /* usage.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpRegisterVector(
@@ -325,7 +325,7 @@ HalpRegisterVector(
     _In_ KIRQL Irql
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpReportResourceUsage(

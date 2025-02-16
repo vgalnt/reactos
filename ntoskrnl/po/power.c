@@ -196,7 +196,7 @@ PopCleanupPowerState(
     //UNIMPLEMENTED;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 PoInitSystem(
@@ -334,7 +334,7 @@ PopIdle0(
     HalProcessorIdle();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 PoInitializePrcb(

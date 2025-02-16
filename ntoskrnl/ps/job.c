@@ -105,7 +105,7 @@ PspDeleteJob ( PVOID ObjectBody )
     ExDeleteResource(&Job->JobLock);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 PspInitializeJobStructures(VOID)

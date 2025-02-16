@@ -857,14 +857,14 @@ IopNotifyPnpWhenChainDereferenced(
 );
 
 /* pnpinit.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 FASTCALL
 IopInitializeBootDrivers(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 FASTCALL
 IopInitializeSystemDrivers(

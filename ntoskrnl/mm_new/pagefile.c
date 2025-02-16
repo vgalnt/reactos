@@ -35,7 +35,7 @@ MmIsFileObjectAPagingFile(PFILE_OBJECT FileObject)
     return FALSE;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MmInitPagingFile(VOID)

@@ -16,7 +16,7 @@
 
 /* FUNCTIONS *****************************************************************/
 
-//INIT_FUNCTION
+////INIT_FUNCTION
 PSECURITY_DESCRIPTOR
 NTAPI
 CmpHiveRootSecurityDescriptor(VOID)

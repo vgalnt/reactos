@@ -7946,7 +7946,7 @@ MmpCloseSection(
     DPRINT("MmpCloseSection(OB %p, HC %lu)\n", Object, ProcessHandleCount);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MmCreatePhysicalMemorySection(VOID)
@@ -8049,7 +8049,7 @@ MiDereferenceSegmentThread(
     UNIMPLEMENTED;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MmInitSectionImplementation(VOID)

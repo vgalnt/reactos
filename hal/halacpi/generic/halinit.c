@@ -68,7 +68,7 @@ extern ULONG HalpFeatureBits;
 /* PRIVATE FUNCTIONS *********************************************************/
 
 /* FIXME for other types of HALs there are other options. */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetParameters(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
@@ -99,7 +99,7 @@ HalpGetParameters(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 
 /* FUNCTIONS *****************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalInitializeProcessor(
@@ -143,7 +143,7 @@ HalpInitNonBusHandler(VOID)
     HalFindBusAddressTranslation = HalpFindBusAddressTranslation;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpEnableInterruptHandler(IN UCHAR Flags,
@@ -162,7 +162,7 @@ HalpEnableInterruptHandler(IN UCHAR Flags,
     HalEnableSystemInterrupt(SystemVector, Irql, Mode);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 HalInitSystem(IN ULONG BootPhase,

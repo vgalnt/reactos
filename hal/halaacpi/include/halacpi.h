@@ -188,7 +188,7 @@ HalpAcpiGetTable(
     IN ULONG Signature
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 PVOID
 NTAPI
 HalAcpiGetTable(
@@ -196,21 +196,21 @@ HalAcpiGetTable(
     IN ULONG Signature
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpCheckPowerButton(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 HalpSetupAcpiPhase0(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpAcpiDetectMachineSpecificActions(
@@ -218,7 +218,7 @@ HalpAcpiDetectMachineSpecificActions(
     _In_ PFADT DescriptionTable
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializeCmos(
@@ -329,14 +329,14 @@ HalpFindBusAddressTranslation(
     _In_ BOOLEAN NextBus
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetNMICrashFlag(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializePciBus(
@@ -355,7 +355,7 @@ HalpIs16BitPortDecodeSupported(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalReportResourceUsage(

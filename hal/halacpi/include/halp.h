@@ -73,7 +73,7 @@ HalpExitToV86(
 );
 
 /* cmos.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializeCmos(
@@ -117,7 +117,7 @@ HaliLocateHiberRanges(
     _In_ PVOID MemoryMap
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitDma(
@@ -125,7 +125,7 @@ HalpInitDma(
 );
 
 /* halinit.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalInitializeProcessor(
@@ -133,7 +133,7 @@ HalInitializeProcessor(
     IN PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 HalInitSystem(
@@ -149,7 +149,7 @@ HaliInitPnpDriver(
 );
 
 /* memory.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 ULONG_PTR
 NTAPI
 HalpAllocPhysicalMemory(
@@ -198,7 +198,7 @@ HalpOpenRegistryKey(
 );
 
 /* pcibus.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 HalpSetupPciDeviceForDebugging(
@@ -206,7 +206,7 @@ HalpSetupPciDeviceForDebugging(
     IN OUT PDEBUG_DEVICE_DESCRIPTOR PciDevice
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 HalpReleasePciDeviceForDebugging(
@@ -320,7 +320,7 @@ HaliSetSystemInformation(
 );
 
 /* timer.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializeClock(
@@ -357,7 +357,7 @@ HalpProfileInterrupt(
 );
 
 /* usage.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpRegisterVector(
@@ -367,7 +367,7 @@ HalpRegisterVector(
     IN KIRQL Irql
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpReportResourceUsage(
@@ -375,7 +375,7 @@ HalpReportResourceUsage(
     IN INTERFACE_TYPE InterfaceType
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpBuildPartialFromIdt(
@@ -384,7 +384,7 @@ HalpBuildPartialFromIdt(
     IN PCM_PARTIAL_RESOURCE_DESCRIPTOR TranslatedDescriptor
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpBuildPartialFromAddress(

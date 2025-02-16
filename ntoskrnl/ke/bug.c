@@ -299,7 +299,7 @@ KeRosDumpStackFrames(IN PULONG_PTR Frame OPTIONAL,
 }
 
 VOID
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 KiInitializeBugCheck(VOID)
 {

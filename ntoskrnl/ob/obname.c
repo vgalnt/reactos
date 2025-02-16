@@ -34,7 +34,7 @@ ULONG ObpUnsecureGlobalNamesLength = sizeof(ObpUnsecureGlobalNamesBuffer);
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 ObpGetDosDevicesProtection(OUT PSECURITY_DESCRIPTOR SecurityDescriptor)
@@ -155,7 +155,7 @@ ObpGetDosDevicesProtection(OUT PSECURITY_DESCRIPTOR SecurityDescriptor)
     return STATUS_SUCCESS;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ObpFreeDosDevicesProtection(OUT PSECURITY_DESCRIPTOR SecurityDescriptor)
@@ -171,7 +171,7 @@ ObpFreeDosDevicesProtection(OUT PSECURITY_DESCRIPTOR SecurityDescriptor)
     ExFreePoolWithTag(Dacl, 'lcaD');
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 ObpCreateDosDevicesDirectory(VOID)

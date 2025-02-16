@@ -16,7 +16,8 @@
 
 PERESOURCE FsRtlPagingIoResources;
 ULONG FsRtlPagingIoResourceSelector;
-INIT_FUNCTION NTSTATUS NTAPI FsRtlInitializeWorkerThread(VOID);
+//INIT_FUNCTION NTSTATUS NTAPI FsRtlInitializeWorkerThread(VOID);
+NTSTATUS NTAPI FsRtlInitializeWorkerThread(VOID);
 extern KSEMAPHORE FsRtlpUncSemaphore;
 
 static const UCHAR LegalAnsiCharacterArray[] =
@@ -155,7 +156,7 @@ const UCHAR * const FsRtlLegalAnsiCharacterArray = LegalAnsiCharacterArray;
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 FsRtlInitSystem(VOID)

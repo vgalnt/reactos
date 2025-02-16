@@ -29,7 +29,7 @@ GENERAL_LOOKASIDE ExpSmallPagedPoolLookasideLists[MAXIMUM_PROCESSORS];
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ExInitializeSystemLookasideList(IN PGENERAL_LOOKASIDE List,
@@ -57,7 +57,7 @@ ExInitializeSystemLookasideList(IN PGENERAL_LOOKASIDE List,
     List->LastAllocateHits = 0;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ExInitPoolLookasidePointers(VOID)
@@ -87,7 +87,7 @@ ExInitPoolLookasidePointers(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ExpInitLookasideLists(VOID)

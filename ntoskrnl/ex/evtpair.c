@@ -32,7 +32,7 @@ GENERIC_MAPPING ExEventPairMapping =
 /* FUNCTIONS *****************************************************************/
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 ExpInitializeEventPairImplementation(VOID)
 {

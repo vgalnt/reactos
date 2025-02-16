@@ -108,14 +108,14 @@ typedef struct _INT_MAPPING
 //
 // Initialization Routines
 //
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 FsRtlInitializeLargeMcbs(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 FsRtlInitializeTunnels(
@@ -131,7 +131,7 @@ FsRtlPTeardownPerFileObjectContexts(
     IN PFILE_OBJECT FileObject
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 FsRtlInitSystem(

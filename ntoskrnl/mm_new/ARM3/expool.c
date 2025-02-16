@@ -375,7 +375,7 @@ ExpInsertPoolTailList(
     ExpCheckPoolLinks(ListHead);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ExpSeedHotTags(VOID)
@@ -858,7 +858,7 @@ ExpCheckPoolAllocation(
     UNIMPLEMENTED_DBGBREAK();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 InitializePool(

@@ -94,7 +94,7 @@ PspReturnProcessQuotaSpecifiedPool(IN PEPROCESS Process,
 
 /* FUNCTIONS ***************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 PsInitializeQuotaSystem(VOID)

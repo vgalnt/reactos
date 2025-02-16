@@ -279,7 +279,7 @@ HalpBuildIpiDestinationMap(
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializePICs(
@@ -339,7 +339,7 @@ HalpGetApicInterruptDesc(
     return FALSE;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI 
 HalpInitIntiInfo(VOID)
@@ -437,7 +437,7 @@ HalpInitIntiInfo(VOID)
     ASSERT(Inti < MAX_INTI);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI 
 HalpInitializeIOUnits(VOID)
@@ -500,7 +500,7 @@ HalpInitializeIOUnits(VOID)
 
 /* PM TIMER FUNCTIONS *********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 FASTCALL
 HalpPmTimerSpecialStall(
@@ -537,7 +537,7 @@ HalpPmTimerSpecialStall(
 
 #define HALP_SPECIAL_STALL_VALUE  0x6D3D3
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 HalpPmTimerScaleTimers(VOID)
@@ -1849,7 +1849,7 @@ HalIrqTranslateResourcesRoot(
     return STATUS_SUCCESS;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializeLocalUnit(VOID)
@@ -1951,7 +1951,7 @@ HalpInitializeLocalUnit(VOID)
         _enable();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalInitApicInterruptHandlers(VOID)
@@ -1973,7 +1973,7 @@ HalInitApicInterruptHandlers(VOID)
     Idt[0x1F].ExtendedOffset = (PtrToUlong(ApicSpuriousService) >> 16);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI 
 DetectAcpiMP(

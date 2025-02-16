@@ -51,7 +51,7 @@ ExpDeleteMutant(PVOID ObjectBody)
 }
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 ExpInitializeMutantImplementation(VOID)
 {

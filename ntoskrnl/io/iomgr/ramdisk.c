@@ -22,7 +22,7 @@
 
 /* FUNCTIONS ******************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)

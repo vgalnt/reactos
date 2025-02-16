@@ -57,7 +57,7 @@ ULONG ObpProtectionMode = 0;
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 static
 NTSTATUS
 NTAPI
@@ -130,7 +130,7 @@ done:
 }
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 ObInit2(VOID)
 {
@@ -197,7 +197,7 @@ ObInit2(VOID)
 }
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 ObInitSystem(VOID)
 {

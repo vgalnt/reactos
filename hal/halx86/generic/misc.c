@@ -29,7 +29,7 @@ CHAR HalpSerialNumber[31];
 /* PRIVATE FUNCTIONS **********************************************************/
 
 #ifndef _MINIHAL_
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpReportSerialNumber(VOID)
@@ -60,7 +60,7 @@ HalpReportSerialNumber(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 HalpMarkAcpiHal(VOID)

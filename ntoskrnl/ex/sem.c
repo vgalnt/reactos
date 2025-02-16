@@ -38,7 +38,7 @@ static const INFORMATION_CLASS_INFO ExSemaphoreInfoClass[] =
 /* FUNCTIONS *****************************************************************/
 
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 ExpInitializeSemaphoreImplementation(VOID)
 {

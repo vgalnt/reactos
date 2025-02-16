@@ -88,7 +88,7 @@ HaliLocateHiberRanges(_In_ PVOID MemoryMap)
     ASSERT(0);//HalpDbgBreakPointEx();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitDma(VOID)

@@ -406,7 +406,7 @@ HalpInitBootTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     HalEndOfBoot = HalpEndOfBoot;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 HalpSetupAcpiPhase0(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
@@ -847,7 +847,7 @@ HalpAcpiGetTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
     return TableAddress;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 PVOID
 NTAPI
 HalAcpiGetTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
@@ -907,7 +907,7 @@ HalpWriteResetCommand(VOID)
 typedef VOID
 (NTAPI* PM_ACPI_DISPATCH_FUNCTION0)(ULONG);
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpCheckPowerButton(VOID)
@@ -995,7 +995,7 @@ HaliHaltSystem(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetNMICrashFlag(VOID)
@@ -1045,7 +1045,7 @@ HalpGetNMICrashFlag(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializePciBus(VOID)
@@ -1180,7 +1180,7 @@ HalpQueryAcpiResourceRequirements(OUT PIO_RESOURCE_REQUIREMENTS_LIST* Requiremen
 
 /* PUBLIC FUNCTIONS **********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalReportResourceUsage(VOID)

@@ -1187,7 +1187,7 @@ RawUnload(IN PDRIVER_OBJECT DriverObject)
 #endif
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 RawFsDriverEntry(IN PDRIVER_OBJECT DriverObject,

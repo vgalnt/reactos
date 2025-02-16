@@ -680,7 +680,7 @@ MmSetMemoryPriorityProcess(
     return OldPriority;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MmInitializeHandBuiltProcess(
@@ -720,7 +720,7 @@ MmInitializeHandBuiltProcess(
 #endif
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MmInitializeHandBuiltProcess2(

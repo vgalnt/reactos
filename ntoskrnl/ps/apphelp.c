@@ -433,7 +433,7 @@ ApphelpCacheWrite(VOID)
 }
 
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 ApphelpCacheInitialize(VOID)

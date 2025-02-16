@@ -33,7 +33,7 @@ extern ULONG CcDataPages;
 extern ULONG CcDataFlushes;
 
 /* cachesub.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 CcPfInitializePrefetcher(
@@ -43,7 +43,7 @@ CcPfInitializePrefetcher(
 /* copysup.c */
 
 /* fssup.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 CcInitializeCacheManager(

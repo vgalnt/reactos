@@ -261,7 +261,7 @@ MiReleaseSystemPtes(
     KeReleaseQueuedSpinLock(LockQueueSystemSpaceLock, OldIrql);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeSystemPtes(

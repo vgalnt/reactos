@@ -96,7 +96,7 @@ BOOLEAN ExpRealTimeIsUniversal;
 
 /* FUNCTIONS ****************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 ExpCreateSystemRootLink(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
@@ -208,7 +208,7 @@ ExpCreateSystemRootLink(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     return STATUS_SUCCESS;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ExpInitNls(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
@@ -397,7 +397,7 @@ ExpInitNls(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     ExpNlsTableBase = SectionBase;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ExpLoadInitialProcess(IN PINIT_BUFFER InitBuffer,
@@ -614,7 +614,7 @@ ExpLoadInitialProcess(IN PINIT_BUFFER InitBuffer,
     *ProcessEnvironment = EnvironmentPtr;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 ULONG
 NTAPI
 ExComputeTickCountMultiplier(IN ULONG ClockIncrement)
@@ -647,7 +647,7 @@ ExComputeTickCountMultiplier(IN ULONG ClockIncrement)
     return (MsIncrement << 24) | MsRemainder;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 ExpInitSystemPhase0(VOID)
@@ -670,7 +670,7 @@ ExpInitSystemPhase0(VOID)
     return TRUE;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 ExpInitSystemPhase1(VOID)
@@ -751,7 +751,7 @@ ExpInitSystemPhase1(VOID)
     return TRUE;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 ExInitSystem(VOID)
@@ -777,7 +777,7 @@ ExInitSystem(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 ExpIsLoaderValid(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
@@ -803,7 +803,7 @@ ExpIsLoaderValid(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     return TRUE;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ExpLoadBootSymbols(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
@@ -884,7 +884,7 @@ ExpLoadBootSymbols(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ExBurnMemory(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
@@ -930,7 +930,7 @@ ExBurnMemory(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 ExpInitializeExecutive(IN ULONG Cpu,
@@ -1353,7 +1353,7 @@ MmFreeLoaderBlock(IN PLOADER_PARAMETER_BLOCK LoaderBlock);
 VOID NTAPI KeStartAllProcessors(VOID);
 #endif
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 Phase1InitializationDiscard(IN PVOID Context)

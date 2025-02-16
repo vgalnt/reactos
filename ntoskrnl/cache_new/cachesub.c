@@ -1528,7 +1528,7 @@ CcUnpinRepinnedBcb(
         CcPostDeferredWrites();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 CcPfInitializePrefetcher(VOID)

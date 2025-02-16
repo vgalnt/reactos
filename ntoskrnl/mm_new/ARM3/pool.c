@@ -50,7 +50,7 @@ extern SIZE_T MmSessionPoolSize;
 
 /* FUNCTIONS ******************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeNonPagedPool(VOID)
@@ -148,7 +148,7 @@ MiInitializeNonPagedPool(VOID)
     MiInitializeSystemPtes((Pte + 1), MiExpansionPoolPagesInitialCharge, NonPagedPoolExpansion);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeNonPagedPoolThresholds(VOID)
@@ -855,7 +855,7 @@ MmDeterminePoolType(
     KeBugCheckEx(BAD_POOL_CALLER, 0x42, (ULONG_PTR)PoolAddress, 0, 0);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializePoolEvents(VOID)

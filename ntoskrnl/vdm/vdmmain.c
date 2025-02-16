@@ -17,7 +17,7 @@
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 Ki386VdmEnablePentiumExtentions(IN BOOLEAN Enable)
@@ -36,7 +36,7 @@ Ki386VdmEnablePentiumExtentions(IN BOOLEAN Enable)
     __writeeflags(EFlags);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 KeI386VdmInitialize(VOID)

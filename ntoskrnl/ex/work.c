@@ -514,7 +514,7 @@ ExpWorkerThreadBalanceManager(IN PVOID Context)
  *
  *--*/
 VOID
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 ExpInitializeWorkerThreads(VOID)
 {

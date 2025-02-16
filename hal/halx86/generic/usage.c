@@ -12,7 +12,7 @@
 #define NDEBUG
 #include <debug.h>
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetResourceSortValue(
@@ -21,7 +21,7 @@ HalpGetResourceSortValue(
     OUT PLARGE_INTEGER Value
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpBuildPartialFromIdt(
@@ -30,7 +30,7 @@ HalpBuildPartialFromIdt(
     IN PCM_PARTIAL_RESOURCE_DESCRIPTOR TranslatedDescriptor
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpBuildPartialFromAddress(
@@ -117,7 +117,7 @@ ADDRESS_USAGE HalpEisaIoSpace =
 /* FUNCTIONS ******************************************************************/
 
 #ifndef _MINIHAL_
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetResourceSortValue(IN PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor,
@@ -157,7 +157,7 @@ HalpGetResourceSortValue(IN PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor,
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpBuildPartialFromIdt(IN ULONG Entry,
@@ -195,7 +195,7 @@ HalpBuildPartialFromIdt(IN ULONG Entry,
     TranslatedDescriptor->u.Interrupt.Level = HalpIDTUsage[Entry].Irql;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpBuildPartialFromAddress(IN INTERFACE_TYPE Interface,
@@ -263,7 +263,7 @@ HalpBuildPartialFromAddress(IN INTERFACE_TYPE Interface,
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpReportResourceUsage(IN PUNICODE_STRING HalName,
@@ -542,7 +542,7 @@ HalpReportResourceUsage(IN PUNICODE_STRING HalName,
 }
 #endif
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpRegisterVector(IN UCHAR Flags,
@@ -559,7 +559,7 @@ HalpRegisterVector(IN UCHAR Flags,
 }
 
 #ifndef _MINIHAL_
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpEnableInterruptHandler(IN UCHAR Flags,
@@ -582,7 +582,7 @@ HalpEnableInterruptHandler(IN UCHAR Flags,
     HalEnableSystemInterrupt(SystemVector, Irql, Mode);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetNMICrashFlag(VOID)

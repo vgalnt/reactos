@@ -1803,7 +1803,7 @@ CcZeroEndOfLastPage(
     KeReleaseQueuedSpinLock(LockQueueMasterLock, OldIrql);
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 CcInitializeCacheManager(VOID)

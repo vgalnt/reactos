@@ -264,7 +264,7 @@ MmGetExecuteOptions(
 );
 
 /* ARM3\procsup.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MmInitializeHandBuiltProcess(
@@ -272,7 +272,7 @@ MmInitializeHandBuiltProcess(
     _In_ PULONG_PTR DirectoryTableBase
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MmInitializeHandBuiltProcess2(
@@ -630,7 +630,7 @@ MmSetPageProtect(
 );
 
 /* mminit.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 MmInitSystem(

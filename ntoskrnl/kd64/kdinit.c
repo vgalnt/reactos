@@ -26,7 +26,7 @@
  *
  * See also: kd\kdio.c
  */
-INIT_FUNCTION
+//INIT_FUNCTION
 static
 SIZE_T
 KdpGetMemorySizeInMBs(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
@@ -68,7 +68,7 @@ KdpGetMemorySizeInMBs(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 }
 
 /* See also: kd\kdio.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 static
 VOID
 KdpPrintBanner(IN SIZE_T MemSizeMBs)

@@ -54,7 +54,7 @@ extern ULONG HalpBusType;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializeCmos(VOID)
@@ -658,7 +658,7 @@ HalpAcpiTableCacheInit(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     return Status;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 PVOID
 NTAPI
 HalAcpiGetTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
@@ -697,7 +697,7 @@ HalAcpiGetTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
     return TableHeader;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpCheckPowerButton(VOID)
@@ -706,7 +706,7 @@ HalpCheckPowerButton(VOID)
     ASSERT(FALSE); // HalpDbgBreakPointEx();
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpAcpiDetectMachineSpecificActions(
@@ -889,7 +889,7 @@ HalpAcpiApplyFadtSettings(
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 HalpSetupAcpiPhase0(
@@ -1047,7 +1047,7 @@ HaliHaltSystem(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetNMICrashFlag(VOID)
@@ -1097,7 +1097,7 @@ HalpGetNMICrashFlag(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializePciBus(VOID)
@@ -1290,7 +1290,7 @@ HalpQueryAcpiResourceRequirements(
 
 /* PUBLIC FUNCTIONS **********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalReportResourceUsage(VOID)

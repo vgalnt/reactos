@@ -1906,14 +1906,14 @@ MiDecrementPfnShare(
 }
 
 /* ARM3\i386\init.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeSessionSpaceLayout(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MiInitMachineDependent(
@@ -1928,7 +1928,7 @@ MiInitializeDriverVerifierList(
 );
 
 /* ARM3\expool.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 InitializePool(
@@ -1992,21 +1992,21 @@ MiUnmapPagesInZeroSpace(
 );
 
 /* ARM3\largepag.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiSyncCachedRanges(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeLargePageSupport(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeDriverLargePageList(
@@ -2014,7 +2014,7 @@ MiInitializeDriverLargePageList(
 );
 
 /* ARM3\mminit.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 PPHYSICAL_MEMORY_DESCRIPTOR
 NTAPI
 MmInitializeMemoryLimits(
@@ -2022,14 +2022,14 @@ MmInitializeMemoryLimits(
     _In_ PBOOLEAN IncludeType
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 PFN_NUMBER
 NTAPI
 MxGetNextPage(
     _In_ PFN_NUMBER PageCount
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 MiInitializeMemoryEvents(
@@ -2171,14 +2171,14 @@ MiInitializeAndChargePfn(
 );
 
 /* ARM3\pool.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeNonPagedPool(
     VOID
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeNonPagedPoolThresholds(
@@ -2204,7 +2204,7 @@ MmDeterminePoolType(
     _In_ PVOID PoolAddress
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializePoolEvents(
@@ -2304,7 +2304,7 @@ MiInitializeTransitionPfn(
     _In_ OUT PMMPTE SectionProto
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MmInitSectionImplementation(
@@ -2393,14 +2393,14 @@ MiInitializeSystemCache(
 );
 
 /* ARM3\sysldr.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiReloadBootLoadedDrivers(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 MiInitializeLoadedModuleList(
@@ -2414,7 +2414,7 @@ MiWriteProtectSystemImage(
 );
 
 /* ARM3\syspte.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeSystemPtes(
@@ -2725,7 +2725,7 @@ MiSwapWslEntries(
 
 /* i386\page.c */
 /* i386\pagepae.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MmInitGlobalKernelPageDirectory(
@@ -2741,7 +2741,7 @@ MmCreateProcessAddressSpace(
 );
 
 /* balance.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MmInitializeBalancer(
@@ -2767,7 +2767,7 @@ MmTrimUserMemory(
     PULONG NrFreedPages
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MmInitializeMemoryConsumer(
@@ -2776,7 +2776,7 @@ MmInitializeMemoryConsumer(
 );
 
 VOID
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 MiInitBalancerThread(
     VOID
@@ -2828,7 +2828,7 @@ MiChargeCommitmentCantExpand(
 );
 
 /* pagefile.c */
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MmInitPagingFile(

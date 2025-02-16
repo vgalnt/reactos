@@ -63,7 +63,7 @@ extern ERESOURCE PpRegistryDeviceResource;
 
 /* FUNCTIONS *****************************************************************/
 
-NTSTATUS INIT_FUNCTION
+NTSTATUS ////INIT_FUNCTION
 IopInitPlugPlayEvents(VOID)
 {
     InitializeListHead(&IopPnpEventQueueHead);

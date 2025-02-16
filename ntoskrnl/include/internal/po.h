@@ -332,14 +332,14 @@ typedef struct _POP_TRIGGER_WAIT
 //
 // Initialization routines
 //
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 PoInitSystem(
     IN ULONG BootPhase
 );
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 PoInitializePrcb(

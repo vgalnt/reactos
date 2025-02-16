@@ -37,7 +37,7 @@ extern ULONG HalpPicVectorFlags[HAL_PIC_VECTORS];
 
 /* FUNCTIONS ******************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpMarkProcessorStarted(
@@ -61,7 +61,7 @@ HalpMarkProcessorStarted(
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI 
 HalpVerifyIOUnit(
@@ -91,7 +91,7 @@ HalpVerifyIOUnit(
     return TRUE;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI 
 HalpInitMpInfo(

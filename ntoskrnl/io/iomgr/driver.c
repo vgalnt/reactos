@@ -403,7 +403,7 @@ MiResolveImageReferences(IN PVOID ImageBase,
 //
 // Used for images already loaded (boot drivers)
 //
-INIT_FUNCTION
+//INIT_FUNCTION
 NTSTATUS
 NTAPI
 LdrProcessDriverModule(PLDR_DATA_TABLE_ENTRY LdrEntry,

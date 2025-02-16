@@ -18,7 +18,7 @@ BOOLEAN MiLargePageAllDrivers;
 
 /* FUNCTIONS ******************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeLargePageSupport(VOID)
@@ -38,7 +38,7 @@ MiInitializeLargePageSupport(VOID)
 #endif
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiSyncCachedRanges(VOID)
@@ -52,7 +52,7 @@ MiSyncCachedRanges(VOID)
     }
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeDriverLargePageList(VOID)

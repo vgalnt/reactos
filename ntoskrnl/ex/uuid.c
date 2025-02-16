@@ -53,7 +53,7 @@ LARGE_INTEGER ExpLuid = {{0x3e9, 0x0}};
  * @implemented
  */
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 ExpUuidInitialization(VOID)
 {
@@ -325,7 +325,7 @@ ExpUuidGetValues(PUUID_CACHED_VALUES_STRUCT CachedValues)
  * @implemented
  */
 BOOLEAN
-INIT_FUNCTION
+//INIT_FUNCTION
 NTAPI
 ExLuidInitialization(VOID)
 {

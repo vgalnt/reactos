@@ -90,7 +90,7 @@ extern HALP_DMA_MASTER_ADAPTER MasterAdapter32;
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetParameters(
@@ -149,7 +149,7 @@ HalpGetParameters(
 
 /* FUNCTIONS *****************************************************************/
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalInitializeProcessor(
@@ -241,7 +241,7 @@ HalpInitNonBusHandler(VOID)
     HalFindBusAddressTranslation = HalpFindBusAddressTranslation;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 BOOLEAN
 NTAPI
 HalInitSystem(IN ULONG BootPhase,

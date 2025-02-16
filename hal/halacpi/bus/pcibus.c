@@ -824,7 +824,7 @@ HaliPciInterfaceWriteConfig(_In_ PBUS_HANDLER RootBusHandler,
     return Length;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 PPCI_REGISTRY_INFO_INTERNAL
 NTAPI
 HalpQueryPciRegistryInfo(VOID)
@@ -1028,7 +1028,7 @@ Finish:
     return PciRegistryInfo;
 }
 
-INIT_FUNCTION
+//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializePciStubs(VOID)
