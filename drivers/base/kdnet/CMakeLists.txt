@@ -10,7 +10,7 @@ add_library(kdnet MODULE
     kdnet.rc
     ${CMAKE_CURRENT_BINARY_DIR}/kdnet.def)
 
-set_module_type(kdnet module IMAGEBASE 0x00010000)
+set_module_type(kdnet kerneldll ENTRYPOINT 0)
 set_subsystem(kdnet native)
 target_link_libraries(kdnet libcntpr)
 add_importlibs(kdnet kdstub ntoskrnl hal)

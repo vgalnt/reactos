@@ -10,7 +10,7 @@ add_library(kdstub MODULE
     kdstub.rc
     ${CMAKE_CURRENT_BINARY_DIR}/kdstub.def)
 
-set_module_type(kdstub module IMAGEBASE 0x00010000)
+set_module_type(kdstub kerneldll ENTRYPOINT 0)
 set_subsystem(kdstub native)
 add_importlibs(kdstub ntoskrnl hal)
 add_dependencies(kdstub psdk bugcodes)
