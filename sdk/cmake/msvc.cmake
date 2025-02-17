@@ -342,12 +342,21 @@ function(set_module_type_toolchain MODULE TYPE)
 
         if(TYPE STREQUAL kernelmodedriver)
             add_target_link_flags(${MODULE} "/DRIVER")
+        elseif(${TYPE} STREQUAL "kerneldll")
+            add_target_link_flags(${MODULE} "/DLL")
         elseif(TYPE STREQUAL wdmdriver)
             add_target_link_flags(${MODULE} "/DRIVER:WDM")
         elseif (TYPE STREQUAL kernel)
-            # Mark .rsrc section as non-disposable non-pageable, as bugcheck code needs to access it
-            add_target_link_flags(${MODULE} "/SECTION:.rsrc,!DP")
+            # Mark .rsrc section as non-disposable, as bugcheck code needs to access it
+            add_target_link_flags(${MODULE} "/SECTION:.rsrc,!D")
         endif()
+
+        # Known sections which can not be paged
+        add_target_link_flags(${MODULE} "/SECTION:.text,!P")
+        add_target_link_flags(${MODULE} "/SECTION:.data,!P")
+        #add_target_link_flags(${MODULE} "/SECTION:.rdata,!P")
+        #add_target_link_flags(${MODULE} "/SECTION:.bss,!P")
+        #add_target_link_flags(${MODULE} "/SECTION:.idata,!P")
     endif()
 
     if(RUNTIME_CHECKS)
