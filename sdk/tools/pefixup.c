@@ -170,7 +170,6 @@ static int driver_fixup(enum fixup_mode mode, unsigned char *buffer, PIMAGE_NT_H
 
         /* Known sections which can be paged */
         if ((strncmp((char*)Section->Name, "PAGE", 4) == 0)
-            || (strncmp((char*)Section->Name, ".rsrc", 5) == 0)
             || (strncmp((char*)Section->Name, ".edata", 6) == 0)
             || (strncmp((char*)Section->Name, ".reloc", 6) == 0))
         {
