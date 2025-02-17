@@ -331,6 +331,9 @@ function(set_module_type_toolchain MODULE TYPE)
         target_link_libraries(${MODULE} cpprt)
     endif()
 
+    # Set the PE image version numbers from the NT OS version ReactOS is based on
+    add_target_link_flags(${MODULE} "/VERSION:5.01")
+
     if((${TYPE} STREQUAL "win32dll") OR (${TYPE} STREQUAL "win32ocx") OR (${TYPE} STREQUAL "cpl"))
         add_target_link_flags(${MODULE} "/DLL")
     elseif((${TYPE} STREQUAL kernel) OR (${TYPE} STREQUAL kerneldll) OR (${TYPE} STREQUAL kernelmodedriver) OR (${TYPE} STREQUAL wdmdriver))

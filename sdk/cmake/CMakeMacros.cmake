@@ -655,14 +655,6 @@ function(set_module_type MODULE TYPE)
         set_subsystem(${MODULE} windows)
     endif()
 
-    # Set the PE image version numbers from the NT OS version ReactOS is based on
-    if(MSVC)
-        add_target_link_flags(${MODULE} "/VERSION:5.01")
-    else()
-        add_target_link_flags(${MODULE} "-Wl,--major-image-version,5 -Wl,--minor-image-version,01")
-        add_target_link_flags(${MODULE} "-Wl,--major-os-version,5 -Wl,--minor-os-version,01")
-    endif()
-
     # Set unicode definitions
     if(__module_UNICODE)
         target_compile_definitions(${MODULE} PRIVATE UNICODE _UNICODE)
@@ -712,7 +704,7 @@ function(set_module_type MODULE TYPE)
         endif()
     elseif((${TYPE} STREQUAL kernel) OR (${TYPE} STREQUAL kerneldll) OR (${TYPE} STREQUAL kernelmodedriver) OR (${TYPE} STREQUAL wdmdriver))
         # special case for kernel
-        if (TYPE STREQUAL kernel)
+        if(TYPE STREQUAL kernel)
             set_image_base(${MODULE} 0x00400000)
         else()
             set_image_base(${MODULE} 0x00010000)
