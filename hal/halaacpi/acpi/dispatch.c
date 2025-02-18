@@ -51,6 +51,81 @@ HalpGetChipHacks(
     _In_ USHORT VendorID,
     _In_ USHORT DeviceID,
     _In_ UCHAR RevisionID,
+    _Out_ ULONG* OutChipHacks
+);
+
+VOID NTAPI HalpPiix4Detect(_In_ BOOLEAN IsInitialize);
+VOID NTAPI HaliSetWakeEnable(_In_ BOOLEAN Enable);
+
+VOID
+NTAPI
+HaliSetWakeAlarm(
+    _In_ ULONGLONG AlartTime,
+    _In_ PTIME_FIELDS WakeTimeFields
+);
+
+NTSTATUS
+NTAPI
+HaliInitPowerManagement(
+    _In_ PPM_DISPATCH_TABLE PmDriverDispatchTable,
+    _Out_ PPM_DISPATCH_TABLE* PmHalDispatchTable
+);
+
+NTSTATUS
+NTAPI
+HaliAcpiSleep(
+    _In_opt_ PVOID Context,
+    _In_opt_ PENTER_STATE_SYSTEM_HANDLER SystemHandler,
+    _In_opt_ PVOID SystemContext,
+    _In_ LONG NumberProcessors,
+    _In_opt_ LONG volatile * Number
+);
+
+VOID
+NTAPI
+HaliAcpiMachineStateInit(
+    _In_ ULONG Par1,
+    _In_ PHALP_STATE_DATA StateData,
+    _Out_ ULONG* OutInterruptModel
+);
+
+ULONG NTAPI HaliAcpiQueryFlags(VOID);
+UCHAR NTAPI HalpAcpiPicStateIntact(VOID);
+VOID NTAPI HalpRestoreInterruptControllerState(VOID);
+
+VOID
+NTAPI
+HaliSetVectorState(
+    _In_ ULONG Vector,
+    _In_ ULONG Par2
+);
+
+ULONG NTAPI HalpGetApicVersion(_In_ ULONG Par1);
+BOOLEAN NTAPI HaliIsVectorValid(_In_ ULONG Vector);
+
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(PAGE, HalpGetChipHacks)
+  #pragma alloc_text(PAGELK, HalpPiix4Detect)
+  #pragma alloc_text(PAGELK, HaliSetWakeEnable)
+  #pragma alloc_text(PAGELK, HaliSetWakeAlarm)
+  #pragma alloc_text(PAGE, HaliInitPowerManagement)
+  #pragma alloc_text(PAGELK, HaliAcpiSleep)
+  #pragma alloc_text(PAGE, HaliAcpiMachineStateInit)
+  #pragma alloc_text(PAGE, HaliAcpiQueryFlags)
+  #pragma alloc_text(PAGELK, HalpAcpiPicStateIntact)
+  #pragma alloc_text(PAGELK, HalpRestoreInterruptControllerState)
+  #pragma alloc_text(PAGE, HaliSetVectorState)
+  #pragma alloc_text(PAGELK, HalpGetApicVersion)
+  #pragma alloc_text(PAGE, HaliIsVectorValid)
+#endif
+
+CODE_SEG("PAGE")
+NTSTATUS
+NTAPI
+HalpGetChipHacks(
+    _In_ USHORT VendorID,
+    _In_ USHORT DeviceID,
+    _In_ UCHAR RevisionID,
     _Out_ ULONG* OutChipHacks)
 {
     KEY_VALUE_PARTIAL_INFORMATION KeyValueInfo;
@@ -229,6 +304,7 @@ Exit:
     KeFlushWriteBuffer();
 }
 
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HalpPiix4Detect(
@@ -424,6 +500,7 @@ HalAcpiTimerCarry(VOID)
     TimerInfo.AcpiTimeValue.QuadPart = Value.QuadPart;
 }
 
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HaliSetWakeEnable(
@@ -435,6 +512,7 @@ HaliSetWakeEnable(
     HalpWakeupState[1] = FALSE;
 }
 
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HaliSetWakeAlarm(
@@ -490,6 +568,7 @@ HalpPowerStateCallback(
     ASSERT(FALSE); // HalpDbgBreakPointEx();
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HaliInitPowerManagement(
@@ -549,6 +628,7 @@ HaliInitPowerManagement(
 
 /* PM DISPATCH FUNCTIONS *****************************************************/
 
+CODE_SEG("PAGELK")
 NTSTATUS
 NTAPI
 HaliAcpiSleep(
@@ -563,6 +643,7 @@ HaliAcpiSleep(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 HaliAcpiMachineStateInit(
@@ -696,6 +777,7 @@ HaliAcpiMachineStateInit(
     KeFlushWriteBuffer();
 }
 
+CODE_SEG("PAGE")
 ULONG
 NTAPI
 HaliAcpiQueryFlags(VOID)
@@ -705,6 +787,7 @@ HaliAcpiQueryFlags(VOID)
     return 0;
 }
 
+CODE_SEG("PAGELK")
 UCHAR
 NTAPI
 HalpAcpiPicStateIntact(VOID)
@@ -714,6 +797,7 @@ HalpAcpiPicStateIntact(VOID)
     return 0;
 }
 
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HalpRestoreInterruptControllerState(VOID)
@@ -722,6 +806,7 @@ HalpRestoreInterruptControllerState(VOID)
     ASSERT(FALSE);// HalpDbgBreakPointEx();
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 HaliSetVectorState(
@@ -731,6 +816,7 @@ HaliSetVectorState(
     HalpSetVectorState(Vector, Par2);
 }
 
+CODE_SEG("PAGELK")
 ULONG
 NTAPI
 HalpGetApicVersion(
@@ -749,6 +835,7 @@ HaliSetMaxLegacyPciBusNumber(
     HalpMaxPciBus = max(HalpMaxPciBus, MaxLegacyPciBusNumber);
 }
 
+CODE_SEG("PAGE")
 BOOLEAN
 NTAPI
 HaliIsVectorValid(

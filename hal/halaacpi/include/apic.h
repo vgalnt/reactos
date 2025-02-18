@@ -340,7 +340,6 @@ ApicWrite(ULONG Offset, ULONG Value)
 }
 
 /* apic.c */
-//INIT_FUNCTION
 BOOLEAN
 NTAPI 
 DetectAcpiMP(
@@ -348,21 +347,18 @@ DetectAcpiMP(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalInitApicInterruptHandlers(
     VOID
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializeLocalUnit(
     VOID
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializePICs(
@@ -375,14 +371,12 @@ HalpInitializeApicAddressing(
     VOID
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI 
 HalpInitIntiInfo(
     VOID
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI 
 HalpInitializeIOUnits(
@@ -396,14 +390,12 @@ HalpGetApicInterruptDesc(
     _Out_ USHORT* OutIntI
 );
 
-//INIT_FUNCTION
 BOOLEAN
 NTAPI
 HalpPmTimerScaleTimers(
     VOID
 );
 
-//INIT_FUNCTION
 BOOLEAN
 FASTCALL
 HalpPmTimerSpecialStall(
@@ -471,8 +463,34 @@ HalpSetVectorState(
     _In_ ULONG Par2
 );
 
+ULONG
+NTAPI 
+HalpAllocateSystemInterruptVector(
+    _In_ USHORT IntI
+);
+
+ULONG
+NTAPI
+HalpGetSystemInterruptVector(
+    _In_ PBUS_HANDLER BusHandler,
+    _In_ PBUS_HANDLER RootHandler,
+    _In_ ULONG BusInterruptLevel,
+    _In_ ULONG BusInterruptVector,
+    _Out_ PKIRQL OutIrql,
+    _Out_ PKAFFINITY OutAffinity
+);
+
+NTSTATUS
+NTAPI 
+HalIrqTranslateResourceRequirementsRoot(
+    _Inout_opt_ PVOID Context,
+    _In_ PIO_RESOURCE_DESCRIPTOR InIoDesc,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PULONG OutIoDescCount,
+    _Out_ PIO_RESOURCE_DESCRIPTOR* OutIoDesc
+);
+
 /* apicacpi.c */
-//INIT_FUNCTION
 VOID
 NTAPI 
 HalpInitMpInfo(

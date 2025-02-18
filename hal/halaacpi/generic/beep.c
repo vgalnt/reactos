@@ -2,9 +2,10 @@
 /* INCLUDES ******************************************************************/
 
 #include <hal.h>
+#include "timer.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "timer.h"
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 

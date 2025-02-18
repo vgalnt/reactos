@@ -2,24 +2,12 @@
 /* INCLUDES ******************************************************************/
 
 #include <hal.h>
-
-#define NDEBUG
-#include <debug.h>
-
 #include "apic.h"
 #include "apicacpi.h"
 #include "ioapic.h"
 
-#ifdef ALLOC_PRAGMA
-  #pragma alloc_text(INIT, DetectAcpiMP)
-  #pragma alloc_text(INIT, HalInitApicInterruptHandlers)
-  #pragma alloc_text(INIT, HalpInitializeLocalUnit)
-  #pragma alloc_text(INIT, HalpInitializePICs)
-  #pragma alloc_text(INIT, HalpInitIntiInfo)
-  #pragma alloc_text(INIT, HalpInitializeIOUnits)
-  #pragma alloc_text(INIT, HalpPmTimerScaleTimers)
-  #pragma alloc_text(INIT, HalpPmTimerSpecialStall)
-#endif
+#define NDEBUG
+#include <debug.h>
 
 #define SUPPORTED_NODES      0x20
 #define PRIORITY_LEVEL_BASE  5
@@ -171,6 +159,20 @@ extern BUS_HANDLER HalpFakePciBusHandler;
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(PAGELK, HalpInitializePICs)
+  #pragma alloc_text(PAGELK, HalpGetApicInterruptDesc)
+  #pragma alloc_text(INIT, HalpInitIntiInfo)
+  #pragma alloc_text(PAGELK, HalpInitializeIOUnits)
+  #pragma alloc_text(INIT, HalpPmTimerSpecialStall)
+  #pragma alloc_text(INIT, HalpPmTimerScaleTimers)
+  #pragma alloc_text(PAGELK, HalpAllocateSystemInterruptVector)
+  #pragma alloc_text(PAGELK, HalpGetSystemInterruptVector)
+  #pragma alloc_text(PAGE, HalIrqTranslateResourceRequirementsRoot)
+  #pragma alloc_text(PAGELK, HalpInitializeLocalUnit)
+  #pragma alloc_text(INIT, DetectAcpiMP)
+#endif
+
 UCHAR
 NTAPI
 HalpMapNtToHwProcessorId(
@@ -279,7 +281,7 @@ HalpBuildIpiDestinationMap(
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HalpInitializePICs(
@@ -305,6 +307,7 @@ HalpInitializePICs(
     __writeeflags(EFlags);
 }
 
+CODE_SEG("PAGELK")
 BOOLEAN
 NTAPI 
 HalpGetApicInterruptDesc(
@@ -339,7 +342,7 @@ HalpGetApicInterruptDesc(
     return FALSE;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI 
 HalpInitIntiInfo(VOID)
@@ -437,7 +440,7 @@ HalpInitIntiInfo(VOID)
     ASSERT(Inti < MAX_INTI);
 }
 
-//INIT_FUNCTION
+CODE_SEG("PAGELK")
 VOID
 NTAPI 
 HalpInitializeIOUnits(VOID)
@@ -500,7 +503,7 @@ HalpInitializeIOUnits(VOID)
 
 /* PM TIMER FUNCTIONS *********************************************************/
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 FASTCALL
 HalpPmTimerSpecialStall(
@@ -537,7 +540,7 @@ HalpPmTimerSpecialStall(
 
 #define HALP_SPECIAL_STALL_VALUE  0x6D3D3
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 HalpPmTimerScaleTimers(VOID)
@@ -1526,6 +1529,7 @@ HalpSetVectorState(
 
 /* FUNCTIONS *****************************************************************/
 
+CODE_SEG("PAGELK")
 ULONG
 NTAPI 
 HalpAllocateSystemInterruptVector(
@@ -1608,6 +1612,7 @@ HalpAllocateSystemInterruptVector(
     return SystemVector;
 }
 
+CODE_SEG("PAGELK")
 ULONG
 NTAPI
 HalpGetSystemInterruptVector(
@@ -1694,6 +1699,7 @@ HalpGetSystemInterruptVector(
     return SystemVector;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI 
 HalIrqTranslateResourceRequirementsRoot(
@@ -1849,7 +1855,7 @@ HalIrqTranslateResourcesRoot(
     return STATUS_SUCCESS;
 }
 
-//INIT_FUNCTION
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HalpInitializeLocalUnit(VOID)
@@ -1951,7 +1957,6 @@ HalpInitializeLocalUnit(VOID)
         _enable();
 }
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalInitApicInterruptHandlers(VOID)
@@ -1973,7 +1978,7 @@ HalInitApicInterruptHandlers(VOID)
     Idt[0x1F].ExtendedOffset = (PtrToUlong(ApicSpuriousService) >> 16);
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI 
 DetectAcpiMP(

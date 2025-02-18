@@ -39,6 +39,11 @@ HAL_AMLI_BAD_IO_ADDRESS_LIST HalALMIBadIOAddressList[] =
 
 /* FUNCTIONS ******************************************************************/
 
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(PAGE, HaliQuerySystemInformation)
+  #pragma alloc_text(PAGE, HaliSetSystemInformation)
+#endif
+
 NTSTATUS
 NTAPI
 HaliHandlePCIConfigSpaceAccess(
@@ -52,6 +57,7 @@ HaliHandlePCIConfigSpaceAccess(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HaliQuerySystemInformation(
@@ -116,6 +122,7 @@ HaliQuerySystemInformation(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HaliSetSystemInformation(

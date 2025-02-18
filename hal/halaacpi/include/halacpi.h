@@ -188,7 +188,6 @@ HalpAcpiGetTable(
     IN ULONG Signature
 );
 
-//INIT_FUNCTION
 PVOID
 NTAPI
 HalAcpiGetTable(
@@ -196,21 +195,18 @@ HalAcpiGetTable(
     IN ULONG Signature
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpCheckPowerButton(
     VOID
 );
 
-//INIT_FUNCTION
 NTSTATUS
 NTAPI
 HalpSetupAcpiPhase0(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpAcpiDetectMachineSpecificActions(
@@ -218,7 +214,6 @@ HalpAcpiDetectMachineSpecificActions(
     _In_ PFADT DescriptionTable
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializeCmos(
@@ -329,14 +324,12 @@ HalpFindBusAddressTranslation(
     _In_ BOOLEAN NextBus
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetNMICrashFlag(
     VOID
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitializePciBus(
@@ -355,7 +348,6 @@ HalpIs16BitPortDecodeSupported(
     VOID
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalReportResourceUsage(
@@ -408,6 +400,75 @@ VOID
 NTAPI
 HalTranslatorDereference(
     IN PVOID Context
+);
+
+NTSTATUS
+NTAPI
+HalpAcpiFindRsdtPhase0(
+    IN PLOADER_PARAMETER_BLOCK LoaderBlock,
+    OUT PACPI_BIOS_MULTI_NODE* AcpiMultiNode
+);
+
+PVOID
+NTAPI
+HalpAcpiCopyBiosTable(
+    IN PLOADER_PARAMETER_BLOCK LoaderBlock,
+    IN PDESCRIPTION_HEADER TableHeader
+);
+
+VOID
+NTAPI
+HalpAcpiCacheTable(
+    IN PDESCRIPTION_HEADER TableHeader
+);
+
+PDESCRIPTION_HEADER
+NTAPI
+HalpAcpiGetCachedTable(
+    IN ULONG Signature
+);
+
+PVOID
+NTAPI
+HalpAcpiGetTableFromBios(
+    IN PLOADER_PARAMETER_BLOCK LoaderBlock,
+    IN ULONG Signature
+);
+
+NTSTATUS
+NTAPI
+HalpAcpiTableCacheInit(
+    IN PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+VOID
+NTAPI
+HalpNumaInitializeStaticConfiguration(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+VOID
+NTAPI
+HalpEndOfBoot(
+    VOID
+);
+
+VOID
+NTAPI
+HalpInitBootTable(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+VOID
+NTAPI
+HalpAcpiDetectResourceListSize(
+    _Out_ PULONG ListSize
+);
+
+NTSTATUS
+NTAPI
+HalpBuildAcpiResourceList(
+    _In_ PIO_RESOURCE_REQUIREMENTS_LIST ResourceList
 );
 
 /* EOF */

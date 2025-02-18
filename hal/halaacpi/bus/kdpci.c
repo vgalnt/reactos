@@ -31,10 +31,50 @@ ULONG (*DPRINT0)(_In_ _Printf_format_string_ PCSTR Format, ...);
 PCI_TYPE1_CFG_CYCLE_BITS HalpPciDebuggingDevice[2] = {{{0}}};
 
 /* FUNCTIONS ******************************************************************/
+static
+ULONG
+HalpPciBarLength(
+    _In_ ULONG CurrentBar,
+    _In_ ULONG NextBar
+);
+
+static
+BOOLEAN
+HalpConfigureDebuggingDevice(
+    _In_ PDEBUG_DEVICE_DESCRIPTOR PciDevice,
+    _In_ ULONG PciBus,
+    _In_ PCI_SLOT_NUMBER PciSlot,
+    _Inout_ PPCI_COMMON_HEADER PciConfig
+);
+
+static
+BOOLEAN
+HalpMatchDebuggingDevice(
+    _In_ PDEBUG_DEVICE_DESCRIPTOR PciDevice,
+    _In_ ULONG PciBus,
+    _In_ PCI_SLOT_NUMBER PciSlot,
+    _In_ PPCI_COMMON_HEADER PciConfig
+);
+
+static
+BOOLEAN
+HalpFindMatchingDebuggingDevice(
+    _In_ PDEBUG_DEVICE_DESCRIPTOR PciDevice
+);
+
+#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
+  #pragma alloc_text(PAGEKD, HalpPciBarLength)
+  #pragma alloc_text(PAGEKD, HalpConfigureDebuggingDevice)
+  #pragma alloc_text(PAGEKD, HalpMatchDebuggingDevice)
+  #pragma alloc_text(PAGEKD, HalpFindMatchingDebuggingDevice)
+  #pragma alloc_text(INIT, HalpRegisterPciDebuggingDeviceInfo)
+  #pragma alloc_text(PAGEKD, HalpReleasePciDeviceForDebugging)
+  #pragma alloc_text(PAGEKD, HalpSetupPciDeviceForDebugging)
+#endif
 
 //#ifndef _MINIHAL_
 
-CODE_SEG("INIT")
+CODE_SEG("PAGEKD")
 static
 ULONG
 HalpPciBarLength(
@@ -68,7 +108,7 @@ HalpPciBarLength(
     return Length;
 }
 
-CODE_SEG("INIT")
+CODE_SEG("PAGEKD")
 static
 BOOLEAN
 HalpConfigureDebuggingDevice(
@@ -194,7 +234,7 @@ HalpConfigureDebuggingDevice(
     return TRUE;
 }
 
-CODE_SEG("INIT")
+CODE_SEG("PAGEKD")
 static
 BOOLEAN
 HalpMatchDebuggingDevice(
@@ -233,7 +273,7 @@ HalpMatchDebuggingDevice(
     return FALSE;
 }
 
-CODE_SEG("INIT")
+CODE_SEG("PAGEKD")
 static
 BOOLEAN
 HalpFindMatchingDebuggingDevice(
@@ -417,7 +457,7 @@ HalpRegisterPciDebuggingDeviceInfo(VOID)
  *
  * @return STATUS_SUCCESS.
  */
-CODE_SEG("INIT")
+CODE_SEG("PAGEKD")
 NTSTATUS
 NTAPI
 HalpReleasePciDeviceForDebugging(
@@ -479,7 +519,7 @@ HalpReleasePciDeviceForDebugging(
  *
  * @sa HalpReleasePciDeviceForDebugging
  */
-CODE_SEG("INIT")
+CODE_SEG("PAGEKD")
 NTSTATUS
 NTAPI
 HalpSetupPciDeviceForDebugging(

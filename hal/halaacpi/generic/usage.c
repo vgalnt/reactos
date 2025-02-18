@@ -5,11 +5,6 @@
 //#define NDEBUG
 #include <debug.h>
 
-#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
-  #pragma alloc_text(INIT, HalpRegisterVector)
-  #pragma alloc_text(INIT, HalpReportResourceUsage)
-#endif
-
 /* GLOBALS ********************************************************************/
 
 PUCHAR KdComPortInUse;
@@ -41,7 +36,58 @@ extern KAFFINITY HalpActiveProcessors;
 
 /* FUNCTIONS ******************************************************************/
 
-//INIT_FUNCTION
+VOID
+NTAPI
+HalpGetResourceSortValue(
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor,
+    _Out_ PULONG Scale,
+    _Out_ PLARGE_INTEGER Value
+);
+
+VOID
+NTAPI
+HalpGetResourceSortValue(
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Descriptor,
+    _Out_ PULONG Scale,
+    _Out_ PLARGE_INTEGER Value
+);
+
+VOID
+NTAPI
+HalpBuildPartialFromIdt(
+    _In_ ULONG Entry,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR RawDescriptor,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR TranslatedDescriptor
+);
+
+VOID
+NTAPI
+HalpBuildPartialFromAddress(
+    _In_ INTERFACE_TYPE Interface,
+    _In_ PADDRESS_USAGE CurrentAddress,
+    _In_ ULONG Element,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR RawDescriptor,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR TranslatedDescriptor
+);
+
+VOID
+NTAPI
+HalpAddDescriptors(
+    _In_ PCM_PARTIAL_RESOURCE_LIST List,
+    _In_ OUT PCM_PARTIAL_RESOURCE_DESCRIPTOR* Descriptor,
+    _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR NewDescriptor
+);
+
+#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
+  #pragma alloc_text(INIT, HalpRegisterVector)
+  #pragma alloc_text(INIT, HalpGetResourceSortValue)
+  #pragma alloc_text(INIT, HalpBuildPartialFromIdt)
+  #pragma alloc_text(INIT, HalpBuildPartialFromAddress)
+  #pragma alloc_text(INIT, HalpAddDescriptors)
+  #pragma alloc_text(INIT, HalpReportResourceUsage)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpRegisterVector(
@@ -60,6 +106,7 @@ HalpRegisterVector(
     HalpIDTUsage[SystemVector].BusReleativeVector = (UCHAR)BusVector;
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpGetResourceSortValue(
@@ -92,6 +139,7 @@ HalpGetResourceSortValue(
     }
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpBuildPartialFromIdt(
@@ -126,6 +174,7 @@ HalpBuildPartialFromIdt(
     TranslatedDescriptor->u.Interrupt.Level = HalpIDTUsage[Entry].Irql;
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpBuildPartialFromAddress(
@@ -198,6 +247,7 @@ HalpBuildPartialFromAddress(
     }
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpAddDescriptors(
@@ -215,7 +265,7 @@ HalpAddDescriptors(
     (*Descriptor)++;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpReportResourceUsage(

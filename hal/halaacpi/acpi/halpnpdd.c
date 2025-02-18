@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
+#include "apic.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "apic.h"
 
 /* INCLUDES *******************************************************************/
 
@@ -47,6 +48,118 @@ PWCHAR HalHardwareIdString = L"acpiapic_up";
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
+NTSTATUS
+NTAPI
+HalpAddDevice(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PDEVICE_OBJECT TargetDevice
+);
+
+NTSTATUS
+NTAPI
+HalpQueryDeviceRelations(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ DEVICE_RELATION_TYPE RelationType,
+    _Out_ PDEVICE_RELATIONS* DeviceRelations
+);
+
+VOID NTAPI HalTranslatorDereference(_In_ PVOID Context);
+
+NTSTATUS
+NTAPI
+HalpQueryInterface(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ CONST GUID* InterfaceType,
+    _In_ ULONG InterfaceBufferSize,
+    _In_ PVOID InterfaceSpecificData,
+    _In_ USHORT Version,
+    _In_ PINTERFACE Interface,
+    _Out_ PULONG_PTR OutInformation
+);
+
+NTSTATUS
+NTAPI
+HalpQueryIdFdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ BUS_QUERY_ID_TYPE IdType,
+    _Out_ PUSHORT* BusQueryId
+);
+
+NTSTATUS
+NTAPI
+HalpQueryCapabilities(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PDEVICE_CAPABILITIES Capabilities
+);
+
+NTSTATUS
+NTAPI
+HalpQueryResources(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PCM_RESOURCE_LIST* Resources
+);
+
+NTSTATUS
+NTAPI
+HalpQueryResourceRequirements(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _Out_ PIO_RESOURCE_REQUIREMENTS_LIST* Requirements
+);
+
+NTSTATUS
+NTAPI
+HalpQueryIdPdo(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ BUS_QUERY_ID_TYPE IdType,
+    _Out_ PUSHORT* BusQueryId
+);
+
+NTSTATUS
+NTAPI
+HalpDispatchPnp(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp
+);
+
+NTSTATUS
+NTAPI
+HalpDispatchWmi(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp
+);
+
+NTSTATUS
+NTAPI
+HalpDispatchPower(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp
+);
+
+NTSTATUS
+NTAPI
+HalpDriverEntry(
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PUNICODE_STRING RegistryPath
+);
+
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(PAGE, HalpAddDevice)
+  #pragma alloc_text(PAGE, HalpQueryDeviceRelations)
+  #pragma alloc_text(PAGE, HalTranslatorDereference)
+  #pragma alloc_text(PAGE, HalpQueryInterface)
+  #pragma alloc_text(PAGE, HalpQueryIdFdo)
+  #pragma alloc_text(PAGE, HalpQueryCapabilities)
+  #pragma alloc_text(PAGE, HalpQueryResources)
+  #pragma alloc_text(PAGE, HalpQueryResourceRequirements)
+  #pragma alloc_text(PAGE, HalpQueryIdPdo)
+  #pragma alloc_text(PAGE, HalpDispatchPnp)
+  #pragma alloc_text(PAGE, HalpDispatchWmi)
+  #pragma alloc_text(PAGELK, HalpDispatchPower)
+  #pragma alloc_text(PAGE, HalpDriverEntry)
+  #pragma alloc_text(PAGE, HaliInitPnpDriver)
+#endif
+
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpAddDevice(
@@ -206,6 +319,7 @@ HalpPassIrpFromFdoToPdo(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpQueryDeviceRelations(
@@ -326,6 +440,7 @@ HalpQueryDeviceRelations(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 HalTranslatorDereference(
@@ -334,6 +449,7 @@ HalTranslatorDereference(
     ;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpQueryInterface(
@@ -390,6 +506,7 @@ HalpQueryInterface(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpQueryIdFdo(
@@ -449,6 +566,7 @@ HalpQueryIdFdo(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpQueryCapabilities(
@@ -499,6 +617,7 @@ HalpQueryCapabilities(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpQueryResources(
@@ -598,6 +717,7 @@ HalpQueryResources(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpQueryResourceRequirements(
@@ -627,6 +747,7 @@ HalpQueryResourceRequirements(
     return STATUS_NOT_SUPPORTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpQueryIdPdo(
@@ -727,6 +848,7 @@ HalpQueryIdPdo(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpDispatchPnp(
@@ -939,6 +1061,7 @@ Exit:
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpDispatchWmi(
@@ -950,6 +1073,7 @@ HalpDispatchWmi(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGELK")
 NTSTATUS
 NTAPI
 HalpDispatchPower(
@@ -961,6 +1085,7 @@ HalpDispatchPower(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpDriverEntry(
@@ -1012,6 +1137,7 @@ HalpDriverEntry(
 
 /* FUNCTIONS ******************************************************************/
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HaliInitPnpDriver(VOID)

@@ -2,12 +2,18 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
+#include "pic.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "pic.h"
 
 /* FUNCTIONS ******************************************************************/
 
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(PAGELK, HalpInitializeLegacyPICs)
+#endif
+
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HalpInitializeLegacyPICs(

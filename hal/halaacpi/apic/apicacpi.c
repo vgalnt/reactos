@@ -2,18 +2,12 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
-#define NDEBUG
-#include <debug.h>
-
 #include "apic.h"
 #include "apicacpi.h"
 #include "ioapic.h"
 
-#ifdef ALLOC_PRAGMA
-  #pragma alloc_text(INIT, HalpInitMpInfo)
-  #pragma alloc_text(INIT, HalpVerifyIOUnit)
-  #pragma alloc_text(INIT, HalpMarkProcessorStarted)
-#endif
+#define NDEBUG
+#include <debug.h>
 
 /* DATA ***********************************************************************/
 
@@ -37,7 +31,11 @@ extern ULONG HalpPicVectorFlags[HAL_PIC_VECTORS];
 
 /* FUNCTIONS ******************************************************************/
 
-//INIT_FUNCTION
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(PAGELK, HalpVerifyIOUnit)
+  #pragma alloc_text(PAGELK, HalpInitMpInfo)
+#endif
+
 VOID
 NTAPI
 HalpMarkProcessorStarted(
@@ -61,7 +59,7 @@ HalpMarkProcessorStarted(
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("PAGELK")
 BOOLEAN
 NTAPI 
 HalpVerifyIOUnit(
@@ -91,7 +89,7 @@ HalpVerifyIOUnit(
     return TRUE;
 }
 
-//INIT_FUNCTION
+CODE_SEG("PAGELK")
 VOID
 NTAPI 
 HalpInitMpInfo(

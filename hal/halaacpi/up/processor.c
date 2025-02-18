@@ -13,6 +13,12 @@
 
 /* FUNCTIONS *****************************************************************/
 
+#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
+  BOOLEAN NTAPI HalAllProcessorsStarted(VOID);
+  #pragma alloc_text(INIT, HalAllProcessorsStarted)
+#endif
+
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 HalAllProcessorsStarted(VOID)

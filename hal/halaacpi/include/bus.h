@@ -316,7 +316,6 @@ HalpAssignPCISlotResources(
     IN OUT PCM_RESOURCE_LIST *pAllocatedResources
 );
 
-CODE_SEG("INIT")
 ULONG
 HalpPhase0GetPciDataByOffset(
     _In_ ULONG Bus,
@@ -326,7 +325,6 @@ HalpPhase0GetPciDataByOffset(
     _In_ ULONG Length
 );
 
-CODE_SEG("INIT")
 ULONG
 HalpPhase0SetPciDataByOffset(
     _In_ ULONG Bus,
@@ -336,7 +334,6 @@ HalpPhase0SetPciDataByOffset(
     _In_ ULONG Length
 );
 
-CODE_SEG("INIT")
 VOID
 NTAPI
 HalpRegisterPciDebuggingDeviceInfo(

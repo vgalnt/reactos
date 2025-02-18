@@ -1,8 +1,9 @@
 
 #include <hal.h>
+#include <ndk/inbvfuncs.h>
+
 //#define NDEBUG
 #include <debug.h>
-#include <ndk/inbvfuncs.h>
 
 /* PUBLIC FUNCTIONS **********************************************************/
 

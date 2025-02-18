@@ -125,15 +125,27 @@ HalpAllocateMapRegisters(
     _In_ PMAP_REGISTER_ENTRY Registers
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpInitDma(
     VOID
 );
 
+BOOLEAN
+NTAPI
+HalpGrowMapBuffers(
+    _In_ PADAPTER_OBJECT AdapterObject,
+    _In_ ULONG SizeOfMapBuffers
+);
+
+BOOLEAN
+NTAPI
+HalpDmaInitializeEisaAdapter(
+    _In_ PADAPTER_OBJECT AdapterObject,
+    _In_ PDEVICE_DESCRIPTION DeviceDescriptor
+);
+
 /* halinit.c */
-//INIT_FUNCTION
 VOID
 NTAPI
 HalInitializeProcessor(
@@ -141,7 +153,6 @@ HalInitializeProcessor(
     IN PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-//INIT_FUNCTION
 BOOLEAN
 NTAPI
 HalInitSystem(
@@ -149,11 +160,16 @@ HalInitSystem(
     IN PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpGetParameters(
     _In_ PCHAR CommandLine
+);
+
+VOID
+NTAPI
+HalpInitNonBusHandler(
+    VOID
 );
 
 /* halpnpdd.c */
@@ -163,8 +179,21 @@ HaliInitPnpDriver(
     VOID
 );
 
+/* kdpci.c */
+NTSTATUS
+NTAPI
+HalpSetupPciDeviceForDebugging(
+    _In_ PVOID LoaderBlock,
+    _Inout_ OUT PDEBUG_DEVICE_DESCRIPTOR PciDevice
+);
+
+NTSTATUS
+NTAPI
+HalpReleasePciDeviceForDebugging(
+    _Inout_ PDEBUG_DEVICE_DESCRIPTOR PciDevice
+);
+
 /* memory.c */
-//INIT_FUNCTION
 ULONG_PTR
 NTAPI
 HalpAllocPhysicalMemory(
@@ -240,21 +269,6 @@ HalpInitializeLegacyPICs(
 );
 
 /* pcibus.c */
-CODE_SEG("INIT")
-NTSTATUS
-NTAPI
-HalpSetupPciDeviceForDebugging(
-    _In_ PVOID LoaderBlock,
-    _Inout_ OUT PDEBUG_DEVICE_DESCRIPTOR PciDevice
-);
-
-CODE_SEG("INIT")
-NTSTATUS
-NTAPI
-HalpReleasePciDeviceForDebugging(
-    _Inout_ PDEBUG_DEVICE_DESCRIPTOR PciDevice
-);
-
 ULONG
 NTAPI
 HaliPciInterfaceReadConfig(
@@ -315,7 +329,6 @@ HaliSetSystemInformation(
 );
 
 /* usage.c */
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpRegisterVector(
@@ -325,7 +338,6 @@ HalpRegisterVector(
     _In_ KIRQL Irql
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpReportResourceUsage(

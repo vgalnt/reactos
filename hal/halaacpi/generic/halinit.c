@@ -2,16 +2,11 @@
 /* INCLUDES ******************************************************************/
 
 #include <hal.h>
-//#define NDEBUG
-#include <debug.h>
 #include "apic.h"
 #include "pic.h"
 
-#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
-  #pragma alloc_text(INIT, HalInitializeProcessor)
-  #pragma alloc_text(INIT, HalInitSystem)
-  #pragma alloc_text(INIT, HalpGetParameters)
-#endif
+//#define NDEBUG
+#include <debug.h>
 
 /* GLOBALS *******************************************************************/
 
@@ -90,7 +85,14 @@ extern HALP_DMA_MASTER_ADAPTER MasterAdapter32;
 
 /* PRIVATE FUNCTIONS *********************************************************/
 
-//INIT_FUNCTION
+#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
+  #pragma alloc_text(INIT, HalpGetParameters)
+  #pragma alloc_text(INIT, HalpInitNonBusHandler)
+  #pragma alloc_text(INIT, HalInitSystem)
+  //#pragma alloc_text(INIT, HalpScaleTimers)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpGetParameters(
@@ -149,7 +151,6 @@ HalpGetParameters(
 
 /* FUNCTIONS *****************************************************************/
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalInitializeProcessor(
@@ -229,6 +230,7 @@ HalInitializeProcessor(
     HalpInitializeLocalUnit();
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpInitNonBusHandler(VOID)
@@ -241,7 +243,7 @@ HalpInitNonBusHandler(VOID)
     HalFindBusAddressTranslation = HalpFindBusAddressTranslation;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 HalInitSystem(IN ULONG BootPhase,

@@ -5,10 +5,6 @@
 #define NDEBUG
 #include <debug.h>
 
-#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
-  #pragma alloc_text(INIT, HalpInitDma)
-#endif
-
 /* GLOBALS *******************************************************************/
 
 HALP_DMA_MASTER_ADAPTER MasterAdapter24;
@@ -59,6 +55,15 @@ extern BOOLEAN LessThan16Mb;
 
 /* FUNCTIONS *****************************************************************/
 
+#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
+  #pragma alloc_text(PAGELK, HalpGrowMapBuffers)
+  #pragma alloc_text(PAGE, HalpAllocateMapRegisters)
+  #pragma alloc_text(PAGE, HaliLocateHiberRanges)
+  #pragma alloc_text(INIT, HalpInitDma)
+  #pragma alloc_text(PAGE, HalpDmaInitializeEisaAdapter)
+  #pragma alloc_text(PAGE, HalGetAdapter)
+#endif
+
 /* HalpGetAdapterMaximumPhysicalAddress
       Get the maximum physical address acceptable by the device represented by the passed DMA adapter.
 */
@@ -93,6 +98,7 @@ HalpGetAdapterMaximumPhysicalAddress(
    SizeOfMapBuffers
      Size of the map buffers to allocate (not including the size already allocated).
 */
+CODE_SEG("PAGELK")
 BOOLEAN
 NTAPI
 HalpGrowMapBuffers(
@@ -227,6 +233,7 @@ HaliGetDmaAdapter(
     return &HalGetAdapter(DeviceDescriptor, NumberOfMapRegisters)->DmaHeader;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpAllocateMapRegisters(
@@ -240,6 +247,7 @@ HalpAllocateMapRegisters(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 HaliLocateHiberRanges(
@@ -249,7 +257,7 @@ HaliLocateHiberRanges(
     ASSERT(FALSE); // HalpDbgBreakPointEx();
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpInitDma(VOID)
@@ -1653,6 +1661,7 @@ HalBuildMdlFromScatterGatherList(
 /* HalpDmaInitializeEisaAdapter
        Setup DMA modes and extended modes for (E)ISA DMA adapter object.
 */
+CODE_SEG("PAGE")
 BOOLEAN
 NTAPI
 HalpDmaInitializeEisaAdapter(
@@ -1992,6 +2001,7 @@ HalAllocateAdapterChannel(
    return:
       The DMA adapter on success, NULL otherwise.
 */
+CODE_SEG("PAGE")
 PADAPTER_OBJECT
 NTAPI
 HalGetAdapter(

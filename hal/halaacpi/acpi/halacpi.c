@@ -2,20 +2,11 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
-#define NDEBUG
-#include <debug.h>
 #include "apic.h"
 #include "apicacpi.h"
 
-#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
-  #pragma alloc_text(INIT, HalAcpiGetTable)
-  #pragma alloc_text(INIT, HalpSetupAcpiPhase0)
-  #pragma alloc_text(INIT, HalpAcpiDetectMachineSpecificActions)
-  #pragma alloc_text(INIT, HalpInitializeCmos)
-  #pragma alloc_text(INIT, HalpGetNMICrashFlag)
-  #pragma alloc_text(INIT, HalpInitializePciBus)
-  #pragma alloc_text(INIT, HalReportResourceUsage)
-#endif
+#define NDEBUG
+#include <debug.h>
 
 /* GLOBALS ********************************************************************/
 
@@ -54,7 +45,32 @@ extern ULONG HalpBusType;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
-//INIT_FUNCTION
+#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
+  #pragma alloc_text(INIT, HalpInitializeCmos)
+  #pragma alloc_text(INIT, HalpAcpiFindRsdtPhase0)
+  #pragma alloc_text(PAGELK, HalpAcpiCopyBiosTable)
+  #pragma alloc_text(PAGELK, HalpAcpiCacheTable)
+  #pragma alloc_text(PAGELK, HalpAcpiGetCachedTable)
+  #pragma alloc_text(PAGELK, HalpAcpiGetTableFromBios)
+  #pragma alloc_text(PAGELK, HalpAcpiGetTable)
+  #pragma alloc_text(INIT, HalpAcpiTableCacheInit)
+  #pragma alloc_text(INIT, HalpAcpiDetectMachineSpecificActions)
+  #pragma alloc_text(INIT, HalpNumaInitializeStaticConfiguration)
+  #pragma alloc_text(PAGE, HalpEndOfBoot)
+  #pragma alloc_text(INIT, HalpInitBootTable)
+  #pragma alloc_text(PAGE, HaliAcpiTimerInit)
+  #pragma alloc_text(INIT, HalpSetupAcpiPhase0)
+  #pragma alloc_text(INIT, HalpGetNMICrashFlag)
+  #pragma alloc_text(INIT, HalpInitializePciBus)
+  #pragma alloc_text(INIT, HalpGetDebugPortTable)
+  #pragma alloc_text(INIT, HalpIs16BitPortDecodeSupported)
+  #pragma alloc_text(PAGE, HalpAcpiDetectResourceListSize)
+  #pragma alloc_text(PAGE, HalpBuildAcpiResourceList)
+  #pragma alloc_text(PAGE, HalpQueryAcpiResourceRequirements)
+  #pragma alloc_text(INIT, HalReportResourceUsage)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpInitializeCmos(VOID)
@@ -70,6 +86,7 @@ HalpInitializeCmos(VOID)
     }
 }
 
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 HalpAcpiFindRsdtPhase0(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
@@ -161,6 +178,7 @@ HalpAcpiFindRsdtPhase0(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGELK")
 PVOID
 NTAPI
 HalpAcpiCopyBiosTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
@@ -215,6 +233,7 @@ HalpAcpiCopyBiosTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
     return CopiedTable;
 }
 
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HalpAcpiCacheTable(IN PDESCRIPTION_HEADER TableHeader)
@@ -226,6 +245,7 @@ HalpAcpiCacheTable(IN PDESCRIPTION_HEADER TableHeader)
     InsertTailList(&HalpAcpiTableCacheList, &CachedTable->Links);
 }
 
+CODE_SEG("PAGELK")
 PDESCRIPTION_HEADER
 NTAPI
 HalpAcpiGetCachedTable(IN ULONG Signature)
@@ -256,6 +276,7 @@ HalpAcpiGetCachedTable(IN ULONG Signature)
     return NULL;
 }
 
+CODE_SEG("PAGELK")
 PVOID
 NTAPI
 HalpAcpiGetTableFromBios(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
@@ -488,6 +509,7 @@ HalpAcpiGetTableFromBios(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
     return Header;
 }
 
+CODE_SEG("PAGELK")
 PVOID
 NTAPI
 HalpAcpiGetTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
@@ -529,6 +551,7 @@ HalpAcpiGetTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
     return TableAddress;
 }
 
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 HalpAcpiTableCacheInit(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
@@ -658,7 +681,6 @@ HalpAcpiTableCacheInit(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     return Status;
 }
 
-//INIT_FUNCTION
 PVOID
 NTAPI
 HalAcpiGetTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
@@ -697,7 +719,6 @@ HalAcpiGetTable(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
     return TableHeader;
 }
 
-//INIT_FUNCTION
 VOID
 NTAPI
 HalpCheckPowerButton(VOID)
@@ -706,7 +727,7 @@ HalpCheckPowerButton(VOID)
     ASSERT(FALSE); // HalpDbgBreakPointEx();
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpAcpiDetectMachineSpecificActions(
@@ -723,6 +744,7 @@ HalpAcpiDetectMachineSpecificActions(
     }
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpNumaInitializeStaticConfiguration(
@@ -768,6 +790,7 @@ HalpDynamicSystemResourceConfiguration(
     HalpGetHotPlugMemoryInfo(LoaderBlock);
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 HalpEndOfBoot(VOID)
@@ -776,6 +799,7 @@ HalpEndOfBoot(VOID)
     //ASSERT(0);// HalpDbgBreakPointEx();
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpInitBootTable(
@@ -830,6 +854,7 @@ HalaAcpiTimerInit(
     DbgBreakPoint();
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 HaliAcpiTimerInit(
@@ -889,7 +914,7 @@ HalpAcpiApplyFadtSettings(
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 HalpSetupAcpiPhase0(
@@ -1047,7 +1072,7 @@ HaliHaltSystem(VOID)
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpGetNMICrashFlag(VOID)
@@ -1097,7 +1122,7 @@ HalpGetNMICrashFlag(VOID)
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpInitializePciBus(VOID)
@@ -1111,6 +1136,7 @@ HalpInitializePciBus(VOID)
     HalpGetNMICrashFlag();
 }
 
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 HalpGetDebugPortTable(VOID)
@@ -1122,6 +1148,7 @@ HalpGetDebugPortTable(VOID)
     return (HalpDebugPortTable->BaseAddress.AddressSpaceID == 1);
 }
 
+CODE_SEG("INIT")
 ULONG
 NTAPI
 HalpIs16BitPortDecodeSupported(VOID)
@@ -1168,6 +1195,7 @@ Finish:
     WRITE_PORT_UCHAR((PUCHAR)0x64, 0xFE);
 };
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 HalpAcpiDetectResourceListSize(
@@ -1186,6 +1214,7 @@ HalpAcpiDetectResourceListSize(
     }
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpBuildAcpiResourceList(
@@ -1229,6 +1258,7 @@ HalpBuildAcpiResourceList(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpQueryAcpiResourceRequirements(
@@ -1290,7 +1320,7 @@ HalpQueryAcpiResourceRequirements(
 
 /* PUBLIC FUNCTIONS **********************************************************/
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalReportResourceUsage(VOID)

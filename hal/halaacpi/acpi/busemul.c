@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
+#include "apic.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "apic.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -17,6 +18,83 @@ extern FADT HalpFixedAcpiDescTable;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
+NTSTATUS
+NTAPI
+TranslateGlobalVectorToIsaVector(
+    _In_ ULONG GlobalVector,
+    _Out_ PULONG IsaVector
+);
+
+NTSTATUS
+NTAPI 
+HalacpiIrqTranslateResourcesIsa(
+     _Inout_opt_ PVOID Context,
+     _In_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Source,
+     _In_ RESOURCE_TRANSLATION_DIRECTION Direction,
+     _In_opt_ ULONG AlternativesCount,
+     _In_opt_ IO_RESOURCE_DESCRIPTOR Alternatives[],
+     _In_ PDEVICE_OBJECT PhysicalDeviceObject,
+     _Out_ PCM_PARTIAL_RESOURCE_DESCRIPTOR Target
+);
+
+NTSTATUS
+NTAPI 
+HalacpiIrqTranslateResourceRequirementsIsa(
+    _Inout_opt_ PVOID Context,
+    _In_ PIO_RESOURCE_DESCRIPTOR Source,
+    _In_ PDEVICE_OBJECT PhysicalDeviceObject,
+    _Out_ PULONG TargetCount,
+    _Out_ PIO_RESOURCE_DESCRIPTOR* Target
+);
+
+NTSTATUS
+NTAPI
+HalacpiGetInterruptTranslator(
+    _In_ INTERFACE_TYPE ParentInterfaceType,
+    _In_ ULONG ParentBusNumber,
+    _In_ INTERFACE_TYPE BridgeInterfaceType,
+    _In_ USHORT Size,
+    _In_ USHORT Version,
+    _Out_ PTRANSLATOR_INTERFACE Translator,
+    _Out_ PULONG BridgeBusNumber
+);
+
+NTSTATUS
+NTAPI
+HalpAssignSlotResources(
+    _In_ PUNICODE_STRING RegistryPath,
+    _In_ PUNICODE_STRING DriverClassName,
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ INTERFACE_TYPE BusType,
+    _In_ ULONG BusNumber,
+    _In_ ULONG SlotNumber,
+    _Inout_ PCM_RESOURCE_LIST* AllocatedResources
+);
+
+NTSTATUS
+NTAPI
+HalAssignSlotResources(
+    _In_ PUNICODE_STRING RegistryPath,
+    _In_ PUNICODE_STRING DriverClassName,
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ INTERFACE_TYPE BusType,
+    _In_ ULONG BusNumber,
+    _In_ ULONG SlotNumber,
+    _Inout_ PCM_RESOURCE_LIST* AllocatedResources
+);
+
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(PAGE, TranslateGlobalVectorToIsaVector)
+  #pragma alloc_text(PAGE, HalacpiIrqTranslateResourcesIsa)
+  #pragma alloc_text(PAGE, HalacpiIrqTranslateResourceRequirementsIsa)
+  #pragma alloc_text(PAGE, HalacpiGetInterruptTranslator)
+  #pragma alloc_text(PAGE, HalpAssignSlotResources)
+  #pragma alloc_text(PAGE, HalAssignSlotResources)
+#endif
+
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 TranslateGlobalVectorToIsaVector(
@@ -40,6 +118,7 @@ TranslateGlobalVectorToIsaVector(
     return STATUS_NOT_FOUND;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI 
 HalacpiIrqTranslateResourcesIsa(
@@ -140,6 +219,7 @@ HalacpiIrqTranslateResourcesIsa(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI 
 HalacpiIrqTranslateResourceRequirementsIsa(
@@ -311,6 +391,7 @@ HalacpiIrqTranslateResourceRequirementsIsa(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalacpiGetInterruptTranslator(
@@ -349,6 +430,7 @@ HalacpiGetInterruptTranslator(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpAssignSlotResources(
@@ -619,6 +701,7 @@ HalAdjustResourceList(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalAssignSlotResources(

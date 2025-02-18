@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <hal.h>
+#include "apic.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "apic.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -81,6 +82,15 @@ extern ULONG HalpWAETDeviceFlags;
 
 /* FUNCTIONS ******************************************************************/
 
+VOID NTAPI HalpSetInitialClockRate();
+VOID NTAPI HalpInitializeClock(VOID);
+
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(PAGELK, HalpSetInitialClockRate)
+  #pragma alloc_text(PAGELK, HalpInitializeClock)
+#endif
+
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HalpSetInitialClockRate()
@@ -104,6 +114,7 @@ HalpSetInitialClockRate()
                        HalpRtcTimeIncrements[0].ClockRateIn100ns);
 }
 
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 HalpInitializeClock(VOID)

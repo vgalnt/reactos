@@ -15,6 +15,13 @@ BOOLEAN HalDisableFirmwareMapper = TRUE;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
+#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
+  #pragma alloc_text(PAGE, HalpOpenRegistryKey)
+  #pragma alloc_text(INIT, HalpReportSerialNumber)
+  #pragma alloc_text(PAGE, HalpMarkAcpiHal)
+#endif
+
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpOpenRegistryKey(
@@ -44,6 +51,7 @@ HalpOpenRegistryKey(
     return Status;
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpReportSerialNumber(VOID)
@@ -75,6 +83,7 @@ HalpReportSerialNumber(VOID)
     ZwClose(Handle);
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpMarkAcpiHal(VOID)

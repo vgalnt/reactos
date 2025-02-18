@@ -7,13 +7,6 @@
 //#define NDEBUG
 #include <debug.h>
 
-#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
-  #pragma alloc_text(INIT, HalpSetupPciDeviceForDebugging)
-  #pragma alloc_text(INIT, HalpReleasePciDeviceForDebugging)
-  #pragma alloc_text(INIT, HalpQueryPciRegistryInfo)
-  #pragma alloc_text(INIT, HalpInitializePciStubs)
-#endif
-
 /* GLOBALS *******************************************************************/
 
 KSPIN_LOCK HalpPCIConfigLock;
@@ -121,6 +114,14 @@ BUS_HANDLER HalpFakePciBusHandler =
 };
 
 /* TYPE 1 FUNCTIONS **********************************************************/
+
+#if defined(ALLOC_PRAGMA) && !defined(_MINIHAL_)
+  #pragma alloc_text(PAGEKD, HalpPhase0GetPciDataByOffset)
+  #pragma alloc_text(PAGEKD, HalpPhase0SetPciDataByOffset)
+  #pragma alloc_text(PAGE, HalpAssignPCISlotResources)
+  #pragma alloc_text(INIT, HalpQueryPciRegistryInfo)
+  #pragma alloc_text(INIT, HalpInitializePciStubs)
+#endif
 
 VOID
 NTAPI
@@ -340,7 +341,7 @@ HalpWritePCIConfig(IN PBUS_HANDLER BusHandler,
 
 /* HAL PCI FOR DEBUGGING *****************************************************/
 
-CODE_SEG("INIT")
+CODE_SEG("PAGEKD")
 ULONG
 HalpPhase0GetPciDataByOffset(
     _In_ ULONG Bus,
@@ -409,7 +410,7 @@ HalpPhase0GetPciDataByOffset(
     return Length;
 }
 
-CODE_SEG("INIT")
+CODE_SEG("PAGEKD")
 ULONG
 HalpPhase0SetPciDataByOffset(
     _In_ ULONG Bus,
@@ -638,6 +639,7 @@ PciSize(ULONG Base, ULONG Mask)
     return Size;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 HalpAssignPCISlotResources(IN PBUS_HANDLER BusHandler,
@@ -823,7 +825,7 @@ HaliPciInterfaceWriteConfig(_In_ PBUS_HANDLER RootBusHandler,
     return Length;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 PPCI_REGISTRY_INFO_INTERNAL
 NTAPI
 HalpQueryPciRegistryInfo(VOID)
@@ -1027,7 +1029,7 @@ Finish:
     return PciRegistryInfo;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 HalpInitializePciStubs(VOID)
