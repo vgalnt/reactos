@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -42,6 +43,22 @@ extern SIZE_T MmSessionSize;
 
 /* FUNCTIONS ******************************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MmGetSessionLocaleId)
+  #pragma alloc_text(PAGE, MmSetSessionLocaleId)
+  #pragma alloc_text(PAGE, MmSessionDelete)
+  #pragma alloc_text(PAGELK, MiSessionInitializeWorkingSetList)
+  #pragma alloc_text(PAGELK, MiSessionCreateInternal)
+  #pragma alloc_text(PAGE, MmSessionCreate)
+  #pragma alloc_text(PAGE, MmQuitNextSession)
+  #pragma alloc_text(INIT, MiInitializeSessionWideAddresses)
+  #pragma alloc_text(INIT, MiInitializeSessionWsSupport)
+  #pragma alloc_text(INIT, MiInitializeSessionIds)
+  #pragma alloc_text(PAGELK, MiDereferenceSessionFinal)
+  #pragma alloc_text(PAGE, MiDereferenceSession)
+#endif
+
+CODE_SEG("PAGE")
 LCID
 NTAPI
 MmGetSessionLocaleId(VOID)
@@ -67,6 +84,7 @@ MmGetSessionLocaleId(VOID)
     return PsDefaultThreadLocaleId;
 }
 
+CODE_SEG("PAGE")
 _IRQL_requires_max_(APC_LEVEL)
 VOID
 NTAPI
@@ -88,6 +106,7 @@ MmSetSessionLocaleId(
         PsDefaultThreadLocaleId = LocaleId;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmSessionDelete(
@@ -135,6 +154,7 @@ MiSessionLeader(
     MiReleaseExpansionLock(OldIrql);
 }
 
+CODE_SEG("PAGELK")
 NTSTATUS
 NTAPI
 MiSessionInitializeWorkingSetList(VOID)
@@ -403,6 +423,7 @@ MiSessionInitializeWorkingSetList(VOID)
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGELK")
 NTSTATUS
 NTAPI
 MiSessionCreateInternal(
@@ -651,6 +672,7 @@ MiSessionCreateInternal(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmSessionCreate(
@@ -740,6 +762,7 @@ MmAttachSession(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MmQuitNextSession(
@@ -789,6 +812,7 @@ MmIsSessionAddress(
     return (MI_IS_SESSION_ADDRESS(Address) ? TRUE : FALSE);
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeSessionWideAddresses(VOID)
@@ -813,6 +837,7 @@ MiInitializeSessionWideAddresses(VOID)
     RtlClearAllBits(&MiSessionWideVaBitMap);
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeSessionWsSupport(VOID)
@@ -824,6 +849,7 @@ MiInitializeSessionWsSupport(VOID)
     InitializeListHead(&MmWorkingSetExpansionHead);
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeSessionIds(VOID)
@@ -915,6 +941,7 @@ MiSessionAddProcess(
     PspSetProcessFlag(NewProcess, PSF_PROCESS_IN_SESSION_BIT);
 }
 
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 MiDereferenceSessionFinal(VOID)
@@ -1049,6 +1076,7 @@ MiReleaseProcessReferenceToSessionDataPage(
     KeReleaseGuardedMutex(&MiSessionIdMutex);
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MiDereferenceSession(VOID)

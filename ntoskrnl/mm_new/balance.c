@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "ARM3/miarm.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "ARM3/miarm.h"
 
 /* TYPES ********************************************************************/
 
@@ -32,7 +33,14 @@ static KTIMER MiBalancerTimer;
 
 /* FUNCTIONS ******************************************************************/
 
-//INIT_FUNCTION
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(INIT, MmInitializeBalancer)
+  #pragma alloc_text(INIT, MmInitializeMemoryConsumer)
+  #pragma alloc_text(INIT, MmTrimUserMemory)
+  #pragma alloc_text(INIT, MiInitBalancerThread)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 MmInitializeBalancer(
@@ -66,7 +74,7 @@ MmInitializeBalancer(
     MiMemoryConsumers[MC_USER].PagesTarget = (NrAvailablePages - MiMinimumAvailablePages);
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MmInitializeMemoryConsumer(
@@ -129,6 +137,7 @@ MmRebalanceMemoryConsumers(VOID)
     UNIMPLEMENTED_DBGBREAK();
 }
 
+CODE_SEG("INIT")
 NTSTATUS
 MmTrimUserMemory(
     ULONG Target,
@@ -165,7 +174,7 @@ MmTrimUserMemory(
     return STATUS_SUCCESS;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitBalancerThread(VOID)

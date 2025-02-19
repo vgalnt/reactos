@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -42,6 +43,31 @@ extern PVOID MiSessionImageEnd;
 extern SIZE_T MmTotalCommitLimitMaximum;
 
 /* FUNCTIONS ******************************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MiSnapThunk)
+  #pragma alloc_text(PAGE, MiCallDllUnloadAndUnloadDll)
+  #pragma alloc_text(PAGE, MiDereferenceImports)
+  #pragma alloc_text(PAGE, MiResolveImageReferences)
+  #pragma alloc_text(PAGE, MiLoadImageSection)
+  #pragma alloc_text(PAGE, MiEnablePagingOfDriver)
+  #pragma alloc_text(PAGE, MiClearImports)
+  #pragma alloc_text(PAGE, MmUnloadSystemImage)
+  #pragma alloc_text(PAGE, MiLocateExportName)
+  #pragma alloc_text(PAGE, MmCallDllInitialize)
+  #pragma alloc_text(PAGE, MmVerifyImageIsOkForMpUse)
+  #pragma alloc_text(PAGE, MmCheckSystemImage)
+  #pragma alloc_text(INIT, MiUpdateThunks)
+  #pragma alloc_text(INIT, MiReloadBootLoadedDrivers)
+  #pragma alloc_text(INIT, MiBuildImportsForBootDrivers)
+  #pragma alloc_text(INIT, MiLocateKernelSections)
+  #pragma alloc_text(INIT, MiInitializeLoadedModuleList)
+  #pragma alloc_text(PAGE, MiWriteProtectSystemImage)
+  #pragma alloc_text(PAGE, MiLookupDataTableEntry)
+  #pragma alloc_text(PAGE, MmGetSystemRoutineAddress)
+  #pragma alloc_text(PAGE, MmPageEntireDriver)
+  #pragma alloc_text(PAGE, MmResetDriverPaging)
+#endif
 
 static
 inline
@@ -87,6 +113,7 @@ MiAllocatePfn(
     return PageFrameNumber;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiSnapThunk(
@@ -294,6 +321,7 @@ MiSnapThunk(
     return Status;
 }
 
+CODE_SEG("PAGE")
 BOOLEAN
 NTAPI
 MiCallDllUnloadAndUnloadDll(
@@ -303,6 +331,7 @@ MiCallDllUnloadAndUnloadDll(
     return FALSE;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiDereferenceImports(
@@ -383,6 +412,7 @@ MiDereferenceImports(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiResolveImageReferences(
@@ -810,6 +840,7 @@ Failure:
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiLoadImageSection(
@@ -1044,6 +1075,7 @@ MiProcessLoaderEntry(
     KeLeaveCriticalRegion();
 }
 
+CODE_SEG("PAGE")
 BOOLEAN
 NTAPI
 MiUseLargeDriverPage(
@@ -1167,6 +1199,7 @@ MiSetPagingOfDriver(
 #endif
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MiEnablePagingOfDriver(
@@ -1237,6 +1270,7 @@ MiEnablePagingOfDriver(
         MiSetPagingOfDriver(Pte, LastPte);
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MiClearImports(
@@ -1259,6 +1293,7 @@ MiClearImports(
     LdrEntry->LoadedImports = MM_SYSLDR_BOOT_LOADED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmUnloadSystemImage(
@@ -1346,6 +1381,7 @@ Done:
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmLoadSystemImage(
@@ -2014,6 +2050,7 @@ MmFreeDriverInitialization(
     MiDeleteSystemPageableVm(StartPte, PageCount, 0, NULL);
 }
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MiLocateExportName(
@@ -2091,6 +2128,7 @@ MiLocateExportName(
     return Function;
 }
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MiFindExportedRoutineByName(
@@ -2167,6 +2205,7 @@ MiFindExportedRoutineByName(
     return Function;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmCallDllInitialize(
@@ -2229,6 +2268,7 @@ MmMakeKernelResourceSectionWritable(VOID)
     UNIMPLEMENTED_DBGBREAK();
 }
 
+CODE_SEG("PAGE")
 BOOLEAN
 NTAPI
 MmVerifyImageIsOkForMpUse(
@@ -2255,6 +2295,7 @@ MmVerifyImageIsOkForMpUse(
     return TRUE;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmCheckSystemImage(
@@ -2368,7 +2409,7 @@ Fail:
     return Status;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiUpdateThunks(
@@ -2468,7 +2509,7 @@ MiUpdateThunks(
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiReloadBootLoadedDrivers(
@@ -2653,7 +2694,7 @@ MiReloadBootLoadedDrivers(
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 MiBuildImportsForBootDrivers(VOID)
@@ -2897,7 +2938,7 @@ MiBuildImportsForBootDrivers(VOID)
     return STATUS_SUCCESS;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiLocateKernelSections(
@@ -2955,7 +2996,7 @@ MiLocateKernelSections(
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 MiInitializeLoadedModuleList(
@@ -3060,6 +3101,7 @@ MiSetSystemCodeProtection(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MiWriteProtectSystemImage(
@@ -3177,6 +3219,7 @@ MiWriteProtectSystemImage(
     }
 }
 
+CODE_SEG("PAGE")
 PLDR_DATA_TABLE_ENTRY
 NTAPI
 MiLookupDataTableEntry(
@@ -3212,6 +3255,7 @@ MiLookupDataTableEntry(
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MmGetSystemRoutineAddress(
@@ -3285,6 +3329,7 @@ MmGetSystemRoutineAddress(
     return ProcAddress;
 }
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MmPageEntireDriver(
@@ -3322,6 +3367,7 @@ MmPageEntireDriver(
     return LdrEntry->DllBase;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MmResetDriverPaging(

@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -169,6 +170,40 @@ extern ULONG MmConsumedPoolPercentage;
 
 /* FUNCTIONS ******************************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MiGetEventCounter)
+  #pragma alloc_text(PAGE, MiFreeEventCounter)
+  #pragma alloc_text(PAGE, MmGetFileNameForAddress)
+  #pragma alloc_text(PAGE, MmGetFileNameForSection)
+  #pragma alloc_text(PAGE, MmGetFileObjectForSection)
+  #pragma alloc_text(PAGE, MmGetImageInformation)
+  #pragma alloc_text(PAGE, MiInitializeSystemSpaceMap)
+  #pragma alloc_text(PAGE, MiCreatePagingFileMap)
+  #pragma alloc_text(PAGE, MiInsertInSystemSpace)
+  #pragma alloc_text(PAGE, MiAddMappedPtes)
+  #pragma alloc_text(PAGE, MiMapViewInSystemSpace)
+  #pragma alloc_text(PAGE, MiGetImageProtection)
+  #pragma alloc_text(PAGE, MiCreateImageFileMap)
+  #pragma alloc_text(PAGE, MmExtendSection)
+  #pragma alloc_text(INIT, MmInitSectionImplementation)
+  #pragma alloc_text(INIT, MmCreatePhysicalMemorySection)
+  #pragma alloc_text(PAGE, MmCommitSessionMappedView)
+  #pragma alloc_text(PAGE, MmMapViewInSessionSpace)
+  #pragma alloc_text(PAGE, MmMapViewInSystemSpace)
+  #pragma alloc_text(PAGE, MmMapViewOfSection)
+  #pragma alloc_text(PAGE, MiUnmapViewInSystemSpace)
+  #pragma alloc_text(PAGE, MmUnmapViewInSessionSpace)
+  #pragma alloc_text(PAGE, MmUnmapViewInSystemSpace)
+  #pragma alloc_text(PAGE, NtAreMappedFilesTheSame)
+  #pragma alloc_text(PAGE, NtCreateSection)
+  #pragma alloc_text(PAGE, NtOpenSection)
+  #pragma alloc_text(PAGE, NtMapViewOfSection)
+  #pragma alloc_text(PAGE, NtUnmapViewOfSection)
+  #pragma alloc_text(PAGE, NtExtendSection)
+  #pragma alloc_text(PAGE, NtQuerySection)
+#endif
+
+CODE_SEG("PAGE")
 PEVENT_COUNTER
 NTAPI
 MiGetEventCounter(VOID)
@@ -210,6 +245,7 @@ MiGetEventCounter(VOID)
     return EventCounter;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MiFreeEventCounter(
@@ -332,6 +368,7 @@ MiMakeProtectionMask(IN ULONG Protect)
     return ProtectMask;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmGetFileNameForAddress(
@@ -436,6 +473,7 @@ MmGetFileNameForAddress(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmGetFileNameForSection(
@@ -509,6 +547,7 @@ MmGetFileNameForSection(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 PFILE_OBJECT
 NTAPI
 MmGetFileObjectForSection(
@@ -522,14 +561,16 @@ MmGetFileObjectForSection(
     return Section->Segment->ControlArea->FilePointer;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
-MmGetImageInformation (
+MmGetImageInformation(
     _Out_ PSECTION_IMAGE_INFORMATION ImageInformation)
 {
     UNIMPLEMENTED_DBGBREAK();
 }
 
+CODE_SEG("PAGE")
 BOOLEAN
 NTAPI
 MiInitializeSystemSpaceMap(
@@ -1254,6 +1295,7 @@ MiGetProtoPteAddressExtended(
     return &Subsection->SubsectionBase[PteOffset];
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiCreatePagingFileMap(
@@ -1487,6 +1529,7 @@ MiDereferenceControlArea(
     MiCheckControlArea(ControlArea, OldIrql);
 }
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MiInsertInSystemSpace(
@@ -1930,6 +1973,7 @@ MiAddViewsForSectionWithPfn(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiAddMappedPtes(
@@ -2004,6 +2048,7 @@ MiAddMappedPtes(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiMapViewInSystemSpace(
@@ -4100,6 +4145,7 @@ MiSubsectionConsistent(
     DbgBreakPoint();
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiCreateDataFileMap(
@@ -5553,6 +5599,7 @@ MiRemoveImageHeaderPage(
     return;
 }
 
+CODE_SEG("PAGE")
 CHAR
 NTAPI
 MiGetImageProtection(
@@ -5677,6 +5724,7 @@ MiUpdateImageHeaderPage(
     MiUnlockPfnDb(OldIrql, APC_LEVEL);
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiCreateImageFileMap(
@@ -7434,6 +7482,7 @@ Finish:
     return TRUE;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmExtendSection(
@@ -7946,7 +7995,7 @@ MmpCloseSection(
     DPRINT("MmpCloseSection(OB %p, HC %lu)\n", Object, ProcessHandleCount);
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 MmCreatePhysicalMemorySection(VOID)
@@ -8049,7 +8098,7 @@ MiDereferenceSegmentThread(
     UNIMPLEMENTED;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 MmInitSectionImplementation(VOID)
@@ -8142,6 +8191,7 @@ MmCanFileBeTruncated(
     return FALSE;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmCommitSessionMappedView(
@@ -9353,6 +9403,7 @@ MmForceSectionClosed(
     return FALSE;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmMapViewInSessionSpace(
@@ -9376,6 +9427,7 @@ MmMapViewInSessionSpace(
     return MiMapViewInSystemSpace(Section, &MmSessionSpace->Session, MappedBase, ViewSize);
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmMapViewInSystemSpace(
@@ -9390,6 +9442,7 @@ MmMapViewInSystemSpace(
     return MiMapViewInSystemSpace((PSECTION)Section, &MmSession, MappedBase, ViewSize);
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmMapViewOfSection(
@@ -9595,6 +9648,7 @@ Exit:
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiUnmapViewInSystemSpace(
@@ -9605,6 +9659,7 @@ MiUnmapViewInSystemSpace(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmUnmapViewInSessionSpace(
@@ -9614,6 +9669,7 @@ MmUnmapViewInSessionSpace(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmUnmapViewInSystemSpace(
@@ -9623,6 +9679,7 @@ MmUnmapViewInSystemSpace(
     return MiUnmapViewInSystemSpace(&MmSession, MappedBase);
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmUnmapViewOfSection(
@@ -9635,6 +9692,7 @@ MmUnmapViewOfSection(
 
 /* SYSTEM CALLS ***************************************************************/
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtAreMappedFilesTheSame(
@@ -9725,6 +9783,7 @@ Exit:
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtCreateSection(
@@ -9878,6 +9937,7 @@ NtCreateSection(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtOpenSection(
@@ -9934,6 +9994,7 @@ NtOpenSection(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtMapViewOfSection(
@@ -10182,6 +10243,7 @@ Exit:
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtUnmapViewOfSection(
@@ -10228,6 +10290,7 @@ NtUnmapViewOfSection(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtExtendSection(
@@ -10258,6 +10321,7 @@ NtExtendSection(
          Data written.
 
 */
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtQuerySection(

@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 #undef MmSystemRangeStart
 
@@ -383,7 +384,24 @@ extern LIST_ENTRY MiDereferenceSegmentList;
 
 /* FUNCTIONS ******************************************************************/
 
-//INIT_FUNCTION
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MiCreateMemoryEvent)
+  #pragma alloc_text(INIT, MiInitializeMemoryEvents)
+  #pragma alloc_text(INIT, MmInitializeMemoryLimits)
+  #pragma alloc_text(INIT, MmFreeLoaderBlock)
+  #pragma alloc_text(INIT, MiDbgDumpMemoryDescriptors)
+  #pragma alloc_text(INIT, MiScanMemoryDescriptors)
+  #pragma alloc_text(INIT, MiComputeColorInformation)
+  #pragma alloc_text(INIT, MxGetNextPage)
+  #pragma alloc_text(INIT, MiAddHalIoMappings)
+  #pragma alloc_text(INIT, MiSetSystemSize)
+  #pragma alloc_text(INIT, MiAdjustWorkingSetManagerParameters)
+  #pragma alloc_text(INIT, MiSetSystemCache)
+  #pragma alloc_text(INIT, MiBuildPagedPool)
+  #pragma alloc_text(INIT, MmArmInitSystem)
+  //#pragma alloc_text(INIT, MiEnablePagingTheExecutive)
+#endif
+
 VOID
 NTAPI
 MiNotifyMemoryEvents(VOID)
@@ -418,7 +436,7 @@ MiNotifyMemoryEvents(VOID)
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 MiCreateMemoryEvent(
@@ -537,7 +555,7 @@ CleanUp:
     return Status;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 MiInitializeMemoryEvents(VOID)
@@ -636,7 +654,7 @@ MmDumpArmPfnDatabase(
     UNIMPLEMENTED_DBGBREAK();
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 PPHYSICAL_MEMORY_DESCRIPTOR
 NTAPI
 MmInitializeMemoryLimits(
@@ -734,7 +752,7 @@ MmInitializeMemoryLimits(
     return Buffer;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MmFreeLoaderBlock(
@@ -843,7 +861,7 @@ MmFreeLoaderBlock(
     ExFreePoolWithTag(Buffer, 'lMmM');
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiDbgDumpMemoryDescriptors(VOID)
@@ -851,6 +869,7 @@ MiDbgDumpMemoryDescriptors(VOID)
     UNIMPLEMENTED_DBGBREAK();
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiScanMemoryDescriptors(
@@ -924,7 +943,7 @@ MiScanMemoryDescriptors(
     MxOldFreeDescriptor = *MxFreeDescriptor;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiComputeColorInformation(VOID)
@@ -975,7 +994,7 @@ MiComputeColorInformation(VOID)
     KeGetCurrentPrcb()->SecondaryColorMask = MmSecondaryColorMask;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 PFN_NUMBER
 NTAPI
 MxGetNextPage(
@@ -1003,7 +1022,7 @@ MxGetNextPage(
     return Pfn;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiAddHalIoMappings(VOID)
@@ -1057,7 +1076,7 @@ MiAddHalIoMappings(VOID)
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiSetSystemSize(VOID)
@@ -1134,7 +1153,7 @@ MiSetSystemSize(VOID)
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiAdjustWorkingSetManagerParameters(
@@ -1148,7 +1167,7 @@ MiAdjustWorkingSetManagerParameters(
         MmPlentyFreePages *= 2;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiSetSystemCache(
@@ -1175,7 +1194,7 @@ MiSetSystemCache(
 
     if (MiMaximumSystemCacheSizeExtra)
     {
-        DPRINT1("MmArmInitSystem: FIXME MmSizeOfSystemCacheInPages\n");
+        DPRINT1("MiSetSystemCache: FIXME MmSizeOfSystemCacheInPages\n");
         ASSERT(FALSE);
     }
     else
@@ -1207,7 +1226,7 @@ MiSetSystemCache(
   #error FIXME
 #endif
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiBuildPagedPool(VOID)
@@ -1375,7 +1394,7 @@ MiBuildPagedPool(VOID)
     MiInitializeSystemSpaceMap(NULL);
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 MmArmInitSystem(

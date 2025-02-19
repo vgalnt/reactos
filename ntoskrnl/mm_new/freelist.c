@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "ARM3/miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "ARM3/miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -31,6 +32,13 @@ static RTL_BITMAP MiUserPfnBitMap;
 
 /* FUNCTIONS ******************************************************************/
 
+#ifdef ALLOC_PRAGMA
+  #pragma alloc_text(INIT, MiInitializeUserPfnBitmap)
+  #pragma alloc_text(INIT, MmGetLRUFirstUserPage)
+  #pragma alloc_text(INIT, MmGetLRUNextUserPage)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeUserPfnBitmap(VOID)
@@ -53,6 +61,7 @@ MiInitializeUserPfnBitmap(VOID)
     RtlClearAllBits(&MiUserPfnBitMap);
 }
 
+CODE_SEG("INIT")
 PFN_NUMBER
 NTAPI
 MmGetLRUFirstUserPage(VOID)
@@ -75,6 +84,7 @@ MmGetLRUFirstUserPage(VOID)
     return Position;
 }
 
+CODE_SEG("INIT")
 PFN_NUMBER
 NTAPI
 MmGetLRUNextUserPage(

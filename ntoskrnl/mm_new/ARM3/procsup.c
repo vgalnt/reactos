@@ -27,6 +27,17 @@ extern SIZE_T MmPagesAboveWsMinimum;
 
 /* FUNCTIONS ******************************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MmSetMemoryPriorityProcess)
+  #pragma alloc_text(PAGE, MmInitializeHandBuiltProcess)
+  #pragma alloc_text(PAGE, MmInitializeHandBuiltProcess2)
+  #pragma alloc_text(PAGE, MmCreatePeb)
+  #pragma alloc_text(PAGE, NtAllocateUserPhysicalPages)
+  #pragma alloc_text(PAGE, NtMapUserPhysicalPages)
+  #pragma alloc_text(PAGE, NtMapUserPhysicalPagesScatter)
+  #pragma alloc_text(PAGE, NtFreeUserPhysicalPages)
+#endif
+
 VOID
 NTAPI
 MiDeletePteRange(
@@ -656,6 +667,7 @@ MmDeleteProcessAddressSpace(
     return(STATUS_SUCCESS);
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmSetMemoryPriorityProcess(
@@ -680,7 +692,7 @@ MmSetMemoryPriorityProcess(
     return OldPriority;
 }
 
-//INIT_FUNCTION
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmInitializeHandBuiltProcess(
@@ -720,7 +732,7 @@ MmInitializeHandBuiltProcess(
 #endif
 }
 
-//INIT_FUNCTION
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmInitializeHandBuiltProcess2(
@@ -1149,6 +1161,7 @@ MiCreatePebOrTeb(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmCreatePeb(
@@ -1346,6 +1359,7 @@ MmGetSessionIdEx(
     return 0;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmCreateTeb(
@@ -1700,6 +1714,7 @@ MmDeleteKernelStack(
 
 /* SYSTEM CALLS ***************************************************************/
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtAllocateUserPhysicalPages(
@@ -1711,6 +1726,7 @@ NtAllocateUserPhysicalPages(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtMapUserPhysicalPages(
@@ -1722,6 +1738,7 @@ NtMapUserPhysicalPages(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtMapUserPhysicalPagesScatter(
@@ -1733,6 +1750,7 @@ NtMapUserPhysicalPagesScatter(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtFreeUserPhysicalPages(

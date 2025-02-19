@@ -2,6 +2,8 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 //#define NDEBUG
 #include <debug.h>
 
@@ -18,6 +20,15 @@ PVOID KernelVerifier;
 
 /* FUNCTIONS ******************************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MiInitializeDriverVerifierList)
+  #pragma alloc_text(PAGE, MmAddVerifierThunks)
+  #pragma alloc_text(PAGE, MmIsVerifierEnabled)
+  #pragma alloc_text(PAGE, MmLockPageableDataSection)
+  #pragma alloc_text(PAGE, MmLockPageableSectionByHandle)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeDriverVerifierList(VOID)
@@ -28,6 +39,7 @@ MiInitializeDriverVerifierList(VOID)
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmAddVerifierThunks(
@@ -54,6 +66,7 @@ MmIsDriverVerifying(
     return ((LdrEntry->Flags & LDRP_IMAGE_VERIFYING) ? TRUE: FALSE);
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmIsVerifierEnabled(
@@ -75,6 +88,7 @@ MmIsVerifierEnabled(
     return STATUS_NOT_SUPPORTED;
 }
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MmLockPageableDataSection(
@@ -91,6 +105,7 @@ MmLockPageableDataSection(
     return AddressWithinSection;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MmLockPageableSectionByHandle(

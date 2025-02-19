@@ -47,6 +47,15 @@ extern PMMPTE MiSpecialPoolFirstPte;
 
 /* FUNCTIONS ******************************************************************/
 
+VOID NTAPI ExpSeedHotTags(VOID);
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, ExpInitializePoolListHead)
+  #pragma alloc_text(PAGE, ExInitializePoolDescriptor)
+  #pragma alloc_text(INIT, ExpSeedHotTags)
+  #pragma alloc_text(INIT, InitializePool)
+#endif
+
 #if DBG
 /*
  * FORCEINLINE
@@ -275,6 +284,7 @@ ExpDecodePoolLink(
     return (PLIST_ENTRY)((ULONG_PTR)Link & ~1);
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 ExpInitializePoolListHead(
@@ -375,7 +385,7 @@ ExpInsertPoolTailList(
     ExpCheckPoolLinks(ListHead);
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 ExpSeedHotTags(VOID)
@@ -674,6 +684,7 @@ ExpRemovePoolTracker(
     DPRINT1("Out of pool tag space, ignoring...\n");
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 ExInitializePoolDescriptor(
@@ -858,7 +869,7 @@ ExpCheckPoolAllocation(
     UNIMPLEMENTED_DBGBREAK();
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 InitializePool(

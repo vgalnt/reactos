@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -17,6 +18,12 @@ extern MMPFNLIST MmZeroedPageListHead;
 
 /* FUNCTIONS ******************************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGELK, MiFreeInitializationCode)
+  #pragma alloc_text(INIT, MiFindInitializationCode)
+#endif
+
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 MiFreeInitializationCode(
@@ -44,7 +51,7 @@ MiFreeInitializationCode(
     PagesFreed = MiDeleteSystemPageableVm(Pte, PagesFreed, 0, NULL);
 }
 
-
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiFindInitializationCode(

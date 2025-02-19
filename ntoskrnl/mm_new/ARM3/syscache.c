@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -25,6 +26,11 @@ extern ULONG MiMaximumWorkingSet;
 
 /* FUNCTIONS ******************************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MiInitializeSystemCache)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeSystemCache(

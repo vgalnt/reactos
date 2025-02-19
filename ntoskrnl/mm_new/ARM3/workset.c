@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -41,6 +42,12 @@ extern PVOID MmSpecialPoolEnd;
 extern ULONG MmStandbyRePurposed;
 
 /* FUNCTIONS ******************************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGELK, MmAdjustWorkingSetSize)
+  #pragma alloc_text(PAGELK, MmAdjustWorkingSetSizeEx)
+  #pragma alloc_text(PAGE, MiInitializeWorkingSetList)
+#endif
 
 BOOLEAN
 NTAPI
@@ -1995,6 +2002,7 @@ MiEmptyWorkingSet(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGELK")
 NTSTATUS
 NTAPI
 MmAdjustWorkingSetSizeEx(
@@ -2251,6 +2259,7 @@ Cleanup:
     return Status;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MiInitializeWorkingSetList(
@@ -2387,6 +2396,7 @@ MmQuerySystemCacheWorkingSetInformation(
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 
+CODE_SEG("PAGELK")
 NTSTATUS
 NTAPI
 MmAdjustWorkingSetSize(

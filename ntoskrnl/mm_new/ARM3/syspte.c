@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -16,6 +17,10 @@ ULONG MmTotalFreeSystemPtes[MaximumPtePoolTypes];
 ULONG MmTotalSystemPtes;
 
 /* FUNCTIONS ******************************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MiInitializeSystemPtes)
+#endif
 
 FORCEINLINE
 ULONG
@@ -261,7 +266,7 @@ MiReleaseSystemPtes(
     KeReleaseQueuedSpinLock(LockQueueSystemSpaceLock, OldIrql);
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeSystemPtes(

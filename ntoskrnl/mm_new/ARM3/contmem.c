@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -18,6 +19,10 @@ extern PVOID MmNonPagedPoolExpansionStart;
 extern ULONG ExpInitializationPhase;
 
 /* FUNCTIONS ******************************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MiFindContiguousMemory)
+#endif
 
 PVOID
 NTAPI
@@ -405,6 +410,7 @@ ErrorExit:
     return 0;
 }
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MiFindContiguousMemory(

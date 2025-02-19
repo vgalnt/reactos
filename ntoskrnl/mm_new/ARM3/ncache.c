@@ -13,6 +13,12 @@
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MmAllocateNonCachedMemory)
+  #pragma alloc_text(PAGE, MmFreeNonCachedMemory)
+#endif
+
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MmAllocateNonCachedMemory(
@@ -22,6 +28,7 @@ MmAllocateNonCachedMemory(
     return NULL;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MmFreeNonCachedMemory(

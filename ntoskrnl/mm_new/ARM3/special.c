@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -52,6 +53,10 @@ extern ULONG MmNumberOfSystemPtes;
 extern ULONG ExpPoolFlags;
 
 /* FUNCTIONS ******************************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MiInitializeSpecialPool)
+#endif
 
 BOOLEAN
 NTAPI
@@ -496,6 +501,7 @@ MmFreeSpecialPool(
     InterlockedDecrementUL(&MmSpecialPagesInUse);
 }
 
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeSpecialPool(VOID)

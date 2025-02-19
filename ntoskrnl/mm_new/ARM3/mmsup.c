@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -16,6 +17,12 @@ extern PVOID MmSpecialPoolStart;
 extern PVOID MmSpecialPoolEnd;
 
 /* FUNCTIONS ******************************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGELK, MmCreateMirror)
+  #pragma alloc_text(PAGELK, MmMapUserAddressesToPage)
+  #pragma alloc_text(PAGE, MmSetBankedSection)
+#endif
 
 BOOLEAN
 NTAPI
@@ -150,6 +157,7 @@ MiRestoreTransitionPte(
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 
+CODE_SEG("PAGELK")
 NTSTATUS
 NTAPI
 MmCreateMirror(VOID)
@@ -206,6 +214,7 @@ MmIsThisAnNtAsSystem(VOID)
     return (MmProductType & 0xFF);
 }
 
+CODE_SEG("PAGELK")
 NTSTATUS
 NTAPI
 MmMapUserAddressesToPage(
@@ -314,6 +323,7 @@ Next:
     return Result;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmSetBankedSection(    

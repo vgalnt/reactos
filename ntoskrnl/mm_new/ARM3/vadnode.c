@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* Include Mm version of AVL support */
 #include "miavl.h"
@@ -34,6 +35,17 @@ extern SIZE_T MmSystemCommitReserve;
 extern MM_AVL_TABLE MmSectionBasedRoot;
 
 /* FUNCTIONS ******************************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MiFindEmptyAddressRangeInTree)
+  #pragma alloc_text(PAGE, MiFindEmptyAddressRangeDownTree)
+  #pragma alloc_text(PAGE, MiFindEmptyAddressRangeDownBasedTree)
+  #pragma alloc_text(PAGE, MiInsertVadCharges)
+  #pragma alloc_text(PAGE, MiCheckSecuredVad)
+  #pragma alloc_text(PAGE, MiRemoveVadCharges)
+  #pragma alloc_text(PAGE, MiCheckForConflictingNode)
+  #pragma alloc_text(PAGE, MiInsertBasedSection)
+#endif
 
 BOOLEAN
 NTAPI
@@ -282,6 +294,7 @@ MiReturnPageTablePageCommitment(
     Process->CommitCharge -= NumberToClear;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiFindEmptyAddressRangeInTree(
@@ -359,6 +372,7 @@ FindInTree:
                                          OutBaseAddress);
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiFindEmptyAddressRangeDownTree(
@@ -478,6 +492,7 @@ MiFindEmptyAddressRangeDownTree(
     return STATUS_NO_MEMORY;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiFindEmptyAddressRangeDownBasedTree(
@@ -602,6 +617,7 @@ MiFindEmptyAddressRangeDownBasedTree(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiInsertVadCharges(
@@ -920,6 +936,7 @@ MiCreatePhysicalVadRoot(
     return Process->PhysicalVadRoot;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiCheckSecuredVad(
@@ -986,6 +1003,7 @@ MiCheckSecuredVad(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MiRemoveVadCharges(
@@ -1168,6 +1186,7 @@ MiPhysicalViewRemover(
     ExFreePoolWithTag(PhysicalView, 'vpmM');
 }
 
+CODE_SEG("PAGE")
 PMMADDRESS_NODE
 NTAPI
 MiCheckForConflictingNode(
@@ -1199,6 +1218,7 @@ MiCheckForConflictingNode(
     return NULL;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MiInsertBasedSection(

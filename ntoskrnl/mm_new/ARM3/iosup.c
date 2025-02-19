@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -25,6 +26,11 @@ MI_PFN_CACHE_ATTRIBUTE MiPlatformCacheAttributes[2][MmMaximumCacheType] =
 
 
 /* PUBLIC FUNCTIONS ***********************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MmMapVideoDisplay)
+  #pragma alloc_text(PAGE, MmUnmapVideoDisplay)
+#endif
 
 LOGICAL
 NTAPI
@@ -142,6 +148,7 @@ MmMapIoSpace(
     return BaseAddress;
 }
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MmMapVideoDisplay(
@@ -187,6 +194,7 @@ MmUnmapIoSpace(
     MiReleaseSystemPtes(Pte, PageCount, 0);
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MmUnmapVideoDisplay(

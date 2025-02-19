@@ -1906,18 +1906,82 @@ MiDecrementPfnShare(
 }
 
 /* ARM3\i386\init.c */
-//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeSessionSpaceLayout(
     VOID
 );
 
-//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MiInitMachineDependent(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+VOID
+NTAPI
+MiComputeNonPagedPoolVa(
+    _In_ ULONG FreePages
+);
+
+VOID
+NTAPI
+MiMapPfnDatabase(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+VOID
+NTAPI
+MiInitializeColorTables(
+    VOID
+);
+
+BOOLEAN
+NTAPI
+MiIsRegularMemory(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock,
+    _In_ PFN_NUMBER Pfn
+);
+
+VOID
+NTAPI
+MiBuildPfnDatabaseFromPages(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+VOID
+NTAPI
+MiBuildPfnDatabaseZeroPage(
+    VOID
+);
+
+VOID
+NTAPI
+MiBuildPfnDatabaseFromLoaderBlock(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+VOID
+NTAPI
+MiBuildPfnDatabaseSelf(
+    VOID
+);
+
+VOID
+NTAPI
+MiInitializePfnDatabase(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+/* ARM3\contmem.c */
+PVOID
+NTAPI
+MiFindContiguousMemory(
+    _In_ PFN_NUMBER LowestPfn,
+    _In_ PFN_NUMBER HighestPfn,
+    _In_ PFN_NUMBER BoundaryPfn,
+    _In_ PFN_NUMBER SizeInPages,
+    _In_ MEMORY_CACHING_TYPE CacheType
 );
 
 /* ARM3\drvmgmt.c */
@@ -1927,13 +1991,78 @@ MiInitializeDriverVerifierList(
     VOID
 );
 
+NTSTATUS
+NTAPI
+MmAddVerifierThunks(
+    _In_ PVOID ThunkBuffer,
+    _In_ ULONG ThunkBufferSize
+);
+
+NTSTATUS
+NTAPI
+MmIsVerifierEnabled(
+    _Out_ PULONG VerifierFlags
+);
+
+PVOID
+NTAPI
+MmLockPageableDataSection(
+    _In_ PVOID AddressWithinSection
+);
+
+NTSTATUS
+NTAPI
+MmMarkPhysicalMemoryAsGood(
+    _In_ PPHYSICAL_ADDRESS StartAddress,
+    _Inout_ PLARGE_INTEGER NumberOfBytes
+);
+
+VOID
+NTAPI
+MmLockPageableSectionByHandle(
+    _In_ PVOID ImageSectionHandle
+);
+
+/* ARM3\dynamic.c */
+NTSTATUS
+NTAPI
+MmAddPhysicalMemory(
+    _In_ PPHYSICAL_ADDRESS StartAddress,
+    _Inout_ PLARGE_INTEGER NumberOfBytes
+);
+
+PPHYSICAL_MEMORY_RANGE
+NTAPI
+MmGetPhysicalMemoryRanges(
+    VOID
+);
+
+NTSTATUS
+NTAPI
+MmMarkPhysicalMemoryAsBad(
+    _In_ PPHYSICAL_ADDRESS StartAddress,
+    _Inout_ PLARGE_INTEGER NumberOfBytes
+);
+
+NTSTATUS
+NTAPI
+MmRemovePhysicalMemory(
+    _In_ PPHYSICAL_ADDRESS StartAddress,
+    _Inout_ PLARGE_INTEGER NumberOfBytes
+);
+
 /* ARM3\expool.c */
-//INIT_FUNCTION
 VOID
 NTAPI
 InitializePool(
     _In_ POOL_TYPE PoolType,
     _In_ ULONG Threshold
+);
+
+VOID
+NTAPI
+ExpInitializePoolListHead(
+    _In_ PLIST_ENTRY ListHead
 );
 
 VOID
@@ -1991,30 +2120,92 @@ MiUnmapPagesInZeroSpace(
     _In_ PFN_NUMBER NumberOfPages
 );
 
+/* ARM3\iosup.c */
+PVOID
+NTAPI
+MmMapVideoDisplay(
+    _In_ PHYSICAL_ADDRESS PhysicalAddress,
+    _In_ SIZE_T NumberOfBytes,
+    _In_ MEMORY_CACHING_TYPE CacheType
+);
+
 /* ARM3\largepag.c */
-//INIT_FUNCTION
 VOID
 NTAPI
 MiSyncCachedRanges(
     VOID
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeLargePageSupport(
     VOID
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeDriverLargePageList(
     VOID
 );
 
+/* ARM3\mdlsup.c */
+VOID
+NTAPI
+MiUnmapLockedPagesInUserSpace(
+    _In_ PVOID BaseAddress,
+    _In_ PMDL Mdl
+);
+
+PMDL
+NTAPI
+MmAllocatePagesForMdl(
+    _In_ PHYSICAL_ADDRESS LowAddress,
+    _In_ PHYSICAL_ADDRESS HighAddress,
+    _In_ PHYSICAL_ADDRESS SkipBytes,
+    _In_ SIZE_T TotalBytes
+);
+
+PMDL
+NTAPI
+MmAllocatePagesForMdlEx(
+    _In_ PHYSICAL_ADDRESS LowAddress,
+    _In_ PHYSICAL_ADDRESS HighAddress,
+    _In_ PHYSICAL_ADDRESS SkipBytes,
+    _In_ SIZE_T TotalBytes,
+    _In_ MEMORY_CACHING_TYPE CacheType,
+    _In_ ULONG Flags
+);
+
+VOID
+NTAPI
+MmFreePagesFromMdl(
+    _In_ PMDL Mdl
+);
+
+NTSTATUS
+NTAPI
+MmPrefetchPages(
+    _In_ ULONG NumberOfLists,
+    _In_ PREAD_LIST* ReadLists
+);
+
+VOID
+NTAPI
+MmProbeAndLockProcessPages(
+    _Inout_ PMDL MemoryDescriptorList,
+    _In_ PEPROCESS Process,
+    _In_ KPROCESSOR_MODE AccessMode,
+    _In_ LOCK_OPERATION Operation
+);
+
 /* ARM3\mminit.c */
-//INIT_FUNCTION
+NTSTATUS
+NTAPI
+MiCreateMemoryEvent(
+    _In_ PUNICODE_STRING Name,
+    _Out_ PKEVENT* Event
+);
+
 PPHYSICAL_MEMORY_DESCRIPTOR
 NTAPI
 MmInitializeMemoryLimits(
@@ -2022,18 +2213,76 @@ MmInitializeMemoryLimits(
     _In_ PBOOLEAN IncludeType
 );
 
-//INIT_FUNCTION
+VOID
+NTAPI
+MmFreeLoaderBlock(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
 PFN_NUMBER
 NTAPI
 MxGetNextPage(
     _In_ PFN_NUMBER PageCount
 );
 
-//INIT_FUNCTION
 BOOLEAN
 NTAPI
 MiInitializeMemoryEvents(
     VOID
+);
+
+VOID
+NTAPI
+MiDbgDumpMemoryDescriptors(
+    VOID
+);
+
+VOID
+NTAPI
+MiScanMemoryDescriptors(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+
+VOID
+NTAPI
+MiComputeColorInformation(
+    VOID
+);
+
+VOID
+NTAPI
+MiAddHalIoMappings(
+    VOID
+);
+
+VOID
+NTAPI
+MiSetSystemSize(
+    VOID
+);
+
+VOID
+NTAPI
+MiAdjustWorkingSetManagerParameters(
+    _In_ BOOLEAN Client);
+
+VOID
+NTAPI
+MiSetSystemCache(
+    _In_ ULONG SystemCacheSizeInPages
+);
+
+VOID
+NTAPI
+MiBuildPagedPool(
+    VOID
+);
+
+BOOLEAN
+NTAPI
+MmArmInitSystem(
+    _In_ ULONG Phase,
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
 /* ARM3\mmsup.c */
@@ -2047,6 +2296,45 @@ VOID
 FASTCALL
 MiRestoreTransitionPte(
     _In_ PMMPFN Pfn
+);
+
+NTSTATUS
+NTAPI
+MmCreateMirror(
+    VOID
+);
+
+NTSTATUS
+NTAPI
+MmMapUserAddressesToPage(
+    _In_ PVOID BaseAddress,
+    _In_ SIZE_T NumberOfBytes,
+    _In_ PVOID PageAddress
+);
+
+NTSTATUS
+NTAPI
+MmSetBankedSection(    
+    _In_ HANDLE ProcessHandle,
+    _In_ PVOID VirtualAddress,
+    _In_ ULONG BankLength,
+    _In_ BOOLEAN ReadWriteBank,
+    _In_ PVOID BankRoutine,
+    _In_ PVOID Context
+);
+
+/* ARM3\ncache.c */
+PVOID
+NTAPI
+MmAllocateNonCachedMemory(
+    _In_ SIZE_T NumberOfBytes
+);
+
+VOID
+NTAPI
+MmFreeNonCachedMemory(
+    _In_ PVOID BaseAddress,
+    _In_ SIZE_T NumberOfBytes
 );
 
 /* ARM3\pagfault.c */
@@ -2084,6 +2372,18 @@ MiTrimPte(
      _In_ PMMPFN Pfn,
      _In_ PEPROCESS Process,
      _In_ MMPTE NewPteContents
+);
+
+NTSTATUS
+NTAPI
+MmGetExecuteOptions(
+    _In_ PULONG ExecuteOptions
+);
+
+NTSTATUS
+FASTCALL
+MiCheckForUserStackOverflow(
+    _In_ PVOID Address
 );
 
 /* ARM3\pfnlist.c */
@@ -2171,14 +2471,12 @@ MiInitializeAndChargePfn(
 );
 
 /* ARM3\pool.c */
-//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeNonPagedPool(
     VOID
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeNonPagedPoolThresholds(
@@ -2204,7 +2502,6 @@ MmDeterminePoolType(
     _In_ PVOID PoolAddress
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializePoolEvents(
@@ -2215,6 +2512,90 @@ NTSTATUS
 NTAPI
 MiInitializeSessionPool(
     VOID
+);
+
+PVOID
+NTAPI
+MmAllocateMappingAddress(
+    _In_ SIZE_T NumberOfBytes,
+    _In_ ULONG PoolTag
+);
+
+VOID
+NTAPI
+MmFreeMappingAddress(
+    _In_ PVOID BaseAddress,
+    _In_ ULONG PoolTag
+);
+
+/* ARM3\procsup.c */
+NTSTATUS
+NTAPI
+MmSetMemoryPriorityProcess(
+    _In_ PEPROCESS Process,
+    _In_ UCHAR MemoryPriority
+);
+
+NTSTATUS
+NTAPI
+MmInitializeHandBuiltProcess(
+    _In_ PEPROCESS Process,
+    _In_ PULONG_PTR DirectoryTableBase
+);
+
+NTSTATUS
+NTAPI
+MmInitializeHandBuiltProcess2(
+    _In_ PEPROCESS Process
+);
+
+NTSTATUS
+NTAPI
+MmCreatePeb(
+    _In_ PEPROCESS Process,
+    _In_ PINITIAL_PEB InitialPeb,
+    _Out_ PPEB* BasePeb
+);
+
+NTSTATUS
+NTAPI
+MmCreateTeb(
+    _In_ PEPROCESS Process,
+    _In_ PCLIENT_ID ClientId,
+    _In_ PINITIAL_TEB InitialTeb,
+    _Out_ PTEB* BaseTeb
+);
+
+NTSTATUS
+NTAPI
+NtAllocateUserPhysicalPages(
+    _In_ HANDLE ProcessHandle,
+    _Inout_ PULONG_PTR NumberOfPages,
+    _Inout_ PULONG_PTR UserPfnArray
+);
+
+NTSTATUS
+NTAPI
+NtMapUserPhysicalPages(
+    _In_ PVOID VirtualAddresses,
+    _In_ ULONG_PTR NumberOfPages,
+    _Inout_ PULONG_PTR UserPfnArray
+);
+
+NTSTATUS
+NTAPI
+NtMapUserPhysicalPagesScatter(
+    _In_ PVOID* VirtualAddresses,
+    _In_ ULONG_PTR NumberOfPages,
+    _Inout_ PULONG_PTR UserPfnArray
+);
+
+NTSTATUS
+NTAPI
+NtFreeUserPhysicalPages(
+    _In_ HANDLE ProcessHandle,
+    _Inout_ PULONG_PTR NumberOfPages,
+    _Inout_ PULONG_PTR UserPfnArray
 );
 
 /* ARM3\section.c */
@@ -2304,11 +2685,16 @@ MiInitializeTransitionPfn(
     _In_ OUT PMMPTE SectionProto
 );
 
-//INIT_FUNCTION
 NTSTATUS
 NTAPI
 MmInitSectionImplementation(
 VOID
+);
+
+NTSTATUS
+NTAPI
+MmCreatePhysicalMemorySection(
+    VOID
 );
 
 VOID
@@ -2323,6 +2709,245 @@ NTAPI
 MiIsPteProtectionCompatible(
     _In_ ULONG PteProtection,
     _In_ ULONG NewProtection
+);
+
+VOID
+NTAPI
+MiFreeEventCounter(
+    _In_ PEVENT_COUNTER EventCounter
+);
+
+PEVENT_COUNTER
+NTAPI
+MiGetEventCounter(
+    VOID
+);
+
+PEVENT_COUNTER
+NTAPI
+MiGetEventCounter(
+    VOID
+);
+
+NTSTATUS
+NTAPI
+MmGetFileNameForAddress(
+    _In_ PVOID Address,
+    _Out_ UNICODE_STRING* OutFileName
+);
+
+PFILE_OBJECT
+NTAPI
+MmGetFileObjectForSection(
+    _In_ PVOID SectionObject
+);
+
+VOID
+NTAPI
+MmGetImageInformation(
+    _Out_ PSECTION_IMAGE_INFORMATION ImageInformation
+);
+
+BOOLEAN
+NTAPI
+MiInitializeSystemSpaceMap(
+    _In_ PMMSESSION InputSession OPTIONAL
+);
+
+NTSTATUS
+NTAPI
+MiCreatePagingFileMap(
+    _Out_ PSEGMENT* Segment,
+    _In_ PLARGE_INTEGER InputMaximumSize,
+    _In_ ULONG ProtectionMask,
+    _In_ ULONG AllocationAttributes
+);
+
+PVOID
+NTAPI
+MiInsertInSystemSpace(
+    _In_ PMMSESSION Session,
+    _In_ ULONG Buckets,
+    _In_ PCONTROL_AREA ControlArea
+);
+
+NTSTATUS
+NTAPI
+MiAddMappedPtes(
+    _In_ PMMPTE FirstPte,
+    _In_ PFN_NUMBER PteCount,
+    _In_ PCONTROL_AREA ControlArea
+);
+
+NTSTATUS
+NTAPI
+MiMapViewInSystemSpace(
+    _In_ PVOID SectionObject,
+    _In_ PMMSESSION Session,
+    _Out_ PVOID* MappedBase,
+    _Out_ PSIZE_T ViewSize
+);
+
+NTSTATUS
+NTAPI
+MiCreateDataFileMap(
+    _In_ PFILE_OBJECT File,
+    _Out_ PSEGMENT* OutSegment,
+    _In_ PLARGE_INTEGER InputMaximumSize,
+    _In_ ULONG SectionPageProtection,
+    _In_ ULONG AllocationAttributes,
+    _In_ BOOLEAN IgnoreFileSizing
+);
+
+CHAR
+NTAPI
+MiGetImageProtection(
+    _In_ ULONG Characteristics
+);
+
+NTSTATUS
+NTAPI
+MiCreateImageFileMap(
+    _In_ PFILE_OBJECT FileObject,
+    _Out_ PSEGMENT* OutSegment
+);
+
+NTSTATUS
+NTAPI
+MmExtendSection(
+    _In_ PSECTION Section,
+    _Inout_ LARGE_INTEGER* OutSectionSize,
+    _In_ BOOLEAN IgnoreFileSizeChecking
+);
+
+NTSTATUS
+NTAPI
+MmCommitSessionMappedView(
+    _In_ PVOID MappedBase,
+    _In_ SIZE_T ViewSize
+);
+
+NTSTATUS
+NTAPI
+MmMapViewInSessionSpace(
+    _In_ PVOID Section,
+    _Out_ PVOID* MappedBase,
+    _Inout_ PSIZE_T ViewSize
+);
+
+NTSTATUS
+NTAPI
+MmMapViewInSystemSpace(
+    _In_ PVOID Section,
+    _Out_ PVOID* MappedBase,
+    _Out_ PSIZE_T ViewSize
+);
+
+NTSTATUS
+NTAPI
+MmMapViewOfSection(
+    _In_ PVOID SectionObject,
+    _In_ PEPROCESS Process,
+    _Inout_ PVOID* BaseAddress,
+    _In_ ULONG_PTR ZeroBits,
+    _In_ SIZE_T CommitSize,
+    _Inout_ PLARGE_INTEGER SectionOffset OPTIONAL,
+    _Inout_ PSIZE_T ViewSize,
+    _In_ SECTION_INHERIT InheritDisposition,
+    _In_ ULONG AllocationType,
+    _In_ ULONG Protect
+);
+
+NTSTATUS
+NTAPI
+MiUnmapViewInSystemSpace(
+    _In_ PMMSESSION Session,
+    _In_ PVOID MappedBase
+);
+
+NTSTATUS
+NTAPI
+MmUnmapViewInSessionSpace(
+    _In_ PVOID MappedBase
+);
+
+NTSTATUS
+NTAPI
+MmUnmapViewInSystemSpace(
+    _In_ PVOID MappedBase
+);
+
+NTSTATUS
+NTAPI
+MmUnmapViewOfSection(
+    _In_ PEPROCESS Process,
+    _In_ PVOID BaseAddress
+);
+
+NTSTATUS
+NTAPI
+NtAreMappedFilesTheSame(
+    _In_ PVOID File1MappedAsAnImage,
+    _In_ PVOID File2MappedAsFile
+);
+
+NTSTATUS
+NTAPI
+NtCreateSection(
+    _Out_ PHANDLE SectionHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ POBJECT_ATTRIBUTES ObjectAttributes OPTIONAL,
+    _In_ PLARGE_INTEGER MaximumSize OPTIONAL,
+    _In_ ULONG SectionPageProtection OPTIONAL,
+    _In_ ULONG AllocationAttributes,
+    _In_ HANDLE FileHandle OPTIONAL
+);
+
+NTSTATUS
+NTAPI
+NtOpenSection(
+    _Out_ PHANDLE SectionHandle,
+    _In_ ACCESS_MASK DesiredAccess,
+    _In_ POBJECT_ATTRIBUTES ObjectAttributes
+);
+
+NTSTATUS
+NTAPI
+NtMapViewOfSection(
+    _In_ HANDLE SectionHandle,
+    _In_ HANDLE ProcessHandle,
+    _Inout_ PVOID* BaseAddress,
+    _In_ ULONG_PTR ZeroBits,
+    _In_ SIZE_T CommitSize,
+    _Inout_ PLARGE_INTEGER SectionOffset OPTIONAL,
+    _Inout_ PSIZE_T ViewSize,
+    _In_ SECTION_INHERIT InheritDisposition,
+    _In_ ULONG AllocationType,
+    _In_ ULONG Protect
+);
+
+NTSTATUS
+NTAPI
+NtUnmapViewOfSection(
+    _In_ HANDLE ProcessHandle,
+    _In_ PVOID BaseAddress
+);
+
+NTSTATUS
+NTAPI
+NtExtendSection(
+    _In_ HANDLE SectionHandle,
+    _Inout_ PLARGE_INTEGER NewMaximumSize
+);
+
+NTSTATUS
+NTAPI
+NtQuerySection(
+    _In_ HANDLE SectionHandle,
+    _In_ SECTION_INFORMATION_CLASS SectionInformationClass,
+    _Out_ PVOID SectionInformation,
+    _In_ SIZE_T SectionInformationLength,
+    _Out_opt_ PSIZE_T ResultLength
 );
 
 /* ARM3\session.c */
@@ -2362,6 +2987,61 @@ MiReleaseProcessReferenceToSessionDataPage(
     _In_ PMM_SESSION_SPACE SessionGlobal
 );
 
+LCID
+NTAPI
+MmGetSessionLocaleId(
+    VOID
+);
+
+_IRQL_requires_max_(APC_LEVEL)
+VOID
+NTAPI
+MmSetSessionLocaleId(
+    _In_ LCID LocaleId
+);
+
+NTSTATUS
+NTAPI
+MmSessionDelete(
+    _In_ ULONG SessionId
+);
+
+NTSTATUS
+NTAPI
+MiSessionInitializeWorkingSetList(
+    VOID
+);
+
+NTSTATUS
+NTAPI
+MiSessionCreateInternal(
+    _Out_ ULONG* OutSessionId
+);
+
+NTSTATUS
+NTAPI
+MmSessionCreate(
+    _Out_ PULONG SessionId
+);
+
+VOID
+NTAPI
+MmQuitNextSession(
+    _Inout_ PVOID SessionEntry
+);
+
+VOID
+NTAPI
+MiDereferenceSessionFinal(
+    VOID
+);
+
+VOID
+NTAPI
+MiDereferenceSession(
+    VOID
+);
+
 /* ARM3\special.c */
 PVOID
 NTAPI
@@ -2393,14 +3073,152 @@ MiInitializeSystemCache(
 );
 
 /* ARM3\sysldr.c */
-//INIT_FUNCTION
+NTSTATUS
+NTAPI
+MiSnapThunk(
+    _In_ PVOID DllBase,
+    _In_ PVOID ImageBase,
+    _In_ PIMAGE_THUNK_DATA Name,
+    _In_ PIMAGE_THUNK_DATA Address,
+    _In_ PIMAGE_EXPORT_DIRECTORY ExportDirectory,
+    _In_ ULONG ExportSize,
+    _In_ BOOLEAN SnapForwarder,
+    _Out_ PCHAR* MissingApi
+);
+
+BOOLEAN
+NTAPI
+MiCallDllUnloadAndUnloadDll(
+    _In_ PLDR_DATA_TABLE_ENTRY LdrEntry
+);
+
+NTSTATUS
+NTAPI
+MiDereferenceImports(
+    _In_ PLOAD_IMPORTS ImportList
+);
+
+NTSTATUS
+NTAPI
+MiResolveImageReferences(
+    _In_ PVOID ImageBase,
+    _In_ PUNICODE_STRING ImageFileDirectory,
+    _In_ PUNICODE_STRING NamePrefix OPTIONAL,
+    _Out_ PCHAR* MissingApi,
+    _Out_ PWCHAR* MissingDriver,
+    _Out_ PLOAD_IMPORTS* LoadImports
+);
+
+NTSTATUS
+NTAPI
+MiLoadImageSection(
+    _Inout_ PVOID* OutSection,
+    _Out_ PVOID* OutBaseAddress,
+    _In_ PUNICODE_STRING FileName,
+    _In_ BOOLEAN IsSessionLoad,
+    _In_ PLDR_DATA_TABLE_ENTRY LdrEntry
+);
+
+
+BOOLEAN
+NTAPI
+MiUseLargeDriverPage(
+    _In_ ULONG NumberOfPtes,
+    _Inout_ PVOID* ImageBaseAddress,
+    _In_ PUNICODE_STRING BaseImageName,
+    _In_ BOOLEAN BootDriver
+);
+
+VOID
+NTAPI
+MiEnablePagingOfDriver(
+    _In_ PLDR_DATA_TABLE_ENTRY LdrEntry
+);
+
+VOID
+NTAPI
+MiClearImports(
+    _In_ PLDR_DATA_TABLE_ENTRY LdrEntry
+);
+
+NTSTATUS
+NTAPI
+MmUnloadSystemImage(
+    _In_ PVOID ImageHandle
+);
+
+NTSTATUS
+NTAPI
+MmLoadSystemImage(
+    _In_ PUNICODE_STRING FileName,
+    _In_ PUNICODE_STRING NamePrefix OPTIONAL,
+    _In_ PUNICODE_STRING LoadedName OPTIONAL,
+    _In_ ULONG Flags,
+    _Out_ PVOID* ModuleObject,
+    _Out_ PVOID* ImageBaseAddress
+);
+
+PVOID
+NTAPI
+MiLocateExportName(
+    _In_ PVOID DllBase,
+    _In_ PCHAR ExportName
+);
+
+PVOID
+NTAPI
+MiFindExportedRoutineByName(
+    _In_ PVOID DllBase,
+    _In_ PANSI_STRING ExportName
+);
+
+NTSTATUS
+NTAPI
+MmCallDllInitialize(
+    _In_ PLDR_DATA_TABLE_ENTRY LdrEntry,
+    _In_ PLIST_ENTRY ListHead
+);
+
+BOOLEAN
+NTAPI
+MmVerifyImageIsOkForMpUse(
+    _In_ PVOID BaseAddress
+);
+
+NTSTATUS
+NTAPI
+MmCheckSystemImage(
+    _In_ HANDLE ImageHandle,
+    _In_ BOOLEAN PurgeSection
+);
+
+VOID
+NTAPI
+MiUpdateThunks(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock,
+    _In_ PVOID OldBase,
+    _In_ PVOID NewBase,
+    _In_ ULONG Size
+);
+
 VOID
 NTAPI
 MiReloadBootLoadedDrivers(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
-//INIT_FUNCTION
+NTSTATUS
+NTAPI
+MiBuildImportsForBootDrivers(
+    VOID
+);
+
+VOID
+NTAPI
+MiLocateKernelSections(
+    _In_ PLDR_DATA_TABLE_ENTRY LdrEntry
+);
+
 BOOLEAN
 NTAPI
 MiInitializeLoadedModuleList(
@@ -2413,8 +3231,31 @@ MiWriteProtectSystemImage(
     _In_ PVOID ImageBase
 );
 
+PLDR_DATA_TABLE_ENTRY
+NTAPI
+MiLookupDataTableEntry(
+    _In_ PVOID Address
+);
+
+PVOID
+NTAPI
+MmGetSystemRoutineAddress(
+    _In_ PUNICODE_STRING SystemRoutineName
+);
+
+PVOID
+NTAPI
+MmPageEntireDriver(
+    _In_ PVOID AddressWithinSection
+);
+
+VOID
+NTAPI
+MmResetDriverPaging(
+    _In_ PVOID AddressWithinSection
+);
+
 /* ARM3\syspte.c */
-//INIT_FUNCTION
 VOID
 NTAPI
 MiInitializeSystemPtes(
@@ -2447,6 +3288,16 @@ MiReserveAlignedSystemPtes(
 );
 
 /* ARM3\vadnode.c */
+NTSTATUS
+NTAPI
+MiFindEmptyAddressRangeInTree(
+    _In_ SIZE_T Length,
+    _In_ ULONG_PTR Alignment,
+    _In_ PMM_AVL_TABLE Table,
+    _Out_ PMMADDRESS_NODE* PreviousVad,
+    _Out_ PULONG_PTR Base
+);
+
 BOOLEAN
 NTAPI
 MiCheckForConflictingVadExistence(
@@ -2588,6 +3439,73 @@ MiReturnPageTablePageCommitment(
 );
 
 /* ARM3\virtual.c */
+LONG
+MiGetExceptionInfo(
+    _In_ PEXCEPTION_POINTERS ExceptionInfo,
+    _Out_ PBOOLEAN HaveBadAddress,
+    _Out_ PULONG_PTR BadAddress
+);
+
+NTSTATUS
+NTAPI
+MiDoMappedCopy(
+    _In_ PEPROCESS SourceProcess,
+    _In_ PVOID SourceAddress,
+    _In_ PEPROCESS TargetProcess,
+    _Out_ PVOID TargetAddress,
+    _In_ SIZE_T BufferSize,
+    _In_ KPROCESSOR_MODE PreviousMode,
+    _Out_ PSIZE_T ReturnSize
+);
+
+NTSTATUS
+NTAPI
+MiDoPoolCopy(
+    _In_ PEPROCESS SourceProcess,
+    _In_ PVOID SourceAddress,
+    _In_ PEPROCESS TargetProcess,
+    _Out_ PVOID TargetAddress,
+    _In_ SIZE_T BufferSize,
+    _In_ KPROCESSOR_MODE PreviousMode,
+    _Out_ PSIZE_T ReturnSize
+);
+
+NTSTATUS
+NTAPI
+MmCopyVirtualMemory(
+    _In_ PEPROCESS SourceProcess,
+    _In_ PVOID SourceAddress,
+    _In_ PEPROCESS TargetProcess,
+    _Out_ PVOID TargetAddress,
+    _In_ SIZE_T BufferSize,
+    _In_ KPROCESSOR_MODE PreviousMode,
+    _Out_ PSIZE_T ReturnSize
+);
+
+NTSTATUS
+NTAPI
+MiResetVirtualMemory(
+    IN ULONG_PTR StartingAddress,
+    IN ULONG_PTR EndingAddress,
+    IN PMMVAD Vad,
+    IN PEPROCESS Process
+);
+
+PVOID
+NTAPI
+MmSecureVirtualMemory(
+    _In_ PVOID Address,
+    _In_ SIZE_T Length,
+    _In_ ULONG Mode
+);
+
+CODE_SEG("PAGE")
+VOID
+NTAPI
+MmUnsecureVirtualMemory(
+    _In_ HANDLE SecureHandle
+);
+
 PFN_COUNT
 NTAPI
 MiDeleteSystemPageableVm(
@@ -2632,7 +3550,74 @@ MiDeletePte(
     _In_ KIRQL OldIrql
 );
 
+NTSTATUS
+NTAPI
+NtReadVirtualMemory(
+    _In_ HANDLE ProcessHandle,
+    _In_ PVOID BaseAddress,
+    _Out_ PVOID Buffer,
+    _In_ SIZE_T NumberOfBytesToRead,
+    _Out_ PSIZE_T NumberOfBytesRead OPTIONAL
+);
+
+NTSTATUS
+NTAPI
+NtWriteVirtualMemory(
+    _In_ HANDLE ProcessHandle,
+    _In_ PVOID BaseAddress,
+    _In_ PVOID Buffer,
+    _In_ SIZE_T NumberOfBytesToWrite,
+    _Out_ PSIZE_T NumberOfBytesWritten OPTIONAL
+);
+
+NTSTATUS
+NTAPI
+NtFlushInstructionCache(
+    _In_ HANDLE ProcessHandle,
+    _In_opt_ PVOID BaseAddress,
+    _In_ SIZE_T FlushSize
+);
+
+NTSTATUS
+NTAPI
+NtProtectVirtualMemory(
+    _In_ HANDLE ProcessHandle,
+    _Inout_ PVOID* OutBase,
+    _Inout_ SIZE_T* OutSize,
+    _In_ ULONG NewProtection,
+    _Out_ ULONG* OutProtection
+);
+
+NTSTATUS
+NTAPI
+NtFlushVirtualMemory(
+    _In_ HANDLE ProcessHandle,
+    _Inout_ PVOID* BaseAddress,
+    _Inout_ PSIZE_T NumberOfBytesToFlush,
+    _Out_ PIO_STATUS_BLOCK IoStatusBlock
+);
+
 /* ARM3\workset.c */
+NTSTATUS
+NTAPI
+MmAdjustWorkingSetSize(
+    _In_ SIZE_T WorkingSetMinimumInBytes,
+    _In_ SIZE_T WorkingSetMaximumInBytes,
+    _In_ ULONG SystemCache,
+    _In_ BOOLEAN IncreaseOkay
+);
+
+NTSTATUS
+NTAPI
+MmAdjustWorkingSetSizeEx(
+    SIZE_T WorkingSetMinimumInBytes,
+    SIZE_T WorkingSetMaximumInBytes,
+    BOOLEAN IsSystemCache,
+    BOOLEAN IsIncreaseOkay,
+    ULONG Flags,
+    BOOLEAN* OutIsAddMinSize
+);
+
 BOOLEAN
 NTAPI
 MiRemovePageFromWorkingSet(
@@ -2723,9 +3708,23 @@ MiSwapWslEntries(
     IN BOOLEAN Param4
 );
 
+/* ARM3\zeropage.c */
+VOID
+NTAPI
+MiFreeInitializationCode(
+    _In_ PVOID InitStart,
+    _In_ PVOID InitEnd
+);
+
+VOID
+NTAPI
+MiFindInitializationCode(
+    _Out_ PVOID* OutStartVa,
+    _Out_ PVOID* OutEndVa
+);
+
 /* i386\page.c */
 /* i386\pagepae.c */
-//INIT_FUNCTION
 VOID
 NTAPI
 MmInitGlobalKernelPageDirectory(
@@ -2741,7 +3740,6 @@ MmCreateProcessAddressSpace(
 );
 
 /* balance.c */
-//INIT_FUNCTION
 VOID
 NTAPI
 MmInitializeBalancer(
@@ -2767,7 +3765,6 @@ MmTrimUserMemory(
     PULONG NrFreedPages
 );
 
-//INIT_FUNCTION
 VOID
 NTAPI
 MmInitializeMemoryConsumer(

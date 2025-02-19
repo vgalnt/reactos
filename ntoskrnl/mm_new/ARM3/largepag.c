@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -18,7 +19,13 @@ BOOLEAN MiLargePageAllDrivers;
 
 /* FUNCTIONS ******************************************************************/
 
-//INIT_FUNCTION
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MiInitializeLargePageSupport)
+  #pragma alloc_text(INIT, MiSyncCachedRanges)
+  #pragma alloc_text(INIT, MiInitializeDriverLargePageList)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeLargePageSupport(VOID)
@@ -38,7 +45,7 @@ MiInitializeLargePageSupport(VOID)
 #endif
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiSyncCachedRanges(VOID)
@@ -52,7 +59,7 @@ MiSyncCachedRanges(VOID)
     }
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeDriverLargePageList(VOID)

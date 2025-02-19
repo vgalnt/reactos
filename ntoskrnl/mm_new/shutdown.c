@@ -13,6 +13,14 @@ extern ULONG MmNumberOfPagingFiles;
 
 /* FUNCTIONS ******************************************************************/
 
+VOID MiShutdownSystem(VOID);
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MiShutdownSystem)
+  #pragma alloc_text(PAGE, MmShutdownSystem)
+#endif
+
+CODE_SEG("PAGELK")
 VOID
 MiShutdownSystem(VOID)
 {
@@ -34,6 +42,7 @@ MiShutdownSystem(VOID)
     UNIMPLEMENTED;
 }
 
+CODE_SEG("PAGELK")
 VOID
 MmShutdownSystem(
     _In_ ULONG Phase)

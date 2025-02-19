@@ -105,6 +105,10 @@ extern SIZE_T MmProcessCommit;
 
 /* FUNCTIONS ******************************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MmInitGlobalKernelPageDirectory)
+#endif
+
 ULONG
 NTAPI
 MmGetPageProtect(PEPROCESS Process, PVOID Address)
@@ -120,7 +124,7 @@ MmSetPageProtect(PEPROCESS Process, PVOID Address, ULONG flProtect)
     UNIMPLEMENTED_DBGBREAK();
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MmInitGlobalKernelPageDirectory(VOID)

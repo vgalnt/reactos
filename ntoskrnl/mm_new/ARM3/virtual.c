@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -27,6 +28,22 @@ extern PMMWSL MmSystemCacheWorkingSetList;
 
 /* FUNCTIONS ******************************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MiGetExceptionInfo)
+  #pragma alloc_text(PAGE, MiDoMappedCopy)
+  #pragma alloc_text(PAGE, MiDoPoolCopy)
+  #pragma alloc_text(PAGE, MmCopyVirtualMemory)
+  #pragma alloc_text(PAGELK, MiResetVirtualMemory)
+  #pragma alloc_text(PAGE, MmSecureVirtualMemory)
+  #pragma alloc_text(PAGE, MmUnsecureVirtualMemory)
+  #pragma alloc_text(PAGE, NtReadVirtualMemory)
+  #pragma alloc_text(PAGE, NtWriteVirtualMemory)
+  #pragma alloc_text(PAGE, NtFlushInstructionCache)
+  #pragma alloc_text(PAGE, NtProtectVirtualMemory)
+  #pragma alloc_text(PAGE, NtFlushVirtualMemory)
+#endif
+
+CODE_SEG("PAGE")
 LONG
 MiGetExceptionInfo(
     _In_ PEXCEPTION_POINTERS ExceptionInfo,
@@ -61,6 +78,7 @@ MiGetExceptionInfo(
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiDoMappedCopy(
@@ -248,6 +266,7 @@ Exit:
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiDoPoolCopy(
@@ -452,6 +471,7 @@ Exit:
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmCopyVirtualMemory(
@@ -3481,6 +3501,7 @@ Exit:
     return Status;
 }
 
+CODE_SEG("PAGELK")
 NTSTATUS
 NTAPI
 MiResetVirtualMemory(
@@ -3797,6 +3818,7 @@ MmGetVirtualForPhysical(
     return NULL;
 }
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MmSecureVirtualMemory(
@@ -3808,6 +3830,7 @@ MmSecureVirtualMemory(
     return NULL;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MmUnsecureVirtualMemory(
@@ -3820,6 +3843,7 @@ MmUnsecureVirtualMemory(
 
 /* SYSTEM CALLS ***************************************************************/
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtReadVirtualMemory(
@@ -3908,6 +3932,7 @@ NtReadVirtualMemory(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtWriteVirtualMemory(
@@ -3996,6 +4021,7 @@ NtWriteVirtualMemory(
     return Status;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtFlushInstructionCache(
@@ -4063,6 +4089,7 @@ NtFlushInstructionCache(
     return STATUS_SUCCESS;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtProtectVirtualMemory(
@@ -4217,6 +4244,7 @@ NtUnlockVirtualMemory(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtFlushVirtualMemory(

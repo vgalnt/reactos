@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -53,6 +54,11 @@ extern LONG MiDelayPageFaults;
 extern BOOLEAN MiWriteCombiningPtes;
 
 /* FUNCTIONS ******************************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGE, MmGetExecuteOptions)
+  #pragma alloc_text(PAGE, MiCheckForUserStackOverflow)
+#endif
 
 FORCEINLINE
 BOOLEAN
@@ -165,6 +171,7 @@ Exit:
     return STATUS_GUARD_PAGE_VIOLATION;
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmGetExecuteOptions(
@@ -299,6 +306,7 @@ Exit:
 }
 #endif
 
+CODE_SEG("PAGE")
 NTSTATUS
 FASTCALL
 MiCheckForUserStackOverflow(

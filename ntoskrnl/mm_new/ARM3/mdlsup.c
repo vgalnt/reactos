@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -17,6 +18,15 @@ extern PMMPTE MmSystemPtesStart[MaximumPtePoolTypes];
 extern PMMPTE MmSystemPtesEnd[MaximumPtePoolTypes];
 
 /* FUNCTIONS ******************************************************************/
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(PAGELK, MiUnmapLockedPagesInUserSpace)
+  #pragma alloc_text(PAGE, MmAllocatePagesForMdl)
+  #pragma alloc_text(PAGE, MmAllocatePagesForMdlEx)
+  #pragma alloc_text(PAGELK, MmFreePagesFromMdl)
+  #pragma alloc_text(PAGE, MmPrefetchPages)
+  #pragma alloc_text(PAGE, MmProbeAndLockProcessPages)
+#endif
 
 PVOID
 NTAPI
@@ -267,6 +277,7 @@ Error:
     ExRaiseStatus(Status);
 }
 
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 MiUnmapLockedPagesInUserSpace(
@@ -380,6 +391,7 @@ MmAdvanceMdl(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+CODE_SEG("PAGE")
 PMDL
 NTAPI
 MmAllocatePagesForMdl(
@@ -392,6 +404,7 @@ MmAllocatePagesForMdl(
     return NULL;
 }
 
+CODE_SEG("PAGE")
 PMDL
 NTAPI
 MmAllocatePagesForMdlEx(
@@ -466,6 +479,7 @@ MmCreateMdl(
     return NULL;
 }
 
+CODE_SEG("PAGELK")
 VOID
 NTAPI
 MmFreePagesFromMdl(
@@ -620,6 +634,7 @@ MmMapMemoryDumpMdl(
     UNIMPLEMENTED_DBGBREAK();
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MmPrefetchPages(
@@ -954,6 +969,7 @@ Cleanup:
     ExRaiseStatus(Status);
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MmProbeAndLockProcessPages(

@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "ARM3/miarm.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "ARM3/miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -27,6 +28,11 @@ extern SIZE_T MmTotalCommitLimitMaximum;
 
 /* FUNCTIONS ******************************************************************/
 
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MmInitPagingFile)
+  #pragma alloc_text(PAGE, NtCreatePagingFile)
+#endif
+
 BOOLEAN
 NTAPI
 MmIsFileObjectAPagingFile(PFILE_OBJECT FileObject)
@@ -35,7 +41,7 @@ MmIsFileObjectAPagingFile(PFILE_OBJECT FileObject)
     return FALSE;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MmInitPagingFile(VOID)
@@ -97,6 +103,7 @@ MiInsertPageFileInList(VOID)
 
 /* SYSTEM CALLS ***************************************************************/
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 NtCreatePagingFile(

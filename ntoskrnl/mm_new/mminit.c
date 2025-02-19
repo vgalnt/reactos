@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "ARM3/miarm.h"
+
 #define NDEBUG
 #include <debug.h>
-#include "ARM3/miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -30,7 +31,16 @@ extern MMPTE ValidKernelPte;
 
 /* FUNCTIONS ******************************************************************/
 
-//INIT_FUNCTION
+VOID NTAPI MiDbgDumpAddressSpace(VOID);
+NTSTATUS NTAPI MmInitBsmThread(VOID);
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MiDbgDumpAddressSpace)
+  #pragma alloc_text(INIT, MmInitBsmThread)
+  #pragma alloc_text(INIT, MmInitSystem)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiDbgDumpAddressSpace(VOID)
@@ -76,7 +86,7 @@ DPRINT1("%p - %p (%X) %s\n", MmNonPagedPoolExpansionStart, MmNonPagedPoolEnd, _N
 
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 NTSTATUS
 NTAPI
 MmInitBsmThread(VOID)
@@ -102,7 +112,7 @@ MmInitBsmThread(VOID)
     return Status;
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 BOOLEAN
 NTAPI
 MmInitSystem(

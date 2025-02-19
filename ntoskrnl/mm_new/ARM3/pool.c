@@ -2,9 +2,10 @@
 /* INCLUDES *******************************************************************/
 
 #include <ntoskrnl.h>
+#include "miarm.h"
+
 //#define NDEBUG
 #include <debug.h>
-#include "miarm.h"
 
 /* GLOBALS ********************************************************************/
 
@@ -50,7 +51,17 @@ extern SIZE_T MmSessionPoolSize;
 
 /* FUNCTIONS ******************************************************************/
 
-//INIT_FUNCTION
+
+#if defined (ALLOC_PRAGMA)
+  #pragma alloc_text(INIT, MiInitializeNonPagedPool)
+  #pragma alloc_text(INIT, MiInitializeNonPagedPoolThresholds)
+  #pragma alloc_text(INIT, MiInitializePoolEvents)
+  #pragma alloc_text(PAGE, MiInitializeSessionPool)
+  #pragma alloc_text(PAGE, MmAllocateMappingAddress)
+  #pragma alloc_text(PAGE, MmFreeMappingAddress)
+#endif
+
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeNonPagedPool(VOID)
@@ -148,7 +159,7 @@ MiInitializeNonPagedPool(VOID)
     MiInitializeSystemPtes((Pte + 1), MiExpansionPoolPagesInitialCharge, NonPagedPoolExpansion);
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializeNonPagedPoolThresholds(VOID)
@@ -855,7 +866,7 @@ MmDeterminePoolType(
     KeBugCheckEx(BAD_POOL_CALLER, 0x42, (ULONG_PTR)PoolAddress, 0, 0);
 }
 
-//INIT_FUNCTION
+CODE_SEG("INIT")
 VOID
 NTAPI
 MiInitializePoolEvents(VOID)
@@ -914,6 +925,7 @@ MiInitializePoolEvents(VOID)
     KeReleaseQueuedSpinLock(LockQueueMmNonPagedPoolLock, OldIrql);
 }
 
+CODE_SEG("PAGE")
 NTSTATUS
 NTAPI
 MiInitializeSessionPool(VOID)
@@ -1015,6 +1027,7 @@ MiInitializeSessionPool(VOID)
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 
+CODE_SEG("PAGE")
 PVOID
 NTAPI
 MmAllocateMappingAddress(
@@ -1066,6 +1079,7 @@ MmAllocateMappingAddress(
     return Va;
 }
 
+CODE_SEG("PAGE")
 VOID
 NTAPI
 MmFreeMappingAddress(
