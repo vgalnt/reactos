@@ -29,7 +29,52 @@ KSPIN_LOCK Ki486CompatibilityLock;
 ULONG ProcessCount;
 ULONGLONG BootCycles, BootCyclesEnd;
 
+#if DBG_KD0
+CPPORT Kd0ComPort[4] =
+{
+    {NULL, 0, TRUE},
+    {NULL, 0, TRUE},
+    {NULL, 0, TRUE},
+    {NULL, 0, TRUE}
+};
+#endif
+
 /* FUNCTIONS *****************************************************************/
+
+#if DBG_KD0
+ULONG
+__cdecl
+DbgKdPrint0(_In_ PCHAR Format, ...)
+{
+    USHORT Length;
+    va_list ap;
+    CHAR PrintBuffer[255];
+    PCHAR pChar;
+
+    /* Format the string */
+    va_start(ap, Format);
+    Length = (USHORT)_vsnprintf(PrintBuffer, sizeof(PrintBuffer), Format, ap);
+    va_end(ap);
+
+    /* Check if we went past the buffer */
+    if (Length == -1)
+    {
+        /* Terminate it if we went over-board */
+        PrintBuffer[sizeof(PrintBuffer) - 1] = '\n';
+
+        /* Put maximum */
+        Length = sizeof(PrintBuffer);
+    }
+
+    /* Send it directly */
+    pChar = PrintBuffer;
+
+    while (Length--)
+        CpPutByte(&Kd0ComPort[1], *pChar++);
+
+    return 0;
+}
+#endif
 
 //INIT_FUNCTION
 VOID
