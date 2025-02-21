@@ -4,7 +4,44 @@
 
 #include "arch/ke.h"
 
+#define DBG_KD0 1
+
 /* INTERNAL KERNEL TYPES ****************************************************/
+
+#if DBG
+
+  #if DBG_KD0
+
+    ULONG __cdecl DbgKdPrint0(_In_ PCHAR Format, ...);
+
+    #ifndef __FILENAME__
+      #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+    #endif
+
+    #define DbgPrint0(fmt, ...) do { \
+      if (DbgKdPrint0("(%s:%d) " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__))  \
+          DbgKdPrint0("(%s:%d) DbgKdPrint0() failed!\n", __FILENAME__, __LINE__); \
+    } while (0)
+
+  #else
+
+    #if defined(_MSC_VER)
+      #define DbgPrint0 __noop
+    #else
+      #define DbgPrint0
+    #endif
+
+  #endif
+
+#else
+
+  #if defined(_MSC_VER)
+    #define DbgPrint0 __noop
+  #else
+    #define DbgPrint0
+  #endif
+
+#endif
 
 typedef struct _WOW64_PROCESS
 {
