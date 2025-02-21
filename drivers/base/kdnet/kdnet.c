@@ -11,6 +11,10 @@
 
 /* GLOBALS ********************************************************************/
 
+ULONG (*DbgPrint0)(_In_ const PCHAR Format, ...);
+
+BOOLEAN IsDbgComInitialized = FALSE;
+
 /* PRIVATE FUNCTIONS **********************************************************/
 
 /* PUBLIC FUNCTIONS ***********************************************************/
@@ -36,6 +40,18 @@ NTAPI
 KdDebuggerInitialize0(
     _In_opt_ PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
+    if (!IsDbgComInitialized)
+    {
+        if (LoaderBlock->u.I386.CommonDataArea)
+        {
+            DbgPrint0 = LoaderBlock->u.I386.CommonDataArea;
+            IsDbgComInitialized = TRUE;
+        }
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdDebuggerInitialize0: LoaderBlock %p\n", LoaderBlock);
+
     KeBugCheck(MANUALLY_INITIATED_CRASH);
     return STATUS_NOT_IMPLEMENTED;
 }
