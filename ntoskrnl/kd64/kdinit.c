@@ -155,6 +155,10 @@ KdInitSystem(
     SIZE_T MemSizeMBs;
     CHAR NameBuffer[256];
     PWCHAR Name;
+  #if DBG_KD0
+    PVOID oldArea = NULL;
+    NTSTATUS Status;
+  #endif
 
 #if defined(__GNUC__)
     /* Make gcc happy */
@@ -354,110 +358,136 @@ KdInitSystem(
     KdDebuggerDataBlock.KernBase = (ULONG_PTR)KdVersionBlock.KernBase;
 
     /* Initialize the debugger if requested */
-    if (EnableKd && (NT_SUCCESS(KdDebuggerInitialize0(LoaderBlock))))
+    if (!EnableKd)
     {
-        /* Now set our real KD routine */
-        KiDebugRoutine = KdpTrap;
+        DbgPrint0("KdInitSystem: debugger is not present\n");
 
-        /* Check if we've already initialized our structures */
-        if (!KdpDebuggerStructuresInitialized)
-        {
-            /* Set the Debug Switch Routine and Retries */
-            KdpContext.KdpDefaultRetries = 20;
-            KiDebugSwitchRoutine = KdpSwitchProcessor;
-
-            /* Initialize breakpoints owed flag and table */
-            KdpOweBreakpoint = FALSE;
-            for (i = 0; i < KD_BREAKPOINT_MAX; i++)
-            {
-                KdpBreakpointTable[i].Flags   = 0;
-                KdpBreakpointTable[i].DirectoryTableBase = 0;
-                KdpBreakpointTable[i].Address = NULL;
-            }
-
-            /* Initialize the Time Slip DPC */
-            KeInitializeDpc(&KdpTimeSlipDpc, KdpTimeSlipDpcRoutine, NULL);
-            KeInitializeTimer(&KdpTimeSlipTimer);
-            ExInitializeWorkItem(&KdpTimeSlipWorkItem, KdpTimeSlipWork, NULL);
-
-            /* First-time initialization done! */
-            KdpDebuggerStructuresInitialized = TRUE;
-        }
-
-        /* Initialize the timer */
-        KdTimerStart.QuadPart = 0;
-
-        /* Officially enable KD */
-        KdPitchDebugger = FALSE;
-        KdDebuggerEnabled = TRUE;
-
-        /* Let user-mode know that it's enabled as well */
-        SharedUserData->KdDebuggerEnabled = TRUE;
-
-        /* Display separator + ReactOS version at start of the debug log */
-        MemSizeMBs = KdpGetMemorySizeInMBs(KeLoaderBlock);
-        KdpPrintBanner(MemSizeMBs);
-
-        /* Check if the debugger should be disabled initially */
-        if (DisableKdAfterInit)
-        {
-            /* Disable it */
-            KdDisableDebuggerWithLock(FALSE);
-
-            /*
-             * Save the enable block state and return initialized
-             * (the debugger is active but disabled).
-             */
-            KdBlockEnable = BlockEnable;
-            return TRUE;
-        }
-
-        /* Check if we have a loader block */
-        if (LoaderBlock)
-        {
-            /* Loop boot images */
-            NextEntry = LoaderBlock->LoadOrderListHead.Flink;
-            i = 0;
-            while ((NextEntry != &LoaderBlock->LoadOrderListHead) && (i < 2))
-            {
-                /* Get the image entry */
-                LdrEntry = CONTAINING_RECORD(NextEntry,
-                                             LDR_DATA_TABLE_ENTRY,
-                                             InLoadOrderLinks);
-
-                /* Generate the image name */
-                Name = LdrEntry->FullDllName.Buffer;
-                Length = LdrEntry->FullDllName.Length / sizeof(WCHAR);
-                j = 0;
-                do
-                {
-                    /* Do cheap Unicode to ANSI conversion */
-                    NameBuffer[j++] = (CHAR)*Name++;
-                } while (j < Length);
-
-                /* Null-terminate */
-                NameBuffer[j] = ANSI_NULL;
-
-                /* Load symbols for image */
-                RtlInitString(&ImageName, NameBuffer);
-                DbgLoadImageSymbols(&ImageName,
-                                    LdrEntry->DllBase,
-                                    (ULONG_PTR)PsGetCurrentProcessId());
-
-                /* Go to the next entry */
-                NextEntry = NextEntry->Flink;
-                i++;
-            }
-        }
-
-        /* Check for incoming breakin and break on symbol load if we have it */
-        KdBreakAfterSymbolLoad = KdPollBreakIn();
-    }
-    else
-    {
         /* Disable debugger */
         KdDebuggerNotPresent = TRUE;
+
+        /* Return initialized */
+        return TRUE;
     }
+
+  #if DBG_KD0
+    if (LoaderBlock->u.I386.CommonDataArea)
+        oldArea = LoaderBlock->u.I386.CommonDataArea;
+
+    LoaderBlock->u.I386.CommonDataArea = DbgKdPrint0;
+
+    /* FIXME find and patch kdstub */
+  #endif
+
+    Status = KdDebuggerInitialize0(LoaderBlock);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint0("KdInitSystem: KdDebuggerInitialize0 failed (Status %X)\n", Status);
+
+        /* Return initialized */
+        return TRUE;
+    }
+
+  #if DBG_KD0
+    if (oldArea)
+        LoaderBlock->u.I386.CommonDataArea = oldArea;
+  #endif
+
+    /* Now set our real KD routine */
+    KiDebugRoutine = KdpTrap;
+
+    /* Check if we've already initialized our structures */
+    if (!KdpDebuggerStructuresInitialized)
+    {
+        /* Set the Debug Switch Routine and Retries */
+        KdpContext.KdpDefaultRetries = 20;
+        KiDebugSwitchRoutine = KdpSwitchProcessor;
+
+        /* Initialize breakpoints owed flag and table */
+        KdpOweBreakpoint = FALSE;
+        for (i = 0; i < KD_BREAKPOINT_MAX; i++)
+        {
+            KdpBreakpointTable[i].Flags   = 0;
+            KdpBreakpointTable[i].DirectoryTableBase = 0;
+            KdpBreakpointTable[i].Address = NULL;
+        }
+
+        /* Initialize the Time Slip DPC */
+        KeInitializeDpc(&KdpTimeSlipDpc, KdpTimeSlipDpcRoutine, NULL);
+        KeInitializeTimer(&KdpTimeSlipTimer);
+        ExInitializeWorkItem(&KdpTimeSlipWorkItem, KdpTimeSlipWork, NULL);
+
+        /* First-time initialization done! */
+        KdpDebuggerStructuresInitialized = TRUE;
+    }
+
+    /* Initialize the timer */
+    KdTimerStart.QuadPart = 0;
+
+    /* Officially enable KD */
+    KdPitchDebugger = FALSE;
+    KdDebuggerEnabled = TRUE;
+
+    /* Let user-mode know that it's enabled as well */
+    SharedUserData->KdDebuggerEnabled = TRUE;
+
+    /* Display separator + ReactOS version at start of the debug log */
+    MemSizeMBs = KdpGetMemorySizeInMBs(KeLoaderBlock);
+    KdpPrintBanner(MemSizeMBs);
+
+    /* Check if the debugger should be disabled initially */
+    if (DisableKdAfterInit)
+    {
+        /* Disable it */
+        KdDisableDebuggerWithLock(FALSE);
+
+        /*
+         * Save the enable block state and return initialized
+         * (the debugger is active but disabled).
+         */
+        KdBlockEnable = BlockEnable;
+        return TRUE;
+    }
+
+    /* Check if we have a loader block */
+    if (LoaderBlock)
+    {
+        /* Loop boot images */
+        NextEntry = LoaderBlock->LoadOrderListHead.Flink;
+        i = 0;
+        while ((NextEntry != &LoaderBlock->LoadOrderListHead) && (i < 2))
+        {
+            /* Get the image entry */
+            LdrEntry = CONTAINING_RECORD(NextEntry,
+                                         LDR_DATA_TABLE_ENTRY,
+                                         InLoadOrderLinks);
+
+            /* Generate the image name */
+            Name = LdrEntry->FullDllName.Buffer;
+            Length = LdrEntry->FullDllName.Length / sizeof(WCHAR);
+            j = 0;
+            do
+            {
+                /* Do cheap Unicode to ANSI conversion */
+                NameBuffer[j++] = (CHAR)*Name++;
+            } while (j < Length);
+
+            /* Null-terminate */
+            NameBuffer[j] = ANSI_NULL;
+
+            /* Load symbols for image */
+            RtlInitString(&ImageName, NameBuffer);
+            DbgLoadImageSymbols(&ImageName,
+                                LdrEntry->DllBase,
+                                (ULONG_PTR)PsGetCurrentProcessId());
+
+            /* Go to the next entry */
+            NextEntry = NextEntry->Flink;
+            i++;
+        }
+    }
+
+    /* Check for incoming breakin and break on symbol load if we have it */
+    KdBreakAfterSymbolLoad = KdPollBreakIn();
 
     /* Return initialized */
     return TRUE;
