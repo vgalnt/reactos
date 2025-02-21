@@ -771,6 +771,30 @@ KiSystemStartup(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     PKTSS Tss;
     PKIPCR Pcr;
     KIRQL DummyIrql;
+    NTSTATUS Status;
+
+    /* Initialize serial port for startup debugging (the kernel debugger has not yet been initialized).
+       Hadrcoded!
+    */
+  #if DBG_KD0
+    PUCHAR ComPortAddress = (PUCHAR)0x3F8;
+
+    Status = CpInitialize(&Kd0ComPort[1], ComPortAddress, 115200);
+    if (NT_SUCCESS(Status))
+    {
+        DbgPrint0("KiSystemStartup: LoaderBlock %X\n", LoaderBlock);
+    }
+    else
+    {
+        WRITE_PORT_UCHAR(ComPortAddress, 'K');
+        WRITE_PORT_UCHAR(ComPortAddress, 'i');
+        WRITE_PORT_UCHAR(ComPortAddress, 'B');
+        WRITE_PORT_UCHAR(ComPortAddress, 'u');
+        WRITE_PORT_UCHAR(ComPortAddress, 'g');
+        WRITE_PORT_UCHAR(ComPortAddress, 0x0D);
+        WRITE_PORT_UCHAR(ComPortAddress, 0x0A);
+    }
+  #endif
 
     /* Boot cycles timestamp */
     BootCycles = __rdtsc();
