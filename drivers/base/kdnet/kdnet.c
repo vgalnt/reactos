@@ -23,6 +23,9 @@ NTSTATUS
 NTAPI
 KdD0Transition(VOID)
 {
+    if (IsDbgComInitialized)
+        DbgPrint0("KdD0Transition: Unimplemented!\n");
+
     KeBugCheck(MANUALLY_INITIATED_CRASH);
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -31,6 +34,9 @@ NTSTATUS
 NTAPI
 KdD3Transition(VOID)
 {
+    if (IsDbgComInitialized)
+        DbgPrint0("KdD3Transition: Unimplemented!\n");
+
     KeBugCheck(MANUALLY_INITIATED_CRASH);
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -61,6 +67,9 @@ NTAPI
 KdDebuggerInitialize1(
     _In_opt_ PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
+    if (IsDbgComInitialized)
+        DbgPrint0("KdDebuggerInitialize1: Unimplemented! LoaderBlock %p\n", LoaderBlock);
+
     KeBugCheck(MANUALLY_INITIATED_CRASH);
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -74,6 +83,9 @@ KdReceivePacket(
     _Out_ ULONG* OutDataLength,
     _Inout_ PKD_CONTEXT KdContext)
 {
+    if (IsDbgComInitialized)
+        DbgPrint0("KdReceivePacket: %X, %p, %p\n", PacketType, MessageHeader, MessageData);
+
     KeBugCheck(MANUALLY_INITIATED_CRASH);
     return 0;
 }
@@ -83,6 +95,8 @@ NTAPI
 KdRestore(
     _In_ BOOLEAN SleepTransition)
 {
+    if (IsDbgComInitialized)
+        DbgPrint0("KdRestore: SleepTransition %x\n", SleepTransition);
     return STATUS_SUCCESS;
 }
 
@@ -91,6 +105,8 @@ NTAPI
 KdSave(
     _In_ BOOLEAN SleepTransition)
 {
+    if (IsDbgComInitialized)
+        DbgPrint0("KdSave: SleepTransition %x\n", SleepTransition);
     return STATUS_SUCCESS;
 }
 
@@ -102,6 +118,8 @@ KdSendPacket(
     _In_ PSTRING MessageData,
     _Inout_ PKD_CONTEXT KdContext)
 {
+    if (IsDbgComInitialized)
+        DbgPrint0("KdSendPacket: %X, %p, %p\n", PacketType, MessageHeader, MessageData);
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 }
 
@@ -109,6 +127,9 @@ NTSTATUS
 NTAPI
 KdSetHiberRange(VOID)
 {
+    if (IsDbgComInitialized)
+        DbgPrint0("KdD0Transition: Unimplemented!\n");
+
     KeBugCheck(MANUALLY_INITIATED_CRASH);
     return STATUS_NOT_IMPLEMENTED;
 }
