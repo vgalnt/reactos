@@ -12,10 +12,39 @@
 /* GLOBALS ********************************************************************/
 
 ULONG (*DbgPrint0)(_In_ const PCHAR Format, ...);
-
 BOOLEAN IsDbgComInitialized = FALSE;
 
+KD_NIC_DATA KdNicData;
+
+LIST_ENTRY QueuedTxListHead;
+
 /* PRIVATE FUNCTIONS **********************************************************/
+
+VOID
+NTAPI
+KdNetNicInitialize(VOID)
+{
+    KdNicData.Version = 3;
+    KdNicData.Size = sizeof(KD_NIC_DATA);
+
+    KdNicData.Reserved0 = 0;
+    KdNicData.LinkSpeed1 = 1000;
+
+    KdNicData.Status = STATUS_ADAPTER_HARDWARE_ERROR;
+
+    KdNicData.Reserved1 = 0;
+    KdNicData.Reserved2 = 0;
+
+    InitializeSListHead(&KdNicData.sListHead);
+    InitializeSListHead(&KdNicData.sListHead1);
+    InitializeSListHead(&KdNicData.sListHead2);
+
+    KdNicData.LinkState = 0;
+    KdNicData.Reserved3 = 0;
+    KdNicData.LinkSpeed2 = 1000;
+
+    InitializeListHead(&QueuedTxListHead);
+}
 
 /* PUBLIC FUNCTIONS ***********************************************************/
 
