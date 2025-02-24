@@ -158,6 +158,15 @@ KdInitSystem(
   #if DBG_KD0
     PVOID oldArea = NULL;
     NTSTATUS Status;
+
+    if (LoaderBlock->u.I386.CommonDataArea)
+        oldArea = LoaderBlock->u.I386.CommonDataArea;
+
+    LoaderBlock->u.I386.CommonDataArea = DbgKdPrint0;
+
+    /* FIXME find and patch kdstub */
+
+    DbgPrint0("KdInitSystem: BootPhase %X, LoaderBlock %p\n", BootPhase, LoaderBlock);
   #endif
 
 #if defined(__GNUC__)
@@ -360,7 +369,9 @@ KdInitSystem(
     /* Initialize the debugger if requested */
     if (!EnableKd)
     {
+      #if DBG_KD0
         DbgPrint0("KdInitSystem: debugger is not present\n");
+      #endif
 
         /* Disable debugger */
         KdDebuggerNotPresent = TRUE;
@@ -369,19 +380,13 @@ KdInitSystem(
         return TRUE;
     }
 
-  #if DBG_KD0
-    if (LoaderBlock->u.I386.CommonDataArea)
-        oldArea = LoaderBlock->u.I386.CommonDataArea;
-
-    LoaderBlock->u.I386.CommonDataArea = DbgKdPrint0;
-
-    /* FIXME find and patch kdstub */
-  #endif
 
     Status = KdDebuggerInitialize0(LoaderBlock);
     if (!NT_SUCCESS(Status))
     {
+      #if DBG_KD0
         DbgPrint0("KdInitSystem: KdDebuggerInitialize0 failed (Status %X)\n", Status);
+      #endif
 
         /* Return initialized */
         return TRUE;
