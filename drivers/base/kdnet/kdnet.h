@@ -216,6 +216,76 @@ typedef struct _KDNET_EXTENSIBILITY_EXPORT
     KDNET_SET_HIBER_RANGE SetHiberRange;
 } KDNET_EXTENSIBILITY_EXPORT, *PKDNET_EXTENSIBILITY_EXPORT;
 
+PVOID
+NTAPI
+KdGetPacketAddress(
+    _In_ PVOID Adapter,
+    _In_ ULONG Handle
+);
+
+ULONG
+NTAPI
+KdGetPacketLength(
+    _In_ PVOID Adapter,
+    _In_ ULONG Handle
+);
+
+NTSTATUS
+NTAPI
+KdGetRxPacket(
+    _In_ PVOID Adapter,
+    _Out_ ULONG* Handle,
+    _Out_ PVOID* Packet,
+    _Out_ ULONG* Length
+);
+
+NTSTATUS
+NTAPI
+KdGetTxPacket(
+    _In_ PVOID Adapter,
+    _Out_ ULONG* Handle
+);
+
+NTSTATUS
+NTAPI
+KdInitializeController(
+    _In_ PVOID NetData
+);
+
+NTSTATUS
+NTAPI
+KdInitializeLibrary(
+    _In_ PVOID ImportTable, // PKDNET_EXTENSIBILITY_IMPORTS
+    _In_ PCHAR LoaderOptions,
+    _Inout_ PDEBUG_DEVICE_DESCRIPTOR Device
+);
+
+VOID
+NTAPI
+KdReleaseRxPacket(
+    _In_ PVOID Adapter,
+    _In_ ULONG Handle
+);
+
+NTSTATUS
+NTAPI
+KdSendTxPacket(
+    _In_ PVOID Adapter,
+    _In_ ULONG Handle,
+    _In_ ULONG Length
+);
+
+VOID
+NTAPI
+KdSetHibernateRange(
+    VOID
+);
+
+VOID
+NTAPI
+KdShutdownController(
+    _In_ PVOID Adapter
+);
 
 #endif /* _KDNET_H_ */
 
