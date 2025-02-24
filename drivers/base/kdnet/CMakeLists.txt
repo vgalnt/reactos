@@ -1,6 +1,11 @@
 
 spec2def(kdnet.dll kdnet.spec ADD_IMPORTLIB)
 
+# NTDDI_WIN8
+remove_definitions(-D_WIN32_WINNT=0x502)
+add_definitions(-D_WIN32_WINNT=0x602)
+#add_definitions(-DNTDDI_VERSIONT=0x06020000)
+
 list(APPEND SOURCE
     kdnet.c
     kdnet.h)
