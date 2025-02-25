@@ -13,6 +13,8 @@
 #include <ntifs.h>
 #include <windbgkd.h>
 #include <arc/arc.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 typedef enum
 {
