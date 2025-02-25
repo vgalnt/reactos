@@ -92,6 +92,55 @@ typedef struct _KD_NET_PARAMETERS
 } KD_NET_PARAMETERS, *PKD_NET_PARAMETERS;
 C_ASSERT(sizeof(KD_NET_PARAMETERS) == 0x240);
 
+typedef struct _KD_NET_AES_CTX
+{
+    UCHAR AesCtx[0x1D8]; // 472
+} KD_NET_AES_CTX, *PKD_NET_AES_CTX;
+C_ASSERT(sizeof(KD_NET_AES_CTX) == 0x1D8);
+
+typedef struct _KDNET_SHARED_DATA
+{
+    PVOID Hardware;
+    PDEBUG_DEVICE_DESCRIPTOR Device;
+    PUCHAR TargetMacAddress;
+    ULONG LinkSpeed;
+    ULONG LinkDuplex;
+    PUCHAR LinkState;
+} KDNET_SHARED_DATA, *PKDNET_SHARED_DATA;
+C_ASSERT(sizeof(KDNET_SHARED_DATA) == 0x18);
+
+#pragma pack(1)
+
+typedef struct _KD_NET_DATA
+{
+    KDNET_SHARED_DATA SharedData;
+    PKD_NET_PARAMETERS NetParameters;
+    PKD_NIC_DATA NicData;
+    UCHAR KeyToken[0x20];
+    KD_NET_AES_CTX AesCtx[2];
+    ULONG TransactionId;
+    USHORT SecondsElapsed;
+    USHORT Reserved1;
+    ULONG BroadcastIp;
+    ULONG ClientIp;
+    ULONG SubnetMask;
+    ULONG GatewayIp;
+    ULONG DhcpPacketType;
+    ULONG RenewalTime;
+    ULONG RebindingTime;
+    ULONG LeaseTime;
+    ULONG CurrentTime;
+    ULONG DhcpPacketsCounter;
+    UCHAR MacAddress0[6];
+    UCHAR MacAddress[6];
+    ULONG YourIp;
+    USHORT VendorId;
+    USHORT Reserved2;
+} KD_NET_DATA, *PKD_NET_DATA;
+C_ASSERT(sizeof(KD_NET_DATA) == 0x434);
+
+#pragma pack()
+
 typedef
 ULONG
 (NTAPI* KDNET_GET_PCI_DATA_BY_OFFSET)(
