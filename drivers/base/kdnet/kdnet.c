@@ -180,14 +180,90 @@ KdNetSetPciDataByOffset(
     _In_ ULONG Offset,
     _In_ ULONG Length)
 {
+    PCI_SLOT_NUMBER PciSlot;
+    PCI_TYPE1_CFG_BITS PciCfg;
+    ULONG ByteOffset;
+    ULONG ByteLength;
+    ULONG RetLength;
+    PULONG BufferUlong = Buffer;
+    UCHAR Data[4];
+
     if (IsDbgComInitialized)
         DbgPrint0("KdNetSetPciDataByOffset: %X, %X, %p, %X, %X\n", Bus, Slot, Buffer, Offset, Length);
 
-    if (IsDbgComInitialized)
-        DbgPrint0("KdNetGetPciDataByOffset: Unimplemented!\n");
+    //ASSERT(!(Offset & ~0xff));
+    //ASSERT(Length);
+    //ASSERT((Offset + Length) <= 256);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
-    return 0;
+    if ((Offset + Length) > 0x100)
+    {
+        if (Offset > 0x100)
+            return 0;
+
+        Length = 0x100 - Offset;
+    }
+
+    PciSlot.u.AsULONG = Slot;
+    RetLength = Length;
+
+    PciCfg.u.bits.BusNumber = Bus;
+    PciCfg.u.bits.DeviceNumber = PciSlot.u.bits.DeviceNumber;
+    PciCfg.u.bits.FunctionNumber = PciSlot.u.bits.FunctionNumber;
+    PciCfg.u.bits.RegisterNumber = ((Offset & 0xFC) >> 2);
+    PciCfg.u.bits.Enable = 1;
+
+    ByteOffset = (Offset & 3);
+
+    if (ByteOffset)
+    {
+        if ((4 - ByteOffset) > Length)
+        {
+            ByteLength = Length;
+            Length = 0;
+        }
+        else
+        {
+            ByteLength = (4 - ByteOffset);
+            Length -= ByteLength;
+        }
+
+        WRITE_PORT_ULONG((PULONG)0xCF8, PciCfg.u.AsULONG);
+        *(PULONG)Data = READ_PORT_ULONG((PULONG)0xCFC);
+
+        if (ByteLength)
+        {
+            RtlCopyMemory(&Data[ByteOffset], Buffer, ByteLength);
+            BufferUlong = Add2Ptr(Buffer, ByteLength);
+        }
+
+        WRITE_PORT_ULONG((PULONG)0xCFC, *(PULONG)Data);
+
+        PciCfg.u.bits.RegisterNumber++;
+    }
+
+    while (Length > 4)
+    {
+        WRITE_PORT_ULONG((PULONG)0xCF8, PciCfg.u.AsULONG);
+        WRITE_PORT_ULONG((PULONG)0xCFC, *BufferUlong);
+
+        PciCfg.u.bits.RegisterNumber++;
+
+        BufferUlong++;
+        Length -= 4;
+    }
+
+
+    if (Length)
+    {
+        WRITE_PORT_ULONG((PULONG)0xCF8, PciCfg.u.AsULONG);
+        *(PULONG)Data = READ_PORT_ULONG((PULONG)0xCFC);
+
+        RtlCopyMemory(Data, BufferUlong, Length);
+
+        WRITE_PORT_ULONG((PULONG)0xCFC, *(PULONG)Data);
+    }
+
+    return RetLength;
 }
 
 VOID
