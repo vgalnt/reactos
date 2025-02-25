@@ -43,6 +43,22 @@ typedef struct _KD_NIC_DATA
 } KD_NIC_DATA, *PKD_NIC_DATA;
 C_ASSERT(sizeof(KD_NIC_DATA) == 0x40);
 
+#ifdef __REACTOS__
+typedef struct _DEBUG_DEVICE_DESCRIPTOR_5x
+{
+    ULONG Bus;
+    ULONG Slot;
+    USHORT VendorID;
+    USHORT DeviceID;
+    UCHAR BaseClass;
+    UCHAR SubClass;
+    UCHAR ProgIf;
+    BOOLEAN Initialized;
+    DEBUG_DEVICE_ADDRESS BaseAddress[MAXIMUM_DEBUG_BARS];
+    DEBUG_MEMORY_REQUIREMENTS Memory;
+} DEBUG_DEVICE_DESCRIPTOR_5x, *PDEBUG_DEVICE_DESCRIPTOR_5x;
+#endif
+
 C_ASSERT(sizeof(DEBUG_DEVICE_DESCRIPTOR) == 0x98);
 
 typedef struct _KD_NET_PARAMETERS
