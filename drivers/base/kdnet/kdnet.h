@@ -77,7 +77,7 @@ typedef struct _KD_NET_PARAMETERS
     USHORT Reserved1;
     ULONG HostIp2;
     USHORT HostPort2;
-    UCHAR DestinationMac[6];
+    UCHAR HostMac[6];
     BOOLEAN IsDebuggerActive;
     BOOLEAN IsEncryptionKey;
     BOOLEAN IsDhcp;

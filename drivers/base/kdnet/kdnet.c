@@ -251,6 +251,23 @@ InitializeEncryption(
 
 NTSTATUS
 NTAPI
+WaitForResponsePacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PUCHAR DestinationMac,
+    _In_ ULONG HostIp,
+    _In_ USHORT Port,
+    _In_ ULONG* OutCycleCount)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("WaitForResponsePacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 USB3InitializeController(
     _In_ PVOID NetData)
 {
@@ -395,15 +412,158 @@ Exit:
 
 NTSTATUS
 NTAPI
-InitializeNetwork(
+GetTargetIPAddress(
     _In_ PKD_NET_DATA NetData)
 {
     if (IsDbgComInitialized)
-        DbgPrint0("InitializeNetwork: Unimplemented!\n");
+        DbgPrint0("GetTargetIPAddress: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+GetNodeMacAddress(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG SenderProtocolAddr,
+    _In_ ULONG TargetProtocolAddr,
+    _In_ UCHAR* OutSenderHardwareAddr,
+    _In_ ULONG RetryCount)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("GetNodeMacAddress: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+GenerateTargetIPAddress(
+    _In_ PKD_NET_DATA NetData)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("GenerateTargetIPAddress: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+EnableHostReconnect(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG AddTimeOut)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("EnableHostReconnect: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+}
+
+NTSTATUS
+NTAPI
+InitializeNetwork(
+    _In_ PKD_NET_DATA NetData)
+{
+    ULONG HostIp2;
+    ULONG TargetIP;
+    ULONG Timeout;
+    NTSTATUS Status;
+  
+    if (IsDbgComInitialized)
+        DbgPrint0("InitializeNetwork: %p\n", NetData);
+
+    if (NetData->VendorId == 0xFFFC)
+        return STATUS_SUCCESS;
+
+    if (NetData->NetParameters->IsDhcp)
+    {
+        if (!NetData->NetParameters->DebuggeeIp)
+        {
+            Status = GetTargetIPAddress(NetData);
+            if (!NT_SUCCESS(Status) && !KdNetErrorString)
+            {
+                if (IsDbgComInitialized)
+                    DbgPrint0("InitializeNetwork: GetTargetIPAddress failed to acquire an IP address using DHCP.\n");
+
+                KdNetErrorString = L"GetTargetIPAddress failed to acquire an IP address using DHCP.";
+                KdNetErrorStatus = Status;
+            }
+        }
+    }
+
+    Status = GenerateTargetIPAddress(NetData);
+    if (!NT_SUCCESS(Status))
+    {
+        if (!KdNetErrorString)
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("InitializeNetwork: GenerateTargetIPAddress failed to acquire an unused IP address.\n");
+
+            KdNetErrorString = L"GenerateTargetIPAddress failed to acquire an unused IP address.";
+            KdNetErrorStatus = Status;
+        }
+
+        return Status;
+    }
+
+    HostIp2 = NetData->NetParameters->HostIp2;
+    if (!HostIp2)
+        return Status;
+
+    TargetIP = NetData->YourIp;
+
+    if ((NetData->YourIp & 0xFFFF0000) != 0xA9FE0000 && NetData->GatewayIp && ((HostIp2 ^ TargetIP) & NetData->SubnetMask))
+        HostIp2 = NetData->GatewayIp;
+
+    Status = GetNodeMacAddress(NetData, TargetIP, HostIp2, NetData->NetParameters->HostMac, 2);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("InitializeNetwork failed to get the ethernet address of the host debugger.\n");
+
+        KdNetErrorString = L"InitializeNetwork failed to get the ethernet address of the host debugger.";
+
+        if (HostIp2 == NetData->GatewayIp)
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("InitializeNetwork failed to get the ethernet address of the router gateway.\n");
+
+            KdNetErrorString = L"InitializeNetwork failed to get the ethernet address of the router gateway.";
+        }
+
+        return Status;
+    }
+
+    if (NetData->VendorId == 0xFFFC)
+        return STATUS_SUCCESS;
+
+    EnableHostReconnect(NetData, 3000000);
+
+    Timeout = 125000;
+    Status = WaitForResponsePacket(NetData,
+                                   NetData->NetParameters->HostMac,
+                                   NetData->NetParameters->HostIp2,
+                                   NetData->NetParameters->HostPort2,
+                                   &Timeout);
+    if (NT_SUCCESS(Status))
+        return STATUS_SUCCESS;
+
+    EnableHostReconnect(NetData, 3000000);
+
+    Timeout = 125000;
+    WaitForResponsePacket(NetData,
+                          NetData->NetParameters->HostMac,
+                          NetData->NetParameters->HostIp2,
+                          NetData->NetParameters->HostPort2,
+                          &Timeout);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
