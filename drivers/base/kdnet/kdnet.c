@@ -17,9 +17,11 @@ BOOLEAN IsDbgComInitialized = FALSE;
 KDNET_EXTENSIBILITY_EXPORT KdNetExports;
 KD_NET_PARAMETERS KdNetParameters;
 KD_NIC_DATA KdNicData;
+PKD_NET_DATA KdNetData;
 
 LONG KdNetDebuggerInitialize0Count;
 LONG KdNetExtensibilityInitCount;
+LONG KdNetInitializeCount;
 LONG KdNicSendEntered;
 
 BOOLEAN KdNetInitialized;
@@ -28,9 +30,12 @@ BOOLEAN KdNicEnabled = TRUE;
 LIST_ENTRY QueuedTxListHead;
 NTSTATUS KdNetExtensibilityInitStatus = STATUS_ALREADY_REGISTERED;
 NTSTATUS KdNetErrorStatus;
+NTSTATUS KdNetErrorStatusLog[8];
+PWSTR KdNetErrorStringLog[8];
 PWSTR KdNetErrorString;
 ULONG KdNetHardwareContextSize;
 ULONG KdNetHardwareID;
+ULONG KdTargetIP;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
@@ -174,16 +179,274 @@ InitializeKdNetExtensibility(
     return KdNetExtensibilityInitStatus;
 }
 
+#ifdef __REACTOS__
+static
+VOID
+KdNetSetPciDeviceForNt5x(
+    _In_ PDEBUG_DEVICE_DESCRIPTOR PciDevice,
+    _Out_ PDEBUG_DEVICE_DESCRIPTOR_5x OutDevice)
+{
+    ULONG ix;
+
+    OutDevice->Bus = PciDevice->Bus;
+    OutDevice->Slot = PciDevice->Slot;
+    OutDevice->VendorID = PciDevice->VendorID;
+    OutDevice->DeviceID = PciDevice->DeviceID;
+    OutDevice->BaseClass = PciDevice->BaseClass;
+    OutDevice->SubClass = PciDevice->SubClass;
+    OutDevice->ProgIf = PciDevice->ProgIf;
+    OutDevice->Initialized = PciDevice->Initialized;
+
+    for (ix = 0; ix < 6; ix++)
+    {
+        RtlCopyMemory(&OutDevice->BaseAddress[ix], &PciDevice->BaseAddress[ix], sizeof(DEBUG_DEVICE_ADDRESS));
+    }
+
+    RtlCopyMemory(&OutDevice->Memory, &PciDevice->Memory, sizeof(DEBUG_MEMORY_REQUIREMENTS));
+
+}
+
+static
+VOID
+KdNetGetPciDeviceForNt5x(
+    _In_ PDEBUG_DEVICE_DESCRIPTOR_5x InPciDevice,
+    _Out_ PDEBUG_DEVICE_DESCRIPTOR OutPciDevice)
+{
+    ULONG ix;
+
+    OutPciDevice->Bus = InPciDevice->Bus;
+    OutPciDevice->Slot = InPciDevice->Slot;
+    OutPciDevice->VendorID = InPciDevice->VendorID;
+    OutPciDevice->DeviceID = InPciDevice->DeviceID;
+    OutPciDevice->BaseClass = InPciDevice->BaseClass;
+    OutPciDevice->SubClass = InPciDevice->SubClass;
+    OutPciDevice->ProgIf = InPciDevice->ProgIf;
+    OutPciDevice->Initialized = InPciDevice->Initialized;
+
+    for (ix = 0; ix < 6; ix++)
+    {
+        RtlCopyMemory(&OutPciDevice->BaseAddress[ix], &InPciDevice->BaseAddress[ix], sizeof(DEBUG_DEVICE_ADDRESS));
+    }
+
+    RtlCopyMemory(&OutPciDevice->Memory, &InPciDevice->Memory, sizeof(DEBUG_MEMORY_REQUIREMENTS));
+
+}
+#endif
+
+NTSTATUS
+NTAPI
+InitializeEncryption(
+    _In_ PVOID NetData,
+    _In_ PKD_NET_PARAMETERS NetParameters)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("InitializeEncryption: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+InitializeController(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PKD_NET_PARAMETERS NetParameters)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("InitializeController: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+InitializeNetwork(
+    _In_ PKD_NET_DATA NetData)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("InitializeNetwork: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+KdNicUpdateStatus(
+    _In_ PKD_NIC_DATA NicData,
+    _In_ NTSTATUS* NicDataStatus,
+    _In_ UCHAR* OutLinkState)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicUpdateStatus: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 KdNetInitialize(
     _In_ PKD_NET_PARAMETERS NetParameters,
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("KdNetInitialize: Unimplemented!\n");
+    ULONG ContextSize;
+    ULONG Idx;
+    UCHAR LinkState = 0;
+    BOOLEAN IsPciDeviceSetupOk = FALSE;
+    NTSTATUS NetStatus;
+    NTSTATUS Status = STATUS_ADAPTER_HARDWARE_ERROR;
+  #ifdef __REACTOS__
+    DEBUG_DEVICE_DESCRIPTOR_5x device5x;
+  #endif
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNetInitialize: (1) %p, %p\n", NetParameters, LoaderBlock);
+
+    InterlockedIncrement(&KdNetInitializeCount);
+
+    KdNetErrorString = NULL;
+
+    NetParameters->PciDevice.Memory.Length = ContextSize = (KdNetHardwareContextSize + (2 * PAGE_SIZE));
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNetInitialize: (2) %X, %X\n", ContextSize, NetParameters->PciDevice.VendorID);
+
+    if (NetParameters->PciDevice.VendorID != 0xFFFD && NetParameters->PciDevice.VendorID != 0xFFFC)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNetInitialize: KdSetupPciDeviceForDebugging %X\n", KdSetupPciDeviceForDebugging);
+
+        /* There are differences in the structures DEBUG_DEVICE_DESCRIPTOR for RoS and for WIN8 */
+      #ifdef __REACTOS__
+        KdNetSetPciDeviceForNt5x(&NetParameters->PciDevice, &device5x);
+        NetStatus = KdSetupPciDeviceForDebugging(LoaderBlock, (PDEBUG_DEVICE_DESCRIPTOR)&device5x);
+      #else
+        NetStatus = KdSetupPciDeviceForDebugging(LoaderBlock, &NetParameters->PciDevice);
+      #endif
+
+        if (!NT_SUCCESS(NetStatus))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("KdNetInitialize: KdSetupPciDeviceForDebugging() ret %X\n", NetStatus);
+
+            KdNetErrorString = L"KdSetupPciDeviceForDebugging failed.";
+            goto Finish;
+        }
+
+      #ifdef __REACTOS__
+        KdNetGetPciDeviceForNt5x(&device5x, &NetParameters->PciDevice);
+      #endif
+
+        IsPciDeviceSetupOk = 1;
+
+        if (NetParameters->PciDevice.Memory.Start.HighPart ||
+            (NetParameters->PciDevice.Memory.Start.LowPart & 0xFFF))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("KdNetInitialize: Kdnet debug data not page aligned.\n");
+
+            KdNetErrorString = L"Kdnet debug data not page aligned.";
+            NetStatus = STATUS_INSUFFICIENT_RESOURCES;
+            goto Finish;
+        }
+    }
+
+    if (NetParameters->PciDevice.Memory.Length > ContextSize)
+    {
+        ContextSize = NetParameters->PciDevice.Memory.Length;
+        KdNetHardwareContextSize = (((NetParameters->PciDevice.Memory.Length - 0x434) & ~(PAGE_SIZE - 1)) - PAGE_SIZE);
+    }
+
+    RtlZeroMemory(NetParameters->PciDevice.Memory.VirtualAddress, ContextSize);
+
+    KdNetData = Add2Ptr(NetParameters->PciDevice.Memory.VirtualAddress, (KdNetHardwareContextSize + PAGE_SIZE));
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNetInitialize: Adapter %p, Size %X, KdNetData %p\n", NetParameters->PciDevice.Memory.VirtualAddress, KdNetHardwareContextSize, KdNetData);
+
+    NetStatus = InitializeEncryption(KdNetData, NetParameters);
+    if (!NT_SUCCESS(NetStatus))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNetInitialize: (4) NetStatus %X\n", NetStatus);
+        if (!KdNetErrorString)
+        {
+            KdNetErrorString = L"Encryption key initialization failed.";
+        }
+        goto Finish;
+    }
+
+    NetStatus = InitializeController(KdNetData, NetParameters);
+    if (!NT_SUCCESS(NetStatus))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNetInitialize: (5) NetStatus %X\n", NetStatus);
+        if (!KdNetErrorString)
+        {
+            KdNetErrorString = L"NIC hardware initialization failed.";
+        }
+        goto Finish;
+    }
+
+    Status = 0;
+    LinkState = 1;
+
+    *KdNicData.MacAddress = *KdNetData->MacAddress;
+
+    if (NetParameters->PciDevice.VendorID != 0xFFFD && NetParameters->PciDevice.VendorID != 0xFFFC)
+    {
+        KdNetData->YourIp = KdTargetIP;
+    }
+
+    NetStatus = InitializeNetwork(KdNetData);
+    if (!NT_SUCCESS(NetStatus))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNetInitialize: (6) NetStatus %X\n", NetStatus);
+
+        if (!KdNetErrorString)
+        {
+            KdNetErrorString = L"Network initialization failed.";
+        }
+
+        goto Finish;
+    }
+
+    KdTargetIP = KdNetData->YourIp;
+
+Finish:
+
+    if (!NT_SUCCESS(NetStatus))
+    {
+        if (LoaderBlock && IsPciDeviceSetupOk && !NT_SUCCESS(NetStatus))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("KdNetInitialize: (7) NetStatus %X\n", NetStatus);
+
+            if (IsDbgComInitialized)
+                DbgPrint0("KdNetInitialize: Unimplemented! LoaderBlock %p\n", NetParameters, LoaderBlock);
+            KeBugCheck(MANUALLY_INITIATED_CRASH);
+            return STATUS_NOT_IMPLEMENTED;
+
+            //((void (NTAPI *)(PKD_NET_PARAMETERS))*(&HalPrivateDispatchTable + 14))(NetParameters);
+        }
+    }
+
+    KdNicUpdateStatus(&KdNicData, &Status, &LinkState);
+
+    KdNetErrorStatus = NetStatus;
+
+    Idx = ((UCHAR)KdNetInitializeCount - 1) & 7;
+    KdNetErrorStatusLog[Idx] = NetStatus;
+    KdNetErrorStringLog[Idx] = KdNetErrorString;
+
+    return Status;
 }
 
 /* PUBLIC FUNCTIONS ***********************************************************/

@@ -12,9 +12,14 @@
 /* NTDDI_WINBLUE */
 #include <ntifs.h>
 #include <windbgkd.h>
+#include <ndk/halfuncs.h>
 #include <arc/arc.h>
 #include <stdlib.h>
 #include <stdio.h>
+
+#ifndef Add2Ptr
+  #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
+#endif
 
 typedef enum
 {
