@@ -67,6 +67,26 @@ KdNetNicInitialize(VOID)
     InitializeListHead(&QueuedTxListHead);
 }
 
+/* PCI Type 1 Configuration Register */
+typedef struct _PCI_TYPE1_CFG_BITS
+{
+    union
+    {
+        struct
+        {
+            ULONG Reserved1:2;
+            ULONG RegisterNumber:6;
+            ULONG FunctionNumber:3;
+            ULONG DeviceNumber:5;
+            ULONG BusNumber:8;
+            ULONG Reserved2:7;
+            ULONG Enable:1;
+        } bits;
+
+        ULONG AsULONG;
+    } u;
+} PCI_TYPE1_CFG_BITS, *PPCI_TYPE1_CFG_BITS;
+
 ULONG
 NTAPI
 KdNetGetPciDataByOffset(
@@ -76,14 +96,79 @@ KdNetGetPciDataByOffset(
     _In_ ULONG Offset,
     _In_ ULONG Length)
 {
+    PUCHAR BufferPtr = Buffer;
+    PCI_SLOT_NUMBER PciSlot;
+    PCI_TYPE1_CFG_BITS PciCfg;
+    ULONG DataUlong;
+    ULONG ByteOffset;
+    UCHAR Data[4];
+
     if (IsDbgComInitialized)
         DbgPrint0("KdNetGetPciDataByOffset: %X, %X, %p, %X, %X\n", Bus, Slot, Buffer, Offset, Length);
 
-    if (IsDbgComInitialized)
-        DbgPrint0("KdNetGetPciDataByOffset: Unimplemented!\n");
+    //ASSERT(!(Offset & ~0xff));
+    //ASSERT(Length);
+    //ASSERT((Offset + Length) <= 256);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
-    return 0;
+    if ((Offset + Length) > 0x100)
+    {
+        if (Offset > 0x100)
+            return 0;
+
+        Length = (0x100 - Offset);
+    }
+
+    PciSlot.u.AsULONG = Slot;
+
+    if (PciSlot.u.bits.FunctionNumber)
+    {
+        PciCfg.u.AsULONG = (ULONG_PTR)Buffer;
+
+        PciCfg.u.bits.RegisterNumber = 3;
+        PciCfg.u.bits.FunctionNumber = 0;
+        PciCfg.u.bits.DeviceNumber = PciSlot.u.bits.DeviceNumber;
+        PciCfg.u.bits.BusNumber = Bus;
+        PciCfg.u.bits.Enable = 1;
+
+        WRITE_PORT_ULONG((PULONG)0xCF8, PciCfg.u.AsULONG);
+
+        DataUlong = READ_PORT_ULONG((PULONG)0xCFC);
+        if (!(DataUlong & 0x800000))
+        {
+            if (Length)
+                RtlFillMemory(Buffer, Length, 0xFF);
+
+            return Length;
+        }
+    }
+
+    PciCfg.u.AsULONG = (ULONG_PTR)Buffer;
+
+    PciCfg.u.bits.RegisterNumber = ((Offset & 0xFC) >> 2);
+    PciCfg.u.bits.FunctionNumber = PciSlot.u.bits.FunctionNumber;
+    PciCfg.u.bits.DeviceNumber = PciSlot.u.bits.DeviceNumber;
+    PciCfg.u.bits.BusNumber = Bus;
+    PciCfg.u.bits.Enable = 1;
+
+    ByteOffset = (Offset & 3);
+
+    while (Length)
+    {
+        WRITE_PORT_ULONG((PULONG)0xCF8, PciCfg.u.AsULONG);
+        *(PULONG)Data = READ_PORT_ULONG((PULONG)0xCFC);
+
+        for (; ByteOffset < 4 && Length; ByteOffset++, Length--)
+        {
+            *BufferPtr = Data[ByteOffset];
+            BufferPtr++;
+        }
+
+        ByteOffset = 0;
+
+        PciCfg.u.bits.RegisterNumber++;
+    }
+
+    return Length;
 }
 
 ULONG
@@ -238,7 +323,7 @@ KdNetGetPciDeviceForNt5x(
 NTSTATUS
 NTAPI
 InitializeEncryption(
-    _In_ PVOID NetData,
+    _In_ PKD_NET_DATA NetData,
     _In_ PKD_NET_PARAMETERS NetParameters)
 {
     if (IsDbgComInitialized)
