@@ -195,10 +195,16 @@ NTAPI
 KdStallExecutionProcessor(
     _In_ ULONG MicroSeconds)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("KdStallExecutionProcessor: Unimplemented!\n");
+    if (IsDbgComInitialized && MicroSeconds != 10)
+        DbgPrint0("KdStallExecutionProcessor: %X\n", MicroSeconds);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (MicroSeconds >= 100)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdStallExecutionProcessor: StallLimit is 100!\n");
+    }
+
+    KeStallExecutionProcessor(MicroSeconds);
 }
 
 VOID
