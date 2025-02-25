@@ -741,11 +741,22 @@ KdNicUpdateStatus(
     _In_ UCHAR* OutLinkState)
 {
     if (IsDbgComInitialized)
-        DbgPrint0("KdNicUpdateStatus: Unimplemented!\n");
+        DbgPrint0("KdNicUpdateStatus()\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (NicData != &KdNicData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNicUpdateStatus: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
 
-    return STATUS_NOT_IMPLEMENTED;
+    if (NicDataStatus)
+        NicData->Status = *NicDataStatus;
+
+    if (OutLinkState)
+        NicData->LinkState = *OutLinkState;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
