@@ -41,6 +41,39 @@ typedef struct _KD_NIC_DATA
 } KD_NIC_DATA, *PKD_NIC_DATA;
 C_ASSERT(sizeof(KD_NIC_DATA) == 0x40);
 
+C_ASSERT(sizeof(DEBUG_DEVICE_DESCRIPTOR) == 0x98);
+
+typedef struct _KD_NET_PARAMETERS
+{
+    DEBUG_DEVICE_DESCRIPTOR PciDevice;
+    ULONG DebuggeeIp;
+    USHORT DebuggeePort;
+    USHORT Reserved0;
+    ULONG HostIp1;
+    USHORT HostPort1;
+    USHORT Reserved1;
+    ULONG HostIp2;
+    USHORT HostPort2;
+    UCHAR DestinationMac[6];
+    BOOLEAN IsDebuggerActive;
+    BOOLEAN IsEncryptionKey;
+    BOOLEAN IsDhcp;
+    BOOLEAN IsVerifyHostMac;
+    ULONG DataChannel;
+    ULONG Reserved2;
+    LONGLONG DataStamp;
+    ULONGLONG SequenceNumber;
+    LARGE_INTEGER EncryptionKey[4];
+    LARGE_INTEGER DataChannelKey[4];
+    ULONGLONG Stamp;
+    UCHAR BytesForNtoskrnl[0x20];
+    UCHAR KdData[0x100];
+    BOOLEAN IsSendKdStatus;
+    UCHAR Reserved3[3];
+    ULONG Reserved4;
+} KD_NET_PARAMETERS, *PKD_NET_PARAMETERS;
+C_ASSERT(sizeof(KD_NET_PARAMETERS) == 0x240);
+
 typedef
 ULONG
 (NTAPI* KDNET_GET_PCI_DATA_BY_OFFSET)(
