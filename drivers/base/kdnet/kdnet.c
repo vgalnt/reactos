@@ -26,6 +26,7 @@ LONG KdNicSendEntered;
 
 BOOLEAN KdNetInitialized;
 BOOLEAN KdNicEnabled = TRUE;
+BOOLEAN KdDbgLog = TRUE;
 
 LIST_ENTRY QueuedTxListHead;
 NTSTATUS KdNetExtensibilityInitStatus = STATUS_ALREADY_REGISTERED;
@@ -33,6 +34,7 @@ NTSTATUS KdNetErrorStatus;
 NTSTATUS KdNetErrorStatusLog[8];
 PWSTR KdNetErrorStringLog[8];
 PWSTR KdNetErrorString;
+ULONG KdNetInitializeController;
 ULONG KdNetHardwareContextSize;
 ULONG KdNetHardwareID;
 ULONG KdTargetIP;
@@ -249,16 +251,146 @@ InitializeEncryption(
 
 NTSTATUS
 NTAPI
-InitializeController(
-    _In_ PKD_NET_DATA NetData,
-    _In_ PKD_NET_PARAMETERS NetParameters)
+USB3InitializeController(
+    _In_ PVOID NetData)
 {
     if (IsDbgComInitialized)
-        DbgPrint0("InitializeController: Unimplemented!\n");
+        DbgPrint0("USB3InitializeController: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+KdVmInitializeController(
+    _In_ PVOID NetData)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdVmInitializeController: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+KdHvInitializeController(
+    _In_ PVOID NetData)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdHvInitializeController: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+InitializeController(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PKD_NET_PARAMETERS NetParameters)
+{
+    NTSTATUS Status;
+    USHORT VendorId;
+    PDEBUG_DEVICE_DESCRIPTOR PciDevice;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("InitializeController: %p, %p\n", NetData, NetParameters);
+
+    if (!NetData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("InitializeController: STATUS_INVALID_PARAMETER, NetData is NULL\n");
+
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    if (!NetParameters)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("InitializeController: STATUS_INVALID_PARAMETER, NetParameters is NULL\n");
+
+        Status = STATUS_INVALID_PARAMETER;
+        goto Exit;
+    }
+
+    KdNetInitializeController++;
+
+    NetData->VendorId = 0xFFFF;
+    NetData->NetParameters = NetParameters;
+    NetData->NicData = &KdNicData;
+
+    NetData->SharedData.Device = &NetParameters->PciDevice;
+    NetData->SharedData.Hardware = NetParameters->PciDevice.Memory.VirtualAddress;
+    NetData->SharedData.TargetMacAddress = NetData->MacAddress;
+    NetData->SharedData.LinkState = &KdNicData.LinkState;
+
+    Status = STATUS_NO_SUCH_DEVICE;
+
+    VendorId = NetParameters->PciDevice.VendorID;
+
+    if (VendorId != 0xFFFD && VendorId != 0xFFFC)
+    {
+        Status = KdInitializeController(NetData);
+        if (NT_SUCCESS(Status))
+            VendorId = 0xFFFE;
+
+        if (!NT_SUCCESS(Status))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("InitializeController: KdInitializeController() fail (%X)\n", Status);
+        }
+    }
+
+    PciDevice = NetData->SharedData.Device;
+
+    if (PciDevice->NameSpace == 0 && PciDevice->BaseClass == 0xC && PciDevice->SubClass == 3 && PciDevice->ProgIf == 0x30)
+        VendorId = 0xFFFB;
+
+    if (PciDevice->NameSpace == 1 && PciDevice->PortType == 0x8002 && PciDevice->PortSubtype == 0)
+        VendorId = 0xFFFB;
+
+    switch (VendorId)
+    {
+        case 0xFFFB:
+            Status = USB3InitializeController(NetData);
+            break;
+
+        case 0xFFFC:
+            Status = KdVmInitializeController(NetData);
+            break;
+
+        case 0xFFFD:
+            Status = KdHvInitializeController(NetData);
+            break;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("InitializeController: Status %X\n", Status);
+
+        goto Exit;
+    }
+
+    NetData->VendorId = VendorId;
+
+    if (NetData->SharedData.LinkSpeed)
+        NetData->NicData->LinkSpeed1 = NetData->SharedData.LinkSpeed;
+
+    if (NetData->NicData->LinkSpeed1 > NetData->NicData->LinkSpeed2)
+        NetData->NicData->LinkSpeed2 = NetData->NicData->LinkSpeed1;
+
+Exit:
+
+    KdDbgLog = FALSE;
+
+    return Status;
 }
 
 NTSTATUS
