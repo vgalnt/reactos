@@ -155,6 +155,35 @@ typedef struct _KD_NET_DATA
 } KD_NET_DATA, *PKD_NET_DATA;
 C_ASSERT(sizeof(KD_NET_DATA) == 0x434);
 
+typedef struct _KD_NET_ETH_HEADER
+{
+    UCHAR DestinationMac[6];
+    UCHAR SourceMac[6];
+    USHORT EtherType;
+} KD_NET_ETH_HEADER, *PKD_NET_ETH_HEADER;
+C_ASSERT(sizeof(KD_NET_ETH_HEADER) == 0x0E);
+
+typedef struct _KD_NET_ARP_PACKET
+{
+    USHORT HardwareType;
+    USHORT ProtocolType;
+    UCHAR HardwareLen;
+    UCHAR ProtocolLen;
+    USHORT Operation;
+    UCHAR SenderMac[6];
+    ULONG SenderIp;
+    UCHAR TargetMac[6];
+    ULONG TargetIp;
+} KD_NET_ARP_PACKET, *PKD_NET_ARP_PACKET;
+C_ASSERT(sizeof(KD_NET_ARP_PACKET) == 0x1C);
+
+typedef struct _KD_NET_ARP
+{
+    KD_NET_ETH_HEADER Header;
+    KD_NET_ARP_PACKET Arp;
+} KD_NET_ARP, *PKD_NET_ARP;
+C_ASSERT(sizeof(KD_NET_ARP) == 0x2A);
+
 #pragma pack()
 
 typedef
