@@ -512,6 +512,18 @@ GetTxPacket(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+VOID
+NTAPI
+UpdateTargetRandom(
+    _In_ PKD_NET_DATA NetData)
+{
+    if (NetData->VendorId != 0xFFFC)
+        return;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("UpdateTargetRandom: Unimplemented!\n");
+}
+
 NTSTATUS
 NTAPI
 SendTxPacket(
@@ -519,12 +531,84 @@ SendTxPacket(
     _In_ ULONG PacketHandle,
     _In_ ULONG PacketLength)
 {
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("SendTxPacket: Unimplemented!\n");
+        DbgPrint0("SendTxPacket: %p, %X, %X\n", NetData, PacketHandle, PacketLength);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendTxPacket: STATUS_INVALID_PARAMETER\n");
 
-    return STATUS_NOT_IMPLEMENTED;
+        //KdNetTxError++;
+
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    switch (NetData->VendorId)
+    {
+        case 0xFFFB:
+            if (IsDbgComInitialized)
+                DbgPrint0("SendTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
+            //Status = USB3SendTxPacket(NetData->SharedData.Hardware, PacketHandle, PacketLength);
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 0xFFFC:
+            if (IsDbgComInitialized)
+                DbgPrint0("SendTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
+            //Status = KdVmSendTxPacket(NetData, PacketHandle, PacketLength);
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 0xFFFD:
+            if (IsDbgComInitialized)
+                DbgPrint0("SendTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
+            //Status = KdHvSendTxPacket(NetData->SharedData.Hardware, PacketHandle, PacketLength);
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 0xFFFE:
+            Status = KdSendTxPacket(NetData->SharedData.Hardware, PacketHandle, PacketLength);
+            break;
+
+        default:
+            if (IsDbgComInitialized)
+                DbgPrint0("SendTxPacket: STATUS_NO_SUCH_DEVICE (%X)\n", NetData->VendorId);
+            //KdNetTxError++;
+            return STATUS_NO_SUCH_DEVICE;
+    }
+
+    if (Status == STATUS_IO_TIMEOUT)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendTxPacket: STATUS_IO_TIMEOUT (%X, %X)\n", PacketHandle, PacketLength);
+
+        //KdNetTxTimeout++;
+    }
+    else if (Status == STATUS_CONNECTION_RESET)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendTxPacket: STATUS_CONNECTION_RESET (%X, %X)\n", PacketHandle, PacketLength);
+
+        UpdateTargetRandom(NetData);
+
+        Status = STATUS_SUCCESS;
+    }
+    else if (Status == STATUS_SUCCESS)
+    {
+        ;//KdNetTxOk++;
+    }
+    else
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendTxPacket: ret Status %X (%X, %X)\n", Status, PacketHandle, PacketLength);
+
+        //KdNetTxError++;
+    }
+
+    return Status;
 }
 
 VOID
