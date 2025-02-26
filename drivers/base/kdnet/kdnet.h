@@ -17,6 +17,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/* 169.254.0.0 */
+#define AUTOIP_NET              0xA9FE0000
+
+/* 169.254.1.0 */
+#define IP_RANGE_START          0x0100
+#define AUTOIP_RANGE_START      (AUTOIP_NET | IP_RANGE_START)
+
+/* 169.254.254.255 */
+#define IP_RANGE_END            0xFEFF
+#define AUTOIP_RANGE_END        (AUTOIP_NET | IP_RANGE_END)
+
 #ifndef Add2Ptr
   #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
 #endif

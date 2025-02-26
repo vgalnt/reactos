@@ -594,9 +594,9 @@ NTSTATUS
 NTAPI
 GetNodeMacAddress(
     _In_ PKD_NET_DATA NetData,
-    _In_ ULONG SenderProtocolAddr,
-    _In_ ULONG TargetProtocolAddr,
-    _In_ UCHAR* OutSenderHardwareAddr,
+    _In_ ULONG SenderIp,
+    _In_ ULONG TargetIp,
+    _In_ UCHAR* OutSenderMac,
     _In_ ULONG RetryCount)
 {
     if (IsDbgComInitialized)
@@ -612,12 +612,126 @@ NTAPI
 GenerateTargetIPAddress(
     _In_ PKD_NET_DATA NetData)
 {
+    UCHAR SenderMac[6];
+    ULONG IpAddress;
+    ULONG ix = 0x20;
+    USHORT LowPartIp;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("GenerateTargetIPAddress: Unimplemented!\n");
+        DbgPrint0("GenerateTargetIPAddress: %X, %X\n", NetData->NetParameters->DebuggeeIp, NetData->YourIp);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (NetData->NetParameters->DebuggeeIp)
+        IpAddress = NetData->NetParameters->DebuggeeIp;
+    else
+        IpAddress = NetData->YourIp;
 
-    return STATUS_NOT_IMPLEMENTED;
+    LowPartIp = (USHORT)IpAddress;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("GenerateTargetIPAddress: LowPartIp %X\n", LowPartIp);
+
+    if (IpAddress)
+        goto TryIp;
+
+Start:
+
+    LowPartIp = (__rdtsc() >> 4);
+
+    if (IsDbgComInitialized)
+        DbgPrint0("GenerateTargetIPAddress: LowPartIp %X\n", LowPartIp);
+
+    while (TRUE)
+    {
+        if (LowPartIp < IP_RANGE_START || LowPartIp > IP_RANGE_END)
+            LowPartIp = (0x8000 + (LowPartIp * 0x7F));
+
+        IpAddress = (AUTOIP_NET | LowPartIp);
+
+TryIp:
+        Status = GetNodeMacAddress(NetData, 0, IpAddress, SenderMac, 2);
+
+        if (IsDbgComInitialized)
+            DbgPrint0("GenerateTargetIPAddress: (1) Status %X\n", Status);
+
+        if (Status == STATUS_IO_TIMEOUT)
+        {
+            Status = STATUS_SUCCESS;
+
+            if ((IpAddress & 0xFFFF0000) != AUTOIP_NET)
+            {
+                if (IsDbgComInitialized)
+                    DbgPrint0("GenerateTargetIPAddress: IpAddress %X\n", IpAddress);
+                break;
+            }
+
+            Status = GetNodeMacAddress(NetData, IpAddress, IpAddress, SenderMac, 1);
+
+            if (IsDbgComInitialized)
+                DbgPrint0("GenerateTargetIPAddress: (2) Status %X\n", Status);
+
+            if (Status == STATUS_IO_TIMEOUT)
+            {
+                Status = STATUS_SUCCESS;
+                break;
+            }
+
+            goto Start;
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("GenerateTargetIPAddress: (3) Status %X\n", Status);
+
+            IpAddress = 0;
+            break;
+        }
+
+        if (NetData->NetParameters->IsDhcp && NetData->YourIp == IpAddress)
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("GenerateTargetIPAddress: Failed. Using APIPA.\n");
+
+            KdNetErrorString = L"GenerateTargetIPAddress failed to validate the DHCP address. Using APIPA.";
+            goto Start;
+        }
+
+        if (!ix)
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("GenerateTargetIPAddress: ix is 0\n");
+
+            Status = STATUS_UNSUCCESSFUL;
+            IpAddress = 0;
+            break;
+        }
+
+        if (NetData->NetParameters->DebuggeeIp)
+        {
+            if ((NetData->NetParameters->DebuggeeIp & 0xFFFF0000) != AUTOIP_NET)
+            {
+                if (IsDbgComInitialized)
+                    DbgPrint0("GenerateTargetIPAddress: STATUS_UNSUCCESSFUL. DebuggeeIp %X\n", NetData->NetParameters->DebuggeeIp);
+
+                Status = STATUS_UNSUCCESSFUL;
+                IpAddress = 0;
+                break;
+            }
+        }
+
+        LowPartIp++;
+
+        if (!(LowPartIp & 3))
+        {
+            ix--;
+            goto Start;
+        }
+    }
+
+    NetData->YourIp = IpAddress;
+
+    return Status;
 }
 
 VOID
