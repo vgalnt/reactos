@@ -28,6 +28,9 @@
 #define IP_RANGE_END            0xFEFF
 #define AUTOIP_RANGE_END        (AUTOIP_NET | IP_RANGE_END)
 
+#define ETHERNET_TYPE_IPV4        0x0800
+#define ETHERNET_TYPE_ARP         0x0806
+
 #ifndef Add2Ptr
   #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
 #endif

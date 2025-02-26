@@ -472,6 +472,93 @@ KdHvInitializeController(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+PVOID
+NTAPI
+GetPacketAddress(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("GetPacketAddress: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return NULL;
+}
+
+VOID
+NTAPI
+SwapPacket(
+    _In_ PVOID Packet,
+    _In_ BOOLEAN Param2)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SwapPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+}
+
+NTSTATUS
+NTAPI
+GetTxPacket(
+    _In_ PKD_NET_DATA NetData,
+    _Out_ ULONG* PacketHandle)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("GetTxPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SendTxPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle,
+    _In_ ULONG PacketLength)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendTxPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+ReleaseRxPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("ReleaseRxPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+}
+
+NTSTATUS
+NTAPI
+WaitForSpecificRxPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PULONG OutHandle,
+    _Out_ PVOID* OutPacket,
+    _Out_ ULONG* OutPacketLength,
+    _Out_ ULONG* OutCycleCount,
+    _In_ PUCHAR DestMac,
+    _In_ PUCHAR MacAddress,
+    _In_ PUSHORT EtherType)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("WaitForSpecificRxPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 InitializeController(
@@ -599,12 +686,121 @@ GetNodeMacAddress(
     _In_ UCHAR* OutSenderMac,
     _In_ ULONG RetryCount)
 {
+    PKD_NET_ARP Packet;
+    PKD_NET_ARP RxPacket;
+    ULONG CycleCount;
+    ULONG PacketLength;
+    ULONG PacketHandle;
+    USHORT EtherType;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("GetNodeMacAddress: Unimplemented!\n");
+        DbgPrint0("GetNodeMacAddress: %X, %X\n", SenderIp, TargetIp);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    Status = GetTxPacket(NetData, &PacketHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetNodeMacAddress: (1) ret Status %X\n", Status);
 
-    return STATUS_NOT_IMPLEMENTED;
+        return Status;
+    }
+
+    while (TRUE)
+    {
+        Packet = GetPacketAddress(NetData, PacketHandle);
+
+        PacketLength = sizeof(KD_NET_ARP);
+        RtlZeroMemory(Packet, PacketLength);
+
+        RtlFillMemory(Packet->Header.DestinationMac, sizeof(Packet->Header.DestinationMac), 0xFF);
+        RtlCopyMemory(Packet->Header.SourceMac, NetData->MacAddress, sizeof(Packet->Header.SourceMac));
+
+        Packet->Header.EtherType = ETHERNET_TYPE_ARP;
+
+        Packet->Arp.HardwareType = 1;
+        Packet->Arp.ProtocolType = ETHERNET_TYPE_IPV4;
+        Packet->Arp.HardwareLen = 6;
+        Packet->Arp.ProtocolLen = 4;
+        Packet->Arp.Operation = 1;
+
+        RtlCopyMemory(Packet->Arp.SenderMac, NetData->MacAddress, sizeof(Packet->Arp.SenderMac));
+
+        Packet->Arp.SenderIp = SenderIp;
+        Packet->Arp.TargetIp = TargetIp;
+
+        SwapPacket(Packet, TRUE);
+
+        Status = SendTxPacket(NetData, PacketHandle, PacketLength);
+        if (!NT_SUCCESS(Status))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("GetNodeMacAddress: (2) ret Status %X\n", Status);
+
+            break;
+        }
+
+        CycleCount = 100000;
+        EtherType = 0x0806;
+
+        while (TRUE)
+        {
+            Status = WaitForSpecificRxPacket(NetData,
+                                             &PacketHandle,
+                                             (PVOID *)&RxPacket,
+                                             &PacketLength,
+                                             &CycleCount,
+                                             0,
+                                             0,
+                                             &EtherType);
+            if (Status == STATUS_IO_TIMEOUT)
+            {
+                if (IsDbgComInitialized)
+                    DbgPrint0("GetNodeMacAddress: STATUS_IO_TIMEOUT. RetryCount %X\n", RetryCount);
+
+                if (RetryCount)
+                    break;
+            }
+
+            if (!NT_SUCCESS(Status))
+            {
+                if (IsDbgComInitialized)
+                    DbgPrint0("GetNodeMacAddress: (3) ret Status %X\n", Status);
+
+                return Status;
+            }
+
+            RxPacket = CONTAINING_RECORD(RxPacket, KD_NET_ARP, Arp);
+
+            SwapPacket(RxPacket, 0);
+
+            if (RxPacket->Arp.HardwareType == 1 &&
+                RxPacket->Arp.ProtocolType == ETHERNET_TYPE_IPV4 &&
+                RxPacket->Arp.HardwareLen == 6 &&
+                RxPacket->Arp.ProtocolLen == 4 &&
+                RxPacket->Arp.SenderIp == TargetIp)
+            {
+                RtlCopyMemory(OutSenderMac, RxPacket->Arp.SenderMac, 6);
+                ReleaseRxPacket(NetData, PacketHandle);
+                return Status;
+            }
+
+            ReleaseRxPacket(NetData, PacketHandle);
+        }
+
+        RetryCount--;
+
+        Status = GetTxPacket(NetData, &PacketHandle);
+        if (!NT_SUCCESS(Status))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("GetNodeMacAddress: (4) ret Status %X\n", Status);
+
+            break;
+        }
+    }
+
+    return Status;
 }
 
 NTSTATUS
