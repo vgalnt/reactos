@@ -402,6 +402,14 @@ KdNetGetPciDeviceForNt5x(
 }
 #endif
 
+#ifdef __REACTOS__
+NTSTATUS
+NTAPI
+InitializeEncryption(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PKD_NET_PARAMETERS NetParameters
+);
+#else
 NTSTATUS
 NTAPI
 InitializeEncryption(
@@ -415,6 +423,7 @@ InitializeEncryption(
 
     return STATUS_NOT_IMPLEMENTED;
 }
+#endif
 
 NTSTATUS
 NTAPI
@@ -478,12 +487,50 @@ GetPacketAddress(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle)
 {
+    PVOID Packet = NULL;
+
     if (IsDbgComInitialized)
-        DbgPrint0("GetPacketAddress: Unimplemented!\n");
+        DbgPrint0("GetPacketAddress: %p, %X, %X\n", NetData, NetData->VendorId, PacketHandle);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData)
+        return Add2Ptr(NetData, -PAGE_SIZE);
 
-    return NULL;
+    if (NetData->VendorId == 0xFFFB)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetPacketAddress: Not implemented (%X)\n", NetData->VendorId);
+
+        Packet = 0;//USB3GetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
+
+        KeBugCheck(MANUALLY_INITIATED_CRASH);
+    }
+    else if (NetData->VendorId == 0xFFFC)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetPacketAddress: Not implemented (%X)\n", NetData->VendorId);
+
+        Packet = 0;//KdVmGetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
+
+        KeBugCheck(MANUALLY_INITIATED_CRASH);
+    }
+    else if (NetData->VendorId == 0xFFFD)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetPacketAddress: Not implemented (%X)\n", NetData->VendorId);
+
+        Packet = 0;//KdVmGetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
+
+        KeBugCheck(MANUALLY_INITIATED_CRASH);
+    }
+    else if (NetData->VendorId == 0xFFFE)
+    {
+        Packet = KdGetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
+    }
+
+    if (Packet)
+        return Packet;
+
+    return Add2Ptr(NetData, -PAGE_SIZE);
 }
 
 #define HV_X64_MSR_TIME_REF_COUNT 0x40000020
