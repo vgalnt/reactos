@@ -30,6 +30,10 @@
 
 #define ETHERNET_TYPE_IPV4        0x0800
 #define ETHERNET_TYPE_ARP         0x0806
+#define ETHERNET_TYPE_RARP        0x0835
+
+#define IPPROTO_IP               0
+#define IPPROTO_UDP              17 // 0x11
 
 #ifndef Add2Ptr
   #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))

@@ -503,16 +503,77 @@ KdNetReadCycleCounter(
     return TimeStampCounter;
 }
 
+USHORT
+NTAPI
+OnesComplementSum(
+    _In_ PUCHAR Ptr,
+    _In_ ULONG InSize)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("OnesComplementSum: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return 0;
+}
+
 VOID
 NTAPI
 SwapPacket(
     _In_ PVOID Packet,
-    _In_ BOOLEAN Param2)
+    _In_ BOOLEAN IsSwapChecksum)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("SwapPacket: Unimplemented!\n");
+    PKD_NET_ETH_HEADER Header = Packet;
+    PKD_NET_IPv4 Ip4Packet = Packet;
+    PKD_NET_ARP ArpPacket = Packet;
+    PKD_NET_UDP Udp = Packet;
+    PKD_NET_IPv4_PACKET Ipv4;
+    USHORT EtherType;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //if (IsDbgComInitialized)
+    //    DbgPrint0("SwapPacket: %p, %X\n", Packet, IsSwapChecksum);
+
+    EtherType = Header->EtherType;
+
+    Header->EtherType = UshortSwap(Header->EtherType);
+
+    if (!IsSwapChecksum)
+        EtherType = Header->EtherType;
+
+    if (EtherType == ETHERNET_TYPE_IPV4)
+    {
+        Ipv4 = &Ip4Packet->Ipv4;
+
+        Ipv4->TotalLength = UshortSwap(Ipv4->TotalLength);
+        Ipv4->IpHdr1 = UshortSwap(Ipv4->IpHdr1);
+        Ipv4->SourceIp = UlongSwap(Ipv4->SourceIp);
+        Ipv4->DestinationIp = UlongSwap(Ipv4->DestinationIp);
+
+        if (IsSwapChecksum && !Ipv4->HeaderChecksum)
+            Ipv4->HeaderChecksum = ~OnesComplementSum((PUCHAR)Ipv4, sizeof(KD_NET_IPv4_PACKET));
+
+        if (Ipv4->Protocol == IPPROTO_UDP)
+        {
+            Udp->Udp.SourcePort = UshortSwap(Udp->Udp.SourcePort);
+            Udp->Udp.DestinationPort = UshortSwap(Udp->Udp.DestinationPort);
+            Udp->Udp.Length = UshortSwap(Udp->Udp.Length);
+        }
+
+        return;
+    }
+
+    if (EtherType != ETHERNET_TYPE_ARP && EtherType != ETHERNET_TYPE_RARP)
+        return;
+
+    ArpPacket->Arp.HardwareType = UshortSwap(ArpPacket->Arp.HardwareType);
+    ArpPacket->Arp.ProtocolType = UshortSwap(ArpPacket->Arp.ProtocolType);
+    ArpPacket->Arp.Operation = UshortSwap(ArpPacket->Arp.Operation);
+
+    if (ArpPacket->Arp.HardwareLen == 6 && ArpPacket->Arp.ProtocolLen == 4)
+    {
+        ArpPacket->Arp.SenderIp = UlongSwap(ArpPacket->Arp.SenderIp);
+        ArpPacket->Arp.TargetIp = UlongSwap(ArpPacket->Arp.TargetIp);
+    }
 }
 
 NTSTATUS
