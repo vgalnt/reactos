@@ -729,9 +729,50 @@ ReleaseRxPacket(
     _In_ ULONG PacketHandle)
 {
     if (IsDbgComInitialized)
-        DbgPrint0("ReleaseRxPacket: Unimplemented!\n");
+        DbgPrint0("ReleaseRxPacket: %X\n", NetData->VendorId);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData)
+        return;
+
+    switch (NetData->VendorId)
+    {
+        case 0xFFFB:
+            if (IsDbgComInitialized)
+                DbgPrint0("ReleaseRxPacket: Not implemented (%X)\n", NetData->VendorId);
+
+            //USB3ReleaseRxPacket(NetData->SharedData.Hardware, PacketHandle);
+
+            //KdNetRxPacketsReleased++;
+            break;
+
+        case 0xFFFC:
+            if (IsDbgComInitialized)
+                DbgPrint0("ReleaseRxPacket: Not implemented (%X)\n", NetData->VendorId);
+
+            //KdHvReleaseRxPacket(NetData->SharedData.Hardware, PacketHandle);
+
+            //KdNetRxPacketsReleased++;
+            break;
+
+        case 0xFFFD:
+            if (IsDbgComInitialized)
+                DbgPrint0("ReleaseRxPacket: Not implemented (%X)\n", NetData->VendorId);
+
+            //KdHvReleaseRxPacket(NetData->SharedData.Hardware, PacketHandle);
+
+            //KdNetRxPacketsReleased++;
+            break;
+
+        case 0xFFFE:
+            KdReleaseRxPacket(NetData->SharedData.Hardware, PacketHandle);
+            //KdNetRxPacketsReleased++;
+            break;
+
+        default:
+            if (IsDbgComInitialized)
+                DbgPrint0("ReleaseRxPacket: Not supported %X\n", NetData->VendorId);
+            break;
+    }
 }
 
 NTSTATUS
