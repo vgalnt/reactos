@@ -486,17 +486,21 @@ GetPacketAddress(
     return NULL;
 }
 
+#define HV_X64_MSR_TIME_REF_COUNT 0x40000020
+
 ULONGLONG
 NTAPI
 KdNetReadCycleCounter(
     _In_ PKD_NET_DATA NetData)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("KdNetReadCycleCounter: Unimplemented!\n");
+    ULONGLONG TimeStampCounter;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (NetData->VendorId == 0xFFFD || NetData->VendorId == 0xFFFC)
+        TimeStampCounter = __readmsr(HV_X64_MSR_TIME_REF_COUNT);
+    else
+        TimeStampCounter = __rdtsc();
 
-    return 0;
+    return TimeStampCounter;
 }
 
 VOID
