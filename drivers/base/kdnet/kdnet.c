@@ -486,6 +486,19 @@ GetPacketAddress(
     return NULL;
 }
 
+ULONGLONG
+NTAPI
+KdNetReadCycleCounter(
+    _In_ PKD_NET_DATA NetData)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNetReadCycleCounter: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return 0;
+}
+
 VOID
 NTAPI
 SwapPacket(
@@ -653,7 +666,7 @@ HandleArp(
 
 NTSTATUS
 NTAPI
-WaitForRxPacket(
+GetRxPacket(
     _In_ PKD_NET_DATA NetData,
     _Out_ PULONG OutHandle,
     _Out_ PVOID* OutPacket,
@@ -661,11 +674,119 @@ WaitForRxPacket(
     _Inout_ ULONG* OutCycleCount)
 {
     if (IsDbgComInitialized)
-        DbgPrint0("WaitForRxPacket: Unimplemented!\n");
+        DbgPrint0("GetRxPacket: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+WaitForRxPacket(
+    _In_ PKD_NET_DATA NetData,
+    _Out_ PULONG OutHandle,
+    _Out_ PVOID* OutPacket,
+    _Out_ PULONG OutLength,
+    _Inout_ ULONG* OutCycleCount)
+{
+    LARGE_INTEGER Counter;
+    LARGE_INTEGER Tmp;
+    ULONGLONG CurrentFactor;
+    ULONGLONG StartCycle;
+    ULONGLONG CycleCount;
+    ULONGLONG Counter1;
+    ULONGLONG Counter2;
+    ULONG Factor;
+    NTSTATUS Status;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("WaitForRxPacket: %p\n", NetData);
+
+    //KdNetWaitForRxPacketCalled++;
+
+    Counter.QuadPart = 0;
+
+    StartCycle = KdNetReadCycleCounter(NetData);
+
+    if (NetData->VendorId == 0xFFFD || NetData->VendorId == 0xFFFC)
+    {
+        Factor = 0xA;
+
+        Tmp.QuadPart = ((*OutCycleCount * Factor) + 1);
+
+        Counter.LowPart = Tmp.HighPart;
+        Counter.HighPart = Tmp.LowPart;
+    }
+    else
+    {
+        Factor = 1;
+    }
+
+    for (Status = GetRxPacket(NetData, OutHandle, OutPacket, OutLength, OutCycleCount);
+         !NT_SUCCESS(Status);
+         Status = GetRxPacket(NetData, OutHandle, OutPacket, OutLength, OutCycleCount))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("WaitForRxPacket: CycleCount %X\n", *OutCycleCount);
+
+        if (!*OutCycleCount)
+        {
+            //KdNetWaitForRxPacketTimeouts++;
+            break;
+        }
+
+        if (*OutCycleCount != 0xFFFFFFFF)
+        {
+            if (!Counter.QuadPart)
+            {
+                Counter1 = KdNetReadCycleCounter(NetData);
+                KeStallExecutionProcessor(8);
+                Counter2 = KdNetReadCycleCounter(NetData);
+
+                CurrentFactor = ((Counter2 - Counter1) / 8);
+
+                if (CurrentFactor > Factor)
+                    Factor = CurrentFactor;
+
+                Tmp.QuadPart = ((*OutCycleCount * CurrentFactor) + 1);
+
+                Counter.LowPart = Tmp.HighPart;
+                Counter.HighPart = Tmp.LowPart;
+            }
+
+            Counter1 = KdNetReadCycleCounter(NetData);
+
+            Tmp.LowPart = Counter.HighPart;
+            Tmp.HighPart = Counter.LowPart;
+
+            if ((Counter1 - StartCycle) >= (ULONGLONG)Tmp.QuadPart)
+            {
+                *OutCycleCount = 0;
+                continue;
+            }
+        }
+
+        //KdNetWaitForRxPacketStalls++;
+
+        KeStallExecutionProcessor(4);
+    }
+
+    if (*OutCycleCount && *OutCycleCount != 0xFFFFFFFF)
+    {
+        Counter1 = KdNetReadCycleCounter(NetData);
+        CycleCount = ((Counter1 - StartCycle) / Factor);
+
+        if (CycleCount < *OutCycleCount)
+            *OutCycleCount -= CycleCount;
+        else
+            *OutCycleCount = 0;
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("WaitForRxPacket: ret Status %X\n", Status);
+
+    return Status;
 }
 
 NTSTATUS
