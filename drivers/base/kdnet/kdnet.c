@@ -677,12 +677,68 @@ GetRxPacket(
     _Out_ PULONG OutLength,
     _Inout_ ULONG* OutCycleCount)
 {
+    NTSTATUS Status;
+
+    if (!NetData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetRxPacket: STATUS_INVALID_PARAMETER\n");
+
+        return STATUS_INVALID_PARAMETER;
+    }
+
     if (IsDbgComInitialized)
-        DbgPrint0("GetRxPacket: Unimplemented!\n");
+        DbgPrint0("GetRxPacket: VendorId %X\n", NetData->VendorId);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    switch (NetData->VendorId)
+    {
+        case 0xFFFB:
+            if (IsDbgComInitialized)
+                DbgPrint0("GetRxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
+            Status = STATUS_NOT_IMPLEMENTED;
+            //Status = USB3GetRxPacket(NetData->SharedData.Hardware, OutHandle, OutPacket, OutLength);
+            break;
 
-    return STATUS_NOT_IMPLEMENTED;
+        case 0xFFFC:
+            if (IsDbgComInitialized)
+                DbgPrint0("GetRxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
+            Status = STATUS_NOT_IMPLEMENTED;
+            //Status = KdVmGetRxPacket(NetData, OutHandle, OutPacket, OutLength, *OutCycleCount == 0);
+            break;
+
+        case 0xFFFD:
+            if (IsDbgComInitialized)
+                DbgPrint0("GetRxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
+            Status = STATUS_NOT_IMPLEMENTED;
+            //Status = KdHvGetRxPacket(NetData->SharedData.Hardware, OutHandle, OutPacket, OutLength);
+            break;
+
+        case 0xFFFE:
+            Status = KdGetRxPacket(NetData->SharedData.Hardware, OutHandle, OutPacket, OutLength);
+            break;
+
+        default:
+            if (IsDbgComInitialized)
+                DbgPrint0("GetRxPacket: STATUS_INVALID_PARAMETER (%X)\n", NetData->VendorId);
+            return STATUS_NO_SUCH_DEVICE;
+    }
+
+    if (Status == STATUS_CONNECTION_RESET)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetRxPacket: STATUS_CONNECTION_RESET -> STATUS_IO_TIMEOUT\n");
+
+        UpdateTargetRandom(NetData);
+        Status = STATUS_IO_TIMEOUT;
+    }
+
+    //if (NT_SUCCESS(Status))
+    //    KdNetRxPacketsReceived++;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("GetRxPacket: ret Status %X\n", Status);
+
+    return Status;
 }
 
 NTSTATUS
