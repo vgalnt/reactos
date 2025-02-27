@@ -809,6 +809,23 @@ SendTxPacket(
 
 NTSTATUS
 NTAPI
+SendOfferPacketEx(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle,
+    _In_ PUCHAR HostMac,
+    _In_ ULONG HostIp,
+    _In_ USHORT SendersPort)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendPingPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 SendPingPacket(
     _In_ PKD_NET_DATA NetData)
 {
@@ -825,16 +842,24 @@ NTAPI
 SendOfferPacket(
     _In_ ULONG PacketHandle,
     _In_ PKD_NET_DATA NetData,
-    _In_ PUCHAR DestinationMac,
-    _In_ ULONG HostIp2,
+    _In_ PUCHAR HostMac,
+    _In_ ULONG HostIp,
     _In_ USHORT SendersPort)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("SendOfferPacket: Unimplemented!\n");
+    NTSTATUS Status;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    Status = GetTxPacket(NetData, &PacketHandle);
+    if (NT_SUCCESS(Status))
+    {
+        Status = SendOfferPacketEx(NetData, PacketHandle, HostMac, HostIp, SendersPort);
+    }
+    else
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendOfferPacket: Status %X\n", Status);
+    }
 
-    return STATUS_NOT_IMPLEMENTED;
+    return Status;
 }
 
 NTSTATUS
