@@ -190,6 +190,45 @@ typedef struct _KD_NET_ARP
 } KD_NET_ARP, *PKD_NET_ARP;
 C_ASSERT(sizeof(KD_NET_ARP) == 0x2A);
 
+typedef struct _KD_NET_IPv4_PACKET
+{
+    union
+    {
+        struct
+        {
+            USHORT Version: 4;
+            USHORT InternetHdrLen :4; // (IHL)
+            USHORT TypeOfService :6;  // Differentiated Services Code Point (DSCP)
+            USHORT EcNotification :2; // Explicit Congestion Notification (ECN)
+        };
+        USHORT IpHdr0;
+    };
+    USHORT TotalLength;
+    USHORT Identification;
+    union
+    {
+        struct
+        {
+            USHORT Flags: 3;
+            USHORT FragmentOffset: 13;
+        };
+        USHORT IpHdr1;
+    };
+    UCHAR TimeToLive; // (TTL)
+    UCHAR Protocol;
+    USHORT HeaderChecksum;
+    ULONG SourceIp;
+    ULONG DestinationIp;
+} KD_NET_IPv4_PACKET, *PKD_NET_IPv4_PACKET;
+C_ASSERT(sizeof(KD_NET_IPv4_PACKET) == 0x14);
+
+typedef struct _KD_NET_IPv4
+{
+    KD_NET_ETH_HEADER Header;
+    KD_NET_IPv4_PACKET Ipv4;
+} KD_NET_IPv4, *PKD_NET_IPv4;
+C_ASSERT(sizeof(KD_NET_IPv4) == 0x22);
+
 #pragma pack()
 
 typedef
