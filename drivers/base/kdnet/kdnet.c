@@ -601,12 +601,61 @@ GetTxPacket(
     _In_ PKD_NET_DATA NetData,
     _Out_ ULONG* PacketHandle)
 {
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("GetTxPacket: Unimplemented!\n");
+        DbgPrint0("GetTxPacket: %p\n", PacketHandle);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetTxPacket: STATUS_INVALID_PARAMETER\n");
 
-    return STATUS_NOT_IMPLEMENTED;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    switch (NetData->VendorId)
+    {
+        case 0xFFFB:
+            if (IsDbgComInitialized)
+                DbgPrint0("GetTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
+
+            //Status = USB3GetTxPacket(NetData->SharedData.Hardware, PacketHandle);
+
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 0xFFFC:
+            if (IsDbgComInitialized)
+                DbgPrint0("GetTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
+
+            //Status = KdHvGetTxPacket(NetData->SharedData.Hardware, PacketHandle);
+
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 0xFFFD:
+            if (IsDbgComInitialized)
+                DbgPrint0("GetTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
+
+            //Status = KdHvGetTxPacket(NetData->SharedData.Hardware, PacketHandle);
+
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 0xFFFE:
+            Status = KdGetTxPacket(NetData->SharedData.Hardware, PacketHandle);
+            break;
+
+        default:
+            if (IsDbgComInitialized)
+                DbgPrint0("GetTxPacket: STATUS_NO_SUCH_DEVICE (%X)\n", NetData->VendorId);
+
+            Status = STATUS_NO_SUCH_DEVICE;
+            break;
+    }
+
+    return Status;
 }
 
 VOID
