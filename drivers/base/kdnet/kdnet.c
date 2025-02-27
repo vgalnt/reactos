@@ -44,6 +44,49 @@ ULONG KdTargetIP;
 
 /* PRIVATE FUNCTIONS **********************************************************/
 
+static VOID KdNetDump(PVOID Ptr, unsigned Len)
+{
+    unsigned int ix, jx;
+    CHAR Msg[128];
+    PCHAR Hexof = "0123456789ABCDEF";
+    PUCHAR x = Ptr;
+
+    if (!IsDbgComInitialized)
+    {
+        return;
+    }
+
+    DbgPrint0("KdNetDump: Ptr %p, Len %X\n", Ptr, Len);
+
+    for (ix = 0; ix < Len; ix += 0x10)
+    {
+        RtlStringCchPrintfA(Msg, sizeof(Msg),"%08x: ", ix);
+
+        RtlFillMemory((Msg + 10), (3 * 0x10 + 1 + 0x10), ' ');
+
+        for (jx = 0; jx < min(0x10, Len - ix); jx++)
+        {
+            Msg[10 + 3 * jx + 0] = Hexof[x[ix + jx] >> 4];
+            Msg[10 + 3 * jx + 1] = Hexof[x[ix + jx] & 0x0F];
+            Msg[10 + 3 * jx + 2] = ' ';
+
+            if (x[ix + jx] >= 0x20 && x[ix + jx] < 0x7F)
+            {
+                Msg[10 + 3 * 0x10 + 1 + jx] = (x[ix + jx]);
+            }
+            else
+            {
+                Msg[10 + 3 * 0x10 + 1 + jx] = ('.');
+            }
+        }
+
+        Msg[10 + 3 * 0x10] = ' ';
+        Msg[10 + 3 * 0x10 + 1 + 0x10] = '\0';
+
+        DbgPrint0("%s\n", Msg);
+    }
+}
+
 VOID
 NTAPI
 KdNetNicInitialize(VOID)
