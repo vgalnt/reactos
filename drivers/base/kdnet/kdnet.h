@@ -229,6 +229,23 @@ typedef struct _KD_NET_IPv4
 } KD_NET_IPv4, *PKD_NET_IPv4;
 C_ASSERT(sizeof(KD_NET_IPv4) == 0x22);
 
+typedef struct _KD_NET_UDP_PACKET
+{
+    USHORT SourcePort;
+    USHORT DestinationPort;
+    USHORT Length;
+    USHORT Checksum;
+} KD_NET_UDP_PACKET, *PKD_NET_UDP_PACKET;
+
+typedef struct _KD_NET_UDP
+{
+    KD_NET_ETH_HEADER EthHeader;
+    KD_NET_IPv4_PACKET Ipv4;
+    KD_NET_UDP_PACKET Udp;
+    UCHAR Data[0];
+} KD_NET_UDP, *PKD_NET_UDP;
+C_ASSERT(sizeof(KD_NET_UDP) == 0x2A);
+
 #pragma pack()
 
 typedef
