@@ -509,12 +509,31 @@ OnesComplementSum(
     _In_ PUCHAR Ptr,
     _In_ ULONG InSize)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("OnesComplementSum: Unimplemented!\n");
+    ULONG Size = InSize;
+    ULONG Checksum = 0;
+    ULONG Value;
+    ULONG ix;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (InSize > 1)
+    {
+        ix = (((InSize - 2) / 2) + 1);
 
-    return 0;
+        do
+        {
+            Value = *(PUSHORT)Ptr + Checksum;
+            Checksum = (((Value >> 16) + Value) & 0xFFFF);
+
+            Size -= 2;
+            Ptr += 2;
+            ix--;
+        }
+        while (ix);
+    }
+
+    if (Size)
+        Checksum = ((((*Ptr + Checksum) >> 16) + (*Ptr + Checksum)) & 0xFFFF);
+
+    return Checksum;
 }
 
 VOID
