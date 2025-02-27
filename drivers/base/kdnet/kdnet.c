@@ -830,12 +830,97 @@ HandleArp(
     _In_ PKD_NET_DATA NetData,
     _In_ PKD_NET_ARP InPacket)
 {
+    PKD_NET_ARP Packet;
+    ULONG PacketHandle;
+    ULONG SenderIp;
+    UCHAR SenderMac[6];
+    NTSTATUS Status = STATUS_MORE_PROCESSING_REQUIRED;
+
     if (IsDbgComInitialized)
-        DbgPrint0("HandleArp: Unimplemented!\n");
+        DbgPrint0("HandleArp: %p\n", NetData);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData->YourIp)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleArp: NetData->YourIp is 0\n");
 
-    return STATUS_NOT_IMPLEMENTED;
+        return Status;
+    }
+
+    SwapPacket(InPacket, FALSE);
+
+    if (InPacket->Arp.HardwareType != 1 ||
+        InPacket->Arp.ProtocolType != ETHERNET_TYPE_IPV4 ||
+        InPacket->Arp.HardwareLen != 6 ||
+        InPacket->Arp.ProtocolLen != 4 ||
+        InPacket->Arp.Operation != 1 ||
+        InPacket->Arp.TargetIp != NetData->YourIp)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleArp: Not handled packet\n");
+
+        SwapPacket(InPacket, TRUE);
+
+        return Status;
+    }
+
+    RtlCopyMemory(&SenderMac, InPacket->Arp.SenderMac, 6);
+
+    SenderIp = InPacket->Arp.SenderIp;
+
+    Status = GetTxPacket(NetData, &PacketHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleArp: Status %X\n", Status);
+
+        //KdNetArpPacketReplyFailures++;
+
+        return Status;
+    }
+
+    Packet = (PKD_NET_ARP)GetPacketAddress(NetData, PacketHandle);
+
+    if ((NetData->YourIp & 0xFFFF0000) == AUTOIP_NET)
+        RtlFillMemory(Packet->Header.DestinationMac, 6, 0xFF);
+    else
+        RtlCopyMemory(Packet->Header.DestinationMac, InPacket->Arp.SenderMac, 6);
+
+    RtlCopyMemory(Packet->Header.SourceMac, NetData->MacAddress, 6);
+
+    Packet->Header.EtherType = ETHERNET_TYPE_ARP;
+
+    Packet->Arp.HardwareType = 1;
+    Packet->Arp.ProtocolType = ETHERNET_TYPE_IPV4;
+    Packet->Arp.HardwareLen = 6;
+    Packet->Arp.ProtocolLen = 4;
+    Packet->Arp.Operation = 2;
+    Packet->Arp.SenderIp = NetData->YourIp;
+    Packet->Arp.TargetIp = SenderIp;
+
+    RtlCopyMemory(Packet->Arp.SenderMac, NetData->MacAddress, 6);
+    RtlCopyMemory(Packet->Arp.TargetMac, SenderMac, 6);
+
+    SwapPacket(Packet, TRUE);
+
+    Status = SendTxPacket(NetData, PacketHandle, sizeof(KD_NET_ARP));
+
+    if (NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleArp: KdNetArpPacketsHandled++\n");
+
+        //KdNetArpPacketsHandled++;
+    }
+    else
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleArp: Status %X\n", Status);
+
+        //KdNetArpPacketReplyFailures++;
+    }
+
+    return Status;
 }
 
 NTSTATUS
