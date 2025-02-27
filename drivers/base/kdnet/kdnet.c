@@ -28,6 +28,9 @@ BOOLEAN KdNetInitialized;
 BOOLEAN KdNicEnabled = TRUE;
 BOOLEAN KdDbgLog = TRUE;
 
+ULONG KdNetReconnectRunningTimeout;
+LONGLONG KdNetReconnectTimestamp;
+
 LIST_ENTRY QueuedTxListHead;
 NTSTATUS KdNetExtensibilityInitStatus = STATUS_ALREADY_REGISTERED;
 NTSTATUS KdNetErrorStatus;
@@ -802,6 +805,36 @@ SendTxPacket(
     }
 
     return Status;
+}
+
+NTSTATUS
+NTAPI
+SendPingPacket(
+    _In_ PKD_NET_DATA NetData)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendPingPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SendOfferPacket(
+    _In_ ULONG PacketHandle,
+    _In_ PKD_NET_DATA NetData,
+    _In_ PUCHAR DestinationMac,
+    _In_ ULONG HostIp2,
+    _In_ USHORT SendersPort)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendOfferPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
 }
 
 NTSTATUS
@@ -1594,16 +1627,106 @@ TryIp:
     return Status;
 }
 
+NTSTATUS
+NTAPI
+SendHostGratuitousArp(
+    _In_ PKD_NET_DATA NetData)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendHostGratuitousArp: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SendDhcpPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG Param2,
+    _In_ UCHAR Param3)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendDhcpPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 EnableHostReconnect(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG AddTimeOut)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("EnableHostReconnect: Unimplemented!\n");
+    ULONG TimeOut;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (IsDbgComInitialized)
+        DbgPrint0("EnableHostReconnect: %d\n", AddTimeOut);
+
+    TimeOut = (KdNetReconnectRunningTimeout + AddTimeOut);
+
+    KdNetReconnectRunningTimeout = TimeOut;
+
+    if (TimeOut >= 3000000)
+    {
+        Status = STATUS_SUCCESS;
+        KdNetReconnectRunningTimeout = (TimeOut - 3000000);
+    }
+
+    if ((ULONGLONG)(*(LONGLONG*)&SharedUserData->InterruptTime - KdNetReconnectTimestamp) > 30000000)
+        Status = STATUS_SUCCESS;
+
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("EnableHostReconnect: Status %X (%I64X:%I64X)\n", Status, *(LONGLONG*)&SharedUserData->InterruptTime, KdNetReconnectTimestamp);
+
+        return;
+    }
+
+    NetData->NetParameters->Stamp += 3;
+
+    if (NetData->DhcpPacketType >= 5 && NetData->LeaseTime != 0xFFFFFFFF)
+    {
+        NetData->CurrentTime += 3;
+
+        if (NetData->CurrentTime >= NetData->RebindingTime)
+        {
+            NetData->DhcpPacketType = 7;
+            SendDhcpPacket(NetData, 7, 3);
+        }
+        else if (NetData->CurrentTime >= NetData->RenewalTime)
+        {
+            NetData->DhcpPacketType = 6;
+            SendDhcpPacket(NetData, 6, 3);
+        }
+    }
+
+    if (NetData->VendorId != 0xFFFC)
+        SendHostGratuitousArp(NetData);
+
+    if (NetData->NetParameters->DataChannel && !NetData->NetParameters->SequenceNumber)
+    {
+        SendPingPacket(NetData);
+    }
+
+    Status = SendOfferPacket(0,
+                             NetData,
+                             NetData->NetParameters->HostMac,
+                             NetData->NetParameters->HostIp2,
+                             NetData->NetParameters->HostPort2);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("EnableHostReconnect: SendOfferPacket() ret Status %X\n", Status);
+    }
+
+    KdNetReconnectTimestamp = *(LONGLONG*)&SharedUserData->InterruptTime;
+    return;
 }
 
 NTSTATUS
