@@ -35,6 +35,9 @@
   #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
 #endif
 
+#define UshortSwap(_x) _byteswap_ushort((USHORT)(_x))
+#define UlongSwap(_x) _byteswap_ulong((_x))
+
 typedef enum
 {
     KDP_PACKET_RECEIVED = 0,

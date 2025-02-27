@@ -611,6 +611,20 @@ SendTxPacket(
     return Status;
 }
 
+NTSTATUS
+NTAPI
+ProcessUnhandledPackets(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("ProcessUnhandledPackets: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 VOID
 NTAPI
 ReleaseRxPacket(
@@ -625,22 +639,105 @@ ReleaseRxPacket(
 
 NTSTATUS
 NTAPI
+HandleArp(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PKD_NET_ARP InPacket)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("HandleArp: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+WaitForRxPacket(
+    _In_ PKD_NET_DATA NetData,
+    _Out_ PULONG OutHandle,
+    _Out_ PVOID* OutPacket,
+    _Out_ PULONG OutLength,
+    _Inout_ ULONG* OutCycleCount)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("WaitForRxPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 WaitForSpecificRxPacket(
     _In_ PKD_NET_DATA NetData,
     _In_ PULONG OutHandle,
     _Out_ PVOID* OutPacket,
     _Out_ ULONG* OutPacketLength,
     _Out_ ULONG* OutCycleCount,
-    _In_ PUCHAR DestMac,
+    _In_ PUCHAR HostMac,
     _In_ PUCHAR MacAddress,
     _In_ PUSHORT EtherType)
 {
+    PKD_NET_ETH_HEADER Header;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("WaitForSpecificRxPacket: Unimplemented!\n");
+        DbgPrint0("WaitForSpecificRxPacket()\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    for (Status = WaitForRxPacket(NetData, OutHandle, OutPacket, OutPacketLength, OutCycleCount);
+         Status >= 0;
+         Status = WaitForRxPacket(NetData, OutHandle, OutPacket, OutPacketLength, OutCycleCount))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("WaitForSpecificRxPacket: Status %X\n", Status);
 
-    return STATUS_NOT_IMPLEMENTED;
+        Header = *OutPacket;
+
+        if ((!MacAddress || RtlEqualMemory(MacAddress, Header->DestinationMac, sizeof(Header->DestinationMac))) &&
+            (!HostMac || RtlEqualMemory(HostMac, Header->SourceMac, sizeof(Header->SourceMac))) &&
+            (!EtherType || *EtherType ==  UshortSwap(Header->EtherType)))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("WaitForSpecificRxPacket: KdNetRxPacketsMatched++\n");
+
+            *OutPacket = Add2Ptr(Header, sizeof(*Header));
+            *OutPacketLength -= sizeof(*Header);
+
+            //KdNetRxPacketsMatched++;
+            return Status;
+        }
+
+        if (UshortSwap(Header->EtherType) != ETHERNET_TYPE_ARP)
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("WaitForSpecificRxPacket: KdNetRxEthernetPacketsHandedOff++ (%X)\n", UshortSwap(Header->EtherType));
+
+            //KdNetRxEthernetPacketsHandedOff++;
+            ProcessUnhandledPackets(NetData, *OutHandle);
+        }
+        else
+        {
+            Status = HandleArp(NetData, *OutPacket);
+
+            if (Status == STATUS_MORE_PROCESSING_REQUIRED)
+            {
+                if (IsDbgComInitialized)
+                    DbgPrint0("WaitForSpecificRxPacket: KdNetArpPacketsHandedOff++\n");
+
+                //KdNetArpPacketsHandedOff++;
+                ProcessUnhandledPackets(NetData, *OutHandle);
+            }
+        }
+
+        ReleaseRxPacket(NetData, *OutHandle);
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("WaitForSpecificRxPacket: ret Status %X\n", Status);
+
+    return Status;
 }
 
 NTSTATUS
