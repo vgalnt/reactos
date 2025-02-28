@@ -531,6 +531,62 @@ DecryptKdPacket(
 }
 #endif
 
+ULONG
+NTAPI
+GetPacketLength(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("GetPacketLength: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return 0;
+}
+
+NTSTATUS
+NTAPI
+HandleDhcp(
+    _In_ PKD_NET_DATA NetData, ULONG PacketHandle)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("HandleDhcp: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+HandleControlChannelPackets(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("HandleControlChannelPackets: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+KdNicReceivePacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PVOID Packet,
+    _In_ ULONG PacketLength)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicReceivePacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 NTSTATUS
 NTAPI
 ProcessControlChannelPacket(
@@ -1533,12 +1589,34 @@ ProcessUnhandledPackets(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle)
 {
+    PVOID Packet;
+    ULONG PacketLength;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("ProcessUnhandledPackets: Unimplemented!\n");
+        DbgPrint0("ProcessUnhandledPackets: %X\n", PacketHandle);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    Status = HandleDhcp(NetData, PacketHandle);
+    if (NT_SUCCESS(Status))
+        return Status;
 
-    return STATUS_NOT_IMPLEMENTED;
+    Status = HandleControlChannelPackets(NetData, PacketHandle);
+    if (NT_SUCCESS(Status))
+        return Status;
+
+    PacketLength = GetPacketLength(NetData, PacketHandle);
+    Packet = GetPacketAddress(NetData, PacketHandle);
+
+    Status = KdNicReceivePacket(NetData, Packet, PacketLength);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("ProcessUnhandledPackets: Status %X\n", Status);
+
+        //KdNetRxPacketsDiscarded++;
+    }
+
+    return Status;
 }
 
 VOID
