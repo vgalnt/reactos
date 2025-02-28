@@ -916,12 +916,48 @@ SendEthernetPacket(
     _In_ PUCHAR DestinationMac,
     _In_ USHORT EtherType)
 {
+    PKD_NET_ETH_HEADER Packet;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("SendEthernetPacket: Unimplemented!\n");
+        DbgPrint0("SendEthernetPacket: %X, %X\n", PacketHandle, PacketLength);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendEthernetPacket: STATUS_INVALID_PARAMETER, NetData is NULL\n");
 
-    return STATUS_NOT_IMPLEMENTED;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!DestinationMac)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendEthernetPacket: STATUS_INVALID_PARAMETER, DestinationMac is NULL\n");
+
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!SourceMac)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendEthernetPacket: STATUS_INVALID_PARAMETER, SourceMac is NULL\n");
+
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    Packet = GetPacketAddress(NetData, PacketHandle);
+
+    RtlCopyMemory(Packet->DestinationMac, DestinationMac, 6);
+    RtlCopyMemory(Packet->SourceMac, SourceMac, 6);
+
+    Packet->EtherType = EtherType;
+
+    SwapPacket(Packet, TRUE);
+
+    Status = SendTxPacket(NetData, PacketHandle, (PacketLength + sizeof(KD_NET_ETH_HEADER)));
+
+    return Status;
 }
 
 NTSTATUS
