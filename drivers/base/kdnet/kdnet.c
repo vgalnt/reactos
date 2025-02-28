@@ -537,12 +537,59 @@ GetPacketLength(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle)
 {
+    ULONG PacketLength = 0;
+
     if (IsDbgComInitialized)
-        DbgPrint0("GetPacketLength: Unimplemented!\n");
+        DbgPrint0("GetPacketLength: %X\n", PacketHandle);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetPacketLength: NetData is NULL\n");
 
-    return 0;
+        return 0;
+    }
+
+    if (NetData->VendorId == 0xFFFB)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetPacketLength: Unimplemented USB3GetPacketLength()!\n");
+
+        //return USB3GetPacketLength(NetData->SharedData.Hardware, PacketHandle);
+        KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (NetData->VendorId == 0xFFFC)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetPacketLength: Unimplemented KdVmGetPacketLength()!\n");
+
+        //return KdVmGetPacketLength(NetData->SharedData.Hardware, PacketHandle);
+        KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (NetData->VendorId == 0xFFFD)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("GetPacketLength: Unimplemented GetPacketLength()!\n");
+
+        //return KdVmGetPacketLength(NetData->SharedData.Hardware, PacketHandle);
+        KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (NetData->VendorId == 0xFFFE)
+        return KdGetPacketLength(NetData->SharedData.Hardware, PacketHandle);
+
+    if (IsDbgComInitialized)
+        DbgPrint0("GetPacketLength: ! Unknown VendorId (%X)\n", NetData->VendorId);
+
+    return PacketLength;
 }
 
 NTSTATUS
