@@ -561,6 +561,13 @@ WaitForSpecificRxPacket(
     _In_ PUSHORT EtherType
 );
 
+PVOID
+NTAPI
+GetPacketAddress(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle
+);
+
 #endif /* _KDNET_H_ */
 
 /* EOF */

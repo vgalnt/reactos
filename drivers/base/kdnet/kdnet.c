@@ -594,8 +594,11 @@ GetPacketLength(
 
 NTSTATUS
 NTAPI
-HandleDhcp(
-    _In_ PKD_NET_DATA NetData, ULONG PacketHandle)
+ProcessDhcpPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PVOID Packet,
+    _In_ ULONG Length,
+    _In_ UCHAR Param4)
 {
     if (IsDbgComInitialized)
         DbgPrint0("HandleDhcp: Unimplemented!\n");
@@ -603,6 +606,101 @@ HandleDhcp(
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+HandleDhcp(
+    _In_ PKD_NET_DATA NetData, ULONG PacketHandle)
+{
+    PKD_NET_UDP Packet;
+    ULONG PacketLength;
+    USHORT DhcpLength;
+    USHORT UdpLength;
+    NTSTATUS Status;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("HandleDhcp: %X\n", PacketHandle);
+
+    if (NetData->DhcpPacketType <= 5)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleDhcp: STATUS_MORE_PROCESSING_REQUIRED DhcpPacketType %X\n", NetData->DhcpPacketType);
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    PacketLength = GetPacketLength(NetData, PacketHandle);
+    Packet = GetPacketAddress(NetData, PacketHandle);
+
+    if (PacketLength < sizeof(KD_NET_ETH_HEADER) &&
+        Packet->EthHeader.EtherType != sizeof(KD_NET_UDP_PACKET) ||
+        !RtlEqualMemory(NetData->MacAddress, Packet->EthHeader.DestinationMac, 6))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleDhcp: (1) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", PacketLength, Packet->EthHeader.EtherType);
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    PacketLength -= sizeof(KD_NET_ETH_HEADER);
+
+    if (PacketLength < sizeof(KD_NET_IPv4_PACKET) || Packet->Ipv4.Protocol != 0x11)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleDhcp: (2) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", PacketLength, Packet->Ipv4.Protocol);
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    PacketLength -= sizeof(KD_NET_IPv4_PACKET);
+
+    if (PacketLength < sizeof(KD_NET_UDP_PACKET) ||
+        Packet->Udp.SourcePort != 0x4300 ||
+        Packet->Udp.DestinationPort != 0x4400)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleDhcp: STATUS_MORE_PROCESSING_REQUIRED (%X, %X, %X)\n", PacketLength, Packet->Udp.SourcePort, Packet->Udp.DestinationPort);
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    UdpLength = UshortSwap(Packet->Udp.Length);
+
+    PacketLength -= sizeof(KD_NET_UDP_PACKET);
+
+    if (UdpLength < sizeof(KD_NET_UDP_PACKET))
+        UdpLength = sizeof(KD_NET_UDP_PACKET);
+
+    DhcpLength = (UdpLength - sizeof(KD_NET_UDP_PACKET));
+
+    if (DhcpLength > PacketLength)
+        DhcpLength = PacketLength;
+
+    Status = ProcessDhcpPacket(NetData, Add2Ptr(Packet, sizeof(*Packet)), DhcpLength, 5);
+    if (Status == STATUS_DUPLICATE_NAME)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleDhcp: STATUS_DUPLICATE_NAME\n");
+
+        //KdNetDhcpPacketsHandled++;
+        return 0;
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleDhcp: KdNetDhcpPacketsHandled++ (%X)\n", NetData->DhcpPacketsCounter);
+
+        NetData->DhcpPacketsCounter++;
+        //KdNetDhcpPacketsHandled++;
+        return Status;
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("HandleDhcp: Status %X\n", Status);
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
 NTSTATUS
