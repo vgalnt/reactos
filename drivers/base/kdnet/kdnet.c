@@ -709,12 +709,115 @@ HandleControlChannelPackets(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle)
 {
+    PKD_NET_UDP Packet;
+    PKD_NET_KD_HEADER KdPacket;
+    ULONGLONG SequenceNumber;
+    ULONG PacketLength;
+    USHORT Length;
+    USHORT UdpLength;
+    BOOLEAN IsControlPacket;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("HandleControlChannelPackets: Unimplemented!\n");
+        DbgPrint0("HandleControlChannelPackets: %X\n", PacketHandle);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData->NetParameters->IsEncryptionKey)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleControlChannelPackets: IsEncryptionKey is FALSE\n");
 
-    return STATUS_NOT_IMPLEMENTED;
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    PacketLength = GetPacketLength(NetData, PacketHandle);
+    Packet = GetPacketAddress(NetData, PacketHandle);
+
+    if (PacketLength < sizeof(KD_NET_ETH_HEADER) &&
+        Packet->EthHeader.EtherType != sizeof(KD_NET_UDP_PACKET) ||
+        !RtlEqualMemory(NetData->MacAddress, Packet->EthHeader.DestinationMac, 6))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleControlChannelPackets: (1) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", PacketLength, Packet->EthHeader.EtherType);
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    PacketLength -= sizeof(KD_NET_ETH_HEADER);
+
+    if (PacketLength < sizeof(KD_NET_IPv4_PACKET) || Packet->Ipv4.Protocol != 0x11)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleControlChannelPackets: (2) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", PacketLength, Packet->Ipv4.Protocol);
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    PacketLength -= sizeof(KD_NET_IPv4_PACKET);
+
+    if (PacketLength < sizeof(KD_NET_UDP_PACKET))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleDhcp: STATUS_MORE_PROCESSING_REQUIRED (%X)\n", PacketLength);
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    if (Packet->Udp.DestinationPort != UshortSwap(NetData->NetParameters->DebuggeePort))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleControlChannelPackets: (3) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", Packet->Udp.DestinationPort, UshortSwap(NetData->NetParameters->DebuggeePort));
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    PacketLength -= sizeof(KD_NET_UDP_PACKET);
+
+    UdpLength = UshortSwap(Packet->Udp.Length);
+
+    if (UdpLength < sizeof(KD_NET_UDP_PACKET))
+        UdpLength = sizeof(KD_NET_UDP_PACKET);
+
+    Length = (UdpLength - sizeof(KD_NET_UDP_PACKET));
+
+    if (Length > PacketLength)
+        Length = PacketLength;
+
+    KdPacket = Add2Ptr(Packet, sizeof(*Packet));
+
+    if (Length < 0x26 || // FIXME
+        KdPacket->Tag != 'GBDM' ||
+        KdPacket->Unknown1 != 2 ||
+        !(KdPacket->Unknown2 & 1))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("HandleControlChannelPackets: (3) STATUS_MORE_PROCESSING_REQUIRED (%X, %X, %X, %X)\n", Length, KdPacket->Tag, KdPacket->Unknown1, KdPacket->Unknown2);
+
+        return STATUS_MORE_PROCESSING_REQUIRED;
+    }
+
+    PacketLength = Length;
+
+    Status = DecryptKdPacket(NetData, (PVOID *)&KdPacket, &PacketLength, &IsControlPacket, &SequenceNumber);
+    if (NT_SUCCESS(Status))
+    {
+      #ifdef __REACTOS__
+        if (IsControlPacket)
+        {
+            ProcessControlChannelPacket(NetData, Packet, PacketLength, SequenceNumber);
+            PacketLength = 0;
+        }
+      #endif
+
+        //KdNetControlChannelPacketsHandled++;
+        return Status;
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("HandleControlChannelPackets: KdNetControlChannelPacketsDropped++ (%X)\n", Status);
+
+    //KdNetControlChannelPacketsDropped++;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
@@ -1047,13 +1150,13 @@ WaitForResponsePacket(
             ProcessUnhandledPackets(NetData, PacketHandle);
         }
 
-     #ifdef __REACTOS__
-       if (IsControlPacket)
-       {
-           ProcessControlChannelPacket(NetData, Packet, PacketLength, SequenceNumber);
-           PacketLength = 0;
-       }
-     #endif
+      #ifdef __REACTOS__
+        if (IsControlPacket)
+        {
+            ProcessControlChannelPacket(NetData, Packet, PacketLength, SequenceNumber);
+            PacketLength = 0;
+        }
+      #endif
 
         ReleaseRxPacket(NetData, PacketHandle);
     }

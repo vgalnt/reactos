@@ -568,6 +568,15 @@ GetPacketAddress(
     _In_ ULONG PacketHandle
 );
 
+NTSTATUS
+NTAPI
+ProcessControlChannelPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PVOID Packet,
+    _In_ ULONG PacketLength,
+    _In_ ULONGLONG SequenceNumber
+);
+
 #endif /* _KDNET_H_ */
 
 /* EOF */
