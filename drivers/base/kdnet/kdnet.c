@@ -549,6 +549,28 @@ ProcessControlChannelPacket(
 
 NTSTATUS
 NTAPI
+WaitForSpecificRxIpPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PULONG OutPacketHandle,
+    _In_ PVOID* OutPacket,
+    _In_ ULONG* OutPacketLength,
+    _In_ ULONG* OutCycleCount,
+    _In_ PUCHAR HostMac,
+    _In_ PUCHAR MacAddress,
+    _In_ ULONG HostIp,
+    _In_ ULONG TargetIP,
+    _In_ UCHAR Protocol)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("WaitForSpecificRxIpPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 WaitForSpecificRxUdpPacketEx(
     _In_ PKD_NET_DATA NetData,
     _In_ PULONG OutPacketHandle,
@@ -562,12 +584,111 @@ WaitForSpecificRxUdpPacketEx(
     _In_ PUSHORT OutHostPort,
     _In_ PUSHORT OutDebuggeePort)
 {
+    PKD_NET_UDP_PACKET Packet;
+    ULONG PacketLength;
+    ULONG DataLength;
+    USHORT UdpDataLength;
+    USHORT UdpLength;
+    USHORT DebuggeePort;
+    USHORT HostPort;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("WaitForSpecificRxUdpPacketEx: Unimplemented!\n");
+        DbgPrint0("WaitForSpecificRxUdpPacketEx: %X, %X\n", HostIp, TargetIP);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    Status = WaitForSpecificRxIpPacket(NetData,
+                                       OutPacketHandle,
+                                       OutPacket,
+                                       OutPacketLength,
+                                       OutCycleCount,
+                                       HostMac,
+                                       MacAddress,
+                                       HostIp,
+                                       TargetIP,
+                                       0x11);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("WaitForSpecificRxUdpPacketEx: (1) Status %X\n", Status);
 
-    return STATUS_NOT_IMPLEMENTED;
+        return Status;
+    }
+
+    while (TRUE)
+    {
+        PacketLength = *OutPacketLength;
+
+        if (PacketLength < sizeof(KD_NET_UDP_PACKET))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("WaitForSpecificRxUdpPacketEx: KdNetRxPacketToSmallForUdp++ (%X)\n", PacketLength);
+
+            //KdNetRxPacketToSmallForUdp++;
+        }
+        else
+        {
+            DataLength = (PacketLength - sizeof(KD_NET_UDP_PACKET));
+
+            DebuggeePort = UshortSwap(*OutDebuggeePort);
+            HostPort = UshortSwap(*OutHostPort);
+
+            Packet = *OutPacket;
+
+            if ((!HostPort || HostPort == Packet->SourcePort) &&
+                (!DebuggeePort || DebuggeePort == Packet->DestinationPort))
+            {
+                break;
+            }
+
+            //KdNetRxUdpPacketsHandedOff++;
+
+            ProcessUnhandledPackets(NetData, *OutPacketHandle);
+        }
+
+        ReleaseRxPacket(NetData, *OutPacketHandle);
+
+        Status = WaitForSpecificRxIpPacket(NetData,
+                                           OutPacketHandle,
+                                           OutPacket,
+                                           OutPacketLength,
+                                           OutCycleCount,
+                                           HostMac,
+                                           MacAddress,
+                                           HostIp,
+                                           TargetIP,
+                                           0x11);
+        if (!NT_SUCCESS(Status))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("WaitForSpecificRxUdpPacketEx: (2) Status %X\n", Status);
+
+            return Status;
+        }
+    }
+
+    *OutPacket = &Packet[1];
+
+    UdpLength = UshortSwap(Packet->Length);
+
+    if (UdpLength < sizeof(KD_NET_UDP_PACKET))
+        UdpLength = sizeof(KD_NET_UDP_PACKET);
+
+    UdpDataLength = (UdpLength - sizeof(KD_NET_UDP_PACKET));
+
+    if (UdpDataLength > DataLength)
+    {
+        //KdNetRxUdpPacketsMalformed++;
+        UdpDataLength = DataLength;
+    }
+
+    *OutPacketLength = UdpDataLength;
+
+    //KdNetRxUdpPacketsMatched++;
+
+    *OutHostPort = UshortSwap(Packet->SourcePort);
+    *OutDebuggeePort = UshortSwap(Packet->DestinationPort);
+
+    return Status;
 }
 
 NTSTATUS
