@@ -622,12 +622,17 @@ GetPacketKdData(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("GetPacketKdData: Unimplemented!\n");
+    PVOID Packet;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    Packet = GetPacketAddress(NetData, PacketHandle);
+    Packet = Add2Ptr(Packet, sizeof(KD_NET_UDP));
 
-    return NULL;
+    if (!NetData->NetParameters->IsEncryptionKey)
+        return Packet;
+
+    Packet = Add2Ptr(Packet, sizeof(KD_NET_KD_HEADER));
+
+    return Packet;
 }
 
 #define HV_X64_MSR_TIME_REF_COUNT 0x40000020
