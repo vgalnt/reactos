@@ -1853,12 +1853,103 @@ NTAPI
 SendHostGratuitousArp(
     _In_ PKD_NET_DATA NetData)
 {
+    PKD_NET_ARP Packet;
+    ULONG PacketHandle = 0;
+    NTSTATUS Status = STATUS_INVALID_PARAMETER;
+
+    if (!NetData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendHostGratuitousArp: NetData is NULL\n");
+
+        return Status;
+    }
+
     if (IsDbgComInitialized)
-        DbgPrint0("SendHostGratuitousArp: Unimplemented!\n");
+        DbgPrint0("SendHostGratuitousArp: %p, %p\n", NetData->NetParameters->DebuggeeIp, NetData->NetParameters->HostIp2);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData->YourIp)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendHostGratuitousArp: NetData->YourIp is NULL\n");
 
-    return STATUS_NOT_IMPLEMENTED;
+        return Status;
+    }
+
+    if ((NetData->YourIp & 0xFFFF0000) != AUTOIP_NET)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendHostGratuitousArp: TargetIP %p\n", NetData->YourIp);
+
+        return Status;
+    }
+
+    if (!NetData->NetParameters->HostIp2)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendHostGratuitousArp: HostIp2 is NULL\n");
+
+        return Status;
+    }
+
+    if (NetData->NetParameters->HostMac[0] == 0 &&
+        NetData->NetParameters->HostMac[1] == 0 &&
+        NetData->NetParameters->HostMac[2] == 0 &&
+        NetData->NetParameters->HostMac[3] == 0 &&
+        NetData->NetParameters->HostMac[4] == 0 &&
+        NetData->NetParameters->HostMac[5] == 0)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendHostGratuitousArp: HostMac is 0\n");
+
+        return Status;
+    }
+
+    Status = GetTxPacket(NetData, &PacketHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendHostGratuitousArp: GetTxPacket() ret Status %X\n", Status);
+
+        //KdNetGratuitousArpFailures++;
+
+        return Status;
+    }
+
+    Packet = GetPacketAddress(NetData, PacketHandle);
+
+    RtlCopyMemory(Packet->Header.DestinationMac, NetData->NetParameters->HostMac, 6);
+    RtlCopyMemory(Packet->Header.SourceMac, NetData->MacAddress, 6);
+
+    Packet->Header.EtherType = ETHERNET_TYPE_ARP;
+    Packet->Arp.HardwareType = 1;
+    Packet->Arp.ProtocolType = ETHERNET_TYPE_IPV4;
+    Packet->Arp.HardwareLen = 6;
+    Packet->Arp.ProtocolLen = 4;
+    Packet->Arp.Operation = 2;
+    Packet->Arp.SenderIp = NetData->YourIp;
+    Packet->Arp.TargetIp = NetData->NetParameters->HostIp2;
+
+    RtlCopyMemory(Packet->Arp.SenderMac, NetData->MacAddress, 6);
+    RtlCopyMemory(Packet->Arp.TargetMac, NetData->NetParameters->HostMac, 6);
+
+    SwapPacket(Packet, TRUE);
+
+    Status = SendTxPacket(NetData, PacketHandle, sizeof(KD_NET_ARP));
+
+    if (NT_SUCCESS(Status))
+    {
+        ;//KdNetGratuitousArpsSent++;
+    }
+    else
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendHostGratuitousArp: KdNetGratuitousArpFailures++\n");
+
+        //KdNetGratuitousArpFailures++;
+    }
+
+    return Status;
 }
 
 NTSTATUS
