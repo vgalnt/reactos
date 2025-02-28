@@ -908,6 +908,28 @@ SendTxPacket(
 
 NTSTATUS
 NTAPI
+SendIPPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle,
+    _In_ PUCHAR SourceMac,
+    _In_ PUCHAR DestinationMac,
+    _In_ ULONG PacketLength,
+    _In_ ULONG SourceIp,
+    _In_ ULONG TargetIp,
+    _In_ UCHAR Protocol,
+    _In_ UCHAR DscpEcn,
+    _In_ UCHAR Ttl)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendIPPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 SendUDPPacketEx(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle,
@@ -921,12 +943,33 @@ SendUDPPacketEx(
     _In_ USHORT SourcePort,
     _In_ USHORT DestinationPort)
 {
+    PKD_NET_UDP Packet;
+    ULONG Length;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("SendUDPPacketEx: Unimplemented!\n");
+        DbgPrint0("SendUDPPacketEx: %X, %X\n", PacketHandle, PacketLength);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (PacketLength > 0xFFE3) // 65507
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendUDPPacketEx: STATUS_INVALID_PARAMETER (%X, %X)\n", PacketHandle, PacketLength);
 
-    return STATUS_NOT_IMPLEMENTED;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    Length = (PacketLength + sizeof(KD_NET_UDP_PACKET));
+
+    Packet = GetPacketAddress(NetData, PacketHandle);
+
+    Packet->Udp.SourcePort = SourcePort;
+    Packet->Udp.DestinationPort = DestinationPort;
+    Packet->Udp.Length = Length;
+    Packet->Udp.Checksum = 0;
+
+    Status = SendIPPacket(NetData, PacketHandle, SourceMac, DestinationMac, Length, SourceIp, TargetIp, 0x11, DscpEcn, Ttl);
+
+    return Status;
 }
 
 NTSTATUS
