@@ -16,6 +16,7 @@
 #include <arc/arc.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <ntstrsafe.h>
 
 /* 169.254.0.0 */
 #define AUTOIP_NET              0xA9FE0000
@@ -249,6 +250,40 @@ typedef struct _KD_NET_UDP
     UCHAR Data[0];
 } KD_NET_UDP, *PKD_NET_UDP;
 C_ASSERT(sizeof(KD_NET_UDP) == 0x2A);
+
+typedef struct _KD_NET_KD_HEADER
+{
+    ULONG Tag;
+    UCHAR Unknown1;
+    UCHAR Unknown2;
+    ULONGLONG Stamp;
+} KD_NET_KD_HEADER, *PKD_NET_KD_HEADER;
+C_ASSERT(sizeof(KD_NET_KD_HEADER) == 0x0E);
+
+typedef struct _KD_NET_KD_DATA
+{
+    USHORT KdData0;
+    UCHAR BytesForNtoskrnl[0x20];
+    USHORT Reserved0;
+    ULONG Reserved1;
+    USHORT Reserved2;
+    ULONG Unknown1;
+    ULONG DebuggeeIp;
+    USHORT DebuggeePort;
+    ULONG Reserved3;
+    ULONG Reserved4;
+    ULONG Unknown2;
+    ULONG HostIp1;
+    USHORT HostPort1;
+    USHORT Reserved5;
+    ULONG Reserved6;
+    USHORT Reserved7;
+    ULONG Unknown3;
+    ULONG HostIp2;
+    USHORT Port2;
+    UCHAR Data[0x100];
+} KD_NET_KD_DATA, *PKD_NET_KD_DATA;
+C_ASSERT(sizeof(KD_NET_KD_DATA) == 0x158);
 
 #pragma pack()
 
