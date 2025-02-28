@@ -908,6 +908,24 @@ SendTxPacket(
 
 NTSTATUS
 NTAPI
+SendEthernetPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle,
+    _In_ ULONG PacketLength,
+    _In_ PUCHAR SourceMac,
+    _In_ PUCHAR DestinationMac,
+    _In_ USHORT EtherType)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendEthernetPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 SendIPPacket(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle,
@@ -920,12 +938,43 @@ SendIPPacket(
     _In_ UCHAR DscpEcn,
     _In_ UCHAR Ttl)
 {
+    PKD_NET_UDP Packet;
+    ULONG Length;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("SendIPPacket: Unimplemented!\n");
+        DbgPrint0("SendIPPacket: %X, %X\n", PacketHandle, PacketLength);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (PacketLength > 0xFFE3) // 65507
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendIPPacket: STATUS_INVALID_PARAMETER (%X, %X)\n", PacketHandle, PacketLength);
 
-    return STATUS_NOT_IMPLEMENTED;
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    Length = (PacketLength + sizeof(KD_NET_IPv4_PACKET));
+
+    Packet = GetPacketAddress(NetData, PacketHandle);
+
+    Packet->Ipv4.IpHdr0 = 0;
+    Packet->Ipv4.Version = 5;
+    Packet->Ipv4.InternetHdrLen = 4; // IHL
+    Packet->Ipv4.TypeOfService = (DscpEcn & 0x3F); // DSCP
+    Packet->Ipv4.EcNotification = (((DscpEcn & 0xC0) >> 6) & 3); // ECN
+
+    Packet->Ipv4.TotalLength = Length;
+    Packet->Ipv4.Identification = 0;
+    Packet->Ipv4.IpHdr1 = 0x4000;
+    Packet->Ipv4.TimeToLive = Ttl; // Time to live
+    Packet->Ipv4.Protocol = Protocol;
+    Packet->Ipv4.HeaderChecksum = 0;
+    Packet->Ipv4.SourceIp = SourceIp;
+    Packet->Ipv4.DestinationIp = TargetIp;
+
+    Status = SendEthernetPacket(NetData, PacketHandle, Length, SourceMac, DestinationMac, ETHERNET_TYPE_IPV4);
+
+    return Status;
 }
 
 NTSTATUS
