@@ -533,6 +533,21 @@ KdShutdownController(
     _In_ PVOID Adapter
 );
 
+/* Non EXPORT functions */
+NTSTATUS
+NTAPI
+ProcessUnhandledPackets(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle
+);
+
+VOID
+NTAPI
+ReleaseRxPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle
+);
+
 #endif /* _KDNET_H_ */
 
 /* EOF */

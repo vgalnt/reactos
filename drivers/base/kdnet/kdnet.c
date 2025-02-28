@@ -461,6 +461,27 @@ InitializeEncryption(
     _In_ PKD_NET_DATA NetData,
     _In_ PKD_NET_PARAMETERS NetParameters
 );
+
+VOID
+NTAPI
+EncryptKdPacket(
+    _In_ PKD_NET_KD_HEADER KdPacket,
+    _In_ ULONG* OutLength,
+    _In_ PKD_NET_AES_CTX AesCtx,
+    _In_ PVOID KeyToken,
+    _In_ ULONGLONG Stamp,
+    _In_ UCHAR Unknown2
+);
+
+NTSTATUS
+NTAPI
+DecryptKdPacket(
+    _In_ PKD_NET_DATA InNetData,
+    _In_ PVOID* InOutPacket,
+    _In_ ULONG* InOutLength,
+    _Out_ BOOLEAN* OutIsControlPacket,
+    _Out_ ULONGLONG* OutSequenceNumber
+);
 #else
 NTSTATUS
 NTAPI
@@ -475,23 +496,147 @@ InitializeEncryption(
 
     return STATUS_NOT_IMPLEMENTED;
 }
+
+VOID
+NTAPI
+EncryptKdPacket(
+    _In_ PKD_NET_KD_HEADER KdPacket,
+    _In_ ULONG* OutLength,
+    _In_ PKD_NET_AES_CTX AesCtx,
+    _In_ PVOID KeyToken,
+    _In_ ULONGLONG Stamp,
+    _In_ UCHAR Unknown2)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdHvInitializeController: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+DecryptKdPacket(
+    _In_ PKD_NET_DATA InNetData,
+    _In_ PVOID* InOutPacket,
+    _In_ ULONG* InOutLength)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("DecryptKdPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
 #endif
+
+NTSTATUS
+NTAPI
+ProcessControlChannelPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PVOID Packet,
+    _In_ ULONG PacketLength,
+    _In_ ULONGLONG SequenceNumber)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("ProcessControlChannelPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+WaitForSpecificRxUdpPacketEx(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PULONG OutPacketHandle,
+    _In_ PVOID* OutPacket,
+    _In_ PULONG OutPacketLength,
+    _In_ PULONG OutCycleCount,
+    _In_ PUCHAR HostMac,
+    _In_ PUCHAR MacAddress,
+    _In_ ULONG HostIp,
+    _In_ ULONG TargetIP,
+    _In_ PUSHORT OutHostPort,
+    _In_ PUSHORT OutDebuggeePort)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("WaitForSpecificRxUdpPacketEx: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
 
 NTSTATUS
 NTAPI
 WaitForResponsePacket(
     _In_ PKD_NET_DATA NetData,
-    _In_ PUCHAR DestinationMac,
+    _In_ PUCHAR HostMac,
     _In_ ULONG HostIp,
     _In_ USHORT Port,
     _In_ ULONG* OutCycleCount)
 {
+    PVOID Packet;
+    ULONGLONG SequenceNumber;
+    ULONG PacketLength;
+    ULONG PacketHandle;
+    BOOLEAN IsControlPacket;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("WaitForResponsePacket: Unimplemented!\n");
+        DbgPrint0("WaitForResponsePacket: %p, %X\n", NetData, HostIp);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData->NetParameters->IsVerifyHostMac && (NetData->YourIp & 0xFFFF0000) != AUTOIP_NET)
+        HostMac = NULL;
 
-    return STATUS_NOT_IMPLEMENTED;
+    do
+    {
+        Status = WaitForSpecificRxUdpPacketEx(NetData,
+                                              &PacketHandle,
+                                              &Packet,
+                                              &PacketLength,
+                                              OutCycleCount,
+                                              HostMac,
+                                              NetData->MacAddress,
+                                              HostIp,
+                                              NetData->YourIp,
+                                              &Port,
+                                              &NetData->NetParameters->DebuggeePort);
+        if (!NT_SUCCESS(Status))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("WaitForResponsePacket: Status %X\n", Status);
+
+            break;
+        }
+
+        Status = DecryptKdPacket(NetData, &Packet, &PacketLength, &IsControlPacket, &SequenceNumber);
+        if (!NT_SUCCESS(Status))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("WaitForResponsePacket: Decrypt Status %X\n", Status);
+
+            //KdNetRxKdPacketsHandedOff++;
+
+            ProcessUnhandledPackets(NetData, PacketHandle);
+        }
+
+     #ifdef __REACTOS__
+       if (IsControlPacket)
+       {
+           ProcessControlChannelPacket(NetData, Packet, PacketLength, SequenceNumber);
+           PacketLength = 0;
+       }
+     #endif
+
+        ReleaseRxPacket(NetData, PacketHandle);
+    }
+    while (!NetData->NetParameters->DataChannel);
+
+    return Status;
 }
 
 NTSTATUS
@@ -532,37 +677,6 @@ KdHvInitializeController(
 
     return STATUS_NOT_IMPLEMENTED;
 }
-
-#ifdef __REACTOS__
-VOID
-NTAPI
-EncryptKdPacket(
-    _In_ PKD_NET_KD_HEADER KdPacket,
-    _In_ ULONG* OutLength,
-    _In_ PKD_NET_AES_CTX AesCtx,
-    _In_ PVOID KeyToken,
-    _In_ ULONGLONG Stamp,
-    _In_ UCHAR Unknown2
-);
-#else
-VOID
-NTAPI
-EncryptKdPacket(
-    _In_ PKD_NET_KD_HEADER KdPacket,
-    _In_ ULONG* OutLength,
-    _In_ PKD_NET_AES_CTX AesCtx,
-    _In_ PVOID KeyToken,
-    _In_ ULONGLONG Stamp,
-    _In_ UCHAR Unknown2)
-{
-    if (IsDbgComInitialized)
-        DbgPrint0("KdHvInitializeController: Unimplemented!\n");
-
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
-
-    return STATUS_NOT_IMPLEMENTED;
-}
-#endif
 
 PVOID
 NTAPI
