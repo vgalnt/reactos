@@ -42,6 +42,12 @@ ULONG KdNetHardwareContextSize;
 ULONG KdNetHardwareID;
 ULONG KdTargetIP;
 
+//extern BOOLEAN KdEnteredDebugger;
+#ifndef _NTSYSTEM_
+  __CREATE_NTOS_DATA_IMPORT_ALIAS(KdEnteredDebugger)
+  extern PBOOLEAN KdEnteredDebugger;
+#endif
+
 /* PRIVATE FUNCTIONS **********************************************************/
 
 static VOID KdNetDump(PVOID Ptr, unsigned Len)
@@ -527,6 +533,37 @@ KdHvInitializeController(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+#ifdef __REACTOS__
+VOID
+NTAPI
+EncryptKdPacket(
+    _In_ PKD_NET_KD_HEADER KdPacket,
+    _In_ ULONG* OutLength,
+    _In_ PKD_NET_AES_CTX AesCtx,
+    _In_ PVOID KeyToken,
+    _In_ ULONGLONG Stamp,
+    _In_ UCHAR Unknown2
+);
+#else
+VOID
+NTAPI
+EncryptKdPacket(
+    _In_ PKD_NET_KD_HEADER KdPacket,
+    _In_ ULONG* OutLength,
+    _In_ PKD_NET_AES_CTX AesCtx,
+    _In_ PVOID KeyToken,
+    _In_ ULONGLONG Stamp,
+    _In_ UCHAR Unknown2)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdHvInitializeController: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+#endif
+
 PVOID
 NTAPI
 GetPacketAddress(
@@ -577,6 +614,20 @@ GetPacketAddress(
         return Packet;
 
     return Add2Ptr(NetData, -PAGE_SIZE);
+}
+
+PVOID
+NTAPI
+GetPacketKdData(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("GetPacketKdData: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return NULL;
 }
 
 #define HV_X64_MSR_TIME_REF_COUNT 0x40000020
@@ -852,6 +903,29 @@ SendTxPacket(
 
 NTSTATUS
 NTAPI
+SendUDPPacketEx(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle,
+    _In_ PUCHAR SourceMac,
+    _In_ PUCHAR DestinationMac,
+    _In_ ULONG SourceIp,
+    _In_ ULONG TargetIp,
+    _In_ UCHAR DscpEcn,
+    _In_ UCHAR Ttl,
+    _In_ ULONG PacketLength,
+    _In_ USHORT SourcePort,
+    _In_ USHORT DestinationPort)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendUDPPacketEx: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 SendOfferPacketEx(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle,
@@ -859,12 +933,91 @@ SendOfferPacketEx(
     _In_ ULONG HostIp,
     _In_ USHORT SendersPort)
 {
+    PKD_NET_KD_HEADER KdPacketHeader;
+    PKD_NET_KD_DATA KdPacketData;
+    PKD_NET_UDP Packet;
+
+    ULONG HostIp2;
+    ULONG PacketLength;
+    BOOLEAN IsEnteredDebugger;
+    NTSTATUS Status;
+
+    Packet = GetPacketAddress(NetData, PacketHandle);
+    KdPacketHeader = (PKD_NET_KD_HEADER)&Packet->Data[0];
+
+    KdPacketData = GetPacketKdData(NetData, PacketHandle);
+    RtlZeroMemory(KdPacketData, sizeof(KD_NET_KD_DATA));
+
     if (IsDbgComInitialized)
-        DbgPrint0("SendPingPacket: Unimplemented!\n");
+        DbgPrint0("SendOfferPacketEx: %d, %p, %p\n", SendersPort, Packet, KdPacketData);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+  #if 0
+    //FIXME BytesForNtoskrnl;
+  #endif
 
-    return STATUS_NOT_IMPLEMENTED;
+    KdPacketData->KdData0 = 0x0101;
+    KdPacketData->Unknown1 = UlongSwap(0xFFFF);
+    KdPacketData->DebuggeeIp = UlongSwap(NetData->YourIp);
+    KdPacketData->DebuggeePort = UshortSwap(NetData->NetParameters->DebuggeePort);
+    KdPacketData->Unknown2 = UlongSwap(0xFFFF);
+    KdPacketData->HostIp1 = UlongSwap(NetData->NetParameters->HostIp1);
+    KdPacketData->HostPort1 = UshortSwap(NetData->NetParameters->HostPort1);
+
+    if (NetData->NetParameters->DataChannel)
+        HostIp2 = NetData->NetParameters->HostIp2;
+    else
+        HostIp2 = 0;
+
+    KdPacketData->Unknown3 = UlongSwap(0xFFFF);
+    KdPacketData->HostIp2 = UlongSwap(HostIp2);
+
+    if (NetData->NetParameters->DataChannel)
+        KdPacketData->Port2 = UshortSwap(NetData->NetParameters->HostPort2);
+
+    if (NetData->NetParameters->DataChannel)
+        RtlCopyMemory(KdPacketData->Data, NetData->NetParameters->KdData, sizeof(KdPacketData->Data));
+
+    PacketLength = sizeof(KD_NET_KD_DATA);
+
+    if (KdNetParameters.IsSendKdStatus && KdEnteredDebugger)
+        IsEnteredDebugger = TRUE;
+    else
+        IsEnteredDebugger = FALSE;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("SendOfferPacketEx: %X, %X\n", KdPacketHeader, PacketLength);
+    KdNetDump(Packet, PacketLength + sizeof(KD_NET_UDP));
+
+    EncryptKdPacket(KdPacketHeader, &PacketLength, NetData->AesCtx, NetData->KeyToken, NetData->NetParameters->Stamp, (IsEnteredDebugger?3:1));
+
+    if (IsDbgComInitialized)
+        DbgPrint0("SendOfferPacketEx: %X, %X\n", KdPacketHeader, PacketLength);
+    KdNetDump(Packet, PacketLength + sizeof(KD_NET_UDP));
+
+    Status = SendUDPPacketEx(NetData,
+                             PacketHandle,
+                             NetData->MacAddress,
+                             HostMac,
+                             NetData->YourIp,
+                             HostIp,
+                             0,
+                             0x10,
+                             PacketLength,
+                             NetData->NetParameters->DebuggeePort,
+                             SendersPort);
+    if (NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendOfferPacketEx: KdNetOfferPacketSent++\n");
+        //KdNetOfferPacketSent++;
+    }
+    else
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendOfferPacketEx: Status %X\n", Status);
+    }
+
+    return Status;
 }
 
 NTSTATUS
