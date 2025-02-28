@@ -561,12 +561,113 @@ WaitForSpecificRxIpPacket(
     _In_ ULONG TargetIP,
     _In_ UCHAR Protocol)
 {
+    PKD_NET_IPv4_PACKET Packet;
+    ULONG Length;
+    USHORT HeaderLength;
+    USHORT PacketLength;
+    USHORT TotalLength;
+    USHORT EtherType = ETHERNET_TYPE_IPV4;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("WaitForSpecificRxIpPacket: Unimplemented!\n");
+        DbgPrint0("WaitForSpecificRxIpPacket: %X, %X\n", HostIp, TargetIP);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    Status = WaitForSpecificRxPacket(NetData,
+                                     OutPacketHandle,
+                                     OutPacket,
+                                     OutPacketLength,
+                                     OutCycleCount,
+                                     HostMac,
+                                     MacAddress,
+                                     &EtherType);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("WaitForSpecificRxIpPacket: (1) Status %X\n", Status);
 
-    return STATUS_NOT_IMPLEMENTED;
+        return Status;
+    }
+
+    while (TRUE)
+    {
+        if (*OutPacketLength < sizeof(KD_NET_IPv4_PACKET))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("WaitForSpecificRxIpPacket: KdNetRxPacketToSmallForIp++ (%X)\n", *OutPacketLength);
+
+            //KdNetRxPacketToSmallForIp++;
+        }
+        else
+        {
+            Packet = *OutPacket;
+            Length = (*OutPacketLength - sizeof(KD_NET_IPv4_PACKET));
+
+            HostIp = UlongSwap(HostIp);
+            TargetIP = UlongSwap(TargetIP);
+
+            if ((!HostIp || HostIp == Packet->SourceIp) &&
+                (!TargetIP || TargetIP == Packet->DestinationIp) &&
+                (!Protocol || Protocol == Packet->Protocol))
+            {
+                break;
+            }
+
+            if (IsDbgComInitialized)
+                DbgPrint0("WaitForSpecificRxIpPacket: KdNetRxIpPacketsHandedOff++ (%X)\n", Protocol);
+
+            //KdNetRxIpPacketsHandedOff++;
+
+            ProcessUnhandledPackets(NetData, *OutPacketHandle);
+        }
+
+        ReleaseRxPacket(NetData, *OutPacketHandle);
+
+        Status = WaitForSpecificRxPacket(NetData,
+                                         OutPacketHandle,
+                                         OutPacket,
+                                         OutPacketLength,
+                                         OutCycleCount,
+                                         HostMac,
+                                         MacAddress,
+                                         &EtherType);
+        if (!NT_SUCCESS(Status))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("WaitForSpecificRxIpPacket: (2) Status %X\n", Status);
+
+            return Status;
+        }
+    }
+
+    *OutPacket = Add2Ptr(Packet, sizeof(*Packet));
+
+    TotalLength = UshortSwap(Packet->TotalLength);
+
+    if (TotalLength >= (Packet->Version * 4))
+        HeaderLength = TotalLength;
+    else
+        HeaderLength = (Packet->Version * 4);
+
+    PacketLength = (HeaderLength - (Packet->Version * 4));
+
+    if (PacketLength > Length)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("WaitForSpecificRxIpPacket: KdNetRxIpPacketsHandedOff++ (%X, %X)\n", PacketLength, Length);
+
+        //KdNetRxIpPacketsMalformed++;
+
+        PacketLength = Length;
+    }
+
+    *OutPacketLength = PacketLength;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("WaitForSpecificRxIpPacket: KdNetRxIpPacketsMatched++ (%X)\n", PacketLength);
+
+    //KdNetRxIpPacketsMatched++;
+
+    return Status;
 }
 
 NTSTATUS

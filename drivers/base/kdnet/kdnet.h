@@ -548,6 +548,19 @@ ReleaseRxPacket(
     _In_ ULONG PacketHandle
 );
 
+NTSTATUS
+NTAPI
+WaitForSpecificRxPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PULONG OutHandle,
+    _Out_ PVOID* OutPacket,
+    _Out_ ULONG* OutPacketLength,
+    _Out_ ULONG* OutCycleCount,
+    _In_ PUCHAR HostMac,
+    _In_ PUCHAR MacAddress,
+    _In_ PUSHORT EtherType
+);
+
 #endif /* _KDNET_H_ */
 
 /* EOF */
