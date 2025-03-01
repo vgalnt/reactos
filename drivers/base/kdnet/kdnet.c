@@ -3695,12 +3695,24 @@ WaitForSpecificRxUdpPacket(
     _In_ USHORT* OutHostPort,
     _In_ USHORT* OutDebuggeePort)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("KdDebuggerInitialize1: WaitForSpecificRxUdpPacket!\n");
+    PUCHAR HostMac;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!NetData->NetParameters->IsVerifyHostMac && (NetData->YourIp & 0xFFFF0000) != AUTOIP_NET)
+        HostMac = NULL;
+    else
+        HostMac = NetData->NetParameters->HostMac;
 
-    return STATUS_NOT_IMPLEMENTED;
+    return WaitForSpecificRxUdpPacketEx(NetData,
+                                        OutPacketHandle,
+                                        OutPacket,
+                                        OutPacketLength,
+                                        OutCycleCount,
+                                        HostMac,
+                                        NetData->MacAddress,
+                                        NetData->NetParameters->HostIp2,
+                                        NetData->YourIp,
+                                        OutHostPort,
+                                        OutDebuggeePort);
 }
 
 ULONG
