@@ -1841,12 +1841,17 @@ SendUDPPacket(
     _In_ USHORT SourcePort,
     _In_ USHORT DestinationPort)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("SendUDPPacket: Unimplemented!\n");
-
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
-
-    return STATUS_NOT_IMPLEMENTED;
+    return SendUDPPacketEx(NetData,
+                           PacketHandle,
+                           NetData->MacAddress,
+                           NetData->NetParameters->HostMac,
+                           NetData->YourIp,
+                           NetData->NetParameters->HostIp2,
+                           0,
+                           0x10,
+                           PacketLength,
+                           SourcePort,
+                           DestinationPort);
 }
 
 NTSTATUS
