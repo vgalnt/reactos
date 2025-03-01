@@ -3349,6 +3349,8 @@ KdDebuggerInitialize0(
 
         if (KdNetInitialized)
             goto NetInitializing;
+
+        goto Exit;
     }
 
     LoaderOptions = LoaderBlock->LoadOptions;
