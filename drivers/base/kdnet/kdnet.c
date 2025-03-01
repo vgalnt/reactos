@@ -23,6 +23,9 @@ LONG KdNetDebuggerInitialize0Count;
 LONG KdNetExtensibilityInitCount;
 LONG KdNetInitializeCount;
 LONG KdNicSendEntered;
+LONG KdNicSendReentered;
+LONG KdNicReceiveEntered;
+LONG KdNicReceiveReentered;
 
 BOOLEAN KdNetInitialized;
 BOOLEAN KdNicEnabled = TRUE;
@@ -827,12 +830,46 @@ KdNicReceivePacket(
     _In_ PVOID Packet,
     _In_ ULONG PacketLength)
 {
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
-        DbgPrint0("KdNicReceivePacket: Unimplemented!\n");
+        DbgPrint0("KdNicReceivePacket: %X\n", PacketLength);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (InterlockedIncrement(&KdNicReceiveEntered) > 1)
+        InterlockedIncrement(&KdNicReceiveReentered);
 
-    return STATUS_NOT_IMPLEMENTED;
+    if (NetData->NicData != &KdNicData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNicReceivePacket: STATUS_INVALID_PARAMETER\n");
+
+        Status = STATUS_INVALID_PARAMETER;
+        goto Finish;
+    }
+
+    Status = STATUS_UNSUCCESSFUL;
+
+    if (!NetData->NicData->Reserved0)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNicReceivePacket: KdNicReceivePacketsIgnored++\n");
+
+        //KdNicReceivePacketsIgnored++;
+
+        goto Finish;
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicReceivePacket: FIXME! (%X)\n", NetData->NicData->Reserved0);
+
+    ASSERT(FALSE);
+
+
+Finish:
+
+    InterlockedDecrement(&KdNicReceiveEntered);
+
+    return Status;
 }
 
 NTSTATUS
