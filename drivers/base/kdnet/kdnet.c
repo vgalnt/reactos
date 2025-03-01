@@ -803,7 +803,12 @@ HandleControlChannelPackets(
 
     PacketLength = Length;
 
-    Status = DecryptKdPacket(NetData, (PVOID *)&KdPacket, &PacketLength, &IsControlPacket, &SequenceNumber);
+  #ifdef __REACTOS__
+    Status = DecryptKdPacket(NetData, &Packet, &PacketLength, &IsControlPacket, &SequenceNumber);
+  #else
+    Status = DecryptKdPacket(NetData, &Packet, &PacketLength);
+  #endif
+
     if (NT_SUCCESS(Status))
     {
       #ifdef __REACTOS__
@@ -1179,7 +1184,12 @@ WaitForResponsePacket(
             break;
         }
 
+      #ifdef __REACTOS__
         Status = DecryptKdPacket(NetData, &Packet, &PacketLength, &IsControlPacket, &SequenceNumber);
+      #else
+        Status = DecryptKdPacket(NetData, &Packet, &PacketLength);
+      #endif
+
         if (!NT_SUCCESS(Status))
         {
             if (IsDbgComInitialized)
@@ -3674,6 +3684,25 @@ KdDebuggerInitialize1(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+NTSTATUS
+NTAPI
+WaitForSpecificRxUdpPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PULONG OutPacketHandle,
+    _In_ PVOID* OutPacket,
+    _In_ PULONG OutPacketLength,
+    _In_ PULONG OutCycleCount,
+    _In_ USHORT* OutHostPort,
+    _In_ USHORT* OutDebuggeePort)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdDebuggerInitialize1: WaitForSpecificRxUdpPacket!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 ULONG
 NTAPI
 NetReadKdPacket(
@@ -3685,11 +3714,139 @@ NetReadKdPacket(
     _In_ USHORT* OutHostPort,
     _In_ USHORT* OutDebuggeePort)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("NetReadKdPacket: Unimplemented!\n");
+    PVOID Packet;
+    ULONGLONG SequenceNumber;
+    ULONG OutPacketHandle;
+    ULONG PacketLength;
+    ULONG Length;
+    ULONG Remain;
+    ULONG KdStatus = 1;
+    BOOLEAN IsControlPacket;
+    NTSTATUS Status;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
-    return 0;
+    if (IsDbgComInitialized)
+        DbgPrint0("NetReadKdPacket: %p, %p, %p, %p\n", NetData, KdPacket, MessageHeader, MessageData);
+
+    Status = WaitForSpecificRxUdpPacket(NetData,
+                                        &OutPacketHandle,
+                                        &Packet,
+                                        &PacketLength,
+                                        OutCycleCount,
+                                        OutHostPort,
+                                        OutDebuggeePort);
+    if (Status == STATUS_IO_TIMEOUT)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("NetReadKdPacket: STATUS_IO_TIMEOUT\n");
+
+        return KdStatus;
+    }
+
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("NetReadKdPacket: Status %X\n", Status);
+
+        return 2;
+    }
+
+  #ifdef __REACTOS__
+    Status = DecryptKdPacket(NetData, &Packet, &PacketLength, &IsControlPacket, &SequenceNumber);
+  #else
+    Status = DecryptKdPacket(NetData, &Packet, &PacketLength);
+  #endif
+
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("NetReadKdPacket: KdNetRxKdPacketsHandedOff++\n");
+
+        //KdNetRxKdPacketsHandedOff++;
+
+        ProcessUnhandledPackets(NetData, OutPacketHandle);
+
+        KdStatus = 2;
+        goto Finish;
+    }
+
+  #ifdef __REACTOS__
+    if (IsControlPacket)
+    {
+        ProcessControlChannelPacket(NetData, Packet, PacketLength, SequenceNumber);
+        PacketLength = 0;
+    }
+  #endif
+
+    KdStatus = 0;
+
+    *KdDebuggerNotPresent = 0;
+    SharedUserData->KdDebuggerEnabled |= 2;
+
+    if (PacketLength < sizeof(KD_PACKET))
+        Length = PacketLength;
+    else
+        Length = sizeof(KD_PACKET);
+
+    RtlCopyMemory(KdPacket, Packet, Length);
+
+    if (Length < sizeof(KD_PACKET))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("NetReadKdPacket: Length %X\n", Length);
+
+        KdStatus = 2;
+        goto Finish;
+    }
+
+    Packet = Add2Ptr(Packet, Length);
+
+    Remain = (PacketLength - Length);
+    PacketLength -= Length;
+
+    if (!MessageHeader)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("NetReadKdPacket: MessageHeader is NULL\n");
+
+        goto Finish;
+    }
+
+    Length = MessageHeader->MaximumLength;
+
+    if (Length > Remain)
+        Length = Remain;
+
+    RtlCopyMemory(MessageHeader->Buffer, Packet, Length);
+
+    MessageHeader->Length = Length;
+
+    if (Length < MessageHeader->MaximumLength)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("NetReadKdPacket: Length %X\n", Length);
+        goto Finish;
+    }
+
+    Remain = (PacketLength - Length);
+    Packet = Add2Ptr(Packet, Length);
+
+    if (MessageData)
+    {
+        Length = MessageData->MaximumLength;
+
+        if (Length > Remain)
+            Length = Remain;
+
+        RtlCopyMemory(MessageData->Buffer, Packet, Length);
+
+        MessageData->Length = Length;
+    }
+
+Finish:
+
+    ReleaseRxPacket(NetData, OutPacketHandle);
+
+    return KdStatus;
 }
 
 NTSTATUS
