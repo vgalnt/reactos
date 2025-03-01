@@ -111,9 +111,7 @@ KdNetNicInitialize(VOID)
 
     KdNicData.Status = STATUS_ADAPTER_HARDWARE_ERROR;
 
-    KdNicData.Reserved1 = 0;
-    KdNicData.Reserved2 = 0;
-
+    InitializeSListHead(&KdNicData.TxSListHead);
     InitializeSListHead(&KdNicData.sListHead);
     InitializeSListHead(&KdNicData.sListHead1);
     InitializeSListHead(&KdNicData.sListHead2);
@@ -3886,15 +3884,138 @@ Finish:
 
 NTSTATUS
 NTAPI
-KdNicSendPackets(
+KdNicQueueSendPackets(
     _In_ PKD_NET_DATA NetData)
 {
+    PSLIST_ENTRY TxSListEntry;
+
     if (IsDbgComInitialized)
-        DbgPrint0("KdNicSendPackets: Unimplemented!\n");
+        DbgPrint0("KdNicQueueSendPackets: %p\n", NetData);
+
+    if (NetData->NicData != &KdNicData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNicQueueSendPackets: %p\n", NetData->NicData);
+
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    TxSListEntry = ExInterlockedFlushSList(&NetData->NicData->TxSListHead);
+    if (!TxSListEntry)
+        return STATUS_SUCCESS;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicQueueSendPackets: Unimplemented! TxSListEntry %p\n", TxSListEntry);
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+KdNicSendQueuedPackets(
+    _In_ PKD_NET_DATA NetData)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicSendQueuedPackets: %p\n", NetData);
+
+    if (NetData->NicData != &KdNicData)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNicSendQueuedPackets: STATUS_INVALID_PARAMETER %p\n", NetData->NicData);
+
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    while (TRUE)
+    {
+        if (IsListEmpty(&QueuedTxListHead))
+            return STATUS_SUCCESS;
+
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNicSendQueuedPackets: %p, %p\n", &QueuedTxListHead, QueuedTxListHead.Flink);
+
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNicSendQueuedPackets: Unimplemented!\n");
+
+        KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicSendQueuedPackets: KdNicSendPacketsUnavailable++\n");
+
+    //KdNicSendPacketsUnavailable++;
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+KdNicFlushQueuedSendPackets(
+    _In_ PKD_NIC_DATA NicData)
+{
+    if (NicData->Reserved0)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdNicFlushQueuedSendPackets: exit (Reserved0 %p)\n", NicData->Reserved0);
+
+        return;
+    }
+
+    if (IsListEmpty(&QueuedTxListHead))
+        return;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicFlushQueuedSendPackets: %p, %p\n", &QueuedTxListHead, QueuedTxListHead.Flink);
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicFlushQueuedSendPackets: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+}
+
+NTSTATUS
+NTAPI
+KdNicSendPackets(
+    _In_ PKD_NET_DATA NetData)
+{
+    NTSTATUS Status1;
+    NTSTATUS Status2;
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicSendPackets: %p\n", NetData);
+        DbgPrint0("KdNicSendPackets: %p, %p\n", &QueuedTxListHead, QueuedTxListHead.Flink);
+
+    if (InterlockedIncrement(&KdNicSendEntered) > 1)
+    {
+        InterlockedIncrement(&KdNicSendReentered);
+        InterlockedDecrement(&KdNicSendEntered);
+
+        return STATUS_LOCK_NOT_GRANTED;
+    }
+
+    //_SEH2_TRY
+
+    Status1 = KdNicQueueSendPackets(NetData);
+    Status2 = KdNicSendQueuedPackets(NetData);
+
+    if (NT_SUCCESS(Status1) && !NT_SUCCESS(Status2))
+    {
+        Status1 = Status2;
+    }
+
+    KdNicFlushQueuedSendPackets(&KdNicData);
+
+    //_SEH2_TRY
+
+    InterlockedDecrement(&KdNicSendEntered);
+
+    return Status1;
 }
 
 VOID

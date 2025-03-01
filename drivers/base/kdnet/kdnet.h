@@ -57,8 +57,7 @@ typedef struct _KD_NIC_DATA
     ULONG Reserved0;
     NTSTATUS Status;
     ULONG LinkSpeed1;
-    ULONG Reserved1;
-    ULONG Reserved2;
+    SLIST_HEADER TxSListHead;
     SLIST_HEADER sListHead;
     SLIST_HEADER sListHead1;
     SLIST_HEADER sListHead2;
