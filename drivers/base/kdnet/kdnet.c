@@ -1834,7 +1834,7 @@ SendOfferPacketEx(
 
 NTSTATUS
 NTAPI
-SendKdPacket(
+SendUDPPacket(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle,
     _In_ ULONG PacketLength,
@@ -1842,11 +1842,60 @@ SendKdPacket(
     _In_ USHORT DestinationPort)
 {
     if (IsDbgComInitialized)
-        DbgPrint0("SendPingPacket: Unimplemented!\n");
+        DbgPrint0("SendUDPPacket: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
+SendKdPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle,
+    _In_ ULONG PacketLength,
+    _In_ USHORT SourcePort,
+    _In_ USHORT DestinationPort)
+{
+    PKD_NET_KD_HEADER KdPacket;
+    PLONGLONG DataStamp;
+    ULONGLONG Stamp;
+    LONGLONG OldDataStamp;
+
+    if (!NetData->NetParameters->IsEncryptionKey)
+        goto Finish;
+
+    if (!NetData->NetParameters->DataChannel)
+    {
+        //KdNetSendKdPacketNoDataChannel++;
+
+        SendOfferPacketEx(NetData,
+                          PacketHandle,
+                          NetData->NetParameters->HostMac,
+                          NetData->NetParameters->HostIp2,
+                          DestinationPort);
+
+        return STATUS_LINK_FAILED;
+    }
+
+    KdPacket = Add2Ptr(GetPacketAddress(KdNetData, PacketHandle), sizeof(KD_NET_UDP));
+
+    DataStamp = &NetData->NetParameters->DataStamp;
+
+    do
+    {
+        OldDataStamp = *DataStamp;
+    }
+    while (InterlockedCompareExchange64(DataStamp, (*DataStamp + 1), *DataStamp) != OldDataStamp);
+
+    Stamp = (OldDataStamp + 1);
+
+    EncryptKdPacket(KdPacket, &PacketLength, &NetData->AesCtx[1], NetData->KeyToken, Stamp, 0);
+
+Finish:
+
+    return SendUDPPacket(KdNetData, PacketHandle, PacketLength, SourcePort, DestinationPort);
 }
 
 NTSTATUS
