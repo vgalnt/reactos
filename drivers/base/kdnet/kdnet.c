@@ -44,6 +44,8 @@ ULONG KdNetInitializeController;
 ULONG KdNetHardwareContextSize;
 ULONG KdNetHardwareID;
 ULONG KdTargetIP;
+ULONG KdNetRetryCount = 3;
+ULONG KdNetTxPacketId = 0;
 
 //extern BOOLEAN KdEnteredDebugger;
 #ifndef _NTSYSTEM_
@@ -1832,6 +1834,23 @@ SendOfferPacketEx(
 
 NTSTATUS
 NTAPI
+SendKdPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ ULONG PacketHandle,
+    _In_ ULONG PacketLength,
+    _In_ USHORT SourcePort,
+    _In_ USHORT DestinationPort)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("SendPingPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 SendPingPacket(
     _In_ PKD_NET_DATA NetData)
 {
@@ -3160,6 +3179,20 @@ Finish:
     return Status;
 }
 
+ULONG
+NTAPI
+KdpComputeChecksum(
+    _In_ PUCHAR Buffer,
+    _In_ ULONG Length)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdpComputeChecksum: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return 0;
+}
+
 /* PUBLIC FUNCTIONS ***********************************************************/
 
 NTSTATUS
@@ -3630,9 +3663,155 @@ KdSendPacket(
     _In_ PSTRING MessageData,
     _Inout_ PKD_CONTEXT KdContext)
 {
+    PKD_PACKET Packet;
+    ULONG PacketLength;
+    ULONG PacketHandle;
+    ULONG HeaderLength;
+    ULONG RetryCount;
+    ULONG MessageId;
+    ULONG Checksum;
+    ULONG KdStatus;
+    ULONG Length = 0;
+    NTSTATUS Status;
+
     if (IsDbgComInitialized)
         DbgPrint0("KdSendPacket: %X, %p, %p\n", PacketType, MessageHeader, MessageData);
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    if (!KdNetParameters.IsDebuggerActive)
+    {
+        //KdNetKdSendPacketCalledDebuggerNotActive++;
+        goto NotActiveExit;
+    }
+
+    //KdNetKdSendPacketCalled++;
+
+    RetryCount = KdNetRetryCount;
+
+    while (TRUE)
+    {
+        Status = GetTxPacket(KdNetData, &PacketHandle);
+        if (!NT_SUCCESS(Status))
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("KdSendPacket: Status %X\n", Status);
+
+            goto Exit;
+        }
+
+        Packet = GetPacketKdData(KdNetData, PacketHandle);
+
+        Checksum = KdpComputeChecksum((PUCHAR)MessageHeader->Buffer, MessageHeader->Length);
+        Packet->Checksum = Checksum;
+
+        if (MessageData)
+        {
+            Length = MessageData->Length;
+            Packet->Checksum = Checksum + KdpComputeChecksum((PUCHAR)MessageData->Buffer, MessageData->Length);
+        }
+
+        Packet->PacketLeader = 0x30303030; // PACKET_LEADER // FIXME
+        Packet->ByteCount = Length + MessageHeader->Length;
+        Packet->PacketType = PacketType;
+        Packet->PacketId = KdNetTxPacketId;
+
+        RtlCopyMemory(&Packet[1], MessageHeader->Buffer, MessageHeader->Length);
+
+        HeaderLength = (sizeof(KD_PACKET) + MessageHeader->Length);
+
+        if (MessageData)
+        {
+            RtlCopyMemory(Add2Ptr(&Packet[1], MessageHeader->Length), MessageData->Buffer, MessageData->Length);
+            PacketLength = (MessageData->Length + HeaderLength);
+        }
+        else
+        {
+            PacketLength = (sizeof(KD_PACKET) + MessageHeader->Length);
+        }
+
+        SendKdPacket(KdNetData,
+                     PacketHandle,
+                     PacketLength,
+                     KdNetData->NetParameters->DebuggeePort,
+                     KdNetData->NetParameters->HostPort2);
+
+        KdStatus = KdReceivePacket(4, NULL, NULL, NULL, KdContext);
+        if (KdStatus == 0)
+            break;
+
+        if (KdStatus == 2)
+        {
+            //KdNetResendRequestsReceived++;
+            RetryCount++;
+        }
+
+        if (!RetryCount)
+        {
+            MessageId = *(PULONG)MessageHeader->Buffer;
+
+            switch (PacketType)
+            {
+                case 3:
+                    if (MessageId == 0x3230)
+                    {
+                        //KdNetBailPrintString++;
+                        goto NotActiveExit;
+                    }
+                    break;
+
+                case 7:
+                    if (MessageId == 0x3031)
+                    {
+                        //KdNetBailLoadSymbols++;
+                        goto NotActiveExit;
+                    }
+                    break;
+
+                case 0xB:
+                    if (MessageId == 0x3430)
+                    {
+                        //KdNetBailCreateFile++;
+                        goto NotActiveExit;
+                    }
+                    break;
+
+                default:
+                    if (PacketType == 9 && MessageId == 0x3330)
+                    {
+                        //KdNetBailTraceIo++;
+                        goto NotActiveExit;
+                    }
+                    break;
+            }
+        }
+
+        Length = 0;
+
+        //KdNetKdSendPacketRetries++;
+
+        RetryCount--;
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdSendPacket: KdNetSentPackets++\n");
+
+    //KdNetSentPackets++;
+
+    KdNetTxPacketId += 2;
+
+    if (KdContext->KdpDefaultRetries > KdNetRetryCount)
+        KdNetRetryCount = KdContext->KdpDefaultRetries;
+
+Exit:
+
+    *KdDebuggerNotPresent = 0;
+    SharedUserData->KdDebuggerEnabled |= 2;
+    return;
+
+NotActiveExit:
+
+    *KdDebuggerNotPresent = 1;
+    SharedUserData->KdDebuggerEnabled &= ~2;
+    return;
 }
 
 NTSTATUS
