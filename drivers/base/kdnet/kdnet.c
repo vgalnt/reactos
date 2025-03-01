@@ -46,6 +46,7 @@ ULONG KdNetHardwareID;
 ULONG KdTargetIP;
 ULONG KdNetRetryCount = 3;
 ULONG KdNetTxPacketId = 0;
+ULONG KdNetRxPacketId = 0x80000000;
 
 //extern BOOLEAN KdEnteredDebugger;
 #ifndef _NTSYSTEM_
@@ -3673,6 +3674,50 @@ KdDebuggerInitialize1(
     return STATUS_NOT_IMPLEMENTED;
 }
 
+ULONG
+NTAPI
+NetReadKdPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ PKD_PACKET KdPacket,
+    _In_ PSTRING MessageHeader,
+    _In_ PSTRING MessageData,
+    _In_ PULONG OutCycleCount,
+    _In_ USHORT* OutHostPort,
+    _In_ USHORT* OutDebuggeePort)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("NetReadKdPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    return 0;
+}
+
+NTSTATUS
+NTAPI
+KdNicSendPackets(
+    _In_ PKD_NET_DATA NetData)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdNicSendPackets: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+KdpSendControlPacket(
+    _In_ PKD_NET_DATA NetData,
+    _In_ USHORT PacketType,
+    _In_ ULONG PacketId)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("KdpSendControlPacket: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+}
+
 KDP_STATUS
 NTAPI
 KdReceivePacket(
@@ -3682,10 +3727,269 @@ KdReceivePacket(
     _Out_ ULONG* OutDataLength,
     _Inout_ PKD_CONTEXT KdContext)
 {
+    PSTRING Header;
+    KD_PACKET KdPacket;
+    ULONG CycleCount1;
+    ULONG CycleCount2;
+    ULONG DataLength;
+    ULONG ByteCount;
+    ULONG Checksum;
+    ULONG KdStatus;
+
     if (IsDbgComInitialized)
         DbgPrint0("KdReceivePacket: %X, %p, %p\n", PacketType, MessageHeader, MessageData);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (!KdNetParameters.IsDebuggerActive)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdReceivePacket: KdNetKdReceivePacketCalledDebuggerNotActive++\n");
+
+        //KdNetKdReceivePacketCalledDebuggerNotActive++;
+
+        return 2;
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketCalled++, KdNetKdReceivePacketRetries--\n");
+
+    //KdNetKdReceivePacketCalled++;
+    //KdNetKdReceivePacketRetries--;
+
+    CycleCount2 = CycleCount1 = (PacketType == 8 ? 0 : 500000);
+
+    while (TRUE)
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdReceivePacket: KdNetKdReceivePacketRetries++\n");
+
+        //KdNetKdReceivePacketRetries++;
+
+        if (CycleCount1 < CycleCount2)
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketTimeoutWrap++\n");
+
+            //KdNetKdReceivePacketTimeoutWrap++;
+
+            CycleCount2 = CycleCount1;
+        }
+
+        CycleCount1 = CycleCount2;
+
+        RtlZeroMemory(&KdPacket, sizeof(KdPacket));
+
+        KdStatus = NetReadKdPacket(KdNetData,
+                                   &KdPacket,
+                                   MessageHeader,
+                                   MessageData,
+                                   &CycleCount2,
+                                   &KdNetParameters.HostPort2,
+                                   &KdNetParameters.DebuggeePort);
+
+        if (KdStatus == 2 && (UCHAR)KdPacket.PacketLeader == 0x62)
+        {
+            if (PacketType == 8)
+                break;
+
+            KdContext->KdpControlCPending = 1;
+        }
+
+        if (PacketType == 8)
+        {
+            KdNicSendPackets(KdNetData);
+            EnableHostReconnect(KdNetData, 0);
+            return 1;
+        }
+
+        if (KdStatus != 0)
+        {
+            EnableHostReconnect(KdNetData, (CycleCount1 - CycleCount2));
+            return KdStatus;
+        }
+
+        if (KdPacket.PacketLeader == 0x69696969)
+        {
+            if (KdPacket.PacketType == 4)
+            {
+                if (KdPacket.PacketId == KdNetTxPacketId)
+                {
+                    if (PacketType == 4)
+                    {
+                        if (IsDbgComInitialized)
+                            DbgPrint0("KdReceivePacket: KdNetKdReceivePacketAckReceived++\n");
+
+                        //KdNetKdReceivePacketAckReceived++;
+
+                        return 0;
+                    }
+
+                    if (IsDbgComInitialized)
+                        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketAckIgnored++\n");
+
+                    //KdNetKdReceivePacketAckIgnored++;
+                }
+                else
+                {
+                    if (IsDbgComInitialized)
+                        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketMismatchedAckPacketId++\n");
+
+                    //KdNetKdReceivePacketMismatchedAckPacketId++;
+                }
+            }
+            else
+            {
+                if (KdPacket.PacketType == 6)
+                {
+                    KdNetRxPacketId = KdPacket.PacketId;
+
+                    KdpSendControlPacket(KdNetData, 6, KdNetTxPacketId);
+
+                    if (IsDbgComInitialized)
+                        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketResetReceived++\n");
+
+                    //KdNetKdReceivePacketResetReceived++;
+
+                    return 2;
+                }
+
+                if (KdPacket.PacketType == 5)
+                {
+                    if (IsDbgComInitialized)
+                        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketResendReceived++\n");
+
+                    //KdNetKdReceivePacketResendReceived++;
+
+                    return 2;
+                }
+
+                if (IsDbgComInitialized)
+                    DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadControlPacketType++\n");
+
+                //KdNetKdReceivePacketBadControlPacketType++;
+            }
+
+            continue;
+        }
+
+        if (KdPacket.PacketLeader != 0x30303030)
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadPacketHeader++, KdNetKdReceivePacketResendRequest++\n");
+
+            //KdNetKdReceivePacketBadPacketHeader++;
+            //KdNetKdReceivePacketResendRequest++;
+
+            KdpSendControlPacket(KdNetData, 5, 0);
+            continue;
+        }
+
+        if (PacketType == 4)
+        {
+            if (KdPacket.PacketId == KdNetRxPacketId)
+            {
+                KdpSendControlPacket(KdNetData, 5, 0);
+
+                if (IsDbgComInitialized)
+                    DbgPrint0("KdReceivePacket: KdNetKdReceivePacketAckPacketAssumed++\n");
+
+                //KdNetKdReceivePacketAckPacketAssumed++;
+
+                return 0;
+            }
+
+            KdpSendControlPacket(KdNetData, 4, KdPacket.PacketId);
+
+            if (IsDbgComInitialized)
+                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketGratuitousAckSent++\n");
+
+            //KdNetKdReceivePacketGratuitousAckSent++;
+
+            return 2;
+        }
+
+        if (PacketType != KdPacket.PacketType)
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadPacketType++, KdNetKdReceivePacketResendRequest++\n");
+
+            //KdNetKdReceivePacketBadPacketType++;
+            //KdNetKdReceivePacketResendRequest++;
+
+            KdpSendControlPacket(KdNetData, 5, 0);
+            continue;
+        }
+
+        Header = MessageHeader;
+
+        ByteCount = 0;
+
+        if (MessageHeader)
+            ByteCount = MessageHeader->MaximumLength;
+
+        if (KdPacket.ByteCount > 0x580 || KdPacket.ByteCount < (USHORT)ByteCount)
+        {
+            if (IsDbgComInitialized)
+                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadPacketSize++, KdNetKdReceivePacketResendRequest++\n");
+
+            //KdNetKdReceivePacketBadPacketSize++;
+            //KdNetKdReceivePacketResendRequest++;
+
+            KdpSendControlPacket(KdNetData, 5, 0);
+            continue;
+        }
+
+        Checksum = 0;
+        DataLength = KdPacket.ByteCount - ByteCount;
+
+        if (MessageHeader)
+        {
+            Checksum = KdpComputeChecksum((PUCHAR)MessageHeader->Buffer, ByteCount);
+
+            if (MessageData)
+            {
+                Checksum += KdpComputeChecksum((PUCHAR)MessageData->Buffer, DataLength);
+                Header = MessageHeader;
+            }
+            else
+            {
+                Header = MessageHeader;
+            }
+        }
+
+        if (Checksum == KdPacket.Checksum)
+        {
+            if (Header)
+            {
+                Header->Length = ByteCount;
+
+                if (MessageData)
+                    MessageData->Length = DataLength;
+            }
+
+            if (OutDataLength)
+                *OutDataLength = DataLength;
+
+            KdpSendControlPacket(KdNetData, 4, KdPacket.PacketId);
+
+            KdNetRxPacketId += 2;
+
+            break;
+        }
+
+        if (IsDbgComInitialized)
+            DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadPacketChecksum++, KdNetKdReceivePacketResendRequest++\n");
+
+        //KdNetKdReceivePacketBadPacketChecksum++;
+        //KdNetKdReceivePacketResendRequest++;
+
+        KdpSendControlPacket(KdNetData, 5, 0);
+    }
+
+    if (IsDbgComInitialized)
+        DbgPrint0("KdReceivePacket: KdNetReceivedPackets++\n");
+
+    //KdNetReceivedPackets++;
+
     return 0;
 }
 
