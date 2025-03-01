@@ -3239,12 +3239,12 @@ KdpComputeChecksum(
     _In_ PUCHAR Buffer,
     _In_ ULONG Length)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("KdpComputeChecksum: Unimplemented!\n");
+    ULONG Checksum;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    for (Checksum = 0; Length; Length--)
+        Checksum += *Buffer++;
 
-    return 0;
+    return Checksum;
 }
 
 /* PUBLIC FUNCTIONS ***********************************************************/
