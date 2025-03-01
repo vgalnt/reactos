@@ -1262,8 +1262,8 @@ GetPacketAddress(
 {
     PVOID Packet = NULL;
 
-    if (IsDbgComInitialized)
-        DbgPrint0("GetPacketAddress: %p, %X, %X\n", NetData, NetData->VendorId, PacketHandle);
+    //if (IsDbgComInitialized)
+    //    DbgPrint0("GetPacketAddress: %p, %X, %X\n", NetData, NetData->VendorId, PacketHandle);
 
     if (!NetData)
         return Add2Ptr(NetData, -PAGE_SIZE);
@@ -1442,8 +1442,8 @@ GetTxPacket(
 {
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
-        DbgPrint0("GetTxPacket: %p\n", PacketHandle);
+    //if (IsDbgComInitialized)
+    //    DbgPrint0("GetTxPacket: %p\n", PacketHandle);
 
     if (!NetData)
     {
@@ -1518,8 +1518,8 @@ SendTxPacket(
 {
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
-        DbgPrint0("SendTxPacket: %p, %X, %X\n", NetData, PacketHandle, PacketLength);
+    //if (IsDbgComInitialized)
+    //    DbgPrint0("SendTxPacket: %p, %X, %X\n", NetData, PacketHandle, PacketLength);
 
     if (!NetData)
     {
@@ -1807,15 +1807,15 @@ SendOfferPacketEx(
     else
         IsEnteredDebugger = FALSE;
 
-    if (IsDbgComInitialized)
-        DbgPrint0("SendOfferPacketEx: %X, %X\n", KdPacketHeader, PacketLength);
-    KdNetDump(Packet, PacketLength + sizeof(KD_NET_UDP));
+    //if (IsDbgComInitialized)
+    //    DbgPrint0("SendOfferPacketEx: %X, %X\n", KdPacketHeader, PacketLength);
+    //KdNetDump(Packet, PacketLength + sizeof(KD_NET_UDP));
 
     EncryptKdPacket(KdPacketHeader, &PacketLength, NetData->AesCtx, NetData->KeyToken, NetData->NetParameters->Stamp, (IsEnteredDebugger?3:1));
 
-    if (IsDbgComInitialized)
-        DbgPrint0("SendOfferPacketEx: %X, %X\n", KdPacketHeader, PacketLength);
-    KdNetDump(Packet, PacketLength + sizeof(KD_NET_UDP));
+    //if (IsDbgComInitialized)
+    //    DbgPrint0("SendOfferPacketEx: %X, %X\n", KdPacketHeader, PacketLength);
+    //KdNetDump(Packet, PacketLength + sizeof(KD_NET_UDP));
 
     Status = SendUDPPacketEx(NetData,
                              PacketHandle,
