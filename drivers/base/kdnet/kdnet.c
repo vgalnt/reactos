@@ -3290,6 +3290,7 @@ KdDebuggerInitialize0(
     PCHAR LoaderOptions;
     PCHAR TargetIp;
     PCHAR HostIp;
+    PCHAR HostPort;
     PCHAR Start;
     PCHAR Ptr;
     LARGE_INTEGER Value;
@@ -3472,6 +3473,26 @@ KdDebuggerInitialize0(
 
         if (IsDbgComInitialized)
            DbgPrint0("KdDebuggerInitialize0: HostIp1 %X, HostIp2 %X\n", KdNetParameters.HostIp1, KdNetParameters.HostIp2);
+    }
+
+    Ptr = strstr(LoaderOptions, "HOST_PORT");
+    if (Ptr)
+    {
+        for (HostPort = (Ptr + 9); ; HostPort++)
+        {
+            Ptr = HostPort;
+            if (*HostPort != ' ')
+                break;
+        }
+
+        if (IsDbgComInitialized)
+           DbgPrint0("KdDebuggerInitialize0: HOST_PORT '%s'\n", (HostPort + 1));
+
+        if (*HostPort)
+        {
+            KdNetParameters.HostPort2 = KdNetParameters.HostPort1 = atol(HostPort + 1);
+            KdNetParameters.DebuggeePort = KdNetParameters.HostPort1;
+        }
     }
 
     Ptr = strstr(LoaderOptions, "SEND_KD_STATUS");
