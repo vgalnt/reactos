@@ -284,6 +284,13 @@ typedef struct _KD_NET_KD_DATA
 } KD_NET_KD_DATA, *PKD_NET_KD_DATA;
 C_ASSERT(sizeof(KD_NET_KD_DATA) == 0x158);
 
+typedef struct _KD_NET_PING_PACKET
+{
+    ULONGLONG SequenceNumber;
+    ULONG HostIp;
+} KD_NET_PING_PACKET, *PKD_NET_PING_PACKET;
+C_ASSERT(sizeof(KD_NET_PING_PACKET) == 0xC);
+
 #pragma pack()
 
 typedef

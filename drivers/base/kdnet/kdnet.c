@@ -3995,10 +3995,47 @@ KdpSendControlPacket(
     _In_ USHORT PacketType,
     _In_ ULONG PacketId)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("KdpSendControlPacket: Unimplemented!\n");
+    PKD_PACKET KdPacket;
+    ULONG PacketHandle;
+    NTSTATUS Status;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    if (IsDbgComInitialized)
+        DbgPrint0("KdpSendControlPacket: %X, %X\n", PacketType, PacketId);
+
+    //KdNetKdSendControlPacketCalled++;
+
+    Status = GetTxPacket(NetData, &PacketHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdpSendControlPacket: (1) Status %X\n", Status);
+
+        return;
+    }
+
+    KdPacket = GetPacketKdData(NetData, PacketHandle);
+
+    KdPacket->PacketId = PacketId;
+    KdPacket->Checksum = 0;
+    KdPacket->ByteCount = 0;
+    KdPacket->PacketLeader = 0x69696969;
+    KdPacket->PacketType = PacketType;
+
+    Status = SendKdPacket(NetData,
+                          PacketHandle,
+                          sizeof(KD_PACKET),
+                          NetData->NetParameters->DebuggeePort,
+                          NetData->NetParameters->HostPort2);
+
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("KdpSendControlPacket: (2) Status %X\n", Status);
+    }
+    else
+    {
+        ;//KdNetKdSendControlPacketSucceeded++;
+    }
 }
 
 KDP_STATUS
