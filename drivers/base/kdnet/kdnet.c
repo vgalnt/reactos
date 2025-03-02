@@ -463,7 +463,9 @@ NTSTATUS
 NTAPI
 InitializeEncryption(
     _In_ PKD_NET_DATA NetData,
-    _In_ PKD_NET_PARAMETERS NetParameters
+    _In_ PKD_NET_PARAMETERS NetParameters,
+    _In_ PVOID PingCallback,
+    _In_ PVOID SendOfferPacketCallBack
 );
 
 VOID
@@ -482,9 +484,7 @@ NTAPI
 DecryptKdPacket(
     _In_ PKD_NET_DATA InNetData,
     _In_ PVOID* InOutPacket,
-    _In_ ULONG* InOutLength,
-    _Out_ BOOLEAN* OutIsControlPacket,
-    _Out_ ULONGLONG* OutSequenceNumber
+    _In_ ULONG* InOutLength
 );
 #else
 NTSTATUS
@@ -715,11 +715,9 @@ HandleControlChannelPackets(
 {
     PKD_NET_UDP Packet;
     PKD_NET_KD_HEADER KdPacket;
-    ULONGLONG SequenceNumber;
     ULONG PacketLength;
     USHORT Length;
     USHORT UdpLength;
-    BOOLEAN IsControlPacket;
     NTSTATUS Status;
 
     if (IsDbgComInitialized)
@@ -801,22 +799,9 @@ HandleControlChannelPackets(
 
     PacketLength = Length;
 
-  #ifdef __REACTOS__
-    Status = DecryptKdPacket(NetData, &Packet, &PacketLength, &IsControlPacket, &SequenceNumber);
-  #else
     Status = DecryptKdPacket(NetData, &Packet, &PacketLength);
-  #endif
-
     if (NT_SUCCESS(Status))
     {
-      #ifdef __REACTOS__
-        if (IsControlPacket)
-        {
-            ProcessControlChannelPacket(NetData, Packet, PacketLength, SequenceNumber);
-            PacketLength = 0;
-        }
-      #endif
-
         //KdNetControlChannelPacketsHandled++;
         return Status;
     }
@@ -1149,10 +1134,8 @@ WaitForResponsePacket(
     _In_ ULONG* OutCycleCount)
 {
     PVOID Packet;
-    ULONGLONG SequenceNumber;
     ULONG PacketLength;
     ULONG PacketHandle;
-    BOOLEAN IsControlPacket;
     NTSTATUS Status;
 
     if (IsDbgComInitialized)
@@ -1182,12 +1165,7 @@ WaitForResponsePacket(
             break;
         }
 
-      #ifdef __REACTOS__
-        Status = DecryptKdPacket(NetData, &Packet, &PacketLength, &IsControlPacket, &SequenceNumber);
-      #else
         Status = DecryptKdPacket(NetData, &Packet, &PacketLength);
-      #endif
-
         if (!NT_SUCCESS(Status))
         {
             if (IsDbgComInitialized)
@@ -1197,14 +1175,6 @@ WaitForResponsePacket(
 
             ProcessUnhandledPackets(NetData, PacketHandle);
         }
-
-      #ifdef __REACTOS__
-        if (IsControlPacket)
-        {
-            ProcessControlChannelPacket(NetData, Packet, PacketLength, SequenceNumber);
-            PacketLength = 0;
-        }
-      #endif
 
         ReleaseRxPacket(NetData, PacketHandle);
     }
@@ -1917,12 +1887,27 @@ NTAPI
 SendPingPacket(
     _In_ PKD_NET_DATA NetData)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("SendPingPacket: Unimplemented!\n");
+    PKD_NET_PING_PACKET PingPacket;
+    ULONG PacketHandle;
+    NTSTATUS Status;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    Status = GetTxPacket(NetData, &PacketHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        if (IsDbgComInitialized)
+            DbgPrint0("SendPingPacket: Status %X\n", Status);
 
-    return STATUS_NOT_IMPLEMENTED;
+        return Status;
+    }
+
+    PingPacket = GetPacketKdData(NetData, PacketHandle);
+
+    PingPacket->SequenceNumber = NetData->NetParameters->SequenceNumber;
+    PingPacket->HostIp = NetData->NetParameters->HostIp2;
+
+    Status = SendKdPacket(NetData, PacketHandle, 0xC, NetData->NetParameters->DebuggeePort, NetData->NetParameters->HostPort2);
+
+    return Status;
 }
 
 NTSTATUS
@@ -3163,7 +3148,7 @@ KdNetInitialize(
     if (IsDbgComInitialized)
         DbgPrint0("KdNetInitialize: Adapter %p, Size %X, KdNetData %p\n", NetParameters->PciDevice.Memory.VirtualAddress, KdNetHardwareContextSize, KdNetData);
 
-    NetStatus = InitializeEncryption(KdNetData, NetParameters);
+    NetStatus = InitializeEncryption(KdNetData, NetParameters, SendPingPacket, SendOfferPacket);
     if (!NT_SUCCESS(NetStatus))
     {
         if (IsDbgComInitialized)
@@ -3748,13 +3733,11 @@ NetReadKdPacket(
     _In_ USHORT* OutDebuggeePort)
 {
     PVOID Packet;
-    ULONGLONG SequenceNumber;
     ULONG OutPacketHandle;
     ULONG PacketLength;
     ULONG Length;
     ULONG Remain;
     ULONG KdStatus = 1;
-    BOOLEAN IsControlPacket;
     NTSTATUS Status;
 
     if (IsDbgComInitialized)
@@ -3783,12 +3766,7 @@ NetReadKdPacket(
         return 2;
     }
 
-  #ifdef __REACTOS__
-    Status = DecryptKdPacket(NetData, &Packet, &PacketLength, &IsControlPacket, &SequenceNumber);
-  #else
     Status = DecryptKdPacket(NetData, &Packet, &PacketLength);
-  #endif
-
     if (!NT_SUCCESS(Status))
     {
         if (IsDbgComInitialized)
@@ -3801,14 +3779,6 @@ NetReadKdPacket(
         KdStatus = 2;
         goto Finish;
     }
-
-  #ifdef __REACTOS__
-    if (IsControlPacket)
-    {
-        ProcessControlChannelPacket(NetData, Packet, PacketLength, SequenceNumber);
-        PacketLength = 0;
-    }
-  #endif
 
     KdStatus = 0;
 
