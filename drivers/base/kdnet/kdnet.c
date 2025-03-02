@@ -3741,7 +3741,7 @@ NetReadKdPacket(
     NTSTATUS Status;
 
     if (IsDbgComInitialized)
-        DbgPrint0("NetReadKdPacket: %p, %p, %p, %p\n", NetData, KdPacket, MessageHeader, MessageData);
+        DbgPrint0("NetReadKdPacket: %p, %p, %X, %X\n", NetData, KdPacket, MessageHeader, MessageData);
 
     Status = WaitForSpecificRxUdpPacket(NetData,
                                         &OutPacketHandle,
@@ -3848,6 +3848,9 @@ NetReadKdPacket(
 Finish:
 
     ReleaseRxPacket(NetData, OutPacketHandle);
+
+    if (IsDbgComInitialized)
+        DbgPrint0("NetReadKdPacket: ret %X\n", KdStatus);
 
     return KdStatus;
 }
@@ -3959,7 +3962,6 @@ KdNicSendPackets(
 
     if (IsDbgComInitialized)
         DbgPrint0("KdNicSendPackets: %p\n", NetData);
-        DbgPrint0("KdNicSendPackets: %p, %p\n", &QueuedTxListHead, QueuedTxListHead.Flink);
 
     if (InterlockedIncrement(&KdNicSendEntered) > 1)
     {
@@ -4062,7 +4064,7 @@ KdReceivePacket(
     if (!KdNetParameters.IsDebuggerActive)
     {
         if (IsDbgComInitialized)
-            DbgPrint0("KdReceivePacket: KdNetKdReceivePacketCalledDebuggerNotActive++\n");
+            DbgPrint0("KdReceivePacket: CalledDebuggerNotActive++\n");
 
         //KdNetKdReceivePacketCalledDebuggerNotActive++;
 
@@ -4070,7 +4072,7 @@ KdReceivePacket(
     }
 
     if (IsDbgComInitialized)
-        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketCalled++, KdNetKdReceivePacketRetries--\n");
+        DbgPrint0("KdReceivePacket: Called++, Retries--\n");
 
     //KdNetKdReceivePacketCalled++;
     //KdNetKdReceivePacketRetries--;
@@ -4080,14 +4082,14 @@ KdReceivePacket(
     while (TRUE)
     {
         if (IsDbgComInitialized)
-            DbgPrint0("KdReceivePacket: KdNetKdReceivePacketRetries++\n");
+            DbgPrint0("KdReceivePacket: Retries++\n");
 
         //KdNetKdReceivePacketRetries++;
 
         if (CycleCount1 < CycleCount2)
         {
             if (IsDbgComInitialized)
-                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketTimeoutWrap++\n");
+                DbgPrint0("KdReceivePacket: TimeoutWrap++\n");
 
             //KdNetKdReceivePacketTimeoutWrap++;
 
@@ -4118,12 +4120,20 @@ KdReceivePacket(
         {
             KdNicSendPackets(KdNetData);
             EnableHostReconnect(KdNetData, 0);
+
+            if (IsDbgComInitialized)
+                DbgPrint0("KdReceivePacket: [8] ret 1\n");
+
             return 1;
         }
 
         if (KdStatus != 0)
         {
             EnableHostReconnect(KdNetData, (CycleCount1 - CycleCount2));
+
+            if (IsDbgComInitialized)
+                DbgPrint0("KdReceivePacket: KdStatus %X\n", KdStatus);
+
             return KdStatus;
         }
 
@@ -4136,7 +4146,7 @@ KdReceivePacket(
                     if (PacketType == 4)
                     {
                         if (IsDbgComInitialized)
-                            DbgPrint0("KdReceivePacket: KdNetKdReceivePacketAckReceived++\n");
+                            DbgPrint0("KdReceivePacket: AckReceived++\n");
 
                         //KdNetKdReceivePacketAckReceived++;
 
@@ -4144,14 +4154,14 @@ KdReceivePacket(
                     }
 
                     if (IsDbgComInitialized)
-                        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketAckIgnored++\n");
+                        DbgPrint0("KdReceivePacket: AckIgnored++\n");
 
                     //KdNetKdReceivePacketAckIgnored++;
                 }
                 else
                 {
                     if (IsDbgComInitialized)
-                        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketMismatchedAckPacketId++\n");
+                        DbgPrint0("KdReceivePacket: MismatchedAckPacketId++\n");
 
                     //KdNetKdReceivePacketMismatchedAckPacketId++;
                 }
@@ -4165,7 +4175,7 @@ KdReceivePacket(
                     KdpSendControlPacket(KdNetData, 6, KdNetTxPacketId);
 
                     if (IsDbgComInitialized)
-                        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketResetReceived++\n");
+                        DbgPrint0("KdReceivePacket: ResetReceived++\n");
 
                     //KdNetKdReceivePacketResetReceived++;
 
@@ -4175,7 +4185,7 @@ KdReceivePacket(
                 if (KdPacket.PacketType == 5)
                 {
                     if (IsDbgComInitialized)
-                        DbgPrint0("KdReceivePacket: KdNetKdReceivePacketResendReceived++\n");
+                        DbgPrint0("KdReceivePacket: ResendReceived++\n");
 
                     //KdNetKdReceivePacketResendReceived++;
 
@@ -4183,7 +4193,7 @@ KdReceivePacket(
                 }
 
                 if (IsDbgComInitialized)
-                    DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadControlPacketType++\n");
+                    DbgPrint0("KdReceivePacket: BadControlPacketType++\n");
 
                 //KdNetKdReceivePacketBadControlPacketType++;
             }
@@ -4194,7 +4204,7 @@ KdReceivePacket(
         if (KdPacket.PacketLeader != 0x30303030)
         {
             if (IsDbgComInitialized)
-                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadPacketHeader++, KdNetKdReceivePacketResendRequest++\n");
+                DbgPrint0("KdReceivePacket: BadPacketHeader++, ResendRequest++\n");
 
             //KdNetKdReceivePacketBadPacketHeader++;
             //KdNetKdReceivePacketResendRequest++;
@@ -4210,7 +4220,7 @@ KdReceivePacket(
                 KdpSendControlPacket(KdNetData, 5, 0);
 
                 if (IsDbgComInitialized)
-                    DbgPrint0("KdReceivePacket: KdNetKdReceivePacketAckPacketAssumed++\n");
+                    DbgPrint0("KdReceivePacket: AckPacketAssumed++\n");
 
                 //KdNetKdReceivePacketAckPacketAssumed++;
 
@@ -4220,7 +4230,7 @@ KdReceivePacket(
             KdpSendControlPacket(KdNetData, 4, KdPacket.PacketId);
 
             if (IsDbgComInitialized)
-                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketGratuitousAckSent++\n");
+                DbgPrint0("KdReceivePacket: GratuitousAckSent++\n");
 
             //KdNetKdReceivePacketGratuitousAckSent++;
 
@@ -4230,7 +4240,7 @@ KdReceivePacket(
         if (PacketType != KdPacket.PacketType)
         {
             if (IsDbgComInitialized)
-                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadPacketType++, KdNetKdReceivePacketResendRequest++\n");
+                DbgPrint0("KdReceivePacket: BadPacketType++, ResendRequest++\n");
 
             //KdNetKdReceivePacketBadPacketType++;
             //KdNetKdReceivePacketResendRequest++;
@@ -4249,7 +4259,7 @@ KdReceivePacket(
         if (KdPacket.ByteCount > 0x580 || KdPacket.ByteCount < (USHORT)ByteCount)
         {
             if (IsDbgComInitialized)
-                DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadPacketSize++, KdNetKdReceivePacketResendRequest++\n");
+                DbgPrint0("KdReceivePacket: BadPacketSize++, ResendRequest++\n");
 
             //KdNetKdReceivePacketBadPacketSize++;
             //KdNetKdReceivePacketResendRequest++;
@@ -4297,7 +4307,7 @@ KdReceivePacket(
         }
 
         if (IsDbgComInitialized)
-            DbgPrint0("KdReceivePacket: KdNetKdReceivePacketBadPacketChecksum++, KdNetKdReceivePacketResendRequest++\n");
+            DbgPrint0("KdReceivePacket: BadPacketChecksum++, ResendRequest++\n");
 
         //KdNetKdReceivePacketBadPacketChecksum++;
         //KdNetKdReceivePacketResendRequest++;
@@ -4306,7 +4316,7 @@ KdReceivePacket(
     }
 
     if (IsDbgComInitialized)
-        DbgPrint0("KdReceivePacket: KdNetReceivedPackets++\n");
+        DbgPrint0("KdReceivePacket: (++) ret 0\n");
 
     //KdNetReceivedPackets++;
 
@@ -4319,7 +4329,8 @@ KdRestore(
     _In_ BOOLEAN SleepTransition)
 {
     if (IsDbgComInitialized)
-        DbgPrint0("KdRestore: SleepTransition %x\n", SleepTransition);
+        DbgPrint0("KdRestore: SleepTransition %X\n", SleepTransition);
+
     return STATUS_SUCCESS;
 }
 
@@ -4329,7 +4340,8 @@ KdSave(
     _In_ BOOLEAN SleepTransition)
 {
     if (IsDbgComInitialized)
-        DbgPrint0("KdSave: SleepTransition %x\n", SleepTransition);
+        DbgPrint0("KdSave: SleepTransition %X\n", SleepTransition);
+
     return STATUS_SUCCESS;
 }
 
