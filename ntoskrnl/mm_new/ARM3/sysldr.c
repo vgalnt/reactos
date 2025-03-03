@@ -2556,6 +2556,7 @@ MiReloadBootLoadedDrivers(
     PFN_COUNT PteCount;
     ULONG ix = 0;
     BOOLEAN ValidRelocs;
+    BOOLEAN IsKdnet = FALSE;
     NTSTATUS Status;
 
     /* Loop driver list */
@@ -2570,6 +2571,13 @@ MiReloadBootLoadedDrivers(
         /* Debug info */
         DPRINT("[Mm0]: Driver at: %p ending at: %p for module: %wZ\n",
                 LdrEntry->DllBase, ((ULONG_PTR)LdrEntry->DllBase + LdrEntry->SizeOfImage), &LdrEntry->FullDllName);
+
+        if (wcsstr(LdrEntry->BaseDllName.Buffer, L"kdnet") ||
+            wcsstr(LdrEntry->BaseDllName.Buffer, L"kdstub"))
+        {
+            DPRINT("[Mm0]: IsKdnet == TRUE\n");
+            IsKdnet = TRUE;
+        }
 
         /* Get the first PTE and the number of PTEs we'll need */
         Pte = StartPte = MiAddressToPte(LdrEntry->DllBase);
@@ -2592,8 +2600,16 @@ MiReloadBootLoadedDrivers(
         /* Skip kernel and HAL */
         /* ROS HACK: Skip BOOTVID/KDCOM too */
         ix++;
-        if (ix <= 4)
+        if (IsKdnet)
+        {
+            /* KDSTUB/KDNETLIB too */
+            if (ix <= 6)
+                continue;
+        }
+        else if (ix <= 4)
+        {
             continue;
+        }
 
         /* Skip non-drivers */
         if (!NtHeader)
