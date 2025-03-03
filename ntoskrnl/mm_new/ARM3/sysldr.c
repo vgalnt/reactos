@@ -2264,7 +2264,33 @@ VOID
 NTAPI
 MmMakeKernelResourceSectionWritable(VOID)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PMMPTE Pte;
+    MMPTE TempPte;
+
+    /* Don't do anything if the resource section is already writable */
+    if (!MiKernelResourceStartPte || !MiKernelResourceEndPte)
+        return;
+
+    /* If the resource section is physical, we cannot change its protection */
+    if (MI_IS_PHYSICAL_ADDRESS(MiPteToAddress(MiKernelResourceStartPte)))
+        return;
+
+    /* Loop the PTEs */
+    for (Pte = MiKernelResourceStartPte; Pte < MiKernelResourceEndPte; Pte++)
+    {
+        /* Read the PTE */
+        TempPte = *Pte;
+
+        if (!MI_IS_PAGE_WRITEABLE(&TempPte))
+        {
+            /* Update the protection */
+            MI_MAKE_HARDWARE_PTE_KERNEL(&TempPte, Pte, MM_READWRITE, TempPte.u.Hard.PageFrameNumber);
+            MI_UPDATE_VALID_PTE(Pte, TempPte);
+        }
+    }
+
+    /* Only flush the current processor's TLB */
+    KeFlushCurrentTb();
 }
 
 CODE_SEG("PAGE")
