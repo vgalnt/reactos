@@ -1885,9 +1885,8 @@ LoaderScan:
         RtlInitString(&AnsiTemp, Buffer);
 
         /* Notify the debugger */
-        DPRINT("MmLoadSystemImage: FIXME DbgLoadImageSymbols()\n");
-        //DbgLoadImageSymbols(&AnsiTemp, LdrEntry->DllBase, (ULONG_PTR)PsGetCurrentProcessId());
-        //LdrEntry->Flags |= LDRP_DEBUG_SYMBOLS_LOADED;
+        DbgLoadImageSymbols(&AnsiTemp, LdrEntry->DllBase, (ULONG_PTR)PsGetCurrentProcessId());
+        LdrEntry->Flags |= LDRP_DEBUG_SYMBOLS_LOADED;
     }
 
 Finish:
