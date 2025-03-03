@@ -3080,9 +3080,9 @@ MiInitializeLoadedModuleList(
     MmTotalCommitLimit += PagesCount;
     MmTotalCommitLimitMaximum += PagesCount;
 
-    DPRINT1("MiInitializeLoadedModuleList: MmTotalCommittedPages     %X\n", MmTotalCommittedPages);
-    DPRINT1("MiInitializeLoadedModuleList: MmTotalCommitLimit        %X\n", MmTotalCommitLimit);
-    DPRINT1("MiInitializeLoadedModuleList: MmTotalCommitLimitMaximum %X\n", MmTotalCommitLimitMaximum);
+    DPRINT("MiInitializeLoadedModuleList: MmTotalCommittedPages     %X\n", MmTotalCommittedPages);
+    DPRINT("MiInitializeLoadedModuleList: MmTotalCommitLimit        %X\n", MmTotalCommitLimit);
+    DPRINT("MiInitializeLoadedModuleList: MmTotalCommitLimitMaximum %X\n", MmTotalCommitLimitMaximum);
 
     /* Build the import lists for the boot drivers */
     MiBuildImportsForBootDrivers();
