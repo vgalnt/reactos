@@ -3682,11 +3682,96 @@ NTAPI
 KdDebuggerInitialize1(
     _In_opt_ PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
-    if (IsDbgComInitialized)
-        DbgPrint0("KdDebuggerInitialize1: Unimplemented! LoaderBlock %p\n", LoaderBlock);
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    UNICODE_STRING NameString;
+    HANDLE KeyHandle = NULL;
+    ULONGLONG Data;
+    PWSTR Start;
+    PWSTR End;
+    ULONG Length;
+    NTSTATUS Status;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
-    return STATUS_NOT_IMPLEMENTED;
+    RtlInitUnicodeString(&NameString, L"\\REGISTRY\\MACHINE\\SYSTEM\\CURRENTCONTROLSET\\SERVICES\\kdnet");
+    InitializeObjectAttributes(&ObjectAttributes, &NameString, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    Status = ZwCreateKey(&KeyHandle, KEY_WRITE, &ObjectAttributes, 0, NULL, 0, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    if (!KdNetParameters.IsDebuggerActive || KdNetErrorStringLog[0] || KdNetErrorStatusLog[0])
+    {
+        RtlInitUnicodeString(&NameString, L"KdInitStatus");
+        ZwSetValueKey(KeyHandle, &NameString, 0, REG_DWORD, KdNetErrorStatusLog, 4);
+
+        if (KdNetErrorStatusLog[0] == STATUS_NO_SUCH_DEVICE)
+        {
+            RtlInitUnicodeString(&NameString, L"KdNetHardwareID");
+            ZwSetValueKey(KeyHandle, &NameString, 0, REG_DWORD, &KdNetHardwareID, 4);
+        }
+
+        Start = End = KdNetErrorStringLog[0];
+        if (KdNetErrorStringLog[0])
+        {
+            while (*End)
+                End++;
+
+            Length = (End - Start);
+
+            if (Length <= 0x80)
+            {
+                RtlInitUnicodeString(&NameString, L"KdInitResultString");
+                ZwSetValueKey(KeyHandle, &NameString, 0, REG_SZ, Start, ((Length + 1) * 2));
+            }
+        }
+    }
+    else
+    {
+        RtlInitUnicodeString(&NameString, L"KdInitResultString");
+        ZwDeleteValueKey(KeyHandle, &NameString);
+
+        RtlInitUnicodeString(&NameString, L"KdInitStatus");
+        ZwDeleteValueKey(KeyHandle, &NameString);
+
+        RtlInitUnicodeString(&NameString, L"KdNetHardwareID");
+        ZwDeleteValueKey(KeyHandle, &NameString);
+    }
+
+    ZwClose(KeyHandle);
+
+    if (!NT_SUCCESS(KdNicData.Status))
+    {
+        goto Exit;
+    }
+
+    if (!KdNicEnabled)
+    {
+        goto Exit;
+    }
+
+    RtlInitUnicodeString(&NameString, L"\\REGISTRY\\MACHINE\\SYSTEM\\CURRENTCONTROLSET\\SERVICES\\kdnet\\kdnic");
+    InitializeObjectAttributes(&ObjectAttributes, &NameString, OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    Status = ZwCreateKey(&KeyHandle, KEY_WRITE, &ObjectAttributes, 0, NULL, 1, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        goto Exit;
+    }
+
+    Data = MmGetPhysicalAddress(&KdNetParameters).QuadPart;
+    RtlInitUnicodeString(&NameString, L"DebugParameters");
+    ZwSetValueKey(KeyHandle, &NameString, 0, REG_QWORD, &Data, 8);
+
+    Data = MmGetPhysicalAddress(&KdNicData).QuadPart;
+    RtlInitUnicodeString(&NameString, L"KdNic");
+    ZwSetValueKey(KeyHandle, &NameString, 0, REG_QWORD, &Data, 8);
+
+    ZwClose(KeyHandle);
+
+Exit:
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
