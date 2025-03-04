@@ -865,22 +865,6 @@ Finish:
 
 NTSTATUS
 NTAPI
-ProcessControlChannelPacket(
-    _In_ PKD_NET_DATA NetData,
-    _In_ PVOID Packet,
-    _In_ ULONG PacketLength,
-    _In_ ULONGLONG SequenceNumber)
-{
-    if (IsDbgComInitialized)
-        DbgPrint0("ProcessControlChannelPacket: Unimplemented!\n");
-
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
-
-    return STATUS_NOT_IMPLEMENTED;
-}
-
-NTSTATUS
-NTAPI
 WaitForSpecificRxIpPacket(
     _In_ PKD_NET_DATA NetData,
     _In_ PULONG OutPacketHandle,
