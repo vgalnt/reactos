@@ -3275,8 +3275,10 @@ KdDebuggerInitialize0(
     PCHAR HostIp;
     PCHAR HostPort;
     PCHAR Start;
+    PCHAR End;
     PCHAR Ptr;
     LARGE_INTEGER Value;
+    LARGE_INTEGER Key;
     ULONG ContextSize;
     ULONG _ip;
     BOOLEAN IsDebuggerActive;
@@ -3286,8 +3288,9 @@ KdDebuggerInitialize0(
     {
         if (LoaderBlock->u.I386.CommonDataArea)
         {
+            /* Default DbgPrint0 is not enabled */
             DbgPrint0 = LoaderBlock->u.I386.CommonDataArea;
-            IsDbgComInitialized = TRUE;
+            IsDbgComInitialized = FALSE;
         }
     }
 
@@ -3296,7 +3299,7 @@ KdDebuggerInitialize0(
 
     InterlockedIncrement(&KdNetDebuggerInitialize0Count);
 
-    //InitializeLogTiming(); // for USB3
+    //InitializeLogTiming(); // FIXME for USB3
 
     if (!KdNetInitialized)
     {
@@ -3522,9 +3525,7 @@ KdDebuggerInitialize0(
             goto Exit;
         }
 
-      #if 0
-        // FIXME
-      #endif
+        ParseEncryptionKey(&KdNetParameters, &Start, &End, &Ptr, &Key, &Value);
     }
 
     if (!KdNetParameters.IsEncryptionKey || !Value.QuadPart)
@@ -3540,9 +3541,7 @@ KdDebuggerInitialize0(
         goto Exit;
     }
 
-  #if 0
-    // FIXME
-  #endif
+    CleanEncryptionKey(&Start, &End, &Key, &Value);
 
     if (KdNetParameters.IsDhcp && !KdNetParameters.IsEncryptionKey)
        KdNetParameters.IsDhcp = FALSE;
