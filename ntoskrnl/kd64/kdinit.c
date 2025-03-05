@@ -139,6 +139,93 @@ KdRegisterDebuggerDataBlock(IN ULONG Tag,
     return TRUE;
 }
 
+#if DBG_KD0
+static
+VOID
+NTAPI
+PatchKdStub(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock)
+{
+    UNICODE_STRING Name = RTL_CONSTANT_STRING(L"kdstub");
+    PLDR_DATA_TABLE_ENTRY LdrEntry;
+    PIMAGE_NT_HEADERS NtHeaders;
+    PLIST_ENTRY Entry;
+    PVOID ImageBase = NULL;
+    PULONG Cookie;
+    ULONG LoadConfig;
+    ULONG Size;
+    BOOLEAN IsFound = FALSE;
+
+    DbgPrint0("PatchKdStub: Flink %p\n", LoaderBlock->LoadOrderListHead.Flink);
+
+    for (Entry = LoaderBlock->LoadOrderListHead.Flink;
+         Entry != &LoaderBlock->LoadOrderListHead;
+         Entry = Entry->Flink)
+    {
+        LdrEntry = CONTAINING_RECORD(Entry, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        if (LdrEntry->BaseDllName.Buffer[0] == Name.Buffer[0] &&
+            LdrEntry->BaseDllName.Buffer[1] == Name.Buffer[1] &&
+            LdrEntry->BaseDllName.Buffer[2] == Name.Buffer[2] &&
+            LdrEntry->BaseDllName.Buffer[3] == Name.Buffer[3] &&
+            LdrEntry->BaseDllName.Buffer[4] == Name.Buffer[4] &&
+            LdrEntry->BaseDllName.Buffer[5] == Name.Buffer[5])
+        {
+            ImageBase = LdrEntry->DllBase;
+            IsFound = TRUE;
+            break;
+        }
+    }
+
+    if (!IsFound)
+    {
+        DbgPrint0("PatchKdStub: Not found\n");
+        return;
+    }
+
+    if (!ImageBase)
+    {
+        DbgPrint0("PatchKdStub: ImageBase is NULL\n");
+        return;
+    }
+
+    DbgPrint0("PatchKdStub: Found %p\n", ImageBase);
+
+    NtHeaders = RtlImageNtHeader(ImageBase);
+    if (!NtHeaders)
+    {
+        DbgPrint0("PatchKdStub: NtHeaders is NULL\n");
+        return;
+    }
+
+    LoadConfig = NtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG].VirtualAddress;
+    Size = NtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG].Size;
+
+    if (!LoadConfig)
+    {
+        DbgPrint0("PatchKdStub: LoadConfig is 0\n");
+        return;
+    }
+
+    DbgPrint0("PatchKdStub: LoadConfig %X, Size %X\n", LoadConfig, Size);
+
+    Cookie = *(PULONG *)Add2Ptr(ImageBase, (LoadConfig + 0x3C));
+
+    DbgPrint0("PatchKdStub: Cookie %X\n", Cookie);
+
+    if (!Cookie)
+    {
+        DbgPrint0("PatchKdStub: Cookie is 0\n");
+        return;
+    }
+
+    DbgPrint0("PatchKdStub: *Cookie %X\n", *Cookie);
+
+    if (*Cookie == 0xBB40E64E)
+       *Cookie = 0xEFBEADDE;
+}
+#endif
+
 BOOLEAN
 NTAPI
 KdInitSystem(
@@ -155,9 +242,9 @@ KdInitSystem(
     SIZE_T MemSizeMBs;
     CHAR NameBuffer[256];
     PWCHAR Name;
+    NTSTATUS Status;
   #if DBG_KD0
     PVOID oldArea = NULL;
-    NTSTATUS Status;
 
     if (LoaderBlock->u.I386.CommonDataArea)
         oldArea = LoaderBlock->u.I386.CommonDataArea;
@@ -169,10 +256,10 @@ KdInitSystem(
     DbgPrint0("KdInitSystem: BootPhase %X, LoaderBlock %p\n", BootPhase, LoaderBlock);
   #endif
 
-#if defined(__GNUC__)
+  #if defined(__GNUC__)
     /* Make gcc happy */
     BlockEnable = FALSE;
-#endif
+  #endif
 
     /* Check if this is Phase 1 */
     if (BootPhase)
@@ -206,10 +293,10 @@ KdInitSystem(
         KdVersionBlock.MajorVersion = (USHORT)((DBGKD_MAJOR_NT << 8) | (NtBuildNumber >> 28));
         KdVersionBlock.MinorVersion = (USHORT)(NtBuildNumber & 0xFFFF);
 
-#ifdef CONFIG_SMP
+      #ifdef CONFIG_SMP
         /* This is an MP Build */
         KdVersionBlock.Flags |= DBGKD_VERS_FLAG_MP;
-#endif
+      #endif
 
         /* Save Pointers to Loaded Module List and Debugger Data */
         KdVersionBlock.PsLoadedModuleList = (ULONG64)(LONG_PTR)&PsLoadedModuleList;
@@ -369,9 +456,7 @@ KdInitSystem(
     /* Initialize the debugger if requested */
     if (!EnableKd)
     {
-      #if DBG_KD0
         DbgPrint0("KdInitSystem: debugger is not present\n");
-      #endif
 
         /* Disable debugger */
         KdDebuggerNotPresent = TRUE;
@@ -380,13 +465,14 @@ KdInitSystem(
         return TRUE;
     }
 
+  #if DBG_KD0
+    PatchKdStub(LoaderBlock);
+  #endif
 
     Status = KdDebuggerInitialize0(LoaderBlock);
     if (!NT_SUCCESS(Status))
     {
-      #if DBG_KD0
         DbgPrint0("KdInitSystem: KdDebuggerInitialize0 failed (Status %X)\n", Status);
-      #endif
 
         /* Return initialized */
         return TRUE;
