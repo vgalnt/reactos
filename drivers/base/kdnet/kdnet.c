@@ -486,6 +486,27 @@ DecryptKdPacket(
     _In_ PVOID* InOutPacket,
     _In_ ULONG* InOutLength
 );
+
+VOID
+NTAPI
+ParseEncryptionKey(
+    PKD_NET_PARAMETERS KdNetParameters,
+    PCHAR* OutStart,
+    PCHAR* OutEnd,
+    PCHAR* OutPtr,
+    PLARGE_INTEGER Key,
+    PLARGE_INTEGER Value
+);
+
+VOID
+NTAPI
+CleanEncryptionKey(
+    PCHAR* OutStart,
+    PCHAR* OutEnd,
+    PLARGE_INTEGER Key,
+    PLARGE_INTEGER Value
+);
+
 #else
 NTSTATUS
 NTAPI
@@ -512,7 +533,7 @@ EncryptKdPacket(
     _In_ UCHAR Unknown2)
 {
     if (IsDbgComInitialized)
-        DbgPrint0("KdHvInitializeController: Unimplemented!\n");
+        DbgPrint0("EncryptKdPacket: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
@@ -532,6 +553,36 @@ DecryptKdPacket(
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
+}
+
+VOID
+NTAPI
+ParseEncryptionKey(
+    PKD_NET_PARAMETERS KdNetParameters,
+    PCHAR* OutStart,
+    PCHAR* OutEnd,
+    PCHAR* OutPtr,
+    PLARGE_INTEGER Key,
+    PLARGE_INTEGER Value)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("ParseEncryptionKey: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
+}
+
+VOID
+NTAPI
+CleanEncryptionKey(
+    PCHAR* OutStart,
+    PCHAR* OutEnd,
+    PLARGE_INTEGER Key,
+    PLARGE_INTEGER Value)
+{
+    if (IsDbgComInitialized)
+        DbgPrint0("CleanEncryptionKey: Unimplemented!\n");
+
+    KeBugCheck(MANUALLY_INITIATED_CRASH);
 }
 #endif
 

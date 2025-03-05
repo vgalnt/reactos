@@ -18,7 +18,7 @@ add_library(kdnet MODULE
 set_module_type(kdnet kerneldll ENTRYPOINT 0)
 set_subsystem(kdnet native)
 target_link_libraries(kdnet libcntpr)
-add_importlibs(kdnet kdstub ntoskrnl hal)
+add_importlibs(kdnet kdstub kdnetlib ntoskrnl hal)
 add_dependencies(kdnet psdk bugcodes)
 #add_pch(kdnet kdnet.h SOURCE)
 add_cd_file(TARGET kdnet DESTINATION reactos/system32 NO_CAB FOR all)

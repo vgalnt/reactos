@@ -583,26 +583,6 @@ ProcessControlChannelPacket(
     _In_ ULONGLONG SequenceNumber
 );
 
-VOID
-NTAPI
-ParseEncryptionKey(
-    PKD_NET_PARAMETERS KdNetParameters,
-    PCHAR* OutStart,
-    PCHAR* OutEnd,
-    PCHAR* OutPtr,
-    PLARGE_INTEGER Key,
-    PLARGE_INTEGER Value
-);
-
-VOID
-NTAPI
-CleanEncryptionKey(
-    PCHAR* OutStart,
-    PCHAR* OutEnd,
-    PLARGE_INTEGER Key,
-    PLARGE_INTEGER Value
-);
-
 #endif /* _KDNET_H_ */
 
 /* EOF */

@@ -1,0 +1,5 @@
+@ stdcall InitializeEncryption(ptr ptr ptr ptr)
+@ stdcall EncryptKdPacket(ptr ptr ptr ptr double long)
+@ stdcall DecryptKdPacket(ptr ptr ptr)
+@ stdcall ParseEncryptionKey(ptr ptr ptr ptr ptr ptr)
+@ stdcall CleanEncryptionKey(ptr ptr ptr ptr)
