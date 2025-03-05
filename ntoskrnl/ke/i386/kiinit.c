@@ -771,12 +771,12 @@ KiSystemStartup(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     PKTSS Tss;
     PKIPCR Pcr;
     KIRQL DummyIrql;
+  #if DBG_KD0
     NTSTATUS Status;
 
     /* Initialize serial port for startup debugging (the kernel debugger has not yet been initialized).
        Hadrcoded!
     */
-  #if DBG_KD0
     PUCHAR ComPortAddress = (PUCHAR)0x3F8;
 
     Status = CpInitialize(&Kd0ComPort[1], ComPortAddress, 115200);
