@@ -4,7 +4,9 @@
 
 #include "arch/ke.h"
 
-#define DBG_KD0 1
+#ifdef _WINKD_
+  #define DBG_KD0 1
+#endif
 
 /* INTERNAL KERNEL TYPES ****************************************************/
 
