@@ -130,3 +130,36 @@ char *DbgGetAdditionalSenseCodeQualifierStr(PSTORAGE_REQUEST_BLOCK_HEADER Srb);
 
 #endif
 
+#ifdef __REACTOS__
+  #if DBG
+
+    //ULONG __cdecl DbgPrint(_In_ PCHAR Format, ...);
+
+    #ifndef __FILENAME__
+      #define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+    #endif
+
+    #define DPRINT1(fmt, ...) do { \
+      if (DbgPrint("(%s:%d) " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__))  \
+          DbgPrint("(%s:%d) DbgPrint() failed!\n", __FILENAME__, __LINE__); \
+    } while (0)
+
+  #else
+
+    #if defined(_MSC_VER)
+      #define DPRINT1 __noop
+    #else
+      #define DPRINT1
+    #endif
+
+  #endif
+
+#else
+
+  #if defined(_MSC_VER)
+    #define DPRINT1 __noop
+  #else
+    #define DPRINT1
+  #endif
+
+#endif
