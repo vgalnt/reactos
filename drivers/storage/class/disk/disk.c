@@ -3539,6 +3539,11 @@ Return Value:
   #else
     CDB noOp = {{0}};
   #endif
+  #ifdef REACTOS_NT5x
+    PDEVICE_OBJECT Pdo;
+    PDISK_DATA Data;
+    BOOLEAN Result;
+  #endif
 
     //
     // Get relevant fields from SRB
@@ -3810,14 +3815,48 @@ Return Value:
             } // end switch(Srb->SrbStatus)
         }
 
-        if (invalidatePartitionTable && TEST_FLAG(Fdo->Characteristics, FILE_REMOVABLE_MEDIA)) {
+        if (invalidatePartitionTable) {
 
-            //
-            // Inform the upper layers that the volume
-            // on this disk is in need of verification
-            //
+            if (TEST_FLAG(Fdo->Characteristics, FILE_REMOVABLE_MEDIA)) {
 
-            SET_FLAG(Fdo->Flags, DO_VERIFY_VOLUME);
+              #ifdef REACTOS_NT5x
+
+                DPRINT1("DiskFdoProcessError: SET_FLAG DO_VERIFY_VOLUME (%X)\n", Fdo->Flags);
+
+                if (fdoExtension->CommonExtension.ChildList)
+                {
+                    Pdo = (fdoExtension->CommonExtension.ChildList)->CommonExtension.DeviceObject;
+
+                    if (ClassGetVpb(Pdo) && (ClassGetVpb(Pdo)->Flags & VPB_MOUNTED))
+                        SET_FLAG(Pdo->Flags, DO_VERIFY_VOLUME);
+                }
+
+              #else
+
+                //
+                // Inform the upper layers that the volume
+                // on this disk is in need of verification
+                //
+
+                SET_FLAG(Fdo->Flags, DO_VERIFY_VOLUME);
+
+              #endif
+            }
+
+          #ifdef REACTOS_NT5x
+
+            Data = fdoExtension->CommonExtension.DriverData;
+
+            Result = (Data->CachedPartitionTableValid != 0);
+            Data->CachedPartitionTableValid = FALSE;
+
+            //ClassDebugPrint(0x10, "DiskIPT: Invalidating PT cache for FDO %#p\n", fdoExtension);
+            DPRINT1("DiskIPT: Invalidating PT cache for FDO %#p (%X)\n", fdoExtension, Result);
+
+            if (Result)
+                IoInvalidateDeviceRelations(fdoExtension->LowerPdo, BusRelations);
+
+          #endif
         }
     }
 
