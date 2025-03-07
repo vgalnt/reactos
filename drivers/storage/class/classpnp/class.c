@@ -2459,7 +2459,6 @@ ClassReadWrite(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
     else if (TEST_FLAG(DeviceObject->Flags, DO_VERIFY_VOLUME) &&
              (currentIrpStack->MinorFunction != CLASSP_VOLUME_VERIFY_CHECKED) &&
              !TEST_FLAG(currentIrpStack->Flags, SL_OVERRIDE_VERIFY_VOLUME)){
-
         /*
          *  DO_VERIFY_VOLUME is set for the device object,
          *  but this request is not itself a verify request.
@@ -2473,6 +2472,7 @@ ClassReadWrite(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp)
         ClassReleaseRemoveLock(DeviceObject, Irp);
         ClassCompleteRequest(DeviceObject, Irp, 0);
         status = STATUS_VERIFY_REQUIRED;
+        DPRINT1("ClassReadWrite: STATUS_VERIFY_REQUIRED\n");
     }
     else {
 
