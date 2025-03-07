@@ -670,7 +670,9 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
         if (!NT_SUCCESS(Status))
         {
             ExFreePool(DriveLayout);
+            DriveLayout = NULL;
             ExFreePoolWithTag(PartitionBuffer, TAG_IO);
+            PartitionBuffer = NULL;
             ObDereferenceObject(FileObject);
             continue;
         }
