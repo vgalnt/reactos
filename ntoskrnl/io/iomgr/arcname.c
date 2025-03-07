@@ -449,6 +449,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                                               &EnabledDisks);
     if (!NT_SUCCESS(Status))
     {
+        DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
         NotEnabledPresent = TRUE;
     }
 
@@ -474,6 +475,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
     /* Finally, if in spite of all that work, we still don't have disks, leave */
     if (!DiskCount)
     {
+        DPRINT1("IopCreateArcNamesDisk: DiskCount is 0\n");
         goto Cleanup;
     }
 
@@ -508,6 +510,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                 /* Missing resources is a shame... No need to go farther */
                 if (!Irp)
                 {
+                    DPRINT1("IopCreateArcNamesDisk: Irp is NULL\n");
                     ObDereferenceObject(FileObject);
                     Status = STATUS_INSUFFICIENT_RESOURCES;
                     goto Cleanup;
@@ -525,8 +528,9 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                 /* If we didn't get the appriopriate data, just skip that disk */
                 if (!NT_SUCCESS(Status))
                 {
-                   ObDereferenceObject(FileObject);
-                   continue;
+                    DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
+                    ObDereferenceObject(FileObject);
+                    continue;
                 }
             }
 
@@ -557,6 +561,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
             Status = RtlAnsiStringToUnicodeString(&DeviceStringW, &DeviceStringA, TRUE);
             if (!NT_SUCCESS(Status))
             {
+                DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
                 goto Cleanup;
             }
 
@@ -574,6 +579,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
         /* Something failed somewhere earlier, just skip the disk */
         if (!NT_SUCCESS(Status))
         {
+            DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
             continue;
         }
 
@@ -590,6 +596,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
         /* Missing resources is a shame... No need to go farther */
         if (!Irp)
         {
+            DPRINT1("IopCreateArcNamesDisk: Irp is NULL\n");
             ObDereferenceObject(FileObject);
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Cleanup;
@@ -606,6 +613,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
         /* Failure, skip disk */
         if (!NT_SUCCESS(Status))
         {
+            DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
             ObDereferenceObject(FileObject);
             continue;
         }
@@ -615,6 +623,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                                         &DriveLayout);
         if (!NT_SUCCESS(Status))
         {
+            DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
             ObDereferenceObject(FileObject);
             continue;
         }
@@ -639,6 +648,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
         PartitionBuffer = ExAllocatePoolWithTag(NonPagedPoolCacheAligned, DiskGeometry.BytesPerSector, TAG_IO);
         if (!PartitionBuffer)
         {
+            DPRINT1("IopCreateArcNamesDisk: PartitionBuffer is NULL\n");
             ObDereferenceObject(FileObject);
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Cleanup;
@@ -654,6 +664,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                                            &IoStatusBlock);
         if (!Irp)
         {
+            DPRINT1("IopCreateArcNamesDisk: Irp is NULL\n");
             ObDereferenceObject(FileObject);
             Status = STATUS_INSUFFICIENT_RESOURCES;
             goto Cleanup;
@@ -669,6 +680,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
         }
         if (!NT_SUCCESS(Status))
         {
+            DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
             ExFreePool(DriveLayout);
             DriveLayout = NULL;
             ExFreePoolWithTag(PartitionBuffer, TAG_IO);
@@ -711,6 +723,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                 Status = RtlAnsiStringToUnicodeString(&DeviceStringW, &DeviceStringA, TRUE);
                 if (!NT_SUCCESS(Status))
                 {
+                    DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
                     goto Cleanup;
                 }
 
@@ -720,6 +733,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                 Status = RtlAnsiStringToUnicodeString(&ArcNameStringW, &ArcNameStringA, TRUE);
                 if (!NT_SUCCESS(Status))
                 {
+                    DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
                     RtlFreeUnicodeString(&DeviceStringW);
                     goto Cleanup;
                 }
@@ -740,6 +754,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                     Status = RtlAnsiStringToUnicodeString(&DeviceStringW, &DeviceStringA, TRUE);
                     if (!NT_SUCCESS(Status))
                     {
+                        DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
                         goto Cleanup;
                     }
 
@@ -762,6 +777,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                         Status = RtlAnsiStringToUnicodeString(&HalPathStringW, &HalPathStringA, TRUE);
                         if (!NT_SUCCESS(Status))
                         {
+                            DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
                             RtlFreeUnicodeString(&DeviceStringW);
                             goto Cleanup;
                         }
@@ -777,6 +793,7 @@ IopCreateArcNamesDisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock,
                     Status = RtlAnsiStringToUnicodeString(&ArcNameStringW, &ArcNameStringA, TRUE);
                     if (!NT_SUCCESS(Status))
                     {
+                        DPRINT1("IopCreateArcNamesDisk: Status %X\n", Status);
                         RtlFreeUnicodeString(&DeviceStringW);
                         goto Cleanup;
                     }
