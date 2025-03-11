@@ -5416,9 +5416,9 @@ PipEnumerationWorker(
             break;
 
         RemoveHeadList(&IopPnpEnumerationRequestList);
+        KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
 
 Start:
-        KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
 
         if (Request)
         {
