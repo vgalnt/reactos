@@ -6597,7 +6597,7 @@ Finish:
 }
 
 NTSTATUS
-NTAPI
+__cdecl
 GetPciAddressWorker(
     _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
     _In_ NTSTATUS InStatus,
