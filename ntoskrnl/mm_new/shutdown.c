@@ -16,8 +16,8 @@ extern ULONG MmNumberOfPagingFiles;
 VOID MiShutdownSystem(VOID);
 
 #if defined (ALLOC_PRAGMA)
-  #pragma alloc_text(INIT, MiShutdownSystem)
-  #pragma alloc_text(PAGE, MmShutdownSystem)
+  #pragma alloc_text(PAGELK, MiShutdownSystem)
+  #pragma alloc_text(PAGELK, MmShutdownSystem)
 #endif
 
 CODE_SEG("PAGELK")
