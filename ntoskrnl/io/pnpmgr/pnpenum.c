@@ -229,10 +229,8 @@ PpSaveDeviceCapabilities(
                                              KEY_ALL_ACCESS);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT("PpSaveDeviceCapabilities: Status - %X, Pdo - %p\n",
-               Status, DeviceNode->PhysicalDeviceObject);
-
-        ASSERT(NT_SUCCESS(Status));
+        DPRINT1("PpSaveDeviceCapabilities: (%p) Error (%X)\n", DeviceNode->PhysicalDeviceObject, Status);
+        //ASSERT(NT_SUCCESS(Status));
         return Status;
     }
 
