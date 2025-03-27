@@ -250,7 +250,7 @@ PciGetRegistryValue(
         ASSERT(!NT_SUCCESS(Status));
         if (Status != STATUS_BUFFER_TOO_SMALL)
         {
-            DPRINT("PciGetRegistryValue: Status %X\n", Status);
+            DPRINT1("PciGetRegistryValue: Status %X\n", Status);
             break;
         }
         ASSERT(NeededLength != 0);
@@ -282,7 +282,8 @@ PciGetRegistryValue(
 
         /* Subtract the registry-specific header, to get the data size */
         ASSERT(NeededLength == ActualLength);
-        NeededLength -= sizeof(KEY_VALUE_PARTIAL_INFORMATION);
+        NeededLength -= FIELD_OFFSET(KEY_VALUE_PARTIAL_INFORMATION, Data);
+        ASSERT(NeededLength != 0);
 
         /* Allocate a buffer to hold the data and return it to the caller */
         *OutputBuffer = ExAllocatePoolWithTag(PagedPool, NeededLength, PCI_POOL_TAG);
