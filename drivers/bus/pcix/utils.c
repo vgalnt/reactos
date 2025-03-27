@@ -21,6 +21,9 @@ ULONG PciDebugPortsCount;
 RTL_RANGE_LIST PciIsaBitExclusionList;
 RTL_RANGE_LIST PciVgaAndIsaBitExclusionList;
 
+extern PCI_DEBUG_PORT PciDebugPorts[2];
+extern ULONG PciDebugPortsCount;
+
 /* FUNCTIONS ******************************************************************/
 
 BOOLEAN
@@ -844,16 +847,79 @@ NTAPI
 PciIsDeviceOnDebugPath(
     _In_ PPCI_PDO_EXTENSION PdoExtension)
 {
+    PPCI_FDO_EXTENSION ParentExtension;
+    PCI_COMMON_HEADER BiosData;
+    ULONG ix;
+    UCHAR Bus;
+    NTSTATUS Status;
+
     PAGED_CODE();
-    //DPRINT("PciIsDeviceOnDebugPath: %p\n", PdoExtension);
+    DPRINT("PciIsDeviceOnDebugPath: %p\n", PdoExtension);
 
     /* Check for too many, or no, debug ports */
     ASSERT(PciDebugPortsCount <= MAX_DEBUGGING_DEVICES_SUPPORTED);
-    if (!PciDebugPortsCount)
-        return FALSE;
 
-    /* eVb has not been able to test such devices yet */
-    UNIMPLEMENTED_DBGBREAK();
+    if (!PciDebugPortsCount)
+    {
+        DPRINT1("PciIsDeviceOnDebugPath: ret FALSE\n");
+        return FALSE;
+    }
+
+    RtlZeroMemory(&BiosData, sizeof(BiosData));
+
+    if (PdoExtension->HeaderType == 1 || PdoExtension->HeaderType == 2)
+    {
+        Status = PciGetBiosConfig(PdoExtension, &BiosData);
+        ASSERT(NT_SUCCESS(Status));
+
+        for (ix = 0; ix < MAX_DEBUGGING_DEVICES_SUPPORTED; ix++)
+        {
+            if (PciDebugPorts[ix].Bus >= BiosData.u.type1.SecondaryBus &&
+                PciDebugPorts[ix].Bus <= BiosData.u.type1.SubordinateBus &&
+                BiosData.u.type1.SecondaryBus &&
+                BiosData.u.type1.SubordinateBus)
+            {
+                DPRINT1("PciIsDeviceOnDebugPath: [%X] ret TRUE\n", ix);
+                return TRUE;
+            }
+        }
+
+        DPRINT1("PciIsDeviceOnDebugPath: [%X] ret FALSE\n", ix);
+        return FALSE;
+    }
+
+    ParentExtension = PdoExtension->ParentFdoExtension;
+
+    if (ParentExtension == ParentExtension->BusRootFdoExtension)
+    {
+        Bus = ParentExtension->BaseBus;
+    }
+    else
+    {
+        Status = PciGetBiosConfig((PPCI_PDO_EXTENSION)ParentExtension->PhysicalDeviceObject->DeviceExtension, &BiosData);
+        ASSERT(NT_SUCCESS(Status));
+
+        if (!BiosData.u.type1.SecondaryBus ||
+            !BiosData.u.type1.SubordinateBus)
+        {
+            DPRINT1("PciIsDeviceOnDebugPath: ret FALSE\n");
+            return FALSE;
+        }
+
+        Bus = BiosData.u.type1.SecondaryBus;
+    }
+
+    for (ix = 0; ix < MAX_DEBUGGING_DEVICES_SUPPORTED; ix++)
+    {
+        if (PciDebugPorts[ix].Bus == Bus &&
+            PciDebugPorts[ix].PciSlot.u.AsULONG == PdoExtension->Slot.u.AsULONG)
+        {
+            DPRINT1("PciIsDeviceOnDebugPath: [%X] ret TRUE\n", ix);
+            return TRUE;
+        }
+    }
+
+    DPRINT1("PciIsDeviceOnDebugPath: [%X] ret FALSE\n", ix);
     return FALSE;
 }
 
