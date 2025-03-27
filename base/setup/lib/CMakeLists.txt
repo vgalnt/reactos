@@ -1,6 +1,10 @@
 
 add_definitions(${I18N_DEFS})
 
+if(MSVC)
+    add_definitions(-DVC_BUILD)
+endif()
+
 include_directories(spapisup utils)
 
 list(APPEND SOURCE
