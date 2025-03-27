@@ -22,6 +22,7 @@
 #include <cmreslist.h>
 #include <initguid.h>
 #include <wdmguid.h>
+#include <strsafe.h>
 
 // Tag used in all pool allocations (Pci Bus)
 #define PCI_POOL_TAG    'BicP'
@@ -516,6 +517,12 @@ typedef struct _PCI_ROUTING_EXTENSION
     PCI_SECONDARY_EXTENSION SecondaryExtension;
     ROUTING_TOKEN RoutingToken;
 } PCI_ROUTING_EXTENSION, *PPCI_ROUTING_EXTENSION;
+
+typedef struct _PCI_DEBUG_PORT
+{
+    ULONG Bus;
+    PCI_SLOT_NUMBER PciSlot;
+} PCI_DEBUG_PORT, *PPCI_DEBUG_PORT;
 
 /* FUNCTIONS ****************************************************************/
 

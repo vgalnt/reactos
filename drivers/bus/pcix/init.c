@@ -27,6 +27,8 @@ ULONG PciSystemWideHackFlags;
 PPCI_IRQ_ROUTING_TABLE PciIrqRoutingTable;
 PWATCHDOG_TABLE WdTable;
 PPCI_HACK_ENTRY PciHackTable;
+PCI_DEBUG_PORT PciDebugPorts[2];
+ULONG PciDebugPortsCount = 0;
 
 /* FUNCTIONS ******************************************************************/
 
@@ -722,12 +724,85 @@ PciBuildHackTable(
 
 NTSTATUS
 NTAPI
-PciGetDebugPorts(IN HANDLE DebugKey)
+PciGetDebugPorts(
+    _In_ HANDLE DebugKeyHandle)
 {
-    UNREFERENCED_PARAMETER(DebugKey);
-    /* This function is not yet implemented */
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_SUCCESS;
+    PVOID PciDebugPortsKey = NULL;
+    PPCI_SLOT_NUMBER PciSlot;
+    WCHAR KeyName[4];
+    ULONG Function;
+    ULONG Segment;
+    ULONG Device;
+    ULONG Length;
+    ULONG Bus;
+    ULONG ix;
+    HRESULT hr;
+    NTSTATUS Status;
+
+    for (ix = 0; ix < MAX_DEBUGGING_DEVICES_SUPPORTED; ix++)
+    {
+        hr = StringCbPrintfW(KeyName, 8, L"%d", ix);
+        ASSERT(SUCCEEDED(hr));
+
+        Status = PciGetRegistryValue(L"Bus", KeyName, DebugKeyHandle, REG_DWORD, &PciDebugPortsKey, &Length);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciGetDebugPorts: Status %X\n", Status);
+            continue;
+        }
+
+        if (Length != 4)
+        {
+            DPRINT1("PciGetDebugPorts: Length %X\n", Length);
+            continue;
+        }
+
+        Segment = (*(PULONG)PciDebugPortsKey >> 8);
+        Bus = (*(PULONG)PciDebugPortsKey & 0xFF);
+
+        ExFreePool(PciDebugPortsKey);
+        PciDebugPortsKey = NULL;
+
+        Status = PciGetRegistryValue(L"Slot", KeyName, DebugKeyHandle, REG_DWORD, &PciDebugPortsKey, &Length);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("PciGetDebugPorts: Status %X\n", Status);
+            goto Exit;
+        }
+
+        if (Length != 4)
+        {
+            DPRINT1("PciGetDebugPorts: Length %X\n", Length);
+            goto Exit;
+        }
+
+        Device = (*(PULONG)PciDebugPortsKey & 0x1F);
+        Function = ((*(PULONG)PciDebugPortsKey >> 5) & 7);
+
+        ExFreePool(PciDebugPortsKey);
+        PciDebugPortsKey = 0;
+
+        DPRINT1("PciGetDebugPorts: Debug device @ Segment %X, %X.%X.%X\n", Segment, Bus, Device, Function);
+
+        ASSERT(Segment == 0);
+
+        PciDebugPorts[ix].Bus = Bus;
+
+        PciSlot = &PciDebugPorts[ix].PciSlot;
+        PciSlot->u.bits.DeviceNumber = Device;
+        PciSlot->u.bits.FunctionNumber = Function;
+
+        PciDebugPortsCount++;
+    }
+
+    Status = STATUS_SUCCESS;
+
+Exit:
+
+    if (PciDebugPortsKey)
+        ExFreePool(PciDebugPortsKey);
+
+    return Status;
 }
 
 DRIVER_UNLOAD PciDriverUnload;
