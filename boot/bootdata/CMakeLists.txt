@@ -55,9 +55,15 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/welcome_config/)
 endif()
 
 # freeldr.ini
-add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/bootcd.ini DESTINATION root NO_CAB NOT_IN_HYBRIDCD NAME_ON_CD freeldr.ini FOR bootcd regtest)
-add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/livecd.ini DESTINATION root NOT_IN_HYBRIDCD NAME_ON_CD freeldr.ini FOR livecd)
-add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/hybridcd.ini DESTINATION root NAME_ON_CD freeldr.ini FOR hybridcd)
+if(MSVC)
+    add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/vc/bootcd.ini DESTINATION root NO_CAB NOT_IN_HYBRIDCD NAME_ON_CD freeldr.ini FOR bootcd regtest)
+    add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/vc/livecd.ini DESTINATION root NOT_IN_HYBRIDCD NAME_ON_CD freeldr.ini FOR livecd)
+    add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/vc/hybridcd.ini DESTINATION root NAME_ON_CD freeldr.ini FOR hybridcd)
+else()
+    add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/gcc/bootcd.ini DESTINATION root NO_CAB NOT_IN_HYBRIDCD NAME_ON_CD freeldr.ini FOR bootcd regtest)
+    add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/gcc/livecd.ini DESTINATION root NOT_IN_HYBRIDCD NAME_ON_CD freeldr.ini FOR livecd)
+    add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/gcc/hybridcd.ini DESTINATION root NAME_ON_CD freeldr.ini FOR hybridcd)
+endif()
 
 # Unattend
 add_cd_file(FILE ${CMAKE_CURRENT_SOURCE_DIR}/bootcdregtest/unattend.inf DESTINATION reactos NO_CAB FOR regtest)
