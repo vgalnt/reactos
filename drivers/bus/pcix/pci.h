@@ -58,7 +58,7 @@
 #define PCI_HACK_FIXUP_BEFORE_UPDATE        0x03
 
 // PCI Debugging Device Support
-#define MAX_DEBUGGING_DEVICES_SUPPORTED     0x04
+#define MAX_DEBUGGING_DEVICES_SUPPORTED     0x02
 
 // PCI Driver Verifier Failures
 #define PCI_VERIFIER_CODES                  0x04
