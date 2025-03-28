@@ -354,6 +354,13 @@ LoadReactOSSetup(
         TRACE("BootOptions: '%s'\n", BootOptions);
     }
 
+    if (strstr(BootOptions, "/MININT"))
+    {
+        ERR("LoadReactOSSetup: Invalid setup option ('MININT')\n");
+        UiMessageBoxCritical("LoadReactOSSetup: Invalid setup option ('MININT')");
+        return EINVAL;
+    }
+
     /* Allocate and minimally-initialize the Loader Parameter Block */
     AllocateAndInitLPB(_WIN32_WINNT_WS03, &LoaderBlock);
 
