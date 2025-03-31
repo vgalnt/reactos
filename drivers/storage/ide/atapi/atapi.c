@@ -1092,9 +1092,12 @@ IdeReadWrite(
 {
     VOID (NTAPI* BmArm)(PVOID);
     PCDB Cdb;
+    ULONG SectorsPerTrack;
     ULONG StartingSector;
+    ULONG NumberOfHeads;
     ULONG BytesXferred;
     ULONG Device;
+    ULONG Sector;
     ULONG Head;
     ULONG jx;
     UCHAR StartIdeStatus;
@@ -1145,7 +1148,21 @@ IdeReadWrite(
     }
     else
     {
-        UNIMPLEMENTED_DBGBREAK();
+        SectorsPerTrack = HwDeviceExtension->SectorsPerTrack[Device];
+        NumberOfHeads = HwDeviceExtension->NumberOfHeads[Device];
+        Head = (StartingSector / SectorsPerTrack);
+        Sector = (StartingSector % SectorsPerTrack);
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaLow, (StartingSector % SectorsPerTrack + 1));
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaMid, (StartingSector / (NumberOfHeads * SectorsPerTrack)));
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.LbaHigh, (StartingSector / (NumberOfHeads * SectorsPerTrack) >> 8));
+
+        WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT | (Head % NumberOfHeads)));
+
+        DPRINT1("IdeReadWrite: Cylinder %X Head %X Sector %X\n",
+                (StartingSector / (SectorsPerTrack * NumberOfHeads)),
+                (Head % NumberOfHeads),
+                (Sector + 1));
     }
 
     if (Srb->SrbFlags & 0x40)
