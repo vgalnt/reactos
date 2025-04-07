@@ -25,11 +25,13 @@ TRAP_ENTRY HalpTrap0D, 0
 
 PUBLIC _PicSpuriousService37
 _PicSpuriousService37:
-    iret
+    /* iret */
+    .byte HEX(CF), HEX(90)
 
 PUBLIC _ApicSpuriousService
 _ApicSpuriousService:
-    iret
+    /* iret */
+    .byte HEX(CF), HEX(90)
 
 PUBLIC _HwInterruptTable
 _HwInterruptTable:
