@@ -9787,7 +9787,7 @@ NTAPI
 SpGetSupportedAdapterControlFunctions(
     _In_ PSCSI_PORT_DEVICE_EXTENSION DeviceExtension)
 {
-    SCSI_SUPPORTED_CONTROL_TYPE_LIST ControlTypeList;
+    SP_CONTROL_TYPE_LIST ControlTypeList;
     ULONG ix;
 
     PAGED_CODE();

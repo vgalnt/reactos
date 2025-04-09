@@ -403,6 +403,12 @@ typedef struct _SCSI_PORT_DEVICE_TYPE_STRINGS
     UCHAR Unknown;
 } SCSI_PORT_DEVICE_TYPE_STRINGS, *PSCSI_PORT_DEVICE_TYPE_STRINGS;
 
+typedef struct _SP_CONTROL_TYPE_LIST
+{
+    ULONG MaxControlType;
+    BOOLEAN SupportedTypeList[ScsiAdapterControlMax];
+} SP_CONTROL_TYPE_LIST, *PSP_CONTROL_TYPE_LIST;
+
 /* FUNCTIONS ****************************************************************/
 
 #ifndef Add2Ptr
