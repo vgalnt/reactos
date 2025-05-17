@@ -159,7 +159,6 @@ HalacpiIrqTranslateResourceRequirementsIsa(
     ULONG jx;
     ULONG ix;
     USHORT SciVector;
-    NTSTATUS Status;
 
     VectorMin = Source->u.Interrupt.MinimumVector;
     VectorMax = Source->u.Interrupt.MaximumVector;
@@ -223,16 +222,16 @@ HalacpiIrqTranslateResourceRequirementsIsa(
 
         if (VectorMax >= 0x10) // PIC max
         {
+            DPRINT1("HalacpiIrqTranslateResourceRequirementsIsa: STATUS_UNSUCCESSFUL\n");
             ExFreePoolWithTag(TempIoDesc, ' laH');
-            Status = STATUS_UNSUCCESSFUL;
-            goto Exit;
+            return STATUS_UNSUCCESSFUL;
         }
 
         if (VectorMin >= 0x10)
         {
+            DPRINT1("HalacpiIrqTranslateResourceRequirementsIsa: STATUS_UNSUCCESSFUL\n");
             ExFreePoolWithTag(TempIoDesc, ' laH');
-            Status = STATUS_UNSUCCESSFUL;
-            goto Exit;
+            return STATUS_UNSUCCESSFUL;
         }
 
         if (VectorMin > SciVector || VectorMax < SciVector)
@@ -260,9 +259,9 @@ HalacpiIrqTranslateResourceRequirementsIsa(
     NewIoDesc = ExAllocatePoolWithTag(PagedPool, Size, ' laH');
     if (!NewIoDesc)
     {
-        Status = STATUS_INSUFFICIENT_RESOURCES;
+        DPRINT1("HalacpiIrqTranslateResourceRequirementsIsa: STATUS_INSUFFICIENT_RESOURCES\n");
         ExFreePoolWithTag(TempIoDesc, ' laH');
-        goto Exit;
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     RtlZeroMemory(NewIoDesc, Size);
@@ -306,22 +305,9 @@ HalacpiIrqTranslateResourceRequirementsIsa(
     else
         ExFreePoolWithTag(NewIoDesc, ' laH');
 
-    Status = STATUS_SUCCESS;
     ExFreePoolWithTag(TempIoDesc, ' laH');
 
-Exit:
-
-#if 0
-if (IoDescCount)
-{
-    PIO_RESOURCE_DESCRIPTOR Descriptor = *Target;
-
-    for (ix = 0; ix < *TargetCount; ix++)
-        HalpDumpIoResourceDescriptor("", &Descriptor[ix]);
-}
-#endif
-
-    return Status;
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
