@@ -69,11 +69,37 @@ HalpQueryPerformanceCounter(VOID)
 }
 
 VOID
+NTAPI
+HalpStallExecutionProcessor(
+    _In_ ULONG MicroSeconds)
+{
+    ULONG64 StartTime;
+    ULONG64 EndTime;
+
+    /* Get the initial time */
+    StartTime = __rdtsc();
+
+    /* Calculate the ending time */
+    EndTime = (StartTime + (KeGetPcr()->StallScaleFactor * MicroSeconds));
+
+    /* Loop until time is elapsed */
+    while (__rdtsc() < EndTime)
+        ;
+}
+
+VOID
 NTAPI 
 KeStallExecutionProcessor(
     _In_ ULONG MicroSeconds)
 {
-    TimerStallExecProc(MicroSeconds);
+  #ifdef __REACTOS__
+    if (TimerInfo.TimerPort)
+        TimerStallExecProc(MicroSeconds);
+    else
+        HalpStallExecutionProcessor(MicroSeconds);
+  #else
+        TimerStallExecProc(MicroSeconds);
+  #endif
 }
 VOID
 NTAPI
