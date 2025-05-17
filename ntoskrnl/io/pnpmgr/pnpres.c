@@ -715,6 +715,7 @@ IopMergeFilteredResourceRequirementsList(
             }
             else
             {
+                DPRINT1("IopMergeFilteredResourceRequirementsList: STATUS_INSUFFICIENT_RESOURCES\n");
                 return STATUS_INSUFFICIENT_RESOURCES;
             }
         }
@@ -728,11 +729,10 @@ IopMergeFilteredResourceRequirementsList(
         IoResources = IoResources2;
     }
 
-    NewIoResources = ExAllocatePoolWithTag(PagedPool,
-                                           IoResources->ListSize,
-                                           'uspP');
+    NewIoResources = ExAllocatePoolWithTag(PagedPool, IoResources->ListSize, 'uspP');
     if (!NewIoResources)
     {
+        DPRINT1("IopMergeFilteredResourceRequirementsList: STATUS_INSUFFICIENT_RESOURCES\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
