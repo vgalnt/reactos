@@ -1309,7 +1309,7 @@ IopTranslateAndAdjustReqDesc(
     if (ReqDescriptor->ReqEntry.Count == 0)
         ASSERT(FALSE); // IoDbgBreakPointEx();
 
-    for (ix = 0; ix < ReqDescriptor->ReqEntry.Count; ix++, NewIoDescriptors++)
+    for (ix = 0; ix < ReqDescriptor->ReqEntry.Count; ix++)
     {
         if (NewIoDescCounters[ix])
         {
@@ -1356,6 +1356,8 @@ IopTranslateAndAdjustReqDesc(
                 DbgBreakPoint(); // IoDbgBreakPointEx();
                 break;
         }
+
+        NewIoDescriptors++;
     }
 
     Descriptor = NewReqResDescs->ReqEntry.IoDescriptor;
