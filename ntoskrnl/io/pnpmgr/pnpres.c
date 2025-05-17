@@ -1186,7 +1186,7 @@ IopTranslateAndAdjustReqDesc(
     PIO_RESOURCE_DESCRIPTOR ioDescriptor;
     PIO_RESOURCE_DESCRIPTOR NewIoDescriptors;
     PIO_RESOURCE_DESCRIPTOR Descriptor;
-    PULONG NewIoDescCount;
+    PULONG NewIoDescCounters;
     ULONG NumbersOfIoDescs = 0;
     ULONG ix;
     NTSTATUS OutStatus = STATUS_SUCCESS;
@@ -1221,15 +1221,15 @@ IopTranslateAndAdjustReqDesc(
     DPRINT("IopTranslateAndAdjustReqDesc: target %p\n", target);
     RtlZeroMemory(target, (4 * ReqDescriptor->ReqEntry.Count));
 
-    NewIoDescCount = ExAllocatePoolWithTag(PagedPool, (4 * ReqDescriptor->ReqEntry.Count), 'erpP');
-    if (!NewIoDescCount)
+    NewIoDescCounters = ExAllocatePoolWithTag(PagedPool, (4 * ReqDescriptor->ReqEntry.Count), 'erpP');
+    if (!NewIoDescCounters)
     {
         DPRINT1("IopTranslateAndAdjustReqDesc: STATUS_INSUFFICIENT_RESOURCES\n");
         ExFreePoolWithTag(target, 'erpP');
         return STATUS_INSUFFICIENT_RESOURCES;
     }
-    DPRINT("IopTranslateAndAdjustReqDesc: NewIoDescCount %p\n", NewIoDescCount);
-    RtlZeroMemory(NewIoDescCount, (4 * ReqDescriptor->ReqEntry.Count));
+    DPRINT("IopTranslateAndAdjustReqDesc: NewIoDescCounters %p\n", NewIoDescCounters);
+    RtlZeroMemory(NewIoDescCounters, (4 * ReqDescriptor->ReqEntry.Count));
 
     ioDescriptor = ReqDescriptor->ReqEntry.IoDescriptor;
 
@@ -1239,12 +1239,12 @@ IopTranslateAndAdjustReqDesc(
                  TranslateResourceRequirements(TranslatorInterface->Context,
                                                ioDescriptor,
                                                ReqDescriptor->ReqEntry.PhysicalDevice,
-                                               &NewIoDescCount[ix],
+                                               &NewIoDescCounters[ix],
                                                &target[ix]);
 
-        if (NT_SUCCESS(Status) && NewIoDescCount[ix])
+        if (NT_SUCCESS(Status) && NewIoDescCounters[ix])
         {
-            NumbersOfIoDescs += NewIoDescCount[ix];
+            NumbersOfIoDescs += NewIoDescCounters[ix];
             IsTranslate = TRUE;
             //DPRINT1("TranslateResourceRequirements ret ok\n", DeviceNode->InstancePath.Buffer);
             PipDumpIoResourceDescriptor(ioDescriptor, 0);
@@ -1252,10 +1252,10 @@ IopTranslateAndAdjustReqDesc(
         else
         {
             DPRINT1("Translator failed to adjust resreqlist for %S\n", DeviceNode->InstancePath.Buffer);
-            DPRINT1("Status %X NewIoDescCount[ix] %p\n", Status, NewIoDescCount[ix]);
+            DPRINT1("Status %X NewIoDescCounters[ix] %p\n", Status, NewIoDescCounters[ix]);
             PipDumpIoResourceDescriptor(ioDescriptor, 0);
 
-            NewIoDescCount[ix] = 0;
+            NewIoDescCounters[ix] = 0;
             target[ix] = ioDescriptor;
             NumbersOfIoDescs++;
         }
@@ -1310,10 +1310,10 @@ IopTranslateAndAdjustReqDesc(
 
     for (ix = 0; ix < ReqDescriptor->ReqEntry.Count; ix++, NewIoDescriptors++)
     {
-        if (NewIoDescCount[ix])
+        if (NewIoDescCounters[ix])
         {
-            RtlCopyMemory(NewIoDescriptors, target[ix], (NewIoDescCount[ix] * sizeof(IO_RESOURCE_DESCRIPTOR)));
-            NewIoDescriptors += NewIoDescCount[ix];
+            RtlCopyMemory(NewIoDescriptors, target[ix], (NewIoDescCounters[ix] * sizeof(IO_RESOURCE_DESCRIPTOR)));
+            NewIoDescriptors += NewIoDescCounters[ix];
             continue;
         }
 
@@ -1432,7 +1432,7 @@ Exit:
 
     for (ix = 0; ix < ReqDescriptor->ReqEntry.Count; ix++)
     {
-        if (NewIoDescCount[ix])
+        if (NewIoDescCounters[ix])
         {
             ASSERT(target[ix]);
             ExFreePool(target[ix]);
@@ -1442,8 +1442,8 @@ Exit:
     if (target)
         ExFreePoolWithTag(target, 'erpP');
 
-    if (NewIoDescCount)
-        ExFreePoolWithTag(NewIoDescCount, 'erpP');
+    if (NewIoDescCounters)
+        ExFreePoolWithTag(NewIoDescCounters, 'erpP');
 
     return OutStatus;
 }
