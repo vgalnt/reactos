@@ -15448,6 +15448,25 @@ ACPICMLidWorker(
 
 NTSTATUS
 NTAPI
+ACPIInitUnicodeString(
+    _Out_ UNICODE_STRING* UnicodeString,
+    _In_ PCHAR IdString)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+ACPIInitMultiString(
+    _Out_ UNICODE_STRING* MultiString,
+    _In_ ...)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ACPIDockIrpStartDevice(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
@@ -15522,8 +15541,82 @@ ACPIDockIrpQueryID(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DocDeviceExtension;
+    PDEVICE_EXTENSION DeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    BUS_QUERY_ID_TYPE IdType;
+    UNICODE_STRING Id;
+    PVOID DataBuff;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ACPIDockIrpQueryID: %p\n", DeviceObject);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    Id.Length = 0;
+    Id.MaximumLength = 0;
+    Id.Buffer = NULL;
+
+    IdType = IoStack->Parameters.QueryId.IdType;
+
+    if (IdType == BusQueryDeviceID)
+    {
+        Status = ACPIInitUnicodeString(&Id, DeviceExtension->DeviceID);
+    }
+    else if (IdType == BusQueryHardwareIDs)
+    {
+        Status = ACPIInitMultiString(&Id, "ACPI\\DockDevice", DeviceExtension->InstanceID, "ACPI\\DockDevice", NULL);
+        if (NT_SUCCESS(Status))
+            Id.Buffer[wcslen(Id.Buffer)] = L'&';
+    }
+    else if (IdType == BusQueryCompatibleIDs)
+    {
+        Status = STATUS_NOT_SUPPORTED;
+    }
+    else if (IdType == BusQueryInstanceID)
+    {
+        Status = ACPIInitUnicodeString(&Id, DeviceExtension->InstanceID);
+    }
+    else if (IdType == BusQueryDeviceSerialNumber)
+    {
+        DocDeviceExtension = DeviceExtension->Dock.CorrospondingAcpiDevice;
+        if (!DocDeviceExtension)
+        {
+            DPRINT1("ACPIDockIrpQueryID: no corresponding extension!! (%p, %X)\n", Irp, IdType);
+            ASSERT(0);
+            Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
+            IoCompleteRequest(Irp, 0);
+            return Irp->IoStatus.Status;
+        }
+
+        Status = ACPIGet(DocDeviceExtension, 'DIU_', 0x00082016, NULL, 0, NULL, NULL, &DataBuff, NULL);
+        if (NT_SUCCESS(Status))
+            Id.Buffer = DataBuff;
+    }
+    else
+    {
+        DPRINT1("ACPIDockIrpQueryID: Unhandled Id (%p, %X)\n", Irp, IdType);
+        Status = STATUS_NOT_SUPPORTED;
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        Irp->IoStatus.Information = (ULONG_PTR)Id.Buffer;
+    }
+    else
+    {
+        DPRINT1("ACPIDockIrpQueryID: %p, %X, %X\n", Irp, IdType, Status);
+        Irp->IoStatus.Information = 0;
+    }
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    DPRINT("ACPIDockIrpQueryID: %p, %X, %X\n", Irp, IdType, Status);
+
+    return Status;
 }
 
 NTSTATUS
