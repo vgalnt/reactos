@@ -8193,6 +8193,29 @@ ACPIDetectPdoDevices(
     return STATUS_SUCCESS;
 }
 
+BOOLEAN
+__cdecl
+ACPIExtListIsMemberOfRelation(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_RELATIONS DeviceRelation)
+{
+    ULONG ix;
+
+    if (!DeviceRelation)
+        return FALSE;
+
+    if (!DeviceRelation->Count)
+        return FALSE;
+
+    for (ix = 0; ix < DeviceRelation->Count; ix++)
+    {
+        if (DeviceRelation->Objects[ix] == DeviceObject)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
 NTSTATUS
 NTAPI
 ACPIDetectDockDevices(
@@ -8261,8 +8284,8 @@ ACPIDetectDockDevices(
 
                 if (ProviderExtension->DeviceObject)
                 {
-                    DPRINT1("ACPIDetectDockDevices: FIXME\n");
-                    ASSERT(FALSE);
+                    if (!ACPIExtListIsMemberOfRelation(ProviderExtension->DeviceObject, OldDeviceRelation))
+                        DeviceCount++;
                 }
             }
         }
