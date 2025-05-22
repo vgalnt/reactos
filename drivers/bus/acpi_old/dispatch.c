@@ -15621,8 +15621,73 @@ ACPIDockIrpQueryCapabilities(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension;
+    PDEVICE_EXTENSION DocDeviceExtension;
+    PIO_STACK_LOCATION IoStack;
+    PDEVICE_CAPABILITIES Capabilities;
+    PAMLI_NAME_SPACE_OBJECT AcpiObject;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ACPIDockIrpQueryCapabilities: %p\n", DeviceObject);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    DocDeviceExtension = DeviceExtension->Dock.CorrospondingAcpiDevice;
+    if (!DocDeviceExtension)
+    {
+        DPRINT1("ACPIDockIrpQueryCapabilities: no corresponding extension!! (%p)\n", Irp);
+        ASSERT(0);
+        Status = STATUS_UNSUCCESSFUL;
+        goto Finish;
+    }
+
+    AcpiObject = DocDeviceExtension->AcpiObject;
+
+    Capabilities = IoStack->Parameters.DeviceCapabilities.Capabilities;
+
+    Capabilities->Removable = 1;
+    Capabilities->DockDevice = 1;
+    Capabilities->UniqueID = 1;
+    Capabilities->SilentInstall = 1;
+    Capabilities->RawDeviceOK = 1;
+
+    if (ACPIAmliGetNamedChild(AcpiObject, '0JE_'))
+        Capabilities->EjectSupported = 1;
+
+    if (ACPIAmliGetNamedChild(AcpiObject, '1JE_') ||
+        ACPIAmliGetNamedChild(AcpiObject, '2JE_') ||
+        ACPIAmliGetNamedChild(AcpiObject, '3JE_') ||
+        ACPIAmliGetNamedChild(AcpiObject, '4JE_'))
+    {
+        Capabilities->WarmEjectSupported = 1;
+    }
+
+    Status = ACPISystemPowerQueryDeviceCapabilities(DeviceExtension, Capabilities);
+
+    Capabilities->DeviceState[2] = PowerDeviceD3;
+    Capabilities->DeviceState[3] = PowerDeviceD3;
+    Capabilities->DeviceState[4] = PowerDeviceD3;
+
+    // ??
+    RtlCopyMemory(DeviceExtension->PowerInfo.DevicePowerMatrix,
+                  Capabilities,
+                  sizeof(DeviceExtension->PowerInfo.DevicePowerMatrix));
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIDockIrpQueryCapabilities: Could query device capabilities (%X)", Status);
+    }
+
+    DPRINT("ACPIDockIrpQueryCapabilities: finish (%p %X)\n", Irp, Status);
+
+Finish:
+
+    Irp->IoStatus.Status = Status;
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
