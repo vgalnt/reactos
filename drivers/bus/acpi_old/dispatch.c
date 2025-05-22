@@ -15452,8 +15452,37 @@ ACPIInitUnicodeString(
     _Out_ UNICODE_STRING* UnicodeString,
     _In_ PCHAR IdString)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ANSI_STRING AnsiId;
+    ULONG Length;
+
+    PAGED_CODE();
+    DPRINT("ACPIInitUnicodeString: %p\n", UnicodeString);
+
+    ASSERT(UnicodeString->Buffer == NULL);
+
+    RtlInitAnsiString(&AnsiId, IdString);
+
+    if (NlsMbCodePageTag)
+        Length = RtlxAnsiStringToUnicodeSize(&AnsiId);
+    else
+        Length = ((AnsiId.Length + 1) * sizeof(WCHAR));
+
+    if (Length > 0xFFFF)
+    {
+        DPRINT1("ACPIInitUnicodeString: STATUS_INVALID_PARAMETER_2 (%X)\n", Length);
+        return STATUS_INVALID_PARAMETER_2;
+    }
+
+    UnicodeString->MaximumLength = Length;
+
+    UnicodeString->Buffer = ExAllocatePoolWithTag(PagedPool, Length, 'SpcA');
+    if (!UnicodeString->Buffer)
+    {
+        DPRINT1("ACPIInitUnicodeString: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    return RtlAnsiStringToUnicodeString(UnicodeString, &AnsiId, FALSE);
 }
 
 NTSTATUS
