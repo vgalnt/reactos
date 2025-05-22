@@ -15490,8 +15490,89 @@ ACPIInitMultiString(
     _Out_ UNICODE_STRING* MultiString,
     _In_ ...)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    UNICODE_STRING UnicodeString;
+    ANSI_STRING AnsiString;
+    PSTR String;
+    ULONG TotalLength = 0;
+    ULONG Length;
+    NTSTATUS Status;
+    va_list va;
+
+    PAGED_CODE();
+    DPRINT("ACPIInitMultiString: %p\n", MultiString);
+
+    ASSERT(MultiString->Buffer == NULL);
+
+    va_start(va, MultiString);
+
+    String = va_arg(va, PSTR);
+    if (!String)
+    {
+        RtlInitUnicodeString(MultiString, NULL);
+        return STATUS_SUCCESS;
+    }
+
+    while (String)
+    {
+        RtlInitAnsiString(&AnsiString, String);
+
+        if (NlsMbCodePageTag)
+            Length = RtlxAnsiStringToUnicodeSize(&AnsiString);
+        else
+            Length = ((AnsiString.Length + 1) * sizeof(WCHAR));
+
+        TotalLength += Length;
+
+        String = va_arg(va, PSTR);
+    }
+
+    va_end(va);
+
+    if (!TotalLength)
+    {
+        RtlInitUnicodeString(MultiString, NULL);
+        return STATUS_SUCCESS;
+    }
+
+    TotalLength += sizeof(WCHAR);
+    MultiString->MaximumLength = TotalLength;
+
+    MultiString->Buffer = ExAllocatePoolWithTag(PagedPool, TotalLength, 'SpcA');
+    if (!MultiString->Buffer)
+    {
+        DPRINT1("ACPIInitMultiString: STATUS_INSUFFICIENT_RESOURCES\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(MultiString->Buffer, TotalLength);
+
+    UnicodeString.Buffer = MultiString->Buffer;
+    UnicodeString.MaximumLength = TotalLength;
+
+    va_start(va, MultiString);
+
+    String = va_arg(va, PSTR);
+    while (String)
+    {
+        RtlInitAnsiString(&AnsiString, String);
+
+        Status = RtlAnsiStringToUnicodeString(&UnicodeString, &AnsiString, FALSE);
+        ASSERT(NT_SUCCESS(Status));
+
+        UnicodeString.MaximumLength -= (UnicodeString.Length + sizeof(WCHAR));
+        UnicodeString.Length = 0;
+        UnicodeString.Buffer += ((UnicodeString.Length / sizeof(WCHAR)) + 1);
+
+        String = va_arg(va, PSTR);
+    }
+
+    va_end(va);
+
+    ASSERT(UnicodeString.MaximumLength == sizeof(WCHAR));
+    *UnicodeString.Buffer = 0;
+
+    MultiString->Length = MultiString->MaximumLength;
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
