@@ -15577,6 +15577,17 @@ ACPIInitMultiString(
 
 NTSTATUS
 NTAPI
+ACPIDockIrpQueryEjectRelations(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _Inout_ PDEVICE_RELATIONS* OutDeviceRelations)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 ACPIDockIrpStartDevice(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
@@ -15601,8 +15612,63 @@ ACPIDockIrpQueryDeviceRelations(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_RELATIONS DeviceRelations;
+    PIO_STACK_LOCATION IoStack;
+    DEVICE_RELATION_TYPE Type;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT("ACPIDockIrpQueryDeviceRelations: %p\n", DeviceObject);
+
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+    Type = IoStack->Parameters.QueryDeviceRelations.Type;
+
+    if (Type == BusRelations)
+    {
+        Status = Irp->IoStatus.Status;
+        goto Finish;
+    }
+
+    if (Type != EjectionRelations && Type != TargetDeviceRelation)
+    {
+        DPRINT1("ACPIDockIrpQueryDeviceRelations: (%p, %p) Unhandled Type %X\n", DeviceObject, Irp, Type);
+        Status = Irp->IoStatus.Status;
+        goto Finish;
+    }
+    
+    DeviceRelations = (PDEVICE_RELATIONS)Irp->IoStatus.Information;
+
+    if (Type == EjectionRelations)
+    {
+        Status = ACPIDockIrpQueryEjectRelations(DeviceObject, Irp, &DeviceRelations);
+    }
+    else if (Type == TargetDeviceRelation)
+    {
+        Status = ACPIBusIrpQueryTargetRelation(DeviceObject, Irp, &DeviceRelations);
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        Irp->IoStatus.Status = Status;
+        Irp->IoStatus.Information = (ULONG_PTR)DeviceRelations;
+    }
+    else if (Status != STATUS_NOT_SUPPORTED && !DeviceRelations)
+    {
+        Irp->IoStatus.Status = Status;
+        Irp->IoStatus.Information = 0;
+    }
+    else
+    {
+        Status = Irp->IoStatus.Status;
+    }
+
+Finish:
+
+    IoCompleteRequest(Irp, 0);
+
+    DPRINT("ACPIDockIrpQueryDeviceRelations: (%p, %p) Status %X\n", DeviceObject, Irp, Status);
+
+    return Status;
 }
 
 NTSTATUS
