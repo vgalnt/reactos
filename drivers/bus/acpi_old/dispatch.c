@@ -15735,8 +15735,15 @@ ACPIDockIrpQueryPnpDeviceState(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAGED_CODE();
+    DPRINT("ACPIDockIrpQueryPnpDeviceState: %p\n", DeviceObject);
+
+    Irp->IoStatus.Information |= 2;
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+
+    IoCompleteRequest(Irp, 0);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
