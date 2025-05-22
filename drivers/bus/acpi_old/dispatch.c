@@ -15592,8 +15592,79 @@ ACPIDockIrpStartDevice(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension;
+    PDEVICE_EXTENSION DocDeviceExtension;
+    ULONG DockingStation; // Indicates that the device is a docking station. 
+    ULONG DeviceStatus;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    PAGED_CODE();
+    DPRINT("ACPIDockIrpStartDevice: %p\n", DeviceObject);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+    DocDeviceExtension = DeviceExtension->Dock.CorrospondingAcpiDevice;
+
+    if (!DocDeviceExtension)
+    {
+        DPRINT1("ACPIDockIrpStartDevice: no corresponding extension!! (%p, %p)\n", DeviceObject, Irp);
+        ASSERT(0);
+        Irp->IoStatus.Status = STATUS_UNSUCCESSFUL;
+        Status = STATUS_UNSUCCESSFUL;
+        goto Finish;
+    }
+
+    if (DeviceExtension->Dock.IsolationState == 1)
+    {
+        KdDisableDebugger();
+
+        Status = ACPIGet(DocDeviceExtension, 'KCD_', 0x21040002, (PVOID)1, 4, 0, 0, (PVOID *)&DockingStation, 0);
+        if (NT_SUCCESS(Status))
+           Status = ACPIGet(DocDeviceExtension, 'ATS_', 0x20040802, 0, 0, 0, 0, (PVOID *)&DeviceStatus, 0);
+
+        KdEnableDebugger();
+
+        if (NT_SUCCESS(Status))
+        {
+            if (DocDeviceExtension->Flags & 2)
+            {
+                if (DockingStation)
+                    DPRINT1(" ACPIDockIrpStartDevice: Not present, but _DCK %X (%p, %p)\n", DockingStation, DeviceObject, Irp);
+                else
+                    DPRINT1("ACPIDockIrpStartDevice: (%p) _DCK is 0 (%p, %p)\n", DeviceObject, Irp);
+
+                Status = STATUS_UNSUCCESSFUL;
+            }
+            else if (DockingStation == 1)
+            {
+                DPRINT1("ACPIDockIrpStartDevice: Status %X (%p, %p)\n", Status, DeviceObject, Irp);
+            }
+            else
+            {
+                DPRINT1("ACPIDockIrpStartDevice: _DCK is 0 (%p, %p)\n", DeviceObject, Irp);
+            }
+        }
+
+        IoInvalidateDeviceRelations(RootDeviceExtension->PhysicalDeviceObject, 0);
+
+        if (!NT_SUCCESS(Status))
+        {
+            Irp->IoStatus.Status = Status;
+            goto Finish;
+        }
+
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000400000000, TRUE);
+    }
+
+    DeviceExtension->Dock.IsolationState = 2;
+    DeviceExtension->DeviceState = 2;
+
+    Irp->IoStatus.Status = Status;
+
+Finish:
+
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
