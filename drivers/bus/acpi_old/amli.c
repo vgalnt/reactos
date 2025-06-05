@@ -3851,6 +3851,8 @@ ProcessIncDec(
     else
         Stage = (AmliPostContext->FrameHeader.Flags & 0xF);
 
+    DPRINT("ProcessIncDec: Stage %X, AmliContext %X, Op %X, AmliPostContext %X, InStatus %X\n", Stage, AmliContext, AmliContext->Op, AmliPostContext, InStatus);
+
     giIndent++;
 
     ASSERT(AmliPostContext->FrameHeader.Signature == 'TSOP');//SIG_POST
@@ -3863,17 +3865,25 @@ ProcessIncDec(
 
         if (DataResult->DataType == 1)
         {
-            if ((ULONG)AmliPostContext->Data1 == 0x75)
+            if (AmliPostContext->Data1 == (PVOID)0x75)
             {
+                DPRINT("ProcessIncDec: Value %X\n", AmliPostContext->DataResult->DataValue);
+
                 giIndent++;
                 AmliPostContext->DataResult->DataValue = Add2Ptr(AmliPostContext->DataResult->DataValue, 1);
                 giIndent--;
+
+                DPRINT("ProcessIncDec: InStatus %X, Value %X\n", InStatus, AmliPostContext->DataResult->DataValue);
             }
             else
             {
+                DPRINT("ProcessIncDec: Value %X\n", AmliPostContext->DataResult->DataValue);
+
                 giIndent++;
                 AmliPostContext->DataResult->DataValue = Add2Ptr(AmliPostContext->DataResult->DataValue, -1);
                 giIndent--;
+
+                DPRINT("ProcessIncDec %X Value %X\n", InStatus, AmliPostContext->DataResult->DataValue);
             }
 
             if (InStatus == STATUS_SUCCESS)
@@ -3890,23 +3900,22 @@ ProcessIncDec(
         }
         else
         {
-            DPRINT1("Buffer: object %X is not integer type '%s'\n", AmliPostContext->DataResult, GetObjectTypeName(AmliPostContext->DataResult->DataType));
+            DPRINT1("ProcessIncDec: object %X is not integer type '%s'\n", AmliPostContext->DataResult, GetObjectTypeName(AmliPostContext->DataResult->DataType));
             ASSERT(FALSE);
             FreeDataBuffs(DataResult, 1);
             InStatus = STATUS_ACPI_INVALID_OBJTYPE;
+            //LogError(InStatus);
             PopFrame(AmliContext);
         }
     }
-    else if (Stage == 1)
-    {
-        ;
-    }
-    else
+    else  if (Stage == 1)
     {
         PopFrame(AmliContext);
     }
 
     giIndent--;
+
+    DPRINT("ProcessIncDec: InStatus %X, Value %X\n", InStatus, AmliPostContext->DataResult->DataValue);
 
     return InStatus;
 }
