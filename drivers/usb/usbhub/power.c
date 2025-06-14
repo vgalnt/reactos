@@ -268,11 +268,22 @@ USBH_FdoPoRequestD0Completion(IN PDEVICE_OBJECT DeviceObject,
 
 VOID
 NTAPI
-USBH_CompletePortWakeIrpsWorker(IN PUSBHUB_FDO_EXTENSION HubExtension,
-                                IN PVOID Context)
+USBH_CompletePortWakeIrpsWorker(IN PVOID Parameter)
 {
-    DPRINT1("USBH_CompletePortWakeIrpsWorker: UNIMPLEMENTED. FIXME\n");
-    DbgBreakPoint();
+    PUSBHUB_COMPLETE_PORT_WAKE_IRPS_WORKER Worker = Parameter;
+
+    PAGED_CODE();
+    DPRINT1("USBH_CompletePortWakeIrpsWorker: Worker %p\n", Worker);
+
+    USBH_HubCompleteQueuedPortWakeIrps(Worker->HubExtension, &Worker->ListIrps, Worker->NtStatus);
+
+    if (!InterlockedDecrement(&Worker->HubExtension->PendingRequestCount))
+    {
+        ASSERT(Worker->HubExtension->HubFlags & 4);//HUBFLAG_DEVICE_STOPPING
+        KeSetEvent(&Worker->HubExtension->PendingRequestEvent, EVENT_INCREMENT, FALSE);
+    }
+
+    ExFreePoolWithTag(Worker, 'BUHU');
 }
 
 NTSTATUS
