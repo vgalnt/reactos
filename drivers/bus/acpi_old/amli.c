@@ -4143,8 +4143,32 @@ StrCpyDbg(
     _In_ PCHAR Src,
     _In_ ULONG Len)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    ULONG SrcLen;
+
+    DPRINT1("StrCpyDbg: Dst '%s', Src '%s', Len %X\n", Dst, Src, Len);
+
+    giIndent++;
+
+    ASSERT(Dst != NULL);
+    ASSERT(Src != NULL);
+
+    if (Len == 0xFFFFFFFF)
+    {
+        SrcLen = StrLen(Src, 0xFFFFFFFF);
+
+        if (SrcLen < 0xFFFFFFFF)
+            Len = SrcLen;
+    }
+
+    RtlCopyMemory(Dst, Src, Len);
+
+    Dst[Len] = 0;
+
+    giIndent--;
+
+    DPRINT1("StrCpyDbg: '%s'\n", Dst);
+
+    return Dst;
 }
 
 PCHAR
