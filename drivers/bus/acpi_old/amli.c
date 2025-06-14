@@ -4065,6 +4065,14 @@ InitEvent(
     return Status;
 }
 
+VOID
+NTAPI
+AMLIDebugger(
+    _In_ BOOLEAN IsParam1)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 /* TERM HANDLERS ************************************************************/
 
 #if 1
@@ -4162,8 +4170,16 @@ NTSTATUS __cdecl Break(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT T
 }
 NTSTATUS __cdecl BreakPoint(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    DPRINT1("BreakPoint: AmliContext %X, Op %X, TermContext %x)\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+    DPRINT1("\nHit a code breakpoint.\n");
+    AMLIDebugger(FALSE);
+    giIndent--;
+
+    DPRINT1("BreakPoint: STATUS_SUCCESS\n");
+
+    return STATUS_SUCCESS;
 }
 NTSTATUS __cdecl Buffer(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
