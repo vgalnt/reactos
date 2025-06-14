@@ -4178,8 +4178,34 @@ StrCatDbg(
     _In_ PCHAR Src,
     _In_ ULONG nx)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    PCHAR DstEnd;
+    ULONG SrcLen;
+    ULONG Len;
+
+    DPRINT1("StrCatDbg: Dst '%s', Src '%s', nx %X\n", Dst, Src, nx);
+
+    giIndent++;
+
+    ASSERT(Dst != NULL);
+    ASSERT(Src != NULL);
+
+    SrcLen = StrLen(Src, nx);
+
+    if (nx == -1 || nx > SrcLen)
+        Len = SrcLen;
+    else
+        Len = nx;
+
+    DstEnd = &Dst[StrLen(Dst, 0xFFFFFFFF)];
+
+    RtlCopyMemory(DstEnd, Src, Len);
+    DstEnd[Len] = 0;
+
+    giIndent--;
+
+    DPRINT1("StrCatDbg: Dst '%s', Src '%s', nx %X\n", Dst, Src, nx);
+
+    return Dst;
 }
 
 PCHAR
