@@ -622,6 +622,24 @@ typedef struct _AMLI_DEBUGGER
     CHAR LastErrorBuff[256];
 } AMLI_DEBUGGER, *PAMLI_DEBUGGER;
 
+typedef struct _AMLI_DBG_CMD_ARG
+{
+    PCHAR Name;
+    ULONG Type;
+    ULONG Context1;
+    PVOID CmdArg;
+    ULONG Context2;
+    PVOID Handler;
+} AMLI_DBG_CMD_ARG, *PAMLI_DBG_CMD_ARG;
+
+typedef struct _AMLI_DBG_CMD
+{
+    PCHAR Cmd;
+    ULONG Context;
+    PAMLI_DBG_CMD_ARG Args;
+    PVOID Handler;
+} AMLI_DBG_CMD, *PAMLI_DBG_CMD;
+
 /* FUNCTIONS ****************************************************************/
 
 #if 1

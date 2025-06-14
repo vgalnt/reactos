@@ -505,6 +505,33 @@ USHORT PciOpRegionDisallowedRanges[4][2] =
     { 0x0000, 0x0000 }
 };
 
+/* AMLIDebugger */
+AMLI_DBG_CMD DbgCmds[22] =
+{
+    { "?", 0, NULL, NULL }, // &ArgsHelp, &DebugHelp
+    { "d", 0, NULL, NULL }, // &ArgsD, &DebugD },
+    { "db", 0, NULL, NULL }, // &ArgsDB, &DebugDB },
+    { "dw", 0, NULL, NULL }, // &ArgsDW, &DebugDW },
+    { "dd", 0, NULL, NULL }, // &ArgsDD, &DebugDD },
+    { "da", 0, NULL, NULL }, // &ArgsDA, &DebugDA },
+    { "dc", 0, NULL, NULL }, // NULL, &DebugDC },
+    { "e", 0, NULL, NULL }, // &ArgsEditMem, &DebugEditMem },
+    { "g", 1, NULL, NULL },
+    { "i", 0, NULL, NULL }, // &ArgsI, &DebugI },
+    { "iw", 0, NULL, NULL }, // &ArgsIW, &DebugIW },
+    { "id", 0, NULL, NULL }, // &ArgsID, &DebugID },
+    { "notify", 0, NULL, NULL }, // &ArgsNotify, &DebugNotify },
+    { "o", 0, NULL, NULL }, // &ArgsO, &DebugO },
+    { "ow", 0, NULL, NULL }, // &ArgsOW, &DebugOW },
+    { "od", 0, NULL, NULL }, // &ArgsOD, &DebugOD },
+    { "p", 0, NULL, NULL }, // NULL, &DebugStep },
+    { "q", 0, NULL, NULL }, // NULL, &DebugQuit },
+    { "run", 0, NULL, NULL }, // &ArgsRunMethod, &DebugRunMethod },
+    { "t", 0, NULL, NULL }, // NULL, &DebugTrace },
+    { "trace", 0, NULL, NULL }, // &ArgsSetTrace, &SetTrace },
+    { NULL, 0, NULL, NULL }
+};
+
 extern KSPIN_LOCK AcpiDeviceTreeLock;
 extern PPM_DISPATCH_TABLE PmHalDispatchTable;
 extern PACPI_INFORMATION AcpiInformation;
@@ -4070,11 +4097,136 @@ InitEvent(
 
 VOID
 __cdecl
+CheckAndEnableDebugSpew(
+    _In_ BOOLEAN IsEnableLevel)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+VOID
+__cdecl
+ConPrompt(
+    _In_ PCHAR Prompt,
+    _In_ PCHAR Response,
+    _In_ ULONG MaximumResponseLength)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+PCHAR
+__cdecl
+StrCpyDbg(
+    _Out_ PCHAR Dst,
+    _In_ PCHAR Src,
+    _In_ ULONG Len)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PCHAR
+__cdecl
+StrCatDbg(
+    _In_ PCHAR Dst,
+    _In_ PCHAR Src,
+    _In_ ULONG nx)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PCHAR
+__cdecl
+StrChrDbg(
+    _In_ PCHAR pszStr,
+    _In_ CHAR Char)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+PCHAR
+__cdecl
+StrTok(
+    _In_ PCHAR Str,
+    _In_ PCHAR Sep)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return NULL;
+}
+
+BOOLEAN
+__cdecl
+IsCommandInAMLIExtension(
+    _In_ PCHAR DbgString)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return FALSE;
+}
+
+ULONG
+__cdecl
+DbgExecuteCmd(
+    _In_ PAMLI_DBG_CMD Cmds,
+    _In_ PCHAR DbgString)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return 0;
+}
+
+VOID
+__cdecl
 Debugger(
     _In_ PAMLI_DBG_CMD Cmds,
     _In_ PCHAR InDbgString)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PCHAR DbgString;
+    CHAR DbgBuffer2[0x100];
+    CHAR DbgBuffer1[0x100];
+    CHAR Command[0x10C];
+
+    DPRINT1("Debugger: %X, '%s'\n", Cmds, InDbgString);
+
+    while (TRUE)
+    {
+        while (TRUE)
+        {
+            do
+            {
+                DPRINT1("Debugger: %X, '%s'\n", Cmds, InDbgString);
+
+                ConPrompt(InDbgString, DbgBuffer1, 0x100);
+                StrCpyDbg(DbgBuffer2, DbgBuffer1, 0xFFFFFFFF);
+
+                DbgString = StrTok(DbgBuffer1, pszTokenSeps);
+                if (DbgString)
+                {
+                    DPRINT1("Debugger: %X, '%s'\n", Cmds, DbgString);
+                }
+            }
+            while (!DbgString);
+
+            DPRINT1("Debugger: %X, '%s'\n", Cmds, DbgString);
+
+            if (!IsCommandInAMLIExtension(DbgString))
+                break;
+
+            /* AMLI ext debug command */
+
+            RtlZeroMemory(Command, sizeof(Command));
+
+            StrCpyDbg(Command, "!AMLI ", 0xFFFFFFFF);
+            StrCatDbg(Command, DbgBuffer2, 0xFFFFFFFF);
+            StrCatDbg(Command, " ; g", 0xFFFFFFFF);
+
+            DbgCommandString("ACPI", Command);
+        }
+        
+        DPRINT1("Debugger: %X, '%s'\n", Cmds, DbgString);
+
+        if (DbgExecuteCmd(Cmds, DbgString) == 0xFFFFFFFF)
+            break;
+    }
 }
 
 VOID
