@@ -4100,7 +4100,19 @@ __cdecl
 CheckAndEnableDebugSpew(
     _In_ BOOLEAN IsEnableLevel)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    if (KeGetCurrentIrql() >= DISPATCH_LEVEL)
+        return;
+
+    if (IsEnableLevel)
+    {
+        gDebugger.Flags |= 0x20000;
+        DbgSetDebugFilterState(0x19, 0xFFFFFFFF, 1);
+    }
+    else
+    {
+        DbgSetDebugFilterState(0x19, 0xFFFFFFFF, 0);
+        gDebugger.Flags &= ~0x20000;
+    }
 }
 
 VOID
