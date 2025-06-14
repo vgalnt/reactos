@@ -569,6 +569,59 @@ typedef struct _AMLI_SLEEP_QUEUE_CONTEXT
     ULONG Unknown;
 } AMLI_SLEEP_QUEUE_CONTEXT, *PAMLI_SLEEP_QUEUE_CONTEXT;
 
+typedef struct _AMLI_OBJECT_SYMBOL
+{
+    struct _AMLI_OBJECT_SYMBOL* Prev;
+    struct _AMLI_OBJECT_SYMBOL* Next;
+    PCHAR Op;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+} AMLI_OBJECT_SYMBOL, *PAMLI_OBJECT_SYMBOL;
+
+typedef struct _AMLI_BREAK_POINT
+{
+    ULONG Flags;
+    PCHAR BrkPt;
+} AMLI_BREAK_POINT, *PAMLI_BREAK_POINT;
+
+typedef struct _AMLI_EVENT_LOG
+{
+    ULONG Event;
+    ULONGLONG Time;
+    ULONG Data1;
+    ULONG Data2;
+    ULONG Data3;
+    ULONG Data4;
+    ULONG Data5;
+    ULONG Data6;
+    ULONG Data7;
+} AMLI_EVENT_LOG, *PAMLI_EVENT_LOG;
+
+typedef struct _AMLI_EVENT_HANDLE
+{
+    LONG (__cdecl* Handler)();
+    ULONG Param;
+} AMLI_EVENT_HANDLE, *PAMLI_EVENT_HANDLE;
+
+typedef struct _AMLI_DEBUGGER
+{
+    ULONG Flags;
+    LONG PrintLevel;
+    ULONG DumpDataAddr;
+    PCHAR UnAsm;
+    PCHAR UnAsmEnd;
+    PCHAR BlkBegin;
+    PCHAR BlkEnd;
+    PAMLI_OBJECT_SYMBOL SymbolList;
+    AMLI_BREAK_POINT BrkPts[10];
+    ULONG LogSize;
+    ULONG LogIndex;
+    PAMLI_EVENT_LOG EventLog;
+    AMLI_EVENT_HANDLE ConMessage;
+    AMLI_EVENT_HANDLE ConPrompt;
+    LONG LastError;
+    CHAR LastErrorBuff[256];
+} AMLI_DEBUGGER, *PAMLI_DEBUGGER;
+
 /* FUNCTIONS ****************************************************************/
 
 #if 1

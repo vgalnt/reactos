@@ -15,6 +15,7 @@
 PAMLI_NAME_SPACE_OBJECT gpnsNameSpaceRoot;
 PAMLI_RS_ACCESS_HANDLER gpRSAccessHead;
 PAMLI_HEAP gpheapGlobal;
+AMLI_DEBUGGER gDebugger;
 
 AMLI_EVHANDLE ghNotify;
 AMLI_EVHANDLE ghFatal;
@@ -4065,12 +4066,38 @@ InitEvent(
     return Status;
 }
 
+/* AMLIDebugger */
+
+VOID
+__cdecl
+Debugger(
+    _In_ PAMLI_DBG_CMD Cmds,
+    _In_ PCHAR InDbgString)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
 VOID
 NTAPI
 AMLIDebugger(
     _In_ BOOLEAN IsParam1)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    if (gDebugger.Flags & 4)
+    {
+        //ConPrintf("\nRe-entering AML debugger is not allowed.\nType 'g' to go back to the AML debugger.\n");
+        DPRINT1("AMLIDebugger: Re-entering AML debugger. FIXME! DbgBreakPoint() (%X)\n", gDebugger.Flags);
+        DbgBreakPoint();
+        return;
+    }
+
+    if (IsParam1)
+        gDebugger.Flags = ((gDebugger.Flags | 2) | 1);
+    else
+        gDebugger.Flags = ((gDebugger.Flags & ~2) | 1);
+
+    Debugger(DbgCmds, "\nAMLI(? for help)-> ");
+
+    gDebugger.Flags &= ~3;
 }
 
 /* TERM HANDLERS ************************************************************/
@@ -11709,6 +11736,14 @@ AMLIAsyncEvalObject(
     return Status;
 }
 
+VOID
+__cdecl
+SetLogSize(
+    _In_ LONG LogSize)
+{
+    UNIMPLEMENTED_ONCE;
+}
+
 NTSTATUS
 __cdecl
 AMLIInitialize(
@@ -11756,6 +11791,9 @@ AMLIInitialize(
         gdwcCTObjsMax = 0x400;
     else
         gdwcCTObjsMax = MaxContextsDepth;
+
+    gDebugger.Flags |= 0x8000;
+    SetLogSize(0xCC);
 
     KeInitializeSpinLock(&gdwGHeapSpinLock);
     KeInitializeSpinLock(&gdwGContextSpinLock);
