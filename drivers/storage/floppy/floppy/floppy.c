@@ -185,8 +185,9 @@ WaitForControllerInterrupt(PCONTROLLER_INFO ControllerInfo, PLARGE_INTEGER Timeo
     return Status;
 }
 
-static DRIVER_DISPATCH CreateClose;
-static NTSTATUS NTAPI CreateClose(PDEVICE_OBJECT DeviceObject,
+//static DRIVER_DISPATCH CreateClose;
+//static
+NTSTATUS NTAPI CreateClose(PDEVICE_OBJECT DeviceObject,
                                   PIRP Irp)
 /*
  * FUNCTION: Dispatch function called for Create and Close IRPs
@@ -373,7 +374,8 @@ ResetChangeFlag(PDRIVE_INFO DriveInfo)
 }
 
 
-static VOID NTAPI
+//static
+VOID NTAPI
 Unload(PDRIVER_OBJECT DriverObject)
 /*
  * FUNCTION: Unload the driver from memory
@@ -811,7 +813,8 @@ InitController(PCONTROLLER_INFO ControllerInfo)
 }
 
 
-static BOOLEAN NTAPI
+//static
+BOOLEAN NTAPI
 AddControllers(PDRIVER_OBJECT DriverObject)
 /*
  * FUNCTION: Called on initialization to find our controllers and build device and controller objects for them
@@ -1050,7 +1053,8 @@ SignalMediaChanged(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 }
 
 
-static VOID NTAPI
+//static
+VOID NTAPI
 QueueThread(PVOID Context)
 /*
  * FUNCTION: Thread that manages the queue and dispatches any queued requests
@@ -1130,6 +1134,7 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
  *     STATUS_NO_SUCH_DEVICE if we didn't find even one drive
  *     STATUS_UNSUCCESSFUL otherwise
  */
+#if 0
 {
     HANDLE ThreadHandle;
 
@@ -1212,3 +1217,10 @@ DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 
     return STATUS_SUCCESS;
 }
+#else
+{
+    /* Disable driver due to HAL error (dma). */
+    UNIMPLEMENTED;
+    return STATUS_NOT_IMPLEMENTED;
+}
+#endif
