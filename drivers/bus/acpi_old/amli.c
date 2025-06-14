@@ -4211,11 +4211,25 @@ StrCatDbg(
 PCHAR
 __cdecl
 StrChrDbg(
-    _In_ PCHAR pszStr,
+    _In_ PCHAR Str,
     _In_ CHAR Char)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return NULL;
+    DPRINT1("StrChrDbg: Str '%s', Char '%c'\n", Str, Char);
+
+    giIndent++;
+
+    ASSERT(Str != NULL);
+
+    while (*Str != Char && *Str)
+        Str++;
+
+    if (*Str != Char)
+        Str = NULL;
+
+    giIndent--;
+
+    DPRINT1("StrChrDbg: '%s'\n", Str);
+    return Str;
 }
 
 PCHAR
