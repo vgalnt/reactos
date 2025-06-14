@@ -4122,7 +4122,18 @@ ConPrompt(
     _In_ PCHAR Response,
     _In_ ULONG MaximumResponseLength)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    if (gDebugger.Flags & 0xFFFDFFFF)
+        CheckAndEnableDebugSpew(TRUE);
+
+    if (gDebugger.ConPrompt.Handler)
+    {
+        //gDebugger.ConPrompt.Handler(Prompt, Response, MaximumResponseLength, gDebugger.ConPrompt.Param);
+        UNIMPLEMENTED_DBGBREAK();
+    }
+    else
+    {
+        DbgPrompt(Prompt, Response, MaximumResponseLength);
+    }
 }
 
 PCHAR
