@@ -506,6 +506,9 @@ USHORT PciOpRegionDisallowedRanges[4][2] =
 };
 
 /* AMLIDebugger */
+PCHAR SavedPtr = NULL;
+PCHAR pszTokenSeps = " \t\n";
+
 AMLI_DBG_CMD DbgCmds[22] =
 {
     { "?", 0, NULL, NULL }, // &ArgsHelp, &DebugHelp
@@ -4440,7 +4443,7 @@ NTSTATUS __cdecl BreakPoint(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONT
 
     giIndent++;
     DPRINT1("\nHit a code breakpoint.\n");
-    AMLIDebugger(FALSE);
+    //AMLIDebugger(FALSE);
     giIndent--;
 
     DPRINT1("BreakPoint: STATUS_SUCCESS\n");
