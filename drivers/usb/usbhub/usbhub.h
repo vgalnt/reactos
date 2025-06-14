@@ -649,6 +649,11 @@ USBH_CheckIdleDeferred(
 
 NTSTATUS
 NTAPI
+USBH_FdoSubmitWaitWakeIrp(
+  IN PUSBHUB_FDO_EXTENSION HubExtension);
+
+NTSTATUS
+NTAPI
 USBH_CheckDeviceLanguage(
   IN PDEVICE_OBJECT DeviceObject,
   IN USHORT LanguageId);

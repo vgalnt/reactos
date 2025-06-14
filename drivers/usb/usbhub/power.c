@@ -828,10 +828,10 @@ USBH_PdoWaitWake(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
 
     IoReleaseCancelSpinLock(Irql);
 
-    if (!(HubExtension->HubFlags & 0x80))
+    if (WaitWakeCouter == 1 && !(HubExtension->HubFlags & 0x80))
     {
-        DPRINT1("USBH_PdoWaitWake: %p, %X\n", PortExtension, WaitWakeCouter);
-        UNIMPLEMENTED_DBGBREAK();
+        DPRINT1("USBH_PdoWaitWake: %p, %p\n", HubExtension, PortExtension);
+        USBH_FdoSubmitWaitWakeIrp(HubExtension);
     }
 
     return STATUS_PENDING;
