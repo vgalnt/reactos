@@ -292,45 +292,54 @@ USBH_FdoWWIrpIoCompletion(IN PDEVICE_OBJECT DeviceObject,
                           IN PIRP Irp,
                           IN PVOID Context)
 {
+    PUSBHUB_COMPLETE_PORT_WAKE_IRPS_WORKER Worker;//WorkItemCompletePortIrps
     PUSBHUB_FDO_EXTENSION HubExtension;
     NTSTATUS Status;
     KIRQL OldIrql;
     POWER_STATE PowerState;
     PIRP WakeIrp;
 
-    DPRINT("USBH_FdoWWIrpIoCompletion: DeviceObject - %p, Irp - %p\n",
-            DeviceObject,
-            Irp);
+    DPRINT("USBH_FdoWWIrpIoCompletion: %p, %p\n", DeviceObject, Irp);
 
     HubExtension = Context;
-
     Status = Irp->IoStatus.Status;
 
     IoAcquireCancelSpinLock(&OldIrql);
 
     HubExtension->HubFlags &= ~USBHUB_FDO_FLAG_PENDING_WAKE_IRP;
 
-    WakeIrp = InterlockedExchangePointer((PVOID *)&HubExtension->PendingWakeIrp,
-                                         NULL);
+    WakeIrp = InterlockedExchangePointer((PVOID *)&HubExtension->PendingWakeIrp, NULL);
 
     if (!InterlockedDecrement(&HubExtension->PendingRequestCount))
-    {
-        KeSetEvent(&HubExtension->PendingRequestEvent,
-                   EVENT_INCREMENT,
-                   FALSE);
-    }
+        KeSetEvent(&HubExtension->PendingRequestEvent, EVENT_INCREMENT, FALSE);
 
     IoReleaseCancelSpinLock(OldIrql);
 
-    DPRINT("USBH_FdoWWIrpIoCompletion: Status - %lX\n", Status);
-
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("USBH_FdoWWIrpIoCompletion: DbgBreakPoint() \n");
-        DbgBreakPoint();
+        DPRINT1("USBH_FdoWWIrpIoCompletion: Status %X\n", Status);
+
+        Worker = ExAllocatePoolWithTag(NonPagedPool, sizeof(*Worker), 'BUHU');
+        if (Worker)
+        {
+            Worker->NtStatus = Status;
+            Worker->HubExtension = HubExtension;
+
+            USBH_HubQueuePortWakeIrps(HubExtension, &Worker->ListIrps);
+
+            Worker->WorkItem.List.Flink = NULL;
+            Worker->WorkItem.WorkerRoutine = USBH_CompletePortWakeIrpsWorker;
+            Worker->WorkItem.Parameter = Worker;
+
+            InterlockedIncrement(&HubExtension->PendingRequestCount);
+
+            ExQueueWorkItem(&Worker->WorkItem, CriticalWorkQueue);
+        }
     }
     else
     {
+        DPRINT("USBH_FdoWWIrpIoCompletion: Status %X\n", Status);
+
         PowerState.DeviceState = PowerDeviceD0;
 
         HubExtension->HubFlags |= USBHUB_FDO_FLAG_WAKEUP_START;
@@ -349,17 +358,13 @@ USBH_FdoWWIrpIoCompletion(IN PDEVICE_OBJECT DeviceObject,
     if (!WakeIrp)
     {
         if (!InterlockedExchange(&HubExtension->FdoWaitWakeLock, 1))
-        {
             Status = STATUS_MORE_PROCESSING_REQUIRED;
-        }
     }
 
-    DPRINT("USBH_FdoWWIrpIoCompletion: Status - %lX\n", Status);
+    DPRINT("USBH_FdoWWIrpIoCompletion: Status %X\n", Status);
 
     if (Status != STATUS_MORE_PROCESSING_REQUIRED)
-    {
         PoStartNextPowerIrp(Irp);
-    }
 
     return Status;
 }
