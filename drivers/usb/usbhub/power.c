@@ -1164,6 +1164,114 @@ Finish:
 
 NTSTATUS
 NTAPI
+USBH_SetPowerD3(IN PIRP Irp,
+                IN PUSBHUB_PORT_PDO_EXTENSION PortExtension)
+{
+    PUSBHUB_FDO_EXTENSION HubExtension;
+    PIRP IdleNotificationIrp;
+    PIRP PdoWaitWakeIrp = NULL;
+    PIRP PendingWakeIrp = NULL;
+    USHORT PortNumber;
+    KIRQL Irql;
+
+    DPRINT1("USBH_SetPowerD3: PdoSetPower D3 (%X)\n", PortExtension->CurrentPowerState.DeviceState);
+
+    HubExtension = PortExtension->HubExtension;
+    PortNumber = PortExtension->PortNumber;
+
+    if (PortExtension->CurrentPowerState.DeviceState == PowerDeviceD3)
+    {
+        DPRINT1("USBH_SetPowerD3: PDO %p is already in D3\n", PortExtension->Common.SelfDevice);
+        goto Finish;
+    }
+
+    PortExtension->CurrentPowerState.DeviceState = PowerDeviceD3;
+    IoAcquireCancelSpinLock(&Irql);
+
+    IdleNotificationIrp = PortExtension->IdleNotificationIrp;
+    if (IdleNotificationIrp)
+    {
+        PortExtension->IdleNotificationIrp = NULL;
+        PortExtension->PortPdoFlags &= ~0x400000;
+
+        IoSetCancelRoutine(IdleNotificationIrp, NULL);
+
+        DPRINT1("USBH_SetPowerD3: PDO %p going to D3, failing idle notification request IRP %p\n",
+                PortExtension->Common.SelfDevice, IdleNotificationIrp);
+    }
+
+    if (PortExtension->PortPdoFlags & 0x20)
+    {
+        DPRINT1("USBH_SetPowerD3: Power state is incompatible with wakeup (%X)\n", PortExtension->PortPdoFlags);
+
+        PdoWaitWakeIrp = PortExtension->PdoWaitWakeIrp;
+        if (PdoWaitWakeIrp)
+        {
+            PortExtension->PdoWaitWakeIrp = NULL;
+            PortExtension->PortPdoFlags &= ~0x20;
+
+            DPRINT1("USBH_SetPowerD3: %X, %X\n", PdoWaitWakeIrp, PdoWaitWakeIrp->Cancel);
+
+            if (PdoWaitWakeIrp->Cancel || IoSetCancelRoutine(PdoWaitWakeIrp, NULL) == NULL)
+            {
+                PdoWaitWakeIrp = NULL;
+
+                DPRINT1("USBH_SetPowerD3: %X\n", HubExtension->PendingRequestCount);
+
+                if (!InterlockedDecrement(&HubExtension->PendingRequestCount))
+                {
+                    ASSERT(HubExtension->HubFlags & 4);//HUBFLAG_DEVICE_STOPPING
+                    KeSetEvent(&HubExtension->PendingRequestEvent, EVENT_INCREMENT, FALSE);
+                }
+            }
+
+            DPRINT1("USBH_SetPowerD3: %X\n", HubExtension->WaitWakeCouter);
+
+            if (!InterlockedDecrement(&HubExtension->WaitWakeCouter))
+            {
+                DPRINT1("USBH_SetPowerD3: %X\n", HubExtension->PendingWakeIrp);
+
+                PendingWakeIrp = HubExtension->PendingWakeIrp;
+                if (PendingWakeIrp)
+                    HubExtension->PendingWakeIrp = NULL;
+            }
+        }
+    }
+
+    IoReleaseCancelSpinLock(Irql);
+
+    if (IdleNotificationIrp)
+    {
+        IdleNotificationIrp->IoStatus.Status = STATUS_POWER_STATE_INVALID;
+        IoCompleteRequest(IdleNotificationIrp, IO_NO_INCREMENT);
+    }
+
+    if (PdoWaitWakeIrp)
+        USBH_CompletePowerIrp(HubExtension, PdoWaitWakeIrp, STATUS_POWER_STATE_INVALID);
+
+    if (PendingWakeIrp)
+        USBH_HubCancelWakeIrp(HubExtension, PendingWakeIrp);
+
+    USBH_SyncSuspendPort(HubExtension, PortNumber);
+
+    PortExtension->PortPdoFlags |= 0x100;
+    PortExtension->OldDeviceDescriptor = PortExtension->DeviceDescriptor;
+
+    DPRINT1("USBH_SetPowerD3L: Setting HU pdo(%p) to D3, STATUS_SUCCESS\n", PortExtension->Common.SelfDevice);
+
+Finish:
+
+    InterlockedDecrement(&PortExtension->PendingDevicePoRequest);
+
+    DPRINT1("USBH_SetPowerD3L: Port %X, DPwrIrp %p, TransitCount %X\n", PortExtension, Irp, PortExtension->PendingDevicePoRequest);
+
+    USBH_CompletePowerIrp(HubExtension, Irp, STATUS_SUCCESS);
+
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS
+NTAPI
 USBH_PdoSetPower(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
                  IN PIRP Irp)
 {
@@ -1207,9 +1315,7 @@ USBH_PdoSetPower(IN PUSBHUB_PORT_PDO_EXTENSION PortExtension,
         return USBH_SetPowerD1orD2(Irp, PortExtension);
 
     if (DeviceState == PowerDeviceD3)
-    {
-        UNIMPLEMENTED_DBGBREAK();
-    }
+        return USBH_SetPowerD3(Irp, PortExtension);
 
     InterlockedDecrement(&PortExtension->PendingDevicePoRequest);
 
