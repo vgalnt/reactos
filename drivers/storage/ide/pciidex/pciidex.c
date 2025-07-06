@@ -3852,13 +3852,15 @@ PciIdeChannelTransferModeSelect(
 
     Status = STATUS_SUCCESS;
 
+    XferMode->DeviceTransferModeSelected[0] = XferMode->DeviceTransferModeCurrent[0];
+
     if (!(RawStatus & 0x20))
-        XferMode->DeviceTransferModeSelected[0] = XferMode->DeviceTransferModeCurrent[0] & 0x1F;
+        XferMode->DeviceTransferModeSelected[0] &= 0x1F;
+
+    XferMode->DeviceTransferModeSelected[1] = XferMode->DeviceTransferModeCurrent[1];
 
     if (!(RawStatus & 0x40))
-
-    if (!(RawStatus & 0x40))
-        XferMode->DeviceTransferModeSelected[1] = XferMode->DeviceTransferModeCurrent[1] & 0x1F;
+        XferMode->DeviceTransferModeSelected[1] &= 0x1F;
 
     for (ix = 0; ix < 2; ix++)
     {
