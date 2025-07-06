@@ -4174,7 +4174,7 @@ ChannelQueryResources(
     CmResource->Count = 1;
     Status = STATUS_SUCCESS;
 
-    CmResource->List[0].PartialResourceList.Count = 0;
+    CmResource->List[0].PartialResourceList.Count = Count = 0;
     CmResource->List[0].InterfaceType = 1;
     CmResource->List[0].BusNumber = 0;
 
@@ -4182,7 +4182,6 @@ ChannelQueryResources(
     {
         if (!FdoExtension->IsCmdBlockResource[0])
         {
-            Count = CmResource->List[0].PartialResourceList.Count;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 0x11;
@@ -4192,7 +4191,6 @@ ChannelQueryResources(
 
         if (!FdoExtension->IsCtrlBlockResource[0])
         {
-            Count = CmResource->List[0].PartialResourceList.Count;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 0x11;
@@ -4202,7 +4200,6 @@ ChannelQueryResources(
 
         if (!FdoExtension->IsIntResource[0])
         {
-            Count = CmResource->List[0].PartialResourceList.Count;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 2;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 1;
@@ -4215,7 +4212,6 @@ ChannelQueryResources(
     {
         if (!FdoExtension->IsCmdBlockResource[1])
         {
-            Count = CmResource->List[0].PartialResourceList.Count;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 0x11;
@@ -4225,7 +4221,6 @@ ChannelQueryResources(
 
         if (!FdoExtension->IsCtrlBlockResource[1])
         {
-            Count = CmResource->List[0].PartialResourceList.Count;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 0x11;
@@ -4235,7 +4230,6 @@ ChannelQueryResources(
 
         if (!FdoExtension->IsIntResource[1])
         {
-            Count = CmResource->List[0].PartialResourceList.Count;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Type = 2;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].ShareDisposition = 1;
             CmResource->List[0].PartialResourceList.PartialDescriptors[Count].Flags = 1;
@@ -4245,11 +4239,13 @@ ChannelQueryResources(
         }
     }
 
-    if (!CmResource->List[0].PartialResourceList.Count)
+    if (!Count)
     {
         ExFreePoolWithTag(CmResource, 'XedI');
         CmResource = NULL;
     }
+
+    CmResource->List[0].PartialResourceList.Count = Count;
 
 Exit:
 
