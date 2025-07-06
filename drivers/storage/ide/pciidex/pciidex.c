@@ -3835,7 +3835,7 @@ PciIdeChannelTransferModeSelect(
     Status = STATUS_UNSUCCESSFUL;
     FdoExtension = PdoExtension->FdoExtension;
 
-    if (PdoExtension->DmaDetectionLevel)
+    if (PdoExtension->DmaDetectionLevel != 0)
     {
         XferMode->Channel = PdoExtension->PdoIndex;
         XferMode->EnableUDMA66 = PdoExtension->FdoExtension->EnableUDMA66;
@@ -3847,10 +3847,10 @@ PciIdeChannelTransferModeSelect(
     DPRINT("PciIdeChannelTransferModeSelect: RawStatus=%x, current[0]=%x, current[1]=%x\n",
            RawStatus, XferMode->DeviceTransferModeCurrent[0], XferMode->DeviceTransferModeCurrent[1]);
 
-    if (Status >= 0)
+    if (NT_SUCCESS(Status))
         return Status;
 
-    Status = 0;
+    Status = STATUS_SUCCESS;
 
     if (!(RawStatus & 0x20))
         XferMode->DeviceTransferModeSelected[0] = XferMode->DeviceTransferModeCurrent[0] & 0x1F;
@@ -3863,10 +3863,10 @@ PciIdeChannelTransferModeSelect(
     for (ix = 0; ix < 2; ix++)
     {
         DPRINT("PciIdeChannelTransferModeSelect: xfermode[%d]=%x\n",
-               ix, PdoExtension->FdoExtension->ControllerProperties.SupportedTransferMode[0][ix + 2 * PdoExtension->PdoIndex]);
+               ix, PdoExtension->FdoExtension->ControllerProperties.SupportedTransferMode[PdoExtension->PdoIndex][ix]);
 
-        if (FdoExtension->ControllerProperties.DefaultPIO != 1 || XferMode->DeviceTransferModeSelected[-0x411u] & 0x80)
-            XferMode->DeviceTransferModeSelected[ix] &= (FdoExtension->ControllerProperties.SupportedTransferMode[0][ix + 2 * PdoExtension->PdoIndex]);
+        if (FdoExtension->ControllerProperties.DefaultPIO != 1 || (XferMode->UserChoiceTransferMode[ix] & 0x80000000))
+            XferMode->DeviceTransferModeSelected[ix] &= FdoExtension->ControllerProperties.SupportedTransferMode[PdoExtension->PdoIndex][ix];
         else
             XferMode->DeviceTransferModeSelected[ix] &= 0x1F;
     }
