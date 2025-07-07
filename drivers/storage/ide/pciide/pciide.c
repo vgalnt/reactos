@@ -68,6 +68,52 @@ PciIdeUseDma(
     return 1;
 }
 
+NTSTATUS
+NTAPI
+PciIdeUdmaModesSupported(
+    _In_ IDENTIFY_DATA IdentifyData,
+    _Out_ ULONG* OutBestXferMode,
+    _Out_ ULONG* OutXferMode)
+{
+    ULONG BestXferMode;
+    ULONG XferMode;
+    ULONG TempMode;
+
+    DPRINT("PciIdeUdmaModesSupported()\n");
+
+    if (!(IdentifyData.TranslationFieldsValid & 4))
+    {
+        DPRINT("PciIdeUdmaModesSupported: TranslationFieldsValid %X\n", IdentifyData.TranslationFieldsValid);
+        return STATUS_SUCCESS;
+    }
+
+    if (IdentifyData.UltraDMASupport)
+    {
+        TempMode = IdentifyData.UltraDMASupport;
+        ASSERT(TempMode);
+
+        for (BestXferMode = 0; TempMode; BestXferMode++)
+            TempMode >>= 1;
+
+        *OutBestXferMode = (BestXferMode - 1);
+        DPRINT("PciIdeUdmaModesSupported: *OutBestXferMode %X\n", *OutBestXferMode);
+    }
+
+    if (IdentifyData.UltraDMAActive)
+    {
+        TempMode = IdentifyData.UltraDMAActive;
+        ASSERT(TempMode);
+
+        for (XferMode = 0; TempMode; XferMode++)
+            TempMode >>= 1;
+
+        *OutXferMode = (XferMode - 1);
+        DPRINT("PciIdeUdmaModesSupported: *OutXferMode %X\n", *OutXferMode);
+    }
+
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS NTAPI
 PciIdeGetControllerProperties(
     IN PVOID DeviceExtension,
