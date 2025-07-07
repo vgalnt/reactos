@@ -56,21 +56,6 @@ PciIdeSyncAccessRequired(
     return FALSE; /* FIXME */
 }
 
-NTSTATUS NTAPI
-PciIdeTransferModeSelect(
-    IN PVOID DeviceExtension,
-    IN PPCIIDE_TRANSFER_MODE_SELECT XferMode)
-{
-    ULONG i;
-
-    DPRINT1("PciIdeTransferModeSelect(%p %p)\n", DeviceExtension, XferMode);
-
-    for (i = 0; i < MAX_IDE_DEVICE; i++)
-        XferMode->DevicePresent[i] = FALSE; /* FIXME */
-
-    return STATUS_SUCCESS;
-}
-
 ULONG NTAPI
 PciIdeUseDma(
     IN PVOID DeviceExtension,
@@ -93,7 +78,7 @@ PciIdeGetControllerProperties(
 
     ControllerProperties->PciIdeChannelEnabled = PciIdeChannelEnabled;
     ControllerProperties->PciIdeSyncAccessRequired = PciIdeSyncAccessRequired;
-    ControllerProperties->PciIdeTransferModeSelect = PciIdeTransferModeSelect;
+    ControllerProperties->PciIdeTransferModeSelect = NULL;
     ControllerProperties->IgnoreActiveBitForAtaDevice = FALSE;
     ControllerProperties->AlwaysClearBusMasterInterrupt = TRUE;
     ControllerProperties->PciIdeUseDma = PciIdeUseDma;
