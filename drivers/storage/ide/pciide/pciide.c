@@ -114,32 +114,92 @@ PciIdeUdmaModesSupported(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS NTAPI
+NTSTATUS
+NTAPI
 PciIdeGetControllerProperties(
-    IN PVOID DeviceExtension,
-    OUT PIDE_CONTROLLER_PROPERTIES ControllerProperties)
+    _In_ PVOID InDeviceExtension,
+    _Out_ IDE_CONTROLLER_PROPERTIES* OutProperties)
 {
-    if (ControllerProperties->Size != sizeof(IDE_CONTROLLER_PROPERTIES))
-        return STATUS_REVISION_MISMATCH;
+    PPCIIDE_CONTROLLER_EXTENSION DeviceExtension = InDeviceExtension;
+    USHORT DataBuffer;
+    USHORT DataMask;
+    ULONG Mode;
+    ULONG ix;
+    ULONG jx;
+    NTSTATUS Status;
 
-    ControllerProperties->PciIdeChannelEnabled = PciIdeChannelEnabled;
-    ControllerProperties->PciIdeSyncAccessRequired = PciIdeSyncAccessRequired;
-    ControllerProperties->PciIdeTransferModeSelect = NULL;
-    ControllerProperties->IgnoreActiveBitForAtaDevice = FALSE;
-    ControllerProperties->AlwaysClearBusMasterInterrupt = TRUE;
-    ControllerProperties->PciIdeUseDma = PciIdeUseDma;
-    ControllerProperties->AlignmentRequirement = 1;
-    ControllerProperties->DefaultPIO = 0; /* FIXME */
-    ControllerProperties->PciIdeUdmaModesSupported = NULL; /* optional */
-    
-    ControllerProperties->SupportedTransferMode[0][0] =
-    ControllerProperties->SupportedTransferMode[0][1] =
-    ControllerProperties->SupportedTransferMode[1][0] =
-    ControllerProperties->SupportedTransferMode[1][1] =
-        PIO_MODE0 | PIO_MODE1 | PIO_MODE2 | PIO_MODE3 | PIO_MODE4 |
-        SWDMA_MODE0 | SWDMA_MODE1 | SWDMA_MODE2 |
-        MWDMA_MODE0 | MWDMA_MODE1 | MWDMA_MODE2 |
-        UDMA_MODE0 | UDMA_MODE1 | UDMA_MODE2 | UDMA_MODE3 | UDMA_MODE4;
+    DPRINT("PciIdeGetControllerProperties: %p\n", InDeviceExtension);
+
+    if (OutProperties->Size != sizeof(IDE_CONTROLLER_PROPERTIES))
+    {
+        DPRINT1("PciIdeGetControllerProperties: STATUS_REVISION_MISMATCH\n");
+        return STATUS_REVISION_MISMATCH;
+    }
+
+    Status = PciIdeXGetBusData(DeviceExtension, &DeviceExtension->PciConfig, 0, sizeof(DeviceExtension->PciConfig));
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PciIdeGetControllerProperties: Status %X\n", Status);
+        return Status;
+    }
+
+    if ((DeviceExtension->PciConfig.ProgIf & 0x80) && (DeviceExtension->PciConfig.Command & 4))
+        Mode = 0x7FFFFFFF;
+    else
+        Mode = 0x1F;
+
+    if (DeviceExtension->PciConfig.VendorID == 0x1039 && DeviceExtension->PciConfig.DeviceID == 0x5513)
+        OutProperties->DefaultPIO = 1;
+
+    if (DeviceExtension->PciConfig.VendorID == 0x10B9)
+    {
+        if (DeviceExtension->PciConfig.DeviceID == 0x5229)
+        {
+            DataBuffer = 0;
+            DataMask = 0xCCCC;
+
+            Status = PciIdeXSetBusData(DeviceExtension, &DataBuffer, &DataMask, 0x54, 2);
+            if (!NT_SUCCESS(Status))
+            {
+                DPRINT1("PciIdeGetControllerProperties: Status %X\n", Status);
+                return Status;
+            }
+        }
+
+        if (DeviceExtension->PciConfig.VendorID == 0x10B9 &&
+            DeviceExtension->PciConfig.DeviceID == 0x5229)
+        {
+            if (DeviceExtension->PciConfig.RevisionID == 0x20 ||
+                DeviceExtension->PciConfig.RevisionID == 0xC1)
+            {
+                DPRINT1("PciIdeGetControllerProperties: overcome the sticky BM active bit problem in ALi controller\n");
+                OutProperties->IgnoreActiveBitForAtaDevice = 1;
+            }
+        }
+    }
+
+    if (DeviceExtension->PciConfig.VendorID == 0xE11 &&
+        DeviceExtension->PciConfig.DeviceID == 0xAE33 &&
+        (DeviceExtension->PciConfig.ProgIf & 5))
+    {
+        DPRINT1("PciIdeGetControllerProperties: overcome the bogus busmaster interrupt in CPQ controller\n");
+        OutProperties->AlwaysClearBusMasterInterrupt = 1;
+    }
+
+    for (ix = 0; ix < 2; ix++)
+    {
+        for (jx = 0; jx < 2; jx++)
+        {
+            OutProperties->SupportedTransferMode[ix][jx] = DeviceExtension->SupportedTransferMode[ix][jx] = Mode;
+        }
+    }
+
+    OutProperties->PciIdeTransferModeSelect = NULL;
+    OutProperties->PciIdeChannelEnabled = PciIdeChannelEnabled;
+    OutProperties->PciIdeSyncAccessRequired = PciIdeSyncAccessRequired;
+    OutProperties->PciIdeUdmaModesSupported = PciIdeUdmaModesSupported;
+    OutProperties->PciIdeUseDma = PciIdeUseDma;
+    OutProperties->AlignmentRequirement = 1;
 
     return STATUS_SUCCESS;
 }
