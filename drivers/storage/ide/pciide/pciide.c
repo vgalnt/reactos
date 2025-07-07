@@ -204,18 +204,26 @@ PciIdeGetControllerProperties(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS NTAPI
+NTSTATUS
+NTAPI
 DriverEntry(
-    IN PDRIVER_OBJECT DriverObject,
-    IN PUNICODE_STRING RegistryPath)
+    _In_ PDRIVER_OBJECT DriverObject,
+    _In_ PUNICODE_STRING RegistryPath)
 {
     NTSTATUS Status;
 
-    Status = PciIdeXInitialize(
-        DriverObject,
-        RegistryPath,
-        PciIdeGetControllerProperties,
-        0);
+    DPRINT("DriverEntry: %p, '%wZ'\n", DriverObject, RegistryPath);
+
+    Status = PciIdeXInitialize(DriverObject,
+                               RegistryPath,
+                               PciIdeGetControllerProperties,
+                               sizeof(PCIIDE_CONTROLLER_EXTENSION));
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("DriverEntry: Status %X\n", Status);
+    }
 
     return Status;
 }
+
+/* EOF */
