@@ -366,6 +366,24 @@ DeviceInstallThread(LPVOID lpParameter)
 
     UNREFERENCED_PARAMETER(lpParameter);
 
+  #ifdef __REACTOS__
+    // HACK! This synchronizes the enumeration with the kernel PnP.
+    {
+        static WCHAR szRootDeviceInstanceID[] = L"HTREE\\ROOT\\0";
+        CONFIGRET ret;
+
+        DPRINT1("DeviceInstallThread: call PNP_DeviceInstanceAction()\n");
+
+        ret = PNP_DeviceInstanceAction(0,
+                                       PNP_DEVINST_REENUMERATE,
+                                       CM_REENUMERATE_SYNCHRONOUS,
+                                       szRootDeviceInstanceID,
+                                       NULL);
+
+        DPRINT1("DeviceInstallThread: ret %X\n", ret);
+    }
+  #endif
+
     // Step 1: install all drivers which were configured during the boot
 
     DPRINT("Step 1: Installing devices configured during the boot\n");
