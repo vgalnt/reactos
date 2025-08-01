@@ -305,7 +305,7 @@ typedef NTSTATUS
 
 typedef struct _PNP_CONTROL_HANDLER
 { 
-    ULONG ControlCode;
+    PLUGPLAY_CONTROL_CLASS ControlCode;
     ULONG Size;
     PNP_CONTROL_FUNCTION Function;
 } PNP_CONTROL_HANDLER, *PPNP_CONTROL_HANDLER; 

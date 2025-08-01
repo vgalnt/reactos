@@ -28,30 +28,30 @@ typedef struct _PNP_EVENT_ENTRY
 
 PNP_CONTROL_HANDLER PlugPlayHandlerTable[] =
 {
-  { 0,  12, &PiControlEnumerateDevice },
-  { 1,  12, &PiControlRegisterNewDevice },
-  { 2,  12, &PiControlDeregisterDevice },
-  { 3,  12, &PiControlInitializeDevice },
-  { 4,  12, &PiControlStartDevice },
-  { 5,  12, NULL },
-  { 6,  24, &PiControlQueryAndRemoveDevice },
-  { 7,  16, &PiControlUserResponse },
-  { 8,  16, &PiControlGenerateLegacyDevice },
-  { 9,  24, &PiControlGetInterfaceDeviceList },
-  { 10, 20, &PiControlGetPropertyData },
-  { 11, 32, &PiControlDeviceClassAssociation },
-  { 12, 20, &PiControlGetRelatedDevice },
-  { 13, 20, &PiControlGetInterfaceDeviceAlias },
-  { 14, 20, &PiControlGetSetDeviceStatus },
-  { 15, 12, &PiControlGetDeviceDepth },
-  { 16, 20, &PiControlQueryDeviceRelations },
-  { 17, 16, &PiControlQueryTargetDeviceRelation },
-  { 18, 32, &PiControlQueryConflictList },
-  { 19, 8,  &PiControlRetrieveDockData },
-  { 20, 12, &PiControlResetDevice },
-  { 21, 12, &PiControlHaltDevice },
-  { 22, 12, &PiControlGetBlockedDriverData },
-  { 23, 0,  NULL }
+  { PlugPlayControlEnumerateDevice, sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA), &PiControlEnumerateDevice },
+  { PlugPlayControlRegisterNewDevice, sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA), &PiControlRegisterNewDevice },
+  { PlugPlayControlDeregisterDevice, sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA), &PiControlDeregisterDevice },
+  { PlugPlayControlInitializeDevice, sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA), &PiControlInitializeDevice },
+  { PlugPlayControlStartDevice, sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA), &PiControlStartDevice },
+  { PlugPlayControlUnlockDevice, sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA), NULL },
+  { PlugPlayControlQueryAndRemoveDevice, sizeof(PLUGPLAY_CONTROL_QUERY_REMOVE_DATA), &PiControlQueryAndRemoveDevice },
+  { PlugPlayControlUserResponse, sizeof(PLUGPLAY_CONTROL_USER_RESPONSE_DATA), &PiControlUserResponse },
+  { PlugPlayControlGenerateLegacyDevice, 0x10, &PiControlGenerateLegacyDevice }, // UNIMPLEMENTED
+  { PlugPlayControlGetInterfaceDeviceList, sizeof(PLUGPLAY_CONTROL_INTERFACE_DEVICE_LIST_DATA), &PiControlGetInterfaceDeviceList },
+  { PlugPlayControlProperty, sizeof(PLUGPLAY_CONTROL_PROPERTY_DATA), &PiControlGetPropertyData },
+  { PlugPlayControlDeviceClassAssociation, 0x20, &PiControlDeviceClassAssociation }, // UNIMPLEMENTED
+  { PlugPlayControlGetRelatedDevice, sizeof(PLUGPLAY_CONTROL_RELATED_DEVICE_DATA), &PiControlGetRelatedDevice },
+  { PlugPlayControlGetInterfaceDeviceAlias, 0x14, &PiControlGetInterfaceDeviceAlias }, // UNIMPLEMENTED
+  { PlugPlayControlDeviceStatus, 0x14, &PiControlGetSetDeviceStatus }, // UNIMPLEMENTED
+  { PlugPlayControlGetDeviceDepth, sizeof(PLUGPLAY_CONTROL_DEPTH_DATA), &PiControlGetDeviceDepth },
+  { PlugPlayControlQueryDeviceRelations, sizeof(PLUGPLAY_CONTROL_DEVICE_RELATIONS_DATA), &PiControlQueryDeviceRelations },
+  { PlugPlayControlTargetDeviceRelation, 0x10, &PiControlQueryTargetDeviceRelation }, // UNIMPLEMENTED
+  { PlugPlayControlQueryConflictList, 0x20, &PiControlQueryConflictList }, // UNIMPLEMENTED
+  { PlugPlayControlRetrieveDock, 8, &PiControlRetrieveDockData }, // UNIMPLEMENTED
+  { PlugPlayControlResetDevice, sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA), &PiControlResetDevice },
+  { PlugPlayControlHaltDevice, sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA), &PiControlHaltDevice },
+  { PlugPlayControlGetBlockedDriverList, 0xC, &PiControlGetBlockedDriverData }, // UNIMPLEMENTED
+  { MaxPlugPlayControl, 0,  NULL }
 };
 
 /* GLOBALS *******************************************************************/
