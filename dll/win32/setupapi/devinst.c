@@ -5029,6 +5029,7 @@ ResetDevice(
 #ifndef __WINESRC__
     struct DeviceInfoSet *set = (struct DeviceInfoSet *)DeviceInfoSet;
     struct DeviceInfo *deviceInfo = (struct DeviceInfo *)DeviceInfoData->Reserved;
+    //DEVINST ParentDevInst;
     CONFIGRET cr;
 
     cr = CM_Enable_DevNode_Ex(deviceInfo->dnDevInst, 0, set->hMachine);
@@ -5037,6 +5038,25 @@ ResetDevice(
         SetLastError(GetErrorCodeFromCrCode(cr));
         return FALSE;
     }
+
+    // TESTME!
+  #if 0
+    cr = CM_Get_Parent_Ex(&ParentDevInst, deviceInfo->dnDevInst, 0, set->hMachine);
+    if (cr == CR_SUCCESS)
+    {
+        FIXME("ResetDevice: (%p %p) FIXME!\n", DeviceInfoSet, DeviceInfoData);
+        ASSERT(FALSE);
+
+        /* FIXME!
+           If the device is enabled successfully, it must check for the presence of a parent device.
+           If there is a parent device, it must be re-enumerated.
+        */
+
+        //CM_Reenumerate_DevNode_Ex();
+    }
+
+    // ? CheckIfDevStarted(...);
+  #endif
 
     return TRUE;
 #else
