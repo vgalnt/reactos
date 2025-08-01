@@ -352,9 +352,61 @@ PiQueueDeviceRequest(
 
 NTSTATUS NTAPI PiControlEnumerateDevice(ULONG PnPControlClass, PVOID PnPControlData, ULONG PnPControlDataLength, KPROCESSOR_MODE AccessMode)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // IoDbgBreakPointEx();
-    return STATUS_NOT_IMPLEMENTED;
+    PPLUGPLAY_CONTROL_DEVICE_CONTROL_DATA Data = PnPControlData;
+    UNICODE_STRING InstanceName;
+    NTSTATUS Status;
+
+    DPRINT("PiControlEnumerateDevice: %X, %p, %X\n", PnPControlClass, Data, PnPControlDataLength);
+
+    PAGED_CODE();
+
+    ASSERT(PnPControlClass == PlugPlayControlEnumerateDevice); // 0
+    ASSERT(PnPControlDataLength == sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA));
+
+    if (!Data->DeviceInstance.Length)
+    {
+        DPRINT1("PiControlEnumerateDevice: STATUS_INVALID_PARAMETER (%X)\n", Data->DeviceInstance.Length);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (Data->DeviceInstance.Length > 0x190)
+    {
+        DPRINT1("PiControlEnumerateDevice: STATUS_INVALID_PARAMETER (%X)\n", Data->DeviceInstance.Length);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (Data->DeviceInstance.Length & 1)
+    {
+        DPRINT1("PiControlEnumerateDevice: STATUS_INVALID_PARAMETER (%X)\n", Data->DeviceInstance.Length);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    InstanceName.MaximumLength = InstanceName.Length = Data->DeviceInstance.Length;
+
+    Status = PiControlMakeUserModeCallersCopy((PVOID *)&InstanceName.Buffer,
+                                              Data->DeviceInstance.Buffer,
+                                              InstanceName.Length,
+                                              2,
+                                              AccessMode,
+                                              TRUE);//Read
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiControlEnumerateDevice: Status %X\n", Status);
+        return Status;
+    }
+
+    Status = PiQueueDeviceRequest(&InstanceName,
+                                  ((Data->Flags & 1) ? PipEnumDeviceOnly : PipEnumDeviceTree),
+                                  0,
+                                  ((Data->Flags & 2) ? FALSE : TRUE));
+
+    if (AccessMode == KernelMode)
+        return Status;
+
+    if (InstanceName.Buffer)
+        ExFreePool(InstanceName.Buffer);
+
+    return Status;
 }
 
 NTSTATUS NTAPI PiControlRegisterNewDevice(ULONG PnPControlClass, PVOID PnPControlData, ULONG PnPControlDataLength, KPROCESSOR_MODE AccessMode)
