@@ -3398,26 +3398,34 @@ done:
 static CONFIGRET
 ReenumerateDeviceInstance(
     _In_ LPWSTR pszDeviceInstance,
-    _In_ ULONG ulMinorAction)
+    _In_ ULONG ulMinorAction,
+    _In_ BOOL IsEnumDeviceTree)
 {
     PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA EnumerateDeviceData;
     CONFIGRET ret = CR_SUCCESS;
     NTSTATUS Status;
+    ULONG Flags;
 
-    DPRINT1("ReenumerateDeviceInstance(%S 0x%08lx)\n",
-           pszDeviceInstance, ulMinorAction);
+    DPRINT1("ReenumerateDeviceInstance(%S 0x%08lx)\n", pszDeviceInstance, ulMinorAction);
 
     if (ulMinorAction & ~CM_REENUMERATE_BITS)
         return CR_INVALID_FLAG;
+
+    Flags = 0; // Default: RequestType = PipEnumDeviceOnly and synchronous enum
+
+    if (!IsEnumDeviceTree)
+        Flags = 1; // RequestType = PipEnumDeviceTree
+
+    if (ulMinorAction & CM_REENUMERATE_ASYNCHRONOUS)
+        Flags |= 2; // no wait
 
     if (ulMinorAction & CM_REENUMERATE_RETRY_INSTALLATION)
     {
         DPRINT1("CM_REENUMERATE_RETRY_INSTALLATION not implemented!\n");
     }
 
-    RtlInitUnicodeString(&EnumerateDeviceData.DeviceInstance,
-                         pszDeviceInstance);
-    EnumerateDeviceData.Flags = 0;
+    RtlInitUnicodeString(&EnumerateDeviceData.DeviceInstance, pszDeviceInstance);
+    EnumerateDeviceData.Flags = Flags;
 
     Status = NtPlugPlayControl(PlugPlayControlEnumerateDevice,
                                &EnumerateDeviceData,
@@ -3444,14 +3452,12 @@ PNP_DeviceInstanceAction(
     UNREFERENCED_PARAMETER(hBinding);
 
     DPRINT("PNP_DeviceInstanceAction(%p %lu 0x%08lx %S %S)\n",
-           hBinding, ulMajorAction, ulMinorAction,
-           pszDeviceInstance1, pszDeviceInstance2);
+           hBinding, ulMajorAction, ulMinorAction, pszDeviceInstance1, pszDeviceInstance2);
 
     switch (ulMajorAction)
     {
         case PNP_DEVINST_SETUP:
-            ret = SetupDeviceInstance(pszDeviceInstance1,
-                                      ulMinorAction);
+            ret = SetupDeviceInstance(pszDeviceInstance1, ulMinorAction);
             break;
 
         case PNP_DEVINST_ENABLE:
@@ -3459,8 +3465,7 @@ PNP_DeviceInstanceAction(
             break;
 
         case PNP_DEVINST_REENUMERATE:
-            ret = ReenumerateDeviceInstance(pszDeviceInstance1,
-                                            ulMinorAction);
+            ret = ReenumerateDeviceInstance(pszDeviceInstance1, ulMinorAction, TRUE);
             break;
 
         default:
