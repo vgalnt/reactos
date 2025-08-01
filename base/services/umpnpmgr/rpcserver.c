@@ -3400,7 +3400,7 @@ ReenumerateDeviceInstance(
     _In_ LPWSTR pszDeviceInstance,
     _In_ ULONG ulMinorAction)
 {
-    PLUGPLAY_CONTROL_ENUMERATE_DEVICE_DATA EnumerateDeviceData;
+    PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA EnumerateDeviceData;
     CONFIGRET ret = CR_SUCCESS;
     NTSTATUS Status;
 
@@ -3421,7 +3421,7 @@ ReenumerateDeviceInstance(
 
     Status = NtPlugPlayControl(PlugPlayControlEnumerateDevice,
                                &EnumerateDeviceData,
-                               sizeof(PLUGPLAY_CONTROL_ENUMERATE_DEVICE_DATA));
+                               sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA));
     if (!NT_SUCCESS(Status))
         ret = NtStatusToCrError(Status);
 

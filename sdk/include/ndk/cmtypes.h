@@ -453,12 +453,6 @@ typedef struct _PLUGPLAY_EVENT_BLOCK
 //
 
 // PlugPlayControlEnumerateDevice (0x00)
-typedef struct _PLUGPLAY_CONTROL_ENUMERATE_DEVICE_DATA
-{
-    UNICODE_STRING DeviceInstance;
-    ULONG Flags;
-} PLUGPLAY_CONTROL_ENUMERATE_DEVICE_DATA, *PPLUGPLAY_CONTROL_ENUMERATE_DEVICE_DATA;
-
 // PlugPlayControlRegisterNewDevice (0x1)
 // PlugPlayControlDeregisterDevice (0x2)
 // PlugPlayControlInitializeDevice (0x3)
@@ -466,9 +460,11 @@ typedef struct _PLUGPLAY_CONTROL_ENUMERATE_DEVICE_DATA
 // PlugPlayControlUnlockDevice (0x5)
 // PlugPlayControlResetDevice (0x14)
 // PlugPlayControlHaltDevice (0x15)
+
 typedef struct _PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA
 {
     UNICODE_STRING DeviceInstance;
+    ULONG Flags;
 } PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA, *PPLUGPLAY_CONTROL_DEVICE_CONTROL_DATA;
 
 // PlugPlayControlQueryAndRemoveDevice (0x06)
