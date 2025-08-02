@@ -54,6 +54,8 @@ PNP_CONTROL_HANDLER PlugPlayHandlerTable[] =
   { MaxPlugPlayControl, 0,  NULL }
 };
 
+BOOLEAN PiUserModeRunning = FALSE;
+
 /* GLOBALS *******************************************************************/
 
 static LIST_ENTRY IopPnpEventQueueHead;
@@ -1134,6 +1136,20 @@ NtGetPlugPlayEvent(IN ULONG Reserved1,
     {
         DPRINT1("NtGetPlugPlayEvent: Caller does not hold the SeTcbPrivilege privilege!\n");
         return STATUS_PRIVILEGE_NOT_HELD;
+    }
+
+    if (!PiUserModeRunning)
+    {
+        PiUserModeRunning = TRUE;
+
+      #if 1
+        PipRequestDeviceAction(IopRootDeviceNode->PhysicalDeviceObject,
+                               PipEnumStartSystemDevices,
+                               0,
+                               0,
+                               NULL,
+                               NULL);
+      #endif
     }
 
     /* Wait for a PnP event */

@@ -34,6 +34,7 @@ extern BOOLEAN PpPnpShuttingDown;
 extern BOOLEAN IopBootConfigsReserved;
 extern PLIST_ENTRY IopGroupTable;
 extern USHORT IopGroupIndex;
+extern BOOLEAN PiUserModeRunning;
 
 /* DATA **********************************************************************/
 
@@ -3535,7 +3536,7 @@ PipCallDriverAddDeviceQueryRoutine(
             DPRINT1("PipCallDriverAddDeviceQueryRoutine: Status %X\n", Status);
             ASSERT(FALSE);
 
-            if (/*(PiUserModeRunning == FALSE) && */ 
+            if (PiUserModeRunning == FALSE &&
                 Status != STATUS_DRIVER_BLOCKED_CRITICAL &&
                 Status != STATUS_DRIVER_BLOCKED)
             {
