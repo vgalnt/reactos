@@ -4342,6 +4342,51 @@ AMLIDebugger(
     gDebugger.Flags &= ~3;
 }
 
+BOOLEAN
+__cdecl
+MatchData(
+    _In_ ULONG PkgData,
+    _In_ ULONG Op,
+    _In_ ULONG Data)
+{
+    BOOLEAN Result = FALSE;
+
+    DPRINT("MatchData: %X, %X, %X\n", PkgData, Op, Data);
+
+    giIndent++;
+
+    if (Op == 0)
+    {
+        Result = TRUE;
+    }
+    else if (Op == 1)
+    {
+        Result = (PkgData == Data);
+    }
+    else if (Op == 2)
+    {
+        Result = (PkgData <= Data);
+    }
+    else if (Op == 3)
+    {
+        Result = (PkgData < Data);
+    }
+    else if (Op == 4)
+    {
+        Result = (PkgData >= Data);
+    }
+    else if (Op == 5)
+    {
+        Result = (PkgData > Data);
+    }
+
+    giIndent--;
+
+    DPRINT("MatchData: %X\n", Result);
+
+    return Result;
+}
+
 /* TERM HANDLERS ************************************************************/
 
 #if 1
