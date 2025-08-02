@@ -11777,7 +11777,16 @@ IdePortScanBus(
 
     if (!FdoExtension->InterruptObject)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        DPRINT1("IdePortScanBus: no InterruptObject for %p\n", FdoExtension);
+
+        if (!IdePortChannelEmpty(&HwDeviceExtension->CmdBlock, &HwDeviceExtension->CtrlBlock, HwDeviceExtension->MaxIdeDevice))
+        {
+            if (FdoExtension->ProperResources.ChannelRequestProperResources)
+                FdoExtension->ProperResources.ChannelRequestProperResources(FdoExtension->LowPdo);
+            else
+                DPRINT1("IdePortScanBus: no interface to request resources. Probably a pcmcia parent\n");
+        }
+
         goto Exit;
     }
 
