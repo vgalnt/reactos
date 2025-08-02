@@ -5502,8 +5502,70 @@ Exit:
 }
 NTSTATUS __cdecl Match(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_PACKAGE_OBJECT PackageObject;
+    AMLI_OBJECT_DATA DataResult;
+    ULONG Index;
+    NTSTATUS Status;
+
+    DPRINT("Match: %X, %X, %X\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = ValidateArgTypes(TermContext->DataArgs, "PIIIII");
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("Match: Status %X\n", Status);
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    RtlZeroMemory(&DataResult, sizeof(DataResult));
+
+    PackageObject = TermContext->DataArgs[0].DataBuff;
+    Index = (ULONG)TermContext->DataArgs[5].DataValue;
+
+    while (TRUE)
+    {
+        FreeDataBuffs(&DataResult, 1);
+
+        Status = EvalPackageElement(PackageObject, Index, &DataResult);
+
+        if (Status == STATUS_SUCCESS &&
+            DataResult.DataType == 1 &&
+            MatchData((ULONG)DataResult.DataValue, (ULONG)TermContext->DataArgs[1].DataValue, (ULONG)TermContext->DataArgs[2].DataValue) &&
+            MatchData((ULONG)DataResult.DataValue, (ULONG)TermContext->DataArgs[3].DataValue, (ULONG)TermContext->DataArgs[4].DataValue))
+        {
+            TermContext->DataResult->DataType = 1;
+            TermContext->DataResult->DataValue = (PVOID)Index;
+
+            break;
+        }
+
+        Index++;
+
+        if (Status != STATUS_SUCCESS)
+        {
+            if (Status == STATUS_ACPI_INVALID_INDEX)
+            {
+                TermContext->DataResult->DataType = 1;
+                TermContext->DataResult->DataValue = (PVOID)-1;
+
+                Status = STATUS_SUCCESS;
+            }
+
+            break;
+        }
+    }
+
+    FreeDataBuffs(&DataResult, 1);
+
+Exit:
+
+    giIndent--;
+
+    DPRINT("Match: %X\n", Status);
+
+    return Status;
 }
 NTSTATUS __cdecl Method(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {

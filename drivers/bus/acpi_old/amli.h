@@ -1050,4 +1050,12 @@ ReleaseASLMutex(
     _In_ PAMLI_MUTEX_OBJECT AmliMutex
 );
 
+NTSTATUS
+__cdecl
+EvalPackageElement(
+    _In_ PAMLI_PACKAGE_OBJECT PackageObject,
+    _In_ ULONG Index,
+    _In_ PAMLI_OBJECT_DATA DataResult
+);
+
 /* EOF */
