@@ -3936,7 +3936,16 @@ NTAPI
 PciIdeChannelRequestProperResources(
     _In_ PDEVICE_OBJECT PhysicalDeviceObject)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    PPDO_DEVICE_EXTENSION PdoExtension;
+
+    PdoExtension = ChannelGetPdoExtension(PhysicalDeviceObject);
+    if (!PdoExtension)
+        return;
+
+    PdoExtension->IsChannelEmpty = FALSE;
+    PdoExtension->PnPDeviceState |= 0x14;
+
+    IoInvalidateDeviceState(PhysicalDeviceObject);
 }
 
 NTSTATUS
