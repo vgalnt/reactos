@@ -970,6 +970,11 @@ MiLoadImageSection(
     CurrentVa = MapBase;
 
     DPRINT1("MiLoadImageSection: %wZ at %p with %X pages\n", FileName, BaseAddress, PteCount);
+    if (0)//wcsstr(FileName->Buffer, L"filename"))
+    {
+        //ASSERT(FALSE);
+        DbgBreakPoint();
+    }
 
     LastPte = (Pte + PteCount);
 
