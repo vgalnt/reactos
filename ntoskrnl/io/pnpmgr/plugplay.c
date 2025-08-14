@@ -361,7 +361,7 @@ NTSTATUS NTAPI PiControlEnumerateDevice(ULONG PnPControlClass, PVOID PnPControlD
     UNICODE_STRING InstanceName;
     NTSTATUS Status;
 
-    DPRINT("PiControlEnumerateDevice: %X, %p, %X\n", PnPControlClass, Data, PnPControlDataLength);
+    DPRINT("PiControlEnumerateDevice: %X, %p (%X), %X\n", PnPControlClass, Data, Data->Flags, PnPControlDataLength);
 
     PAGED_CODE();
 
