@@ -220,8 +220,7 @@ PipSetDevNodeState(
 
     if (NewState == DeviceNodeDeleted)
     {
-        ASSERT(FALSE);
-        //PpRemoveDeviceActionRequests(DeviceNode->PhysicalDeviceObject);
+        PpRemoveDeviceActionRequests(DeviceNode->PhysicalDeviceObject);
     }
 }
 
