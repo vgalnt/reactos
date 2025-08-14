@@ -50,6 +50,59 @@ TrimTrailingPathSeparators_UStr(
 }
 
 static VOID
+ParseArcPath(
+    IN PCWSTR ArcPath,
+    OUT ULONG* Rdisk,
+    OUT ULONG* Partition)
+{
+    PWSTR Ptr;
+
+    DPRINT1("ParseArcPath: ArcPath '%S'\n", ArcPath);
+
+    Ptr = wcsstr(ArcPath, L"multi");
+    if (!Ptr)
+    {
+        DPRINT1("ParseArcPath: 'multi' not found\n");
+        ASSERT(0);
+        return;
+    }
+
+    DPRINT1("ParseArcPath: multi (%lu)\n", _wtoi(Ptr + 6));
+
+    Ptr = wcsstr(ArcPath, L"disk");
+    if (!Ptr)
+    {
+        DPRINT1("ParseArcPath: 'disk' not found\n");
+        ASSERT(0);
+        return;
+    }
+
+    DPRINT1("ParseArcPath: disk (%lu)\n", _wtoi(Ptr + 5));
+
+    Ptr = wcsstr(ArcPath, L"rdisk");
+    if (!Ptr)
+    {
+        DPRINT1("ParseArcPath: 'rdisk' not found\n");
+        ASSERT(0);
+        return;
+    }
+
+    *Rdisk = _wtoi(Ptr + 6);
+    DPRINT1("ParseArcPath: rdisk (%lu)\n", *Rdisk);
+
+    Ptr = wcsstr(ArcPath, L"partition");
+    if (!Ptr)
+    {
+        DPRINT1("ParseArcPath: 'partition' not found\n");
+        ASSERT(0);
+        return;
+    }
+
+    *Partition = _wtoi(Ptr + 10);
+    DPRINT1("ParseArcPath: partition (%lu)\n", *Partition);
+}
+
+static VOID
 CreateFreeLoaderReactOSEntries(
     IN PVOID BootStoreHandle,
     IN PCWSTR ArcPath)
@@ -58,6 +111,12 @@ CreateFreeLoaderReactOSEntries(
     PBOOT_STORE_ENTRY BootEntry = (PBOOT_STORE_ENTRY)&xxBootEntry;
     PNTOS_OPTIONS Options = (PNTOS_OPTIONS)&BootEntry->OsOptions;
     BOOT_STORE_OPTIONS BootOptions;
+    WCHAR PathBuffer[MAX_PATH];
+    ULONG OnDiskPartitionNumber = 0;
+    ULONG HwFixedDiskNumber = 0;
+    NTSTATUS Status;
+
+    ParseArcPath(ArcPath, &HwFixedDiskNumber, &OnDiskPartitionNumber);
 
     BootEntry->Version = FreeLdr;
     BootEntry->BootFilePath = NULL;
@@ -114,7 +173,16 @@ CreateFreeLoaderReactOSEntries(
     /* ReactOS_LogFile */
     // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS_LogFile");
     BootEntry->FriendlyName = L"\"ReactOS (Log file)\"";
-    Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=FILE:\\ArcName\\multi(0)disk(0)rdisk(0)partition(1)\\debug.log /SOS";
+    //Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=FILE:\\ArcName\\multi(0)disk(0)rdisk(0)partition(1)\\debug.log /SOS";
+
+    Status = RtlStringCchPrintfW(PathBuffer, ARRAYSIZE(PathBuffer), L"/DEBUG /DEBUGPORT=FILE:\\ArcName\\multi(0)disk(0)rdisk(%lu)partition(%lu)\\debug.log /SOS", HwFixedDiskNumber, OnDiskPartitionNumber);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("CreateFreeLoaderReactOSEntries: RtlStringCchPrintfW() failed with status 0x%08lx\n", Status);
+        return;
+    }
+
+    Options->OsLoadOptions = PathBuffer;
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_LogFile"));
 
     /* ReactOS_Ram */
