@@ -838,10 +838,188 @@ IopRemoveLockedDeviceNode(
     _In_ PDEVICE_NODE DeviceNode,
     _In_ ULONG Problem,
     _In_ PRELATION_LIST RelationsList)
-
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // IoDbgBreakPointEx();
+    PDEVICE_OBJECT Pdo = DeviceNode->PhysicalDeviceObject;
+    PDEVICE_OBJECT* ArrayDevices;
+    PDRIVER_OBJECT* ArrayDrivers;
+    PDEVICE_OBJECT attachedDevice;
+    PDEVICE_NODE siblingNode;
+    PDEVICE_NODE childNode;
+    ULONG Size;
+    ULONG ix;
+    ULONG jx;
+
+    PAGED_CODE();
+    DPRINT("IopRemoveLockedDeviceNode: %p, %X, %p\n", DeviceNode, Problem, RelationsList);
+
+    PpHotSwapInitRemovalPolicy(DeviceNode);
+
+    for (childNode = DeviceNode->Child; childNode; childNode = siblingNode)
+    {
+        siblingNode = childNode->Sibling;
+
+        if (childNode->Flags & DNF_ENUMERATED)
+            childNode->Flags &= ~DNF_ENUMERATED;
+
+        ASSERT(childNode->State == DeviceNodeRemoved);
+        ASSERT(!PipAreDriversLoaded(childNode));
+
+        if (childNode->ResourceList || childNode->BootResources || (childNode->Flags & DNF_HAS_BOOT_CONFIG))
+        {
+            DPRINT("IopRemoveLockedDeviceNode: Releasing resources for child device %p\n", childNode->PhysicalDeviceObject);
+
+            IopRemoveDevice(childNode->PhysicalDeviceObject, IRP_MN_REMOVE_DEVICE);
+            IopReleaseDeviceResources(childNode, FALSE);
+        }
+
+        PipSetDevNodeState(childNode, DeviceNodeDeleted, NULL);
+    }
+
+    if (DeviceNode->State == DeviceNodeAwaitingQueuedDeletion ||
+        DeviceNode->State == DeviceNodeAwaitingQueuedRemoval)
+    {
+        if (DeviceNode->Flags & DNF_ENUMERATED)
+        {
+            ASSERT(DeviceNode->State == DeviceNodeAwaitingQueuedRemoval);
+            PipRestoreDevNodeState(DeviceNode);
+        }
+        else
+        {
+            ASSERT(DeviceNode->State == DeviceNodeAwaitingQueuedDeletion);
+            PipSetDevNodeState(DeviceNode, DeviceNodeDeletePendingCloses, NULL);
+        }
+    }
+
+    switch (DeviceNode->State)
+    {
+        case DeviceNodeUninitialized:
+        case DeviceNodeInitialized:
+        case DeviceNodeDriversAdded:
+        case DeviceNodeResourcesAssigned:
+        case DeviceNodeStartCompletion:
+        case DeviceNodeStartPostWork:
+        case DeviceNodeQueryRemoved:
+        case DeviceNodeRemovePendingCloses:
+        case DeviceNodeRemoved:
+        case DeviceNodeDeletePendingCloses:
+            break;
+
+        default:
+            DPRINT1("IopRemoveLockedDeviceNode: Unsupported State %X (%p)\n", DeviceNode->State, DeviceNode);
+            DbgBreakPoint(); // ASSERT(FALSE);
+            break;
+    }
+
+    ArrayDevices = NULL;
+    ArrayDrivers = NULL;
+
+    attachedDevice = Pdo;
+    for (ix = 0; ; ix++)
+    {
+        attachedDevice = attachedDevice->AttachedDevice;
+        if (!attachedDevice)
+            break;
+    }
+
+    if (ix)
+    {
+        Size = ((ix + 2) * sizeof(PDEVICE_OBJECT));
+
+        ArrayDevices = ExAllocatePoolWithTag(PagedPool, Size, 'edpP');
+
+        if (ArrayDevices)
+        {
+            ArrayDrivers = ExAllocatePoolWithTag(PagedPool, Size, 'edpP');
+
+            if (ArrayDrivers)
+            {
+                RtlZeroMemory(ArrayDevices, Size);
+                RtlZeroMemory(ArrayDrivers, Size);
+
+                for (attachedDevice = Pdo->AttachedDevice, jx = 0;
+                     attachedDevice;
+                     attachedDevice = attachedDevice->AttachedDevice, jx++)
+                {
+                    ObReferenceObject(attachedDevice);
+
+                    ArrayDevices[jx] = attachedDevice;
+                    ArrayDrivers[jx] = attachedDevice->DriverObject;
+                }
+            }
+            else
+            {
+                DPRINT1("IopRemoveLockedDeviceNode: Allocate failed (%X)\n", Size);
+                ExFreePoolWithTag(ArrayDevices, 'edpP');
+                ArrayDevices = NULL;
+            }
+        }
+        else
+        {
+            DPRINT1("IopRemoveLockedDeviceNode: Allocate failed (%X)\n", Size);
+        }
+    }
+
+    DPRINT("IopRemoveLockedDeviceNode: Sending remove irp to device %p\n", Pdo);
+
+    IopRemoveDevice(Pdo, IRP_MN_REMOVE_DEVICE);
+
+    if (DeviceNode->State == DeviceNodeQueryRemoved)
+        IopDisableDeviceInterfaces(&DeviceNode->InstancePath);
+
+    DPRINT("IopRemoveLockedDeviceNode: Releasing devices resources\n");
+
+    IopReleaseDeviceResources(DeviceNode, ((DeviceNode->Flags & DNF_ENUMERATED) == DNF_ENUMERATED));
+
+    if (!(DeviceNode->Flags & DNF_ENUMERATED))
+    {
+        ASSERT(DeviceNode->DockInfo.DockStatus != 2); // DOCK_ARRIVING
+
+        if (DeviceNode->DockInfo.DockStatus == 3 ||
+            DeviceNode->DockInfo.DockStatus == 4)
+        {
+            DPRINT1("IopRemoveLockedDeviceNode: FIXME PpProfileCommitTransitioningDock()\n");
+            DbgBreakPoint(); // ASSERT(FALSE);
+        }
+    }
+
+    if (ArrayDevices)
+    {
+        for (jx = 0; ArrayDevices[jx]; jx++)
+        {
+            ((PEXTENDED_DEVOBJ_EXTENSION)(ArrayDevices[jx]->DeviceObjectExtension))->ExtensionFlags &= ~0xC;
+            ((PEXTENDED_DEVOBJ_EXTENSION)(ArrayDevices[jx]->DeviceObjectExtension))->ExtensionFlags |= 0x10;
+
+            IopUnloadAttachedDriver(ArrayDrivers[jx]);
+            ObDereferenceObject(ArrayDevices[jx]);
+        }
+
+        ExFreePoolWithTag(ArrayDevices, 'edpP');
+        ExFreePoolWithTag(ArrayDrivers, 'edpP');
+    }
+
+    ((PEXTENDED_DEVOBJ_EXTENSION)Pdo->DeviceObjectExtension)->ExtensionFlags &= ~0xC;
+    ((PEXTENDED_DEVOBJ_EXTENSION)Pdo->DeviceObjectExtension)->ExtensionFlags |= 0x10;
+
+    if (DeviceNode->Flags & DNF_ENUMERATED)
+    {
+        ASSERT(DeviceNode->Parent);
+        PipSetDevNodeState(DeviceNode, DeviceNodeRemoved, NULL);
+    }
+    else
+    {
+        if (!DeviceNode->Parent)
+        {
+            ASSERT(DeviceNode->State == DeviceNodeDeletePendingCloses);
+        }
+
+        PipSetDevNodeState(DeviceNode, DeviceNodeDeleted, NULL);
+    }
+
+    if (!(DeviceNode->Flags & 0x6000) || Problem == 0x18 || Problem == 0x16)
+    {
+        PipClearDevNodeProblem(DeviceNode);
+        PipSetDevNodeProblem(DeviceNode, Problem);
+    }
 }
 
 BOOLEAN
