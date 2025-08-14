@@ -10291,7 +10291,7 @@ InitDeviceParameters(
         if (!(HwDeviceExtension->DeviceFlags[Device] & 1))
             continue;
 
-        DPRINT("InitDeviceParameters: (%X:%X) is going to do ", HwDeviceExtension->CmdBlock.CmdBlockBase, Device);
+        DPRINT1("InitDeviceParameters: (%X:%X) is going to do ", HwDeviceExtension->CmdBlock.CmdBlockBase, Device);
 
         if (HwDeviceExtension->DeviceFlags[Device] & 0x200)
             DbgPrint("DMA\n");
