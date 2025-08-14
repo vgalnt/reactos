@@ -779,10 +779,9 @@ IopQueueTargetDeviceEvent(&GUID_DEVICE_REMOVE_PENDING, &DeviceNode->InstancePath
             ASSERT(FALSE); // IoDbgBreakPointEx();
         }
 
-        DPRINT1("PiProcessQueryRemoveAndEject: FIXME IopUnlinkDeviceRemovalRelations()\n");
-        ASSERT(FALSE); // IoDbgBreakPointEx();//IopUnlinkDeviceRemovalRelations(..);
-
+        IopUnlinkDeviceRemovalRelations(DeviceObject, RelationsList, 0);
         IopFreeRelationList(RelationsList);
+
         goto Finish;
     }
 
@@ -804,9 +803,7 @@ IopQueueTargetDeviceEvent(&GUID_DEVICE_REMOVE_PENDING, &DeviceNode->InstancePath
 
     ASSERT(!DockInterface);
 
-    DPRINT1("PiProcessQueryRemoveAndEject: FIXME IopUnlinkDeviceRemovalRelations()\n");
-    ASSERT(FALSE); // IoDbgBreakPointEx();//IopUnlinkDeviceRemovalRelations(..);
-
+    IopUnlinkDeviceRemovalRelations(DeviceObject, RelationsList, 0);
     IopFreeRelationList(RelationsList);
 
     if (!EventEntry->VetoName)
