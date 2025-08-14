@@ -614,6 +614,7 @@ PiixIdeGetControllerProperties(
     _Out_ IDE_CONTROLLER_PROPERTIES* OutProperties)
 {
     PINTEL_CONTROLLER_EXTENSION DeviceExtension = InDeviceExtension;
+    INTEL_PCI_CONFIGURATION IntelPciConfig;
     PCI_COMMON_HEADER PciConfig;
     ULONG Mode;
     ULONG ix;
@@ -656,29 +657,39 @@ PiixIdeGetControllerProperties(
 
     Mode = 0x7FF;
 
-    if (DeviceId == 0x7111 || DeviceId == 0x2421 || DeviceId == 0x7601 || DeviceId == 0x2411 || DeviceId == 0x7199 ||
-        DeviceId == 0x2441 || DeviceId == 0x244A || DeviceId == 0x244B || DeviceId == 0x248A || DeviceId == 0x248B ||
-        DeviceId == 0x24C1 || DeviceId == 0x24CA || DeviceId == 0x24CB || DeviceId == 0x24D1 || DeviceId == 0x24DB ||
-        DeviceId == 0x25A2 || DeviceId == 0x25A3 || DeviceId == 0x2651 || DeviceId == 0x2652 || DeviceId == 0x2653 ||
-        DeviceId == 0x266F)
+    if (IS_UDMA33_CONTROLLER(DeviceId))
     {
         Mode = 0x3FFF;
         DeviceExtension->UdmaSpeed = 1;
     }
 
-    if (DeviceId == 0x2411 || DeviceId == 0x2441 || DeviceId == 0x244A || DeviceId == 0x244B || DeviceId == 0x248A ||
-        DeviceId == 0x248B || DeviceId == 0x24C1 || DeviceId == 0x24CA || DeviceId == 0x24CB || DeviceId == 0x24D1 ||
-        DeviceId == 0x24DB || DeviceId == 0x25A2 || DeviceId == 0x25A3 || DeviceId == 0x2651 || DeviceId == 0x2652 ||
-        DeviceId == 0x2653 || DeviceId == 0x266F)
+    if (IS_UDMA66_CONTROLLER(DeviceId))
     {
-        UNIMPLEMENTED_DBGBREAK();
+        Status = PciIdeXGetBusData(DeviceExtension, &IntelPciConfig, 0, sizeof(IntelPciConfig));
+        if (NT_SUCCESS(Status))
+        {
+            DeviceExtension->CableReporting[0][0] = IntelPciConfig.IdeIoConfiguration.PCR0;
+            DeviceExtension->CableReporting[0][1] = IntelPciConfig.IdeIoConfiguration.PCR1;
+            DeviceExtension->CableReporting[1][0] = IntelPciConfig.IdeIoConfiguration.SCR0;
+            DeviceExtension->CableReporting[1][1] = IntelPciConfig.IdeIoConfiguration.SCR1;
+
+            Mode |= 0xC000;
+        }
+
+        DeviceExtension->UdmaSpeed = 2;
     }
 
     if (DeviceId == 0x244A || DeviceId == 0x244B || DeviceId == 0x248A || DeviceId == 0x248B || DeviceId == 0x24C1 ||
         DeviceId == 0x24CA || DeviceId == 0x24CB || DeviceId == 0x24D1 || DeviceId == 0x24DB || DeviceId == 0x25A2 ||
         DeviceId == 0x25A3 || DeviceId == 0x2651 || DeviceId == 0x2652 || DeviceId == 0x2653 || DeviceId == 0x266F)
     {
-        UNIMPLEMENTED_DBGBREAK();
+        ASSERT(IS_UDMA33_CONTROLLER(DeviceId));
+        ASSERT(IS_UDMA66_CONTROLLER(DeviceId));
+
+        if (NT_SUCCESS(Status))
+            Mode |= 0x10000;
+
+        DeviceExtension->UdmaSpeed = 3;
     }
 
 Finish:
