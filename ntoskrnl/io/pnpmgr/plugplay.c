@@ -316,6 +316,7 @@ PiQueueDeviceRequest(
     KEVENT Event;
 
     PAGED_CODE();
+    DPRINT("PiQueueDeviceRequest: '%wZ' %X, %X\n", DeviceInstance, RequestType, IsWait);
 
     DeviceObject = IopDeviceObjectFromDeviceInstance(DeviceInstance);
 
@@ -341,12 +342,14 @@ PiQueueDeviceRequest(
                                     RequestArgument,
                                     (IsWait != FALSE ? &Event : NULL),
                                     NULL);
+    DPRINT("PiQueueDeviceRequest: Status %X\n", Status);
 
     if (NT_SUCCESS(Status) && IsWait)
         Status = KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
 
     ObDereferenceObject(DeviceObject);
 
+    DPRINT("PiQueueDeviceRequest: ret %X\n", Status);
     return Status;
 }
 
