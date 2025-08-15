@@ -63,6 +63,12 @@ static KEVENT IopPnpNotifyEvent;
 
 extern ERESOURCE PpRegistryDeviceResource;
 
+extern KSPIN_LOCK IopPnPSpinLock;
+extern LIST_ENTRY IopPnpEnumerationRequestList;
+extern KEVENT PiEnumerationLock;
+extern BOOLEAN PipEnumerationInProgress;
+extern WORK_QUEUE_ITEM PipDeviceEnumerationWorkItem;
+
 /* FUNCTIONS *****************************************************************/
 
 NTSTATUS ////INIT_FUNCTION
@@ -1052,6 +1058,54 @@ NTSTATUS NTAPI PiControlGetBlockedDriverData(ULONG PnPControlClass, PVOID PnPCon
     ASSERT(FALSE); // IoDbgBreakPointEx();
     return STATUS_NOT_IMPLEMENTED;
 }
+
+#ifdef __REACTOS__
+NTSTATUS NTAPI PiControlWaitDeviceActionQueue(VOID)
+{
+    LARGE_INTEGER Timeout;
+    KIRQL OldIrql;
+
+Start:
+    DPRINT1("PiControlWaitDeviceActionQueue()\n");
+
+    PiLockDeviceActionQueue();
+
+    /* PipEnumerationWorker() now finished, but PipEnumerationInProgress now is TRUE! */
+
+    KeAcquireSpinLock(&IopPnPSpinLock, &OldIrql);
+
+    /* New requests? */
+    if (!IsListEmpty(&IopPnpEnumerationRequestList))
+    {
+        DPRINT1("PiControlWaitDeviceActionQueue: IopPnpEnumerationRequestList not empty\n");
+
+        ExInitializeWorkItem(&PipDeviceEnumerationWorkItem, PipEnumerationWorker, NULL);
+        ExQueueWorkItem(&PipDeviceEnumerationWorkItem, DelayedWorkQueue);
+
+        KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+        PpDevNodeUnlockTree(1);
+
+        /* wait 200 ms (need ?) */
+        Timeout.QuadPart = 200;
+        DPRINT1("PiControlWaitDeviceActionQueue: Waiting %lu milliseconds\n", Timeout.LowPart);
+        Timeout.QuadPart *= -10000; // convert to 100 ns units (absolute)
+
+        KeDelayExecutionThread(KernelMode, FALSE, &Timeout);
+
+        goto Start;
+    }
+
+    PipEnumerationInProgress = FALSE;
+    KeSetEvent(&PiEnumerationLock, IO_NO_INCREMENT, FALSE);
+
+    KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
+    PpDevNodeUnlockTree(1);
+
+    DPRINT1("PiControlWaitDeviceActionQueue: Unlocked\n");
+
+    return STATUS_SUCCESS;
+}
+#endif
 
 /* PUBLIC FUNCTIONS **********************************************************/
 
