@@ -1198,6 +1198,7 @@ NtGetPlugPlayEvent(IN ULONG Reserved1,
     if (!PiUserModeRunning)
     {
         PiUserModeRunning = TRUE;
+        DPRINT("NtGetPlugPlayEvent: PiUserModeRunning is TRUE\n");
 
       #if 1
         PipRequestDeviceAction(IopRootDeviceNode->PhysicalDeviceObject,
@@ -1334,6 +1335,15 @@ NtPlugPlayControl(
             return STATUS_PRIVILEGE_NOT_HELD;
         }
     }
+
+  #ifdef __REACTOS__
+    // HACK! This synchronizes the umpnpmgr enumeration with the kernel PnP.
+    if (PnPControlClass == 'HACK') // 0x4841434B
+    {
+        DPRINT1("NtPlugPlayControl: HACK! (%X, %p, %X)\n", PnPControlClass, Buffer, BufferLength);
+        return PiControlWaitDeviceActionQueue();
+    }
+  #endif
 
     if (PnPControlClass >= MaxPlugPlayControl) // 0x17
     {

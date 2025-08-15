@@ -369,24 +369,22 @@ DeviceInstallThread(LPVOID lpParameter)
   #ifdef __REACTOS__
     // HACK! This synchronizes the enumeration with the kernel PnP.
     {
-        static WCHAR szRootDeviceInstanceID[] = L"HTREE\\ROOT\\0";
-        CONFIGRET ret;
+        PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA EnumerateDeviceData;
+        NTSTATUS Status;
 
-        DPRINT1("DeviceInstallThread: call PNP_DeviceInstanceAction()\n");
+        DPRINT1("DeviceInstallThread: call NtPlugPlayControl('HACK')\n");
 
-        ret = PNP_DeviceInstanceAction(0,
-                                       PNP_DEVINST_REENUMERATE,
-                                       CM_REENUMERATE_SYNCHRONOUS,
-                                       szRootDeviceInstanceID,
-                                       NULL);
+        Status = NtPlugPlayControl('HACK',
+                                   &EnumerateDeviceData,
+                                   sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA));
 
-        DPRINT1("DeviceInstallThread: ret %X\n", ret);
+        DPRINT1("DeviceInstallThread: Status %X\n", Status);
     }
   #endif
 
     // Step 1: install all drivers which were configured during the boot
 
-    DPRINT("Step 1: Installing devices configured during the boot\n");
+    DPRINT1("DeviceInstallThread: Step 1. Installing devices configured during the boot\n");
 
     while (TRUE)
     {
@@ -431,7 +429,7 @@ Cleanup:
     // Step 2: start the wait-loop for newly added devices
 Step2:
 
-    DPRINT("Step 2: Starting the wait-loop\n");
+    DPRINT1("DeviceInstallThread: Step 2. Starting the wait-loop\n");
 
     WaitForSingleObject(hInstallEvent, INFINITE);
 
@@ -458,6 +456,8 @@ Step2:
             HeapFree(GetProcessHeap(), 0, Params);
         }
     }
+
+    DPRINT1("DeviceInstallThread: ret 0\n");
 
     return 0;
 }

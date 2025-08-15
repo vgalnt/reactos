@@ -807,6 +807,24 @@ IopRestartDeviceNode(
     _In_ PDEVICE_NODE DeviceNode
 );
 
+VOID
+NTAPI
+PipEnumerationWorker(
+    _In_ PVOID Context
+);
+
+NTSTATUS
+NTAPI 
+IopUnloadAttachedDriver(
+    _In_ PDRIVER_OBJECT DriverObject
+);
+
+VOID
+NTAPI
+PpRemoveDeviceActionRequests(
+    _In_ PDEVICE_OBJECT DeviceObject
+);
+
 /* pnpevent.c */
 NTSTATUS
 NTAPI
