@@ -5075,6 +5075,7 @@ PiProcessStartSystemDevices(
                           &DriverLoadType,
                           Request);
 
+    DPRINT("PiProcessStartSystemDevices: ret STATUS_SUCCESS\n");
     return STATUS_SUCCESS;
 }
 
@@ -5398,6 +5399,7 @@ PipEnumerationWorker(
     KIRQL OldIrql;
     NTSTATUS Status;
 
+    DPRINT("PipEnumerationWorker: start\n");
     PpDevNodeLockTree(1);
 
     while (TRUE)
@@ -5421,6 +5423,7 @@ Start:
 
         if (Request)
         {
+            DPRINT("PipEnumerationWorker: %p, %X, %p\n", Request, Request->RequestType, Request->DeviceObject);
             InitializeListHead(&Request->RequestLink);
 
             if (PpPnpShuttingDown)
@@ -5589,6 +5592,7 @@ NextRequest:
     KeSetEvent(&PiEnumerationLock, IO_NO_INCREMENT, FALSE);
     KeReleaseSpinLock(&IopPnPSpinLock, OldIrql);
     PpDevNodeUnlockTree(1);
+    DPRINT("PipEnumerationWorker: end\n");
 }
 
 NTSTATUS
