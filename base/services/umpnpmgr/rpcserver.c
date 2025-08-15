@@ -129,6 +129,8 @@ NtStatusToCrError(NTSTATUS Status)
             return CR_CALL_NOT_IMPLEMENTED;
 
         case STATUS_INVALID_PARAMETER:
+        case STATUS_INVALID_PARAMETER_1:
+        case STATUS_INVALID_PARAMETER_2:
             return CR_INVALID_DATA;
 
         case STATUS_NO_SUCH_DEVICE:
@@ -3402,26 +3404,26 @@ ReenumerateDeviceInstance(
     _In_ BOOL IsEnumDeviceTree)
 {
     PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA EnumerateDeviceData;
-    CONFIGRET ret = CR_SUCCESS;
+    //CONFIGRET ret = CR_SUCCESS;
     NTSTATUS Status;
     ULONG Flags;
 
-    DPRINT1("ReenumerateDeviceInstance(%S 0x%08lx)\n", pszDeviceInstance, ulMinorAction);
+    DPRINT1("ReenumerateDeviceInstance: '%S', %X\n", pszDeviceInstance, ulMinorAction);
 
     if (ulMinorAction & ~CM_REENUMERATE_BITS)
         return CR_INVALID_FLAG;
 
-    Flags = 0; // Default: RequestType = PipEnumDeviceOnly and synchronous enum
+    Flags = 0; // Default: RequestType = PipEnumDeviceTree and synchronous enum
 
     if (!IsEnumDeviceTree)
-        Flags = 1; // RequestType = PipEnumDeviceTree
+        Flags = 1; // RequestType = PipEnumDeviceOnly
 
     if (ulMinorAction & CM_REENUMERATE_ASYNCHRONOUS)
         Flags |= 2; // no wait
 
     if (ulMinorAction & CM_REENUMERATE_RETRY_INSTALLATION)
     {
-        DPRINT1("CM_REENUMERATE_RETRY_INSTALLATION not implemented!\n");
+        DPRINT1("ReenumerateDeviceInstance: FIXME! CM_REENUMERATE_RETRY_INSTALLATION not implemented!\n");
     }
 
     RtlInitUnicodeString(&EnumerateDeviceData.DeviceInstance, pszDeviceInstance);
@@ -3430,10 +3432,15 @@ ReenumerateDeviceInstance(
     Status = NtPlugPlayControl(PlugPlayControlEnumerateDevice,
                                &EnumerateDeviceData,
                                sizeof(PLUGPLAY_CONTROL_DEVICE_CONTROL_DATA));
-    if (!NT_SUCCESS(Status))
-        ret = NtStatusToCrError(Status);
+    if (NT_SUCCESS(Status))
+        return CR_SUCCESS;
 
-    return ret;
+    DPRINT1("ReenumerateDeviceInstance: '%S' (Status %X)\n", pszDeviceInstance, Status);
+
+    if (Status == STATUS_NO_SUCH_DEVICE)
+        return CR_INVALID_DEVNODE;
+
+    return NtStatusToCrError(Status);
 }
 
 
