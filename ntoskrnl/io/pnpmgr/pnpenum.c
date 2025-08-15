@@ -5695,6 +5695,49 @@ PipRequestDeviceAction(
 
 VOID
 NTAPI
+PpRemoveDeviceActionRequests(
+    _In_ PDEVICE_OBJECT DeviceObject)
+{
+    PPIP_ENUM_REQUEST Request;
+    PLIST_ENTRY NextEntry;
+    PLIST_ENTRY Entry;
+    KIRQL Irql;
+
+    DPRINT("PpRemoveDeviceActionRequests: %p\n", DeviceObject);
+
+    KeAcquireSpinLock(&IopPnPSpinLock, &Irql);
+
+    Entry = IopPnpEnumerationRequestList.Flink;
+
+    while (Entry != &IopPnpEnumerationRequestList)
+    {
+        Request = CONTAINING_RECORD(Entry, PIP_ENUM_REQUEST, RequestLink);
+
+        NextEntry = Entry->Flink;
+
+        if (Request->DeviceObject == DeviceObject)
+        {
+            RemoveEntryList(Entry);
+
+            if (Request->CompletionStatus)
+                *Request->CompletionStatus = STATUS_NO_SUCH_DEVICE;
+
+            if (Request->CompletionEvent)
+                KeSetEvent(Request->CompletionEvent, 0, FALSE);
+
+            ObDereferenceObject(Request->DeviceObject);
+
+            ExFreePool(Request);
+        }
+
+        Entry = NextEntry;
+    }
+
+    KeReleaseSpinLock(&IopPnPSpinLock, Irql);
+}
+
+VOID
+NTAPI
 IoInvalidateDeviceState(
     _In_ PDEVICE_OBJECT PhysicalDeviceObject)
 {
