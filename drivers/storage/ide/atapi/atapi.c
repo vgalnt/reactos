@@ -1159,10 +1159,10 @@ IdeReadWrite(
 
         WRITE_PORT_UCHAR(HwDeviceExtension->CmdBlock.DeviceSelect, (((Device & 0x1) << 4) | IDE_DRIVE_SELECT | (Head % NumberOfHeads)));
 
-        DPRINT1("IdeReadWrite: Cylinder %X Head %X Sector %X\n",
-                (StartingSector / (SectorsPerTrack * NumberOfHeads)),
-                (Head % NumberOfHeads),
-                (Sector + 1));
+        DPRINT("IdeReadWrite: Cylinder %X Head %X Sector %X\n",
+               (StartingSector / (SectorsPerTrack * NumberOfHeads)),
+               (Head % NumberOfHeads),
+               (Sector + 1));
     }
 
     if (Srb->SrbFlags & 0x40)
@@ -12867,12 +12867,20 @@ DeviceQueryFirmwareBootSettings(
 {
     PACPI_EVAL_OUTPUT_BUFFER QueryResult;
     ACPI_EVAL_SIGNATURE MethodSign;
+    PATAPI_INIT_DATA InitData;
+    ULONG Count;
+    ULONG ix;
     NTSTATUS Status;
 
     DPRINT("DeviceQueryFirmwareBootSettings: %p\n", PdoExtension);
 
     *OutInitData = NULL;
 
+    /* ACPI 3.0a - 9.9.1.1 _GTF (Get Task File)
+       This optional object returns a buffer containing the ATA commands used to restore the drive to boot up defaults (that is, the state of the drive after POST).
+       The returned buffer is an array with each element in the array consisting of seven 8-bit register values (56 bits) corresponding to ATA task registers 1F1 thru 1F7.
+       Each entry in the array defines a command to the drive.
+    */
     MethodSign.AsULONG = 'FTG_';
 
     Status = DeviceQueryACPISettings(PdoExtension->SelfDevice, MethodSign, &QueryResult);
@@ -12891,7 +12899,49 @@ DeviceQueryFirmwareBootSettings(
         goto Exit;
     }
 
-    UNIMPLEMENTED_DBGBREAK();
+    if (QueryResult->Argument[0].Type != ACPI_METHOD_ARGUMENT_BUFFER)
+    {
+        DPRINT1("DeviceQueryFirmwareBootSettings: Type %X\n", QueryResult->Argument[0].Type);
+        goto Exit;
+    }
+
+    ASSERT(!(QueryResult->Argument[0].DataLength % sizeof(ACPI_GTF_IDE_REGISTERS)));
+    Count = (QueryResult->Argument[0].DataLength / sizeof(ACPI_GTF_IDE_REGISTERS));
+
+    InitData = ExAllocatePool(NonPagedPool, sizeof(ATAPI_INIT_DATA) + (Count * sizeof(IDEREGS)));
+    if (!InitData)
+    {
+        DPRINT1("DeviceQueryFirmwareBootSettings: ChannelQueryFirmwareBootSettings failed to allocate memory\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
+    }
+
+    for (ix = 0; ix < Count; ix++)
+    {
+        RtlMoveMemory(&InitData->IdeReg[ix],
+                      ((PUCHAR)&QueryResult->Argument[0].Argument + ix * sizeof(ACPI_GTF_IDE_REGISTERS)),
+                      sizeof(ACPI_GTF_IDE_REGISTERS));
+
+        InitData->IdeReg[ix].bReserved = 0;
+    }
+
+    InitData->Count = Count;
+    *OutInitData = InitData;
+
+    DPRINT1("DeviceQueryFirmwareBootSettings: _GTF Data:\n");
+
+    for (ix = 0; ix < InitData->Count; ix++)
+    {
+        DbgPrint("\t");
+        DbgPrint(" 0x%02X", InitData->IdeReg[ix].bFeaturesReg);
+        DbgPrint(" 0x%02X", InitData->IdeReg[ix].bSectorCountReg);
+        DbgPrint(" 0x%02X", InitData->IdeReg[ix].bSectorNumberReg);
+        DbgPrint(" 0x%02X", InitData->IdeReg[ix].bCylLowReg);
+        DbgPrint(" 0x%02X", InitData->IdeReg[ix].bCylHighReg);
+        DbgPrint(" 0x%02X", InitData->IdeReg[ix].bDriveHeadReg);
+        DbgPrint(" 0x%02X", InitData->IdeReg[ix].bCommandReg);
+        DbgPrint("\n");
+    }
 
 Exit:
 

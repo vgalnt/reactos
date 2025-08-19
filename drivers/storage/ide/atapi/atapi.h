@@ -325,6 +325,19 @@ typedef struct _ATAPI_INTERRUPT_DATA
     struct _PDO_DEVICE_EXTENSION* PdoExtensionResetBus;
 } ATAPI_INTERRUPT_DATA, *PATAPI_INTERRUPT_DATA;
 
+#include <pshpack1.h>
+typedef struct _ACPI_GTF_IDE_REGISTERS
+{
+    UCHAR  bFeaturesReg;
+    UCHAR  bSectorCountReg;
+    UCHAR  bSectorNumberReg;
+    UCHAR  bCylLowReg;
+    UCHAR  bCylHighReg;
+    UCHAR  bDriveHeadReg;
+    UCHAR  bCommandReg;
+} ACPI_GTF_IDE_REGISTERS, *PACPI_GTF_IDE_REGISTERS;
+#include <poppack.h>
+
 typedef struct _ATAPI_INIT_DATA
 {
     ULONG Count;
