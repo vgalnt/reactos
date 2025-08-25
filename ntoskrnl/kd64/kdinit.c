@@ -474,6 +474,9 @@ KdInitSystem(
     {
         DbgPrint0("KdInitSystem: KdDebuggerInitialize0 failed (Status %X)\n", Status);
 
+        /* Disable debugger */
+        KdDebuggerNotPresent = TRUE;
+
         /* Return initialized */
         return TRUE;
     }
