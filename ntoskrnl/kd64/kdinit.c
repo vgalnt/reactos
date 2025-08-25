@@ -232,7 +232,8 @@ KdInitSystem(
     _In_ ULONG BootPhase,
     _In_opt_ PLOADER_PARAMETER_BLOCK LoaderBlock)
 {
-    BOOLEAN EnableKd, DisableKdAfterInit = FALSE, BlockEnable;
+    BOOLEAN EnableKd, DisableKdAfterInit = FALSE;
+    UCHAR BlockEnable = 0;
     PSTR CommandLine, DebugLine, DebugOptionStart, DebugOptionEnd;
     STRING ImageName;
     PLDR_DATA_TABLE_ENTRY LdrEntry;
@@ -251,14 +252,7 @@ KdInitSystem(
 
     LoaderBlock->u.I386.CommonDataArea = DbgKdPrint0;
 
-    /* FIXME find and patch kdstub */
-
     DbgPrint0("KdInitSystem: BootPhase %X, LoaderBlock %p\n", BootPhase, LoaderBlock);
-  #endif
-
-  #if defined(__GNUC__)
-    /* Make gcc happy */
-    BlockEnable = FALSE;
   #endif
 
     /* Check if this is Phase 1 */

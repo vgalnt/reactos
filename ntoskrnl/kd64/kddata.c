@@ -138,7 +138,7 @@ BOOLEAN KdPitchDebugger;
 BOOLEAN KdDebuggerNotPresent;
 BOOLEAN KdDebuggerEnabled;
 BOOLEAN KdAutoEnableOnEvent;
-BOOLEAN KdBlockEnable;
+UCHAR KdBlockEnable;
 BOOLEAN KdIgnoreUmExceptions;
 BOOLEAN KdPreviouslyEnabled;
 BOOLEAN KdpDebuggerStructuresInitialized;

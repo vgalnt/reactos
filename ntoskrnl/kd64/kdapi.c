@@ -2278,7 +2278,7 @@ KdChangeOption(IN KD_OPTION Option,
     }
 
     /* Set the new block enable state */
-    KdBlockEnable = *(PBOOLEAN)InBuffer;
+    KdBlockEnable = *(PUCHAR)InBuffer;
 
     /* No output buffer required for this option */
     if (OutBufferNeeded) *OutBufferNeeded = 0;
