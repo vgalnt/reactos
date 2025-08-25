@@ -136,7 +136,8 @@ enum
 static ULONG
 PcVideoDetectVideoCard(VOID)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AH=12h BL=10h
    * VIDEO - ALTERNATE FUNCTION SELECT (PS,EGA,VGA,MCGA) - GET EGA INFO
@@ -209,7 +210,8 @@ PcVideoDetectVideoCard(VOID)
 
 static VOID PcVideoSetBiosMode(UCHAR VideoMode)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AH=00h
    * VIDEO - SET VIDEO MODE
@@ -231,7 +233,8 @@ static VOID PcVideoSetBiosMode(UCHAR VideoMode)
 static VOID
 PcVideoSetFont8x8(VOID)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AX=1112h
    * VIDEO - TEXT-MODE CHARGEN - LOAD ROM 8x8 DBL-DOT PATTERNS (PS,EGA,VGA)
@@ -249,7 +252,8 @@ PcVideoSetFont8x8(VOID)
 static VOID
 PcVideoSetFont8x14(VOID)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AX=1111h
    * VIDEO - TEXT-MODE CHARGEN - LOAD ROM MONOCHROME PATTERNS (PS,EGA,VGA)
@@ -267,7 +271,8 @@ PcVideoSetFont8x14(VOID)
 static VOID
 PcVideoSelectAlternatePrintScreen(VOID)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AH=12h BL=20h
    * VIDEO - ALTERNATE FUNCTION SELECT (PS,EGA,VGA,MCGA) - ALTERNATE PRTSC
@@ -291,7 +296,8 @@ PcVideoSelectAlternatePrintScreen(VOID)
 static VOID
 PcVideoDisableCursorEmulation(VOID)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AH=12h BL=34h
    * VIDEO - ALTERNATE FUNCTION SELECT (VGA) - CURSOR EMULATION
@@ -316,7 +322,8 @@ PcVideoDisableCursorEmulation(VOID)
 static VOID
 PcVideoDefineCursor(UCHAR StartScanLine, UCHAR EndScanLine)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AH=01h
    * VIDEO - SET TEXT-MODE CURSOR SHAPE
@@ -352,7 +359,8 @@ PcVideoDefineCursor(UCHAR StartScanLine, UCHAR EndScanLine)
 static VOID
 PcVideoSetVerticalResolution(UCHAR VerticalResolutionMode)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AH=12h BL=30h
    * VIDEO - ALTERNATE FUNCTION SELECT (VGA) - SELECT VERTICAL RESOLUTION
@@ -458,7 +466,8 @@ PcVideoSetDisplayEnd(VOID)
 static BOOLEAN
 PcVideoVesaGetSVGAModeInformation(USHORT Mode, PSVGA_MODE_INFORMATION ModeInformation)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   RtlZeroMemory((PVOID)BIOSCALLBUFFER, 256);
 
@@ -530,7 +539,8 @@ PcVideoVesaGetSVGAModeInformation(USHORT Mode, PSVGA_MODE_INFORMATION ModeInform
 static BOOLEAN
 PcVideoSetBiosVesaMode(USHORT Mode)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AX=4F02h
    * VESA SuperVGA BIOS - SET SuperVGA VIDEO MODE
@@ -824,7 +834,8 @@ PcVideoSetMode(USHORT NewMode)
 static VOID
 PcVideoSetBlinkBit(BOOLEAN Enable)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AX=1003h
    * VIDEO - TOGGLE INTENSITY/BLINKING BIT (Jr, PS, TANDY 1000, EGA, VGA)
@@ -849,7 +860,8 @@ PcVideoSetBlinkBit(BOOLEAN Enable)
 static VOID
 PcVideoSetMemoryBank(USHORT BankNumber)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   if (CurrentMemoryBank != BankNumber)
     {
@@ -975,7 +987,8 @@ PcVideoGetBufferSize(VOID)
 VOID
 PcVideoGetFontsFromFirmware(PULONG RomFontPointers)
 {
-    REGS BiosRegs;
+    REGS BiosRegs = {{0}};
+
 
     /* Get the address of the BIOS ROM fonts.
        Int 10h, AX=1130h, BH = pointer specifier
@@ -1009,7 +1022,8 @@ PcVideoGetFontsFromFirmware(PULONG RomFontPointers)
 VOID
 PcVideoSetTextCursorPosition(UCHAR X, UCHAR Y)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 10h AH=02h
    * VIDEO - SET CURSOR POSITION

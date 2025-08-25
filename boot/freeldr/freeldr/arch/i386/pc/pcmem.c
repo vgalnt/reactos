@@ -52,8 +52,10 @@ static
 BOOLEAN
 GetExtendedMemoryConfiguration(ULONG* pMemoryAtOneMB /* in KB */, ULONG* pMemoryAtSixteenMB /* in 64KB */)
 {
-    REGS     RegsIn;
-    REGS     RegsOut;
+    REGS     RegsIn = {{0}};
+
+    REGS     RegsOut = {{0}};
+
 
     TRACE("GetExtendedMemoryConfiguration()\n");
 
@@ -148,7 +150,8 @@ static
 ULONG
 PcMemGetConventionalMemorySize(VOID)
 {
-    REGS Regs;
+    REGS Regs = {{0}};
+
 
     TRACE("PcMemGetConventionalMemorySize()\n");
 
@@ -176,7 +179,8 @@ GetEbdaLocation(
     PULONG BaseAddress,
     PULONG Size)
 {
-    REGS Regs;
+    REGS Regs = {{0}};
+
 
     TRACE("GetEbdaLocation()\n");
 
@@ -234,7 +238,8 @@ static
 ULONG
 PcMemGetBiosMemoryMap(PFREELDR_MEMORY_DESCRIPTOR MemoryMap, ULONG MaxMemoryMapSize)
 {
-    REGS Regs;
+    REGS Regs = {{0}};
+
     ULONGLONG RealBaseAddress, EndAddress, RealSize;
     TYPE_OF_MEMORY MemoryType;
 

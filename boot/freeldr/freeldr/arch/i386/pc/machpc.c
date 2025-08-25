@@ -79,7 +79,8 @@ DBG_DEFAULT_CHANNEL(HWDETECT);
 VOID
 PcGetExtendedBIOSData(PULONG ExtendedBIOSDataArea, PULONG ExtendedBIOSDataSize)
 {
-    REGS BiosRegs;
+    REGS BiosRegs = {{0}};
+
 
     /* Get address and size of the extended BIOS data area */
     BiosRegs.d.eax = 0xC100;
@@ -919,7 +920,8 @@ DetectKeyboardPeripheral(PCONFIGURATION_COMPONENT_DATA ControllerKey)
     PCM_KEYBOARD_DEVICE_DATA KeyboardData;
     PCONFIGURATION_COMPONENT_DATA PeripheralKey;
     ULONG Size;
-    REGS Regs;
+    REGS Regs = {{0}};
+
 
     /* HACK: don't call DetectKeyboardDevice() as it fails in Qemu 0.8.2
     if (DetectKeyboardDevice()) */
@@ -1396,7 +1398,8 @@ PcHwDetect(VOID)
 VOID
 PcHwIdle(VOID)
 {
-    REGS Regs;
+    REGS Regs = {{0}};
+
 
     /* Select APM 1.0+ function */
     Regs.b.ah = 0x53;
@@ -1421,7 +1424,8 @@ VOID __cdecl ChainLoadBiosBootSectorCode(
     IN UCHAR BootDrive OPTIONAL,
     IN ULONG BootPartition OPTIONAL)
 {
-    REGS Regs;
+    REGS Regs = {{0}};
+
 
     RtlZeroMemory(&Regs, sizeof(Regs));
 

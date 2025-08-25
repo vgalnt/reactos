@@ -88,7 +88,8 @@ typedef struct
 #if 0
 static VOID BiosSetVideoFont8x16(VOID)
 {
-    REGS    Regs;
+    REGS    Regs = {{0}};
+
 
     // Int 10h AX=1114h
     // VIDEO - TEXT-MODE CHARGEN - LOAD ROM 8x16 CHARACTER SET (VGA)
@@ -108,7 +109,8 @@ static VOID VideoSetTextCursorPosition(ULONG X, ULONG Y)
 
 static ULONG VideoGetTextCursorPositionX(VOID)
 {
-    REGS    Regs;
+    REGS    Regs = {{0}};
+
 
     // Int 10h AH=03h
     // VIDEO - GET CURSOR POSITION AND SIZE
@@ -133,7 +135,8 @@ static ULONG VideoGetTextCursorPositionX(VOID)
 
 static ULONG VideoGetTextCursorPositionY(VOID)
 {
-    REGS    Regs;
+    REGS    Regs = {{0}};
+
 
     // Int 10h AH=03h
     // VIDEO - GET CURSOR POSITION AND SIZE
@@ -159,7 +162,8 @@ static ULONG VideoGetTextCursorPositionY(VOID)
 
 USHORT BiosIsVesaSupported(VOID)
 {
-    REGS            Regs;
+    REGS            Regs = {{0}};
+
     PVESA_SVGA_INFO    SvgaInfo = (PVESA_SVGA_INFO)BIOSCALLBUFFER;
     //USHORT*            VideoModes;
     //USHORT            Index;
@@ -241,7 +245,8 @@ USHORT BiosIsVesaSupported(VOID)
 BOOLEAN
 BiosIsVesaDdcSupported(VOID)
 {
-    REGS Regs;
+    REGS Regs = {{0}};
+
 
     TRACE("BiosIsVesaDdcSupported()\n");
 
@@ -271,7 +276,8 @@ BiosIsVesaDdcSupported(VOID)
 BOOLEAN
 BiosVesaReadEdid(VOID)
 {
-    REGS Regs;
+    REGS Regs = {{0}};
+
 
     TRACE("BiosVesaReadEdid()\n");
 

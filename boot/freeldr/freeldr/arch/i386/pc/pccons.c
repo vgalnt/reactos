@@ -27,7 +27,8 @@
 VOID
 PcConsPutChar(int Ch)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* If we are displaying a CR '\n' then do a LF also */
   if ('\n' == Ch)
@@ -68,7 +69,8 @@ PcConsPutChar(int Ch)
 BOOLEAN
 PcConsKbHit(VOID)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
 
   /* Int 16h AH=01h
    * KEYBOARD - CHECK FOR KEYSTROKE
@@ -89,7 +91,8 @@ PcConsKbHit(VOID)
 int
 PcConsGetCh(void)
 {
-  REGS Regs;
+  REGS Regs = {{0}};
+
   static BOOLEAN ExtendedKey = FALSE;
   static char ExtendedScanCode = 0;
 
