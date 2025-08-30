@@ -362,6 +362,11 @@ KdInitSystem(
                         DebugOptionStart = DebugOptionEnd;
                     }
                 }
+
+              #if DBG_KD0
+                if ((strstr(CommandLine, "NET")) != NULL)
+                    PatchKdStub(LoaderBlock);
+              #endif
             }
         }
         else
@@ -398,10 +403,6 @@ KdInitSystem(
         /* Return initialized */
         return TRUE;
     }
-
-  #if DBG_KD0
-    PatchKdStub(LoaderBlock);
-  #endif
 
     Status = KdDebuggerInitialize0(LoaderBlock);
     if (!NT_SUCCESS(Status))
