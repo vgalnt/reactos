@@ -188,6 +188,9 @@ CHAR KdpPathBuffer[KDP_MSG_BUFFER_SIZE];
 //
 CHAR KdPrintDefaultCircularBuffer[KD_DEFAULT_LOG_BUFFER_SIZE];
 PCHAR KdPrintWritePointer = KdPrintDefaultCircularBuffer;
+#ifdef __REACTOS__
+PCHAR KdPrintDefaultWritePointer = KdPrintDefaultCircularBuffer;
+#endif
 ULONG KdPrintRolloverCount;
 PCHAR KdPrintCircularBuffer = KdPrintDefaultCircularBuffer;
 ULONG KdPrintBufferSize = sizeof(KdPrintDefaultCircularBuffer);

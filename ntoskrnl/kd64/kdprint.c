@@ -114,6 +114,82 @@ KdLogDbgPrint(
     }
 }
 
+NTSTATUS
+NTAPI
+KdSetDbgPrintBufferSize(
+    _In_ ULONG SizeOfBuffer)
+{
+    PCHAR OldBuffer;
+    PCHAR Buffer;
+    KIRQL OldIrql;
+
+  #if DBG_KD0
+    //DPRINT1("KdSetDbgPrintBufferSize: SizeOfBuffer %X. KdPitchDebugger ignored! (%X)\n", SizeOfBuffer, KdPitchDebugger);
+  #else
+    //DPRINT1("KdSetDbgPrintBufferSize: SizeOfBuffer %X\n", SizeOfBuffer);
+    if (KdPitchDebugger)
+    {
+        DPRINT1("KdSetDbgPrintBufferSize: STATUS_ACCESS_DENIED. KdPitchDebugger is TRUE\n");
+        return STATUS_ACCESS_DENIED;
+    }
+  #endif
+
+    if (SizeOfBuffer >= 0x1000000)
+    {
+        DPRINT1("KdSetDbgPrintBufferSize: STATUS_INVALID_PARAMETER_1 (%X)\n", SizeOfBuffer);
+        return STATUS_INVALID_PARAMETER_1;
+    }
+
+    if (SizeOfBuffer > KD_DEFAULT_LOG_BUFFER_SIZE)
+    {
+        Buffer = ExAllocatePoolWithTag(NonPagedPool, SizeOfBuffer, 'bPdK');
+        if (!Buffer)
+        {
+            DPRINT1("KdSetDbgPrintBufferSize: STATUS_NO_MEMORY (%X)\n", SizeOfBuffer);
+            return STATUS_NO_MEMORY;
+        }
+    }
+    else
+    {
+        if (!SizeOfBuffer)
+            SizeOfBuffer = KD_DEFAULT_LOG_BUFFER_SIZE;
+
+        Buffer = KdPrintDefaultCircularBuffer;
+    }
+
+    /* Acquire the log spinlock without waiting at raised IRQL */
+    OldIrql = KdpAcquireLock(&KdpPrintSpinLock);
+
+    RtlZeroMemory(Buffer, SizeOfBuffer);
+
+    OldBuffer = KdPrintCircularBuffer;
+
+    KdPrintCircularBuffer = Buffer;
+
+  #ifdef __REACTOS__
+    if (OldBuffer && OldBuffer == KdPrintDefaultCircularBuffer)
+    {
+        /* Save KdPrintWritePointer for KdPrintDefaultCircularBuffer */
+        KdPrintDefaultWritePointer = KdPrintWritePointer;
+    }
+  #endif
+    KdPrintWritePointer = Buffer;
+    KdPrintBufferSize = SizeOfBuffer;
+
+    KdPrintRolloverCount = 0;
+    KdPrintBufferChanges++;
+
+    /* Release the spinlock */
+    KdpReleaseLock(&KdpPrintSpinLock, OldIrql);
+
+    if (OldBuffer && OldBuffer != KdPrintDefaultCircularBuffer)
+    {
+        ExFreePool(OldBuffer);
+    }
+
+    return STATUS_SUCCESS;
+}
+
 BOOLEAN
 NTAPI
 KdpPrintString(

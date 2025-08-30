@@ -563,6 +563,12 @@ NTAPI
 KdLogDbgPrint(
     _In_ PSTRING String);
 
+NTSTATUS
+NTAPI
+KdSetDbgPrintBufferSize(
+    _In_ ULONG SizeOfBuffer
+);
+
 #if DBG_KD0
 VOID
 NTAPI
@@ -616,6 +622,9 @@ extern CHAR KdpPathBuffer[KDP_MSG_BUFFER_SIZE];
 
 extern CHAR KdPrintDefaultCircularBuffer[KD_DEFAULT_LOG_BUFFER_SIZE];
 extern PCHAR KdPrintWritePointer;
+#ifdef __REACTOS__
+extern PCHAR KdPrintDefaultWritePointer;
+#endif
 extern ULONG KdPrintRolloverCount;
 extern PCHAR KdPrintCircularBuffer;
 extern ULONG KdPrintBufferSize;
@@ -630,6 +639,15 @@ extern ULONG KdpNumInternalBreakpoints;
 extern ULONG_PTR KdpCurrentSymbolStart, KdpCurrentSymbolEnd;
 extern ULONG TraceDataBuffer[40];
 extern ULONG TraceDataBufferPosition;
+
+#if DBG_KD0
+  extern BOOLEAN KdPitchKd0;
+  extern BOOLEAN EnabledKd0;
+  extern BOOLEAN EnabledComKd0;
+  extern BOOLEAN EnabledScreenKd0;
+  extern BOOLEAN EnabledFileKd0;
+  extern ULONG KdpStubCounter;
+#endif
 
 //
 // Debug Filter Component Table

@@ -194,6 +194,30 @@ KdInitSystem(
     /* Check if this is Phase 1 */
     if (BootPhase)
     {
+      #if DBG_KD0
+        DPRINT1("KdInitSystem: [1] %p, %p, %X, %X, %X\n",
+                KdPrintCircularBuffer, KdPrintWritePointer, KdPrintBufferSize, KdPrintRolloverCount, KdPrintBufferChanges);
+
+        /* Default size of the DbgPrint log buffer is KD_DEFAULT_LOG_BUFFER_SIZE (0x8000 or 32 Kb for DBG).
+           This is usually not enough for debugging Reactos and leads to circular overwriting.
+           Therefore, we will create a new buffer of 1 (FIXME) MB.
+           In Windows, it is allowed to create up to 16 MB KdPrintCircularBuffer.
+        */
+        Status = KdSetDbgPrintBufferSize(0x100000); // New size buffer is 1 Mb. FIXME
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("KdInitSystem: Status %X\n", Status);
+        }
+
+        /* Now the recording goes to the new buffer (pointer KdPrintCircularBuffer).
+           The contents of the old one (KdPrintDefaultCircularBuffer)
+           will remain the same until we call KdSetDbgPrintBufferSize() with the parameter SizeOfBuffer <= KD_DEFAULT_LOG_BUFFER_SIZE.
+        */
+
+        DPRINT1("KdInitSystem: [2] %p, %p, %X, %X, %X\n",
+                KdPrintCircularBuffer, KdPrintWritePointer, KdPrintBufferSize, KdPrintRolloverCount, KdPrintBufferChanges);
+      #endif
+
         /* Just query the performance counter */
         KeQueryPerformanceCounter(&KdPerformanceCounterRate);
         return TRUE;
