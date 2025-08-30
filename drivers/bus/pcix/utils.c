@@ -16,8 +16,6 @@
 
 /* GLOBALS ********************************************************************/
 
-ULONG PciDebugPortsCount;
-
 RTL_RANGE_LIST PciIsaBitExclusionList;
 RTL_RANGE_LIST PciVgaAndIsaBitExclusionList;
 
