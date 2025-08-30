@@ -707,6 +707,9 @@ DetectSerialPorts(PCONFIGURATION_COMPONENT_DATA BusKey, GET_SERIAL_PORT MachGetS
         PartialDescriptor->Flags = CM_RESOURCE_PORT_IO;
         PartialDescriptor->u.Port.Start.LowPart = Base;
         PartialDescriptor->u.Port.Start.HighPart = 0x0;
+        /* TESTME! In the Windows here is 7 ...
+           See "HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\MultifunctionAdapter\x\SerialController\y"
+        */
         PartialDescriptor->u.Port.Length = 8;
 
         /* Set Interrupt */
