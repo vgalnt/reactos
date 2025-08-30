@@ -30,6 +30,15 @@ const ULONG BaseArray[] = {0, 0x3F8, 0x2F8, 0x3E8, 0x2E8};
 
 CPPORT KdComPort0 = {NULL, 0, TRUE};
 
+/* DbgPrint0 Buffer */
+CHAR KdPrintDefaultCircularBuffer_Kd0[KD_DEFAULT_LOG_BUFFER_SIZE];
+PCHAR KdPrintWritePointer_Kd0 = KdPrintDefaultCircularBuffer_Kd0;
+ULONG KdPrintRolloverCount_Kd0;
+PCHAR KdPrintCircularBuffer_Kd0 = KdPrintDefaultCircularBuffer_Kd0;
+ULONG KdPrintBufferSize_Kd0 = sizeof(KdPrintDefaultCircularBuffer_Kd0);
+ULONG KdPrintBufferChanges_Kd0 = 0;
+//KSPIN_LOCK KdpPrintSpinLock_Kd0;
+
 #endif
 
 /* FUNCTIONS *****************************************************************/
@@ -41,6 +50,45 @@ NTAPI
 KdLogDbgPrint0(
     _In_ PSTRING String)
 {
+    SIZE_T Length, Remaining;
+    //KIRQL OldIrql;
+
+    /* If the string is empty, bail out */
+    if (!String->Buffer || (String->Length == 0))
+        return;
+
+    /* If no log buffer available, bail out */
+    if (!KdPrintCircularBuffer_Kd0)
+        return;
+
+    /* Acquire the log spinlock without waiting at raised IRQL */
+    //OldIrql = KdpAcquireLock(&KdpPrintSpinLock_Kd0);
+
+    Length = min(String->Length, KdPrintBufferSize_Kd0);
+    Remaining = KdPrintCircularBuffer_Kd0 + KdPrintBufferSize_Kd0 - KdPrintWritePointer_Kd0;
+
+    if (Length < Remaining)
+    {
+        KdpMoveMemory(KdPrintWritePointer_Kd0, String->Buffer, Length);
+        KdPrintWritePointer_Kd0 += Length;
+    }
+    else
+    {
+        KdpMoveMemory(KdPrintWritePointer_Kd0, String->Buffer, Remaining);
+        Length -= Remaining;
+        if (Length > 0)
+            KdpMoveMemory(KdPrintCircularBuffer_Kd0, String->Buffer + Remaining, Length);
+
+        KdPrintWritePointer_Kd0 = KdPrintCircularBuffer_Kd0 + Length;
+
+        /* Got a rollover, update count (handle wrapping, must always be >= 1) */
+        KdPrintRolloverCount_Kd0++;
+        if (KdPrintRolloverCount_Kd0 == 0)
+            KdPrintRolloverCount_Kd0++;
+    }
+
+    /* Release the spinlock */
+    //KdpReleaseLock(&KdpPrintSpinLock_Kd0, OldIrql);
 }
 
 ULONG
