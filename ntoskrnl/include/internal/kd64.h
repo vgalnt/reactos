@@ -8,6 +8,10 @@
 
 #pragma once
 
+#if defined(_WINKD_) && defined(__REACTOS__)
+  #define ROS_DBG_LOG_FILE 1
+#endif
+
 #ifdef __REACTOS__
   ULONG __cdecl DbgKdPrint0(_In_ PCHAR Format, ...);
 
@@ -569,6 +573,8 @@ KdSetDbgPrintBufferSize(
     _In_ ULONG SizeOfBuffer
 );
 
+#ifdef __REACTOS__
+
 #if DBG_KD0
 VOID
 NTAPI
@@ -586,6 +592,15 @@ NTSTATUS
 NTAPI
 KdpWriteDebugToFile0(
     VOID);
+#endif
+
+NTSTATUS
+NTAPI
+KdpWriteDebugToFile(
+    _In_ BOOLEAN IsAppend,
+    _In_ BOOLEAN IsPhase1
+);
+
 #endif
 
 //

@@ -106,6 +106,132 @@ KdpPrintBanner0(VOID)
 }
 #endif
 
+static ANSI_STRING KdpFileNameLog1 = RTL_CONSTANT_STRING("\\SystemRoot\\debug1.log");
+static ANSI_STRING KdpFileNameLog2 = RTL_CONSTANT_STRING("\\SystemRoot\\debug2.log");
+
+/* Write KdPrintCircularBuffer to file KdpFileNameLog'X'. */
+NTSTATUS
+NTAPI
+KdpWriteDebugToFile(
+    _In_ BOOLEAN IsAppend,
+    _In_ BOOLEAN IsPhase2)
+{
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    LARGE_INTEGER ByteOffset;
+    PANSI_STRING FileNameLog;
+    UNICODE_STRING FileName;
+    IO_STATUS_BLOCK Iosb;
+    HANDLE Handle = NULL;
+    PCHAR Buffer;
+    ULONG BufferSize;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    /* Setup the log name */
+
+    if (IsPhase2)
+    {
+        BufferSize = (KdPrintWritePointer - KdPrintCircularBuffer); // NOT USE strlen(KdPrintCircularBuffer);
+        if (!BufferSize)
+        {
+            DPRINT1("KdpWriteDebugToFile: BufferSize is 0\n");
+            return Status;
+        }
+        DPRINT1("KdpWriteDebugToFile: Buffer %p (%X)\n", KdPrintCircularBuffer, BufferSize);
+
+        FileNameLog = &KdpFileNameLog2;
+    }
+    else
+    {
+        BufferSize = (KdPrintDefaultWritePointer - KdPrintDefaultCircularBuffer); // NOT USE strlen(KdPrintDefaultCircularBuffer);
+        if (!BufferSize)
+        {
+            DPRINT1("KdpWriteDebugToFile: BufferSize is 0\n");
+            return Status;
+        }
+        DPRINT1("KdpWriteDebugToFile: Buffer %p (%X)\n", KdPrintDefaultCircularBuffer, BufferSize);
+
+        FileNameLog = &KdpFileNameLog1;
+    }
+
+    Status = RtlAnsiStringToUnicodeString(&FileName, FileNameLog, TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("KdpWriteDebugToFile: Status %X\n", Status);
+        return Status;
+    }
+
+    InitializeObjectAttributes(&ObjectAttributes, &FileName, (OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE), NULL, NULL);
+
+    if (!IsAppend)
+    {
+        /* Delete the old log file */
+        Status = NtOpenFile(&Handle,
+                            DELETE,
+                            &ObjectAttributes,
+                            &Iosb,
+                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 
+                            FILE_NON_DIRECTORY_FILE | FILE_OPEN_FOR_BACKUP_INTENT);
+
+        if (NT_SUCCESS(Status))
+        {
+            FILE_DISPOSITION_INFORMATION Disposition;
+            Disposition.DeleteFile = TRUE;
+
+            Status = NtSetInformationFile(Handle, &Iosb, &Disposition, sizeof(Disposition), FileDispositionInformation);
+            NtClose(Handle);
+        }
+    }
+
+    /* Create the log file */
+    Status = NtCreateFile(&Handle,
+                          GENERIC_WRITE,
+                          &ObjectAttributes,
+                          &Iosb,
+                          NULL,
+                          FILE_ATTRIBUTE_NORMAL,
+                          FILE_SHARE_READ,
+                          FILE_OPEN_IF,
+                          (FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_SEQUENTIAL_ONLY),
+                          NULL,
+                          0);
+
+    RtlFreeUnicodeString(&FileName);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("KdpWriteDebugToFile: Failed to open log file (%X)\n", Status);
+        return Status;
+    }
+
+    if (IsPhase2)
+    {
+        Buffer = KdPrintCircularBuffer;
+        BufferSize = (KdPrintWritePointer - KdPrintCircularBuffer); // NOT USE strlen(Buffer);
+    }
+    else
+    {
+        Buffer = KdPrintDefaultCircularBuffer;
+        BufferSize = (KdPrintDefaultWritePointer - KdPrintDefaultCircularBuffer); // NOT USE strlen(Buffer);
+    }
+
+    if (!IsAppend || Iosb.Information == FILE_CREATED)
+    {
+        Status = NtWriteFile(Handle, NULL, NULL, NULL, &Iosb, Buffer, BufferSize, NULL, NULL);
+    }
+    else
+    {
+        ByteOffset.LowPart = FILE_WRITE_TO_END_OF_FILE;
+        ByteOffset.HighPart = 0xFFFFFFFF;
+
+        Status = NtWriteFile(Handle, NULL, NULL, NULL, &Iosb, Buffer, BufferSize, &ByteOffset, NULL);
+    }
+
+    DPRINT1("KdpWriteDebugToFile: Status %X\n", Status);
+
+    ZwClose(Handle);
+
+    return Status;
+}
 #endif
 
 /* FUNCTIONS *****************************************************************/

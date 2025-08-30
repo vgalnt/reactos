@@ -2051,6 +2051,14 @@ Phase1InitializationDiscard(IN PVOID Context)
     /* Free the boot buffer */
     ExFreePoolWithTag(InitBuffer, TAG_INIT);
     DPRINT("Free non-cache pages: %lx\n", MmAvailablePages + MiMemoryConsumers[MC_CACHE].PagesUsed);
+
+  #if DBG_KD0
+    DPRINT1("KdpStubCounter %lx, KdPrintRolloverCount %lx\n", KdpStubCounter, KdPrintRolloverCount);
+  #endif
+
+  #if ROS_DBG_LOG_FILE
+    KdpWriteDebugToFile(FALSE, FALSE); // 'debug1.log' (will be overwritten)
+  #endif
 }
 
 VOID

@@ -1397,7 +1397,12 @@ PopGracefulShutdown(
 {
     PEPROCESS Process = NULL;
 
-    DPRINT("PopGracefulShutdown: Context %p\n", Context);
+    DPRINT1("PopGracefulShutdown: Context %p\n", Context);
+
+  #if ROS_DBG_LOG_FILE
+    DPRINT1("KdpStubCounter %lx, KdPrintRolloverCount %lx\n", KdpStubCounter, KdPrintRolloverCount);
+    KdpWriteDebugToFile(FALSE, TRUE); // 'debug2.log' (will be overwritten)
+  #endif
 
     /* Process the registered waits and work items */
     PopProcessShutDownLists();
