@@ -1832,11 +1832,22 @@ Phase1InitializationDiscard(IN PVOID Context)
     /* Set maximum update to 75% */
     InbvSetProgressBarSubset(25, 75);
 
+  #if DBG_KD0
+    InbvDisplayString("   Kernel debugger for phase 0 supported\r\n\r\n");
+  #elif defined(_WINKD_) && defined(__REACTOS__)
+    InbvDisplayString("   Kernel debugger for phase 0 not supported\r\n\r\n");
+  #endif
+
     /* Initialize the I/O Subsystem */
     if (!IoInitSystem(LoaderBlock)) KeBugCheck(IO1_INITIALIZATION_FAILED);
 
     /* Set maximum update to 100% */
     InbvSetProgressBarSubset(0, 100);
+
+  #if DBG_KD0
+    if (EnabledFileKd0)
+        KdpWriteDebugToFile0(); // 'debug0.log' (will be overwritten)
+  #endif
 
     /* Are we in safe mode? */
     if (InitSafeBootMode)

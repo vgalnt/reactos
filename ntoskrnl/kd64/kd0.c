@@ -39,11 +39,93 @@ ULONG KdPrintBufferSize_Kd0 = sizeof(KdPrintDefaultCircularBuffer_Kd0);
 ULONG KdPrintBufferChanges_Kd0 = 0;
 //KSPIN_LOCK KdpPrintSpinLock_Kd0;
 
+static ANSI_STRING KdpFileNameLog0 = RTL_CONSTANT_STRING("\\SystemRoot\\debug0.log");
+
 #endif
 
 /* FUNCTIONS *****************************************************************/
 
 #if DBG_KD0
+
+/* Write KdPrintCircularBuffer_Kd0 to file 'debug0.log' (KdpFileNameLog0).
+   The File will be overwritten.
+*/
+NTSTATUS
+NTAPI
+KdpWriteDebugToFile0(VOID)
+{
+    OBJECT_ATTRIBUTES ObjectAttributes;
+    HANDLE Handle = NULL;
+    UNICODE_STRING FileName;
+    IO_STATUS_BLOCK Iosb;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    /* Setup the log name */
+    Status = RtlAnsiStringToUnicodeString(&FileName, &KdpFileNameLog0, TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("KdpWriteDebugToFile0: Status %X\n", Status);
+        return Status;
+    }
+
+    InitializeObjectAttributes(&ObjectAttributes, &FileName, (OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE), NULL, NULL);
+
+    /* Delete the old log file */
+    Status = NtOpenFile(&Handle,
+                        DELETE,
+                        &ObjectAttributes,
+                        &Iosb,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, 
+                        FILE_NON_DIRECTORY_FILE | FILE_OPEN_FOR_BACKUP_INTENT);
+
+    if (NT_SUCCESS(Status))
+    {
+        FILE_DISPOSITION_INFORMATION Disposition;
+        Disposition.DeleteFile = TRUE;
+
+        Status = NtSetInformationFile(Handle, &Iosb, &Disposition, sizeof(Disposition), FileDispositionInformation);
+        NtClose(Handle);
+    }
+
+    /* Create the log file */
+    Status = ZwCreateFile(&Handle,
+                          GENERIC_WRITE,
+                          &ObjectAttributes,
+                          &Iosb,
+                          NULL,
+                          FILE_ATTRIBUTE_NORMAL,
+                          FILE_SHARE_READ,
+                          FILE_OPEN_IF,
+                          (FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT | FILE_SEQUENTIAL_ONLY),
+                          NULL,
+                          0);
+
+    RtlFreeUnicodeString(&FileName);
+
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("KdpWriteDebugToFile0: Failed to open log file (%X)\n", Status);
+        return Status;
+    }
+
+    DPRINT1("KdpWriteDebugToFile0: KdPrintCircularBuffer_Kd0 %p (%X)\n",
+            KdPrintCircularBuffer_Kd0, strlen(KdPrintCircularBuffer_Kd0));
+
+    Status = NtWriteFile(Handle,
+                         NULL,
+                         NULL,
+                         NULL, 
+                         &Iosb,
+                         KdPrintCircularBuffer_Kd0,
+                         strlen(KdPrintCircularBuffer_Kd0),
+                         NULL,
+                         NULL);
+
+    DPRINT1("KdpWriteDebugToFile0: Status %X\n", Status);
+
+    ZwClose(Handle);
+    return Status;
+}
 
 VOID
 NTAPI

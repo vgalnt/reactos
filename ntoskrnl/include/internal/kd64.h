@@ -582,6 +582,10 @@ PatchKdStub(
     _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
 );
 
+NTSTATUS
+NTAPI
+KdpWriteDebugToFile0(
+    VOID);
 #endif
 
 //
