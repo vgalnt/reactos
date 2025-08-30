@@ -955,7 +955,7 @@ HalpCheckPowerButton(VOID)
     HalpShutdownContext = 0;
     DPRINT1("HalpCheckPowerButton: OldContext %X\n", OldContext);
 
-    Function0 = PmAcpiDispatchTable->Function[0];
+    Function0 = PmAcpiDispatchTable->Function[0]; // AcpiHalDispatchTable.Function1 = ACPIGpeHalEnableDisableEvents
     Function0(0);
 
     Port = (PUSHORT)HalpFixedAcpiDescTable.pm1a_evt_blk_io_port;

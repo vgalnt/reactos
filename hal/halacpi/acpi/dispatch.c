@@ -11,7 +11,7 @@
 
 /* GLOBALS *******************************************************************/
 
-PPM_DISPATCH_TABLE PmAcpiDispatchTable;
+PPM_DISPATCH_TABLE PmAcpiDispatchTable; // It is ACPI_HAL_DISPATCH_TABLE. See ACPIInitHalDispatchTable() in acpi.sys driver.
 ACPI_PM_DISPATCH_TABLE HalAcpiDispatchTable =
 {
     0x48414C20, // 'HAL '
