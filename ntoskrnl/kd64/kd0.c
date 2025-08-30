@@ -28,6 +28,8 @@ BOOLEAN EnabledFileKd0 = FALSE;
 
 const ULONG BaseArray[] = {0, 0x3F8, 0x2F8, 0x3E8, 0x2E8};
 
+CPPORT KdComPort0 = {NULL, 0, TRUE};
+
 #endif
 
 /* FUNCTIONS *****************************************************************/
@@ -49,7 +51,15 @@ KdpPortInitialize0(
     _In_ ULONG ComPortNumber,
     _In_ ULONG ComPortBaudRate)
 {
-    return STATUS_NOT_IMPLEMENTED;
+    NTSTATUS Status;
+
+    Status = CpInitialize(&KdComPort0, UlongToPtr(BaseArray[ComPortNumber]), ComPortBaudRate);
+    if (!NT_SUCCESS(Status))
+    {
+        return STATUS_DEVICE_NOT_CONNECTED;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 VOID
