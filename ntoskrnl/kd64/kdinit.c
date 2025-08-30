@@ -14,6 +14,13 @@
 #define NDEBUG
 #include <debug.h>
 
+/* GLOBALS ********************************************************************/
+
+#if DBG_KD0
+  static PVOID oldArea = NULL;
+  static ULONG SaveAreaCount = 0;
+#endif
+
 /* UTILITY FUNCTIONS *********************************************************/
 
 #ifdef __REACTOS__
@@ -306,21 +313,17 @@ KdInitSystem(
     CHAR NameBuffer[256];
     PWCHAR Name;
     NTSTATUS Status;
-  #if DBG_KD0
-    PVOID oldArea = NULL;
-
-    if (LoaderBlock->u.I386.CommonDataArea)
-        oldArea = LoaderBlock->u.I386.CommonDataArea;
-
-    LoaderBlock->u.I386.CommonDataArea = DbgKdPrint0;
-
-    DbgPrint0("KdInitSystem: BootPhase %X, LoaderBlock %p\n", BootPhase, LoaderBlock);
-  #endif
 
     /* Check if this is Phase 1 */
     if (BootPhase)
     {
       #if DBG_KD0
+        if (oldArea && SaveAreaCount == 1)
+        {
+            LoaderBlock->u.I386.CommonDataArea = oldArea;
+            SaveAreaCount--;
+        }
+
         DPRINT1("KdInitSystem: [1] %p, %p, %X, %X, %X\n",
                 KdPrintCircularBuffer, KdPrintWritePointer, KdPrintBufferSize, KdPrintRolloverCount, KdPrintBufferChanges);
 
@@ -344,6 +347,14 @@ KdInitSystem(
                 KdPrintCircularBuffer, KdPrintWritePointer, KdPrintBufferSize, KdPrintRolloverCount, KdPrintBufferChanges);
       #endif
 
+    #if defined(_WINKD_) && defined(__REACTOS__)
+    {
+        CHAR buffer[76];
+        RtlStringCbPrintfA(buffer, sizeof(buffer), "\r\n   Kernel debugger %s\r\n", (KdDebuggerNotPresent ? "not enabled" : "enabled"));
+        HalDisplayString(buffer);
+    }
+    #endif
+
         /* Just query the performance counter */
         KeQueryPerformanceCounter(&KdPerformanceCounterRate);
         return TRUE;
@@ -351,6 +362,21 @@ KdInitSystem(
 
     /* Check if we already initialized once */
     if (KdDebuggerEnabled) return TRUE;
+
+  #if DBG_KD0
+    if (LoaderBlock)
+    {
+        if (LoaderBlock->u.I386.CommonDataArea && !SaveAreaCount)
+        {
+            oldArea = LoaderBlock->u.I386.CommonDataArea;
+            SaveAreaCount++;
+        }
+
+        LoaderBlock->u.I386.CommonDataArea = DbgKdPrint0;
+
+        DbgPrint0("KdInitSystem: BootPhase %X, LoaderBlock %p\n", BootPhase, LoaderBlock);
+    }
+  #endif
 
     /* Set the Debug Routine as the Stub for now */
     KiDebugRoutine = KdpStub;
@@ -557,7 +583,7 @@ KdInitSystem(
     Status = KdDebuggerInitialize0(LoaderBlock);
     if (!NT_SUCCESS(Status))
     {
-        DbgPrint0("KdInitSystem: KdDebuggerInitialize0 failed (Status %X)\n", Status);
+        DbgPrint0("KdInitSystem: KdDebuggerInitialize0() failed (Status %X)\n", Status);
 
       #if DBG_KD0
         KdpPrintBanner0();
@@ -570,10 +596,7 @@ KdInitSystem(
         return TRUE;
     }
 
-  #if DBG_KD0
-    if (oldArea)
-        LoaderBlock->u.I386.CommonDataArea = oldArea;
-  #endif
+    DbgPrint0("KdInitSystem: KdDebuggerInitialize0() is success\n");
 
     /* Now set our real KD routine */
     KiDebugRoutine = KdpTrap;
