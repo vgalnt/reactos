@@ -63,6 +63,7 @@ KdLogDbgPrint(
 {
     SIZE_T Length, Remaining;
     KIRQL OldIrql;
+    BOOLEAN IsLock = TRUE;
 
     /* If the string is empty, bail out */
     if (!String->Buffer || (String->Length == 0))
@@ -72,8 +73,16 @@ KdLogDbgPrint(
     if (!KdPrintCircularBuffer /*|| (KdPrintBufferSize == 0)*/)
         return;
 
-    /* Acquire the log spinlock without waiting at raised IRQL */
-    OldIrql = KdpAcquireLock(&KdpPrintSpinLock);
+  #if DBG_KD0
+    if (ExpInitializationPhase == 0)
+        IsLock = FALSE;
+  #endif
+
+    if (IsLock)
+    {
+        /* Acquire the log spinlock without waiting at raised IRQL */
+        OldIrql = KdpAcquireLock(&KdpPrintSpinLock);
+    }
 
     Length = min(String->Length, KdPrintBufferSize);
     Remaining = KdPrintCircularBuffer + KdPrintBufferSize - KdPrintWritePointer;
@@ -98,8 +107,11 @@ KdLogDbgPrint(
             ++KdPrintRolloverCount;
     }
 
-    /* Release the spinlock */
-    KdpReleaseLock(&KdpPrintSpinLock, OldIrql);
+    if (IsLock)
+    {
+        /* Release the spinlock */
+        KdpReleaseLock(&KdpPrintSpinLock, OldIrql);
+    }
 }
 
 BOOLEAN
