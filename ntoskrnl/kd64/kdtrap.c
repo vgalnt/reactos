@@ -45,6 +45,10 @@
 #error Unsupported Architecture
 #endif
 
+#if DBG_KD0
+  ULONG KdpStubCounter = 0;
+#endif
+
 /* FUNCTIONS *****************************************************************/
 
 BOOLEAN
@@ -279,6 +283,7 @@ KdpStub(IN PKTRAP_FRAME TrapFrame,
         IN BOOLEAN SecondChanceException)
 {
     ULONG_PTR ExceptionCommand;
+    ULONG_PTR ProgramCounter;
 
     /* Check if this was a breakpoint due to DbgPrint or Load/UnloadSymbols */
     ExceptionCommand = ExceptionRecord->ExceptionInformation[0];
@@ -289,9 +294,41 @@ KdpStub(IN PKTRAP_FRAME TrapFrame,
          (ExceptionCommand == BREAKPOINT_COMMAND_STRING) ||
          (ExceptionCommand == BREAKPOINT_PRINT)))
     {
+        /* Get Program Counter */
+        ProgramCounter = KeGetContextPc(ContextRecord);
+
+      #if DBG_KD0
+        if (ExceptionCommand == BREAKPOINT_PRINT)
+        {
+            STRING OutputString;
+
+            /* Setup the output string */
+            OutputString.Buffer = (PCHAR)ExceptionRecord->ExceptionInformation[1];
+            OutputString.Length = OutputString.MaximumLength = (USHORT)ExceptionRecord->ExceptionInformation[2];
+
+            /* Log the print */
+            KdLogDbgPrint(&OutputString);
+
+            /* Update the return value for the caller */
+            KeSetContextReturnRegister(ContextRecord, 0);
+
+            /* If the PC was not updated, we'll increment it ourselves so execution continues past the breakpoint. */
+            if (ProgramCounter == KeGetContextPc(ContextRecord))
+                /* Update it */
+                KeSetContextPc(ContextRecord, ProgramCounter + KD_BREAKPOINT_SIZE);
+
+            KdpStubCounter++;
+        }
+        else
+        {
+            /* This we can handle: simply bump the Program Counter */
+            KeSetContextPc(ContextRecord, ProgramCounter + KD_BREAKPOINT_SIZE);
+        }
+      #else
         /* This we can handle: simply bump the Program Counter */
-        KeSetContextPc(ContextRecord,
-                       KeGetContextPc(ContextRecord) + KD_BREAKPOINT_SIZE);
+        KeSetContextPc(ContextRecord, ProgramCounter + KD_BREAKPOINT_SIZE);
+      #endif
+
         return TRUE;
     }
     else if (KdPitchDebugger)
