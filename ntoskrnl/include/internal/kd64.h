@@ -8,6 +8,41 @@
 
 #pragma once
 
+#ifdef __REACTOS__
+  ULONG __cdecl DbgKdPrint0(_In_ PCHAR Format, ...);
+
+  #ifdef _WINKD_
+    #if DBG
+      #define DBG_KD0 1
+    #else
+      #define DBG_KD0 0
+    #endif
+  #else
+    #define DBG_KD0 0
+  #endif
+#else
+  #define DBG_KD0 0
+#endif
+
+#if DBG_KD0
+
+  #ifndef __FILENAME__
+    #define __FILENAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+  #endif
+
+  #define DbgPrint0(fmt, ...) do { \
+    if (DbgKdPrint0("(%s:%d) " fmt, __FILENAME__, __LINE__, ##__VA_ARGS__))  \
+        DbgKdPrint0("(%s:%d) DbgKdPrint0() failed!\n", __FILENAME__, __LINE__); \
+  } while (0)
+
+#else
+  #if defined(_MSC_VER)
+    #define DbgPrint0 __noop
+  #else
+    #define DbgPrint0
+  #endif
+#endif
+
 //
 // Default size of the DbgPrint log buffer
 //
@@ -527,6 +562,14 @@ VOID
 NTAPI
 KdLogDbgPrint(
     _In_ PSTRING String);
+
+#if DBG_KD0
+VOID
+NTAPI
+KdInitDbg0(
+    _In_ PLOADER_PARAMETER_BLOCK LoaderBlock
+);
+#endif
 
 //
 // Global KD Data

@@ -29,52 +29,7 @@ KSPIN_LOCK Ki486CompatibilityLock;
 ULONG ProcessCount;
 ULONGLONG BootCycles, BootCyclesEnd;
 
-#if DBG_KD0
-CPPORT Kd0ComPort[4] =
-{
-    {NULL, 0, TRUE},
-    {NULL, 0, TRUE},
-    {NULL, 0, TRUE},
-    {NULL, 0, TRUE}
-};
-#endif
-
 /* FUNCTIONS *****************************************************************/
-
-#if DBG_KD0
-ULONG
-__cdecl
-DbgKdPrint0(_In_ PCHAR Format, ...)
-{
-    USHORT Length;
-    va_list ap;
-    CHAR PrintBuffer[255];
-    PCHAR pChar;
-
-    /* Format the string */
-    va_start(ap, Format);
-    Length = (USHORT)_vsnprintf(PrintBuffer, sizeof(PrintBuffer), Format, ap);
-    va_end(ap);
-
-    /* Check if we went past the buffer */
-    if (Length == -1)
-    {
-        /* Terminate it if we went over-board */
-        PrintBuffer[sizeof(PrintBuffer) - 1] = '\n';
-
-        /* Put maximum */
-        Length = sizeof(PrintBuffer);
-    }
-
-    /* Send it directly */
-    pChar = PrintBuffer;
-
-    while (Length--)
-        CpPutByte(&Kd0ComPort[1], *pChar++);
-
-    return 0;
-}
-#endif
 
 //INIT_FUNCTION
 VOID
@@ -771,29 +726,9 @@ KiSystemStartup(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     PKTSS Tss;
     PKIPCR Pcr;
     KIRQL DummyIrql;
+
   #if DBG_KD0
-    NTSTATUS Status;
-
-    /* Initialize serial port for startup debugging (the kernel debugger has not yet been initialized).
-       Hadrcoded!
-    */
-    PUCHAR ComPortAddress = (PUCHAR)0x3F8;
-
-    Status = CpInitialize(&Kd0ComPort[1], ComPortAddress, 115200);
-    if (NT_SUCCESS(Status))
-    {
-        DbgPrint0("KiSystemStartup: LoaderBlock %X\n", LoaderBlock);
-    }
-    else
-    {
-        WRITE_PORT_UCHAR(ComPortAddress, 'K');
-        WRITE_PORT_UCHAR(ComPortAddress, 'i');
-        WRITE_PORT_UCHAR(ComPortAddress, 'B');
-        WRITE_PORT_UCHAR(ComPortAddress, 'u');
-        WRITE_PORT_UCHAR(ComPortAddress, 'g');
-        WRITE_PORT_UCHAR(ComPortAddress, 0x0D);
-        WRITE_PORT_UCHAR(ComPortAddress, 0x0A);
-    }
+    KdInitDbg0(LoaderBlock);
   #endif
 
     /* Boot cycles timestamp */
