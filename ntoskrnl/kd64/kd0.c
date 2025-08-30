@@ -36,12 +36,77 @@ CPPORT KdComPort0 = {NULL, 0, TRUE};
 
 #if DBG_KD0
 
+VOID
+NTAPI
+KdLogDbgPrint0(
+    _In_ PSTRING String)
+{
+}
+
 ULONG
 __cdecl
 DbgKdPrint0(
     _In_ PCHAR Format,
     ...)
 {
+    CHAR PrintBuffer[255];
+    STRING OutputString;
+    PCHAR pChar;
+    USHORT Length;
+    va_list ap;
+
+    if (!EnabledKd0)
+        return 0;
+
+    va_start(ap, Format);
+
+    if (ExpInitializationPhase != 0)
+        return vDbgPrintExWithPrefix("", -1, DPFLTR_ERROR_LEVEL, Format, ap);
+
+    /* Format the string */
+    Length = (USHORT)_vsnprintf(PrintBuffer, sizeof(PrintBuffer), Format, ap);
+
+    va_end(ap);
+
+    /* Check if we went past the buffer */
+    if (Length == 0xFFFF)
+    {
+        /* Terminate it if we went over-board */
+        PrintBuffer[sizeof(PrintBuffer) - 1] = '\n';
+
+        /* Put maximum */
+        Length = sizeof(PrintBuffer);
+    }
+
+    /* Setup the output string */
+    OutputString.Buffer = PrintBuffer;
+    OutputString.Length = OutputString.MaximumLength = Length;
+
+    /* Log the print */
+    KdLogDbgPrint0(&OutputString);
+
+    if (EnabledComKd0)
+    {
+        pChar = PrintBuffer;
+
+        while (Length--)
+        {
+            //if (*pChar == '\n')
+            //    CpPutByte(&KdComPort0, '\r');
+            CpPutByte(&KdComPort0, *pChar++);
+        }
+    }
+
+    if (EnabledScreenKd0)
+    {
+        ;
+    }
+
+    if (EnabledFileKd0)
+    {
+        ;
+    }
+
     return 0;
 }
 
