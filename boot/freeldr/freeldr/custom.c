@@ -626,7 +626,7 @@ EditCustomBootReactOS(
     CHAR BootPartitionString[20];
     CHAR ReactOSSystemPath[200];
     CHAR ReactOSARCPath[200];
-    CHAR ReactOSOptions[200];
+    CHAR ReactOSOptions[256];
 
     RtlZeroMemory(SectionName, sizeof(SectionName));
     RtlZeroMemory(BootDriveString, sizeof(BootDriveString));
