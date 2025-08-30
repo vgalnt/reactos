@@ -87,6 +87,25 @@ KdpPrintBanner(VOID)
     }
 }
 
+#if DBG_KD0
+static
+VOID
+KdpPrintBanner0(VOID)
+{
+    SIZE_T MemSizeMBs = KdpGetMemorySizeInMBs(KeLoaderBlock);
+
+    DbgPrint0("-----------------------------------------------------\n");
+    DbgPrint0("ReactOS " KERNEL_VERSION_STR " (Build " KERNEL_VERSION_BUILD_STR ") (Commit " KERNEL_VERSION_COMMIT_HASH ")\n");
+    DbgPrint0("%u System Processor [%u MB Memory]\n", KeNumberProcessors, MemSizeMBs);
+
+    if (KeLoaderBlock)
+    {
+        DbgPrint0("Command Line: %s\n", KeLoaderBlock->LoadOptions);
+        DbgPrint0("ARC Paths: %s %s %s %s\n", KeLoaderBlock->ArcBootDeviceName, KeLoaderBlock->NtHalPathName, KeLoaderBlock->ArcHalDeviceName, KeLoaderBlock->NtBootPathName);
+    }
+}
+#endif
+
 #endif
 
 /* FUNCTIONS *****************************************************************/
@@ -369,6 +388,10 @@ KdInitSystem(
     {
         DbgPrint0("KdInitSystem: debugger is not present\n");
 
+      #if DBG_KD0
+        KdpPrintBanner0();
+      #endif
+
         /* Disable debugger */
         KdDebuggerNotPresent = TRUE;
 
@@ -384,6 +407,10 @@ KdInitSystem(
     if (!NT_SUCCESS(Status))
     {
         DbgPrint0("KdInitSystem: KdDebuggerInitialize0 failed (Status %X)\n", Status);
+
+      #if DBG_KD0
+        KdpPrintBanner0();
+      #endif
 
         /* Disable debugger */
         KdDebuggerNotPresent = TRUE;
