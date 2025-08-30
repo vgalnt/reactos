@@ -193,6 +193,7 @@ list(APPEND SOURCE
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnproot.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/pnpmgr/pnputil.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/io/debug.c
+    ${REACTOS_SOURCE_DIR}/ntoskrnl/kd64/kd0.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/kd64/kdapi.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/kd64/kdbreak.c
     ${REACTOS_SOURCE_DIR}/ntoskrnl/kd64/kddata.c
