@@ -16,6 +16,7 @@
 
 /* UTILITY FUNCTIONS *********************************************************/
 
+#ifdef __REACTOS__
 /*
  * Get the total size of the memory before
  * Mm is initialized, by counting the number
@@ -71,8 +72,10 @@ KdpGetMemorySizeInMBs(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
 //INIT_FUNCTION
 static
 VOID
-KdpPrintBanner(IN SIZE_T MemSizeMBs)
+KdpPrintBanner(VOID)
 {
+    SIZE_T MemSizeMBs = KdpGetMemorySizeInMBs(KeLoaderBlock);
+
     DPRINT1("-----------------------------------------------------\n");
     DPRINT1("ReactOS " KERNEL_VERSION_STR " (Build " KERNEL_VERSION_BUILD_STR ") (Commit " KERNEL_VERSION_COMMIT_HASH ")\n");
     DPRINT1("%u System Processor [%u MB Memory]\n", KeNumberProcessors, MemSizeMBs);
@@ -83,6 +86,8 @@ KdpPrintBanner(IN SIZE_T MemSizeMBs)
         DPRINT1("ARC Paths: %s %s %s %s\n", KeLoaderBlock->ArcBootDeviceName, KeLoaderBlock->NtHalPathName, KeLoaderBlock->ArcHalDeviceName, KeLoaderBlock->NtBootPathName);
     }
 }
+
+#endif
 
 /* FUNCTIONS *****************************************************************/
 
@@ -153,7 +158,6 @@ KdInitSystem(
     PLIST_ENTRY NextEntry;
     ULONG i, j, Length;
     SIZE_T DebugOptionLength;
-    SIZE_T MemSizeMBs;
     CHAR NameBuffer[256];
     PWCHAR Name;
     NTSTATUS Status;
@@ -431,9 +435,10 @@ KdInitSystem(
     /* Let user-mode know that it's enabled as well */
     SharedUserData->KdDebuggerEnabled = TRUE;
 
+  #ifdef __REACTOS__
     /* Display separator + ReactOS version at start of the debug log */
-    MemSizeMBs = KdpGetMemorySizeInMBs(KeLoaderBlock);
-    KdpPrintBanner(MemSizeMBs);
+    KdpPrintBanner();
+  #endif
 
     /* Check if the debugger should be disabled initially */
     if (DisableKdAfterInit)
