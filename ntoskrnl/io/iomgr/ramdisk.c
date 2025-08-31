@@ -38,40 +38,28 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     OBJECT_ATTRIBUTES ObjectAttributes;
     WCHAR SourceString[54];
 
-    //
-    // Scan memory descriptors
-    //
+    /* Scan memory descriptors */
     MemoryDescriptor = NULL;
     ListHead = &LoaderBlock->MemoryDescriptorListHead;
     NextEntry = ListHead->Flink;
     while (NextEntry != ListHead)
     {
-        //
-        // Get the descriptor
-        //
+        /* Get the descriptor */
         MemoryDescriptor = CONTAINING_RECORD(NextEntry,
                                              MEMORY_ALLOCATION_DESCRIPTOR,
                                              ListEntry);
 
-        //
-        // Needs to be a ROM/RAM descriptor
-        //
+        /* Needs to be a ROM/RAM descriptor */
         if (MemoryDescriptor->MemoryType == LoaderXIPRom) break;
 
-        //
-        // Keep trying
-        //
+        /* Keep trying */
         NextEntry = NextEntry->Flink;
     }
 
-    //
-    // Nothing found?
-    //
+    /* Nothing found? */
     if (NextEntry == ListHead)
     {
-        //
-        // Bugcheck -- no data
-        //
+        /* Bugcheck -- no data */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_NO_XIPROM_DESCRIPTOR,
                      STATUS_INVALID_PARAMETER,
@@ -79,9 +67,7 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                      0);
     }
 
-    //
-    // Setup the input buffer
-    //
+    /* Setup the input buffer */
     RtlZeroMemory(&RamdiskCreate, sizeof(RamdiskCreate));
     RamdiskCreate.Version = sizeof(RamdiskCreate);
     RamdiskCreate.DiskType = RAMDISK_BOOT_DISK;
@@ -92,64 +78,44 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     RamdiskCreate.DriveLetter = L'C';
     RamdiskCreate.Options.Fixed = TRUE;
 
-    //
-    // Check for commandline parameters
-    //
+    /* Check for commandline parameters */
     CommandLine = LoaderBlock->LoadOptions;
     if (CommandLine)
     {
-        //
-        // Make everything upper case
-        //
+        /* Make everything upper case */
         _strupr(CommandLine);
 
-        //
-        // Check for offset parameter
-        //
+        /* Check for offset parameter */
         Offset = strstr(CommandLine, "RDIMAGEOFFSET");
         if (Offset)
         {
-            //
-            // Get to the actual value
-            //
+            /* Get to the actual value */
             OffsetValue = strstr(Offset, "=");
             if (OffsetValue)
             {
-                //
-                // Set the offset
-                //
+                /* Set the offset */
                 RamdiskCreate.DiskOffset = atol(OffsetValue + 1);
             }
         }
 
-        //
-        // Reduce the disk length
-        //
+        /* Reduce the disk length */
         RamdiskCreate.DiskLength.QuadPart -= RamdiskCreate.DiskOffset;
 
-        //
-        // Check for length parameter
-        //
+        /* Check for length parameter */
         Length = strstr(CommandLine, "RDIMAGELENGTH");
         if (Length)
         {
-            //
-            // Get to the actual value
-            //
+            /* Get to the actual value */
             LengthValue = strstr(Length, "=");
             if (LengthValue)
             {
-                //
-                // Set the offset
-                //
+                /* Set the offset */
                 RamdiskCreate.DiskLength.QuadPart = _atoi64(LengthValue + 1);
             }
         }
     }
 
-    //
-    // Setup object attributes
-    //
+    /* Setup object attributes */
     RtlInitUnicodeString(&ObjectName, L"\\Device\\Ramdisk");
     InitializeObjectAttributes(&ObjectAttributes,
                                &ObjectName,
@@ -157,9 +123,7 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                                NULL,
                                NULL);
 
-    //
-    // Open a handle to the driver
-    //
+    /* Open a handle to the driver */
     Status = ZwOpenFile(&DriverHandle,
                         GENERIC_ALL | SYNCHRONIZE,
                         &ObjectAttributes,
@@ -168,9 +132,7 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                         FILE_SYNCHRONOUS_IO_NONALERT);
     if (!(NT_SUCCESS(Status)) || !(NT_SUCCESS(IoStatusBlock.Status)))
     {
-        //
-        // Bugcheck -- no driver
-        //
+        /* Bugcheck -- no driver */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_NO_RAMDISK_DRIVER,
                      IoStatusBlock.Status,
@@ -178,9 +140,7 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                      0);
     }
 
-    //
-    // Send create command
-    //
+    /* Send create command */
     Status = ZwDeviceIoControlFile(DriverHandle,
                                    NULL,
                                    NULL,
@@ -194,9 +154,7 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     ZwClose(DriverHandle);
     if (!(NT_SUCCESS(Status)) || !(NT_SUCCESS(IoStatusBlock.Status)))
     {
-        //
-        // Bugcheck -- driver failed
-        //
+        /* Bugcheck -- driver failed */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_FSCTL_FAILED,
                      IoStatusBlock.Status,
@@ -204,15 +162,11 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                      0);
     }
 
-    //
-    // Convert the GUID
-    //
+    /* Convert the GUID */
     Status = RtlStringFromGUID(&RamdiskCreate.DiskGuid, &GuidString);
     if (!NT_SUCCESS(Status))
     {
-        //
-        // Bugcheck -- GUID convert failed
-        //
+        /* Bugcheck -- GUID convert failed */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_GUID_CONVERT_FAILED,
                      Status,
@@ -220,9 +174,7 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                      0);
     }
 
-    //
-    // Build the symbolic link name and target
-    //
+    /* Build the symbolic link name and target */
     _snwprintf(SourceString,
                sizeof(SourceString)/sizeof(WCHAR),
                L"\\Device\\Ramdisk%wZ",
@@ -231,17 +183,13 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     SymbolicLinkName.MaximumLength = 38 + sizeof(UNICODE_NULL);
     SymbolicLinkName.Buffer = L"\\ArcName\\ramdisk(0)";
 
-    //
-    // Create the symbolic link
-    //
+    /* Create the symbolic link */
     RtlInitUnicodeString(&DeviceString, SourceString);
     Status = IoCreateSymbolicLink(&SymbolicLinkName, &DeviceString);
     RtlFreeUnicodeString(&GuidString);
     if (!NT_SUCCESS(Status))
     {
-        //
-        // Bugcheck -- symlink create failed
-        //
+        /* Bugcheck -- symlink create failed */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_SYMLINK_CREATE_FAILED,
                      Status,
@@ -249,9 +197,7 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                      0);
     }
 
-    //
-    // ReactOS hack (drive letter should not be hardcoded, and maybe set by mountmgr.sys)
-    //
+    /* ReactOS hack (drive letter should not be hardcoded, and maybe set by mountmgr.sys) */
     {
         ANSI_STRING AnsiPath;
         CHAR Buffer[256];
@@ -268,8 +214,6 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
         IoCreateSymbolicLink(&DriveLetter, &DeviceString);
     }
 
-    //
-    // We made it
-    //
+    /* We made it */
     return STATUS_SUCCESS;
 }
