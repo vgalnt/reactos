@@ -351,7 +351,7 @@ KdNetSetHiberRange(
     if (IsAlowPrint)
         DbgPrint0("KdNetSetHiberRange: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 }
 
 NTSTATUS
@@ -517,7 +517,7 @@ InitializeEncryption(
     if (IsAlowPrint)
         DbgPrint0("InitializeEncryption: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -535,7 +535,7 @@ EncryptKdPacket(
     if (IsAlowPrint)
         DbgPrint0("EncryptKdPacket: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -550,7 +550,7 @@ DecryptKdPacket(
     if (IsAlowPrint)
         DbgPrint0("DecryptKdPacket: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -568,7 +568,7 @@ ParseEncryptionKey(
     if (IsAlowPrint)
         DbgPrint0("ParseEncryptionKey: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 }
 
 VOID
@@ -582,7 +582,7 @@ CleanEncryptionKey(
     if (IsAlowPrint)
         DbgPrint0("CleanEncryptionKey: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 }
 #endif
 
@@ -611,7 +611,7 @@ GetPacketLength(
             DbgPrint0("GetPacketLength: Unimplemented USB3GetPacketLength()!\n");
 
         //return USB3GetPacketLength(NetData->SharedData.Hardware, PacketHandle);
-        KeBugCheck(MANUALLY_INITIATED_CRASH);
+        //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
         return STATUS_NOT_IMPLEMENTED;
     }
@@ -622,7 +622,7 @@ GetPacketLength(
             DbgPrint0("GetPacketLength: Unimplemented KdVmGetPacketLength()!\n");
 
         //return KdVmGetPacketLength(NetData->SharedData.Hardware, PacketHandle);
-        KeBugCheck(MANUALLY_INITIATED_CRASH);
+        //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
         return STATUS_NOT_IMPLEMENTED;
     }
@@ -633,7 +633,7 @@ GetPacketLength(
             DbgPrint0("GetPacketLength: Unimplemented GetPacketLength()!\n");
 
         //return KdVmGetPacketLength(NetData->SharedData.Hardware, PacketHandle);
-        KeBugCheck(MANUALLY_INITIATED_CRASH);
+        //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
         return STATUS_NOT_IMPLEMENTED;
     }
@@ -658,7 +658,7 @@ ProcessDhcpPacket(
     if (IsAlowPrint)
         DbgPrint0("ProcessDhcpPacket: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -1226,7 +1226,7 @@ USB3InitializeController(
     if (IsAlowPrint)
         DbgPrint0("USB3InitializeController: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -1239,7 +1239,7 @@ KdVmInitializeController(
     if (IsAlowPrint)
         DbgPrint0("KdVmInitializeController: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -1252,7 +1252,7 @@ KdHvInitializeController(
     if (IsAlowPrint)
         DbgPrint0("KdHvInitializeController: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -1278,7 +1278,7 @@ GetPacketAddress(
 
         Packet = 0;//USB3GetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
 
-        KeBugCheck(MANUALLY_INITIATED_CRASH);
+        //KeBugCheck(MANUALLY_INITIATED_CRASH);
     }
     else if (NetData->VendorId == 0xFFFC)
     {
@@ -1287,7 +1287,7 @@ GetPacketAddress(
 
         Packet = 0;//KdVmGetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
 
-        KeBugCheck(MANUALLY_INITIATED_CRASH);
+        //KeBugCheck(MANUALLY_INITIATED_CRASH);
     }
     else if (NetData->VendorId == 0xFFFD)
     {
@@ -1296,7 +1296,7 @@ GetPacketAddress(
 
         Packet = 0;//KdVmGetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
 
-        KeBugCheck(MANUALLY_INITIATED_CRASH);
+        //KeBugCheck(MANUALLY_INITIATED_CRASH);
     }
     else if (NetData->VendorId == 0xFFFE)
     {
@@ -2524,7 +2524,7 @@ GetTargetIPAddress(
     if (IsAlowPrint)
         DbgPrint0("GetTargetIPAddress: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -2896,7 +2896,7 @@ SendDhcpPacket(
     if (IsAlowPrint)
         DbgPrint0("SendDhcpPacket: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -3244,7 +3244,7 @@ Finish:
 
             if (IsAlowPrint)
                 DbgPrint0("KdNetInitialize: Unimplemented! LoaderBlock %p\n", NetParameters, LoaderBlock);
-            KeBugCheck(MANUALLY_INITIATED_CRASH);
+            //KeBugCheck(MANUALLY_INITIATED_CRASH);
             return STATUS_NOT_IMPLEMENTED;
 
             //((void (NTAPI *)(PKD_NET_PARAMETERS))*(&HalPrivateDispatchTable + 14))(NetParameters);
@@ -3285,7 +3285,7 @@ KdD0Transition(VOID)
     if (IsAlowPrint)
         DbgPrint0("KdD0Transition: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -3296,7 +3296,7 @@ KdD3Transition(VOID)
     if (IsAlowPrint)
         DbgPrint0("KdD3Transition: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
     return STATUS_NOT_IMPLEMENTED;
 }
 
@@ -3656,7 +3656,7 @@ KdDebuggerInitialize0(
         if (IsAlowPrint)
             DbgPrint0("KdDebuggerInitialize0: BUSPARAMS Unimplemented! KeBugCheck\n");
 
-        //KeBugCheck(MANUALLY_INITIATED_CRASH);
+        ////KeBugCheck(MANUALLY_INITIATED_CRASH);
         //return STATUS_NOT_IMPLEMENTED;
     }
 
@@ -4006,7 +4006,7 @@ KdNicQueueSendPackets(
     if (IsAlowPrint)
         DbgPrint0("KdNicQueueSendPackets: Unimplemented! TxSListEntry %p\n", TxSListEntry);
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -4038,7 +4038,7 @@ KdNicSendQueuedPackets(
         if (IsAlowPrint)
             DbgPrint0("KdNicSendQueuedPackets: Unimplemented!\n");
 
-        KeBugCheck(MANUALLY_INITIATED_CRASH);
+        //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
         return STATUS_NOT_IMPLEMENTED;
     }
@@ -4048,7 +4048,7 @@ KdNicSendQueuedPackets(
 
     //KdNicSendPacketsUnavailable++;
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -4075,7 +4075,7 @@ KdNicFlushQueuedSendPackets(
     if (IsAlowPrint)
         DbgPrint0("KdNicFlushQueuedSendPackets: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
 }
 
 NTSTATUS
@@ -4637,7 +4637,7 @@ KdSetHiberRange(VOID)
     if (IsAlowPrint)
         DbgPrint0("KdD0Transition: Unimplemented!\n");
 
-    KeBugCheck(MANUALLY_INITIATED_CRASH);
+    //KeBugCheck(MANUALLY_INITIATED_CRASH);
     return STATUS_NOT_IMPLEMENTED;
 }
 
