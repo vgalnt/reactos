@@ -42,7 +42,7 @@ EncryptKdPacket(
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
-    return STATUS_NOT_IMPLEMENTED;
+    return;
 }
 
 NTSTATUS
