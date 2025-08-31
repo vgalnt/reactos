@@ -12,7 +12,7 @@
 /* GLOBALS ********************************************************************/
 
 ULONG (*DbgPrint0)(_In_ const PCHAR Format, ...);
-BOOLEAN IsDbgComInitialized = FALSE;
+BOOLEAN IsAlowPrint = FALSE;
 
 KDNET_EXTENSIBILITY_EXPORT KdNetExports;
 KD_NET_PARAMETERS KdNetParameters;
@@ -63,7 +63,7 @@ static VOID KdNetDump(PVOID Ptr, unsigned Len)
     PCHAR Hexof = "0123456789ABCDEF";
     PUCHAR x = Ptr;
 
-    if (!IsDbgComInitialized)
+    if (!IsAlowPrint)
     {
         return;
     }
@@ -159,7 +159,7 @@ KdNetGetPciDataByOffset(
     ULONG ByteOffset;
     UCHAR Data[4];
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNetGetPciDataByOffset: %X, %X, %p, %X, %X\n", Bus, Slot, Buffer, Offset, Length);
 
     //ASSERT(!(Offset & ~0xff));
@@ -244,7 +244,7 @@ KdNetSetPciDataByOffset(
     PULONG BufferUlong = Buffer;
     UCHAR Data[4];
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNetSetPciDataByOffset: %X, %X, %p, %X, %X\n", Bus, Slot, Buffer, Offset, Length);
 
     //ASSERT(!(Offset & ~0xff));
@@ -327,12 +327,12 @@ NTAPI
 KdStallExecutionProcessor(
     _In_ ULONG MicroSeconds)
 {
-    if (IsDbgComInitialized && MicroSeconds != 10)
+    if (IsAlowPrint && MicroSeconds != 10)
         DbgPrint0("KdStallExecutionProcessor: %X\n", MicroSeconds);
 
     if (MicroSeconds >= 100)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdStallExecutionProcessor: StallLimit is 100!\n");
     }
 
@@ -348,7 +348,7 @@ KdNetSetHiberRange(
     _In_ ULONG_PTR Length,
     _In_ ULONG Tag)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNetSetHiberRange: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -360,12 +360,12 @@ InitializeKdNetExtensibility(
     _In_ PCHAR LoaderOptions,
     _In_ PDEBUG_DEVICE_DESCRIPTOR PciDevice)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("InitializeKdNetExtensibility: %X, %X\n", LoaderOptions, PciDevice);
 
     if (InterlockedIncrement(&KdNetExtensibilityInitCount) != 1)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("InitializeKdNetExtensibility: exit (KdNetExtensibilityInitCount %X)\n", KdNetExtensibilityInitCount);
 
         return KdNetExtensibilityInitStatus;
@@ -398,7 +398,7 @@ InitializeKdNetExtensibility(
 
     KdNetExtensibilityInitStatus = KdInitializeLibrary((PVOID)&KdNetExports, LoaderOptions, PciDevice);
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("InitializeKdNetExtensibility: Status %X\n", KdNetExtensibilityInitStatus);
 
     return KdNetExtensibilityInitStatus;
@@ -514,7 +514,7 @@ InitializeEncryption(
     _In_ PKD_NET_DATA NetData,
     _In_ PKD_NET_PARAMETERS NetParameters)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("InitializeEncryption: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -532,7 +532,7 @@ EncryptKdPacket(
     _In_ ULONGLONG Stamp,
     _In_ UCHAR Unknown2)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("EncryptKdPacket: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -547,7 +547,7 @@ DecryptKdPacket(
     _In_ PVOID* InOutPacket,
     _In_ ULONG* InOutLength)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("DecryptKdPacket: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -565,7 +565,7 @@ ParseEncryptionKey(
     PLARGE_INTEGER Key,
     PLARGE_INTEGER Value)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("ParseEncryptionKey: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -579,7 +579,7 @@ CleanEncryptionKey(
     PLARGE_INTEGER Key,
     PLARGE_INTEGER Value)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("CleanEncryptionKey: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -594,12 +594,12 @@ GetPacketLength(
 {
     ULONG PacketLength = 0;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("GetPacketLength: %X\n", PacketHandle);
 
     if (!NetData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetPacketLength: NetData is NULL\n");
 
         return 0;
@@ -607,7 +607,7 @@ GetPacketLength(
 
     if (NetData->VendorId == 0xFFFB)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetPacketLength: Unimplemented USB3GetPacketLength()!\n");
 
         //return USB3GetPacketLength(NetData->SharedData.Hardware, PacketHandle);
@@ -618,7 +618,7 @@ GetPacketLength(
 
     if (NetData->VendorId == 0xFFFC)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetPacketLength: Unimplemented KdVmGetPacketLength()!\n");
 
         //return KdVmGetPacketLength(NetData->SharedData.Hardware, PacketHandle);
@@ -629,7 +629,7 @@ GetPacketLength(
 
     if (NetData->VendorId == 0xFFFD)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetPacketLength: Unimplemented GetPacketLength()!\n");
 
         //return KdVmGetPacketLength(NetData->SharedData.Hardware, PacketHandle);
@@ -641,7 +641,7 @@ GetPacketLength(
     if (NetData->VendorId == 0xFFFE)
         return KdGetPacketLength(NetData->SharedData.Hardware, PacketHandle);
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("GetPacketLength: ! Unknown VendorId (%X)\n", NetData->VendorId);
 
     return PacketLength;
@@ -655,7 +655,7 @@ ProcessDhcpPacket(
     _In_ ULONG Length,
     _In_ UCHAR Param4)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("HandleDhcp: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -674,12 +674,12 @@ HandleDhcp(
     USHORT UdpLength;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("HandleDhcp: %X\n", PacketHandle);
 
     if (NetData->DhcpPacketType <= 5)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleDhcp: STATUS_MORE_PROCESSING_REQUIRED DhcpPacketType %X\n", NetData->DhcpPacketType);
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -692,7 +692,7 @@ HandleDhcp(
         Packet->EthHeader.EtherType != sizeof(KD_NET_UDP_PACKET) ||
         !RtlEqualMemory(NetData->MacAddress, Packet->EthHeader.DestinationMac, 6))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleDhcp: (1) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", PacketLength, Packet->EthHeader.EtherType);
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -702,7 +702,7 @@ HandleDhcp(
 
     if (PacketLength < sizeof(KD_NET_IPv4_PACKET) || Packet->Ipv4.Protocol != 0x11)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleDhcp: (2) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", PacketLength, Packet->Ipv4.Protocol);
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -714,7 +714,7 @@ HandleDhcp(
         Packet->Udp.SourcePort != 0x4300 ||
         Packet->Udp.DestinationPort != 0x4400)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleDhcp: STATUS_MORE_PROCESSING_REQUIRED (%X, %X, %X)\n", PacketLength, Packet->Udp.SourcePort, Packet->Udp.DestinationPort);
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -735,7 +735,7 @@ HandleDhcp(
     Status = ProcessDhcpPacket(NetData, Add2Ptr(Packet, sizeof(*Packet)), DhcpLength, 5);
     if (Status == STATUS_DUPLICATE_NAME)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleDhcp: STATUS_DUPLICATE_NAME\n");
 
         //KdNetDhcpPacketsHandled++;
@@ -744,7 +744,7 @@ HandleDhcp(
 
     if (NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleDhcp: KdNetDhcpPacketsHandled++ (%X)\n", NetData->DhcpPacketsCounter);
 
         NetData->DhcpPacketsCounter++;
@@ -752,7 +752,7 @@ HandleDhcp(
         return Status;
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("HandleDhcp: Status %X\n", Status);
 
     return STATUS_MORE_PROCESSING_REQUIRED;
@@ -771,12 +771,12 @@ HandleControlChannelPackets(
     USHORT UdpLength;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("HandleControlChannelPackets: %X\n", PacketHandle);
 
     if (!NetData->NetParameters->IsEncryptionKey)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleControlChannelPackets: IsEncryptionKey is FALSE\n");
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -789,7 +789,7 @@ HandleControlChannelPackets(
         Packet->EthHeader.EtherType != sizeof(KD_NET_UDP_PACKET) ||
         !RtlEqualMemory(NetData->MacAddress, Packet->EthHeader.DestinationMac, 6))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleControlChannelPackets: (1) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", PacketLength, Packet->EthHeader.EtherType);
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -799,7 +799,7 @@ HandleControlChannelPackets(
 
     if (PacketLength < sizeof(KD_NET_IPv4_PACKET) || Packet->Ipv4.Protocol != 0x11)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleControlChannelPackets: (2) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", PacketLength, Packet->Ipv4.Protocol);
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -809,7 +809,7 @@ HandleControlChannelPackets(
 
     if (PacketLength < sizeof(KD_NET_UDP_PACKET))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleDhcp: STATUS_MORE_PROCESSING_REQUIRED (%X)\n", PacketLength);
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -817,7 +817,7 @@ HandleControlChannelPackets(
 
     if (Packet->Udp.DestinationPort != UshortSwap(NetData->NetParameters->DebuggeePort))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleControlChannelPackets: (3) STATUS_MORE_PROCESSING_REQUIRED (%X, %X)\n", Packet->Udp.DestinationPort, UshortSwap(NetData->NetParameters->DebuggeePort));
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -842,7 +842,7 @@ HandleControlChannelPackets(
         KdPacket->Unknown1 != 2 ||
         !(KdPacket->Unknown2 & 1))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleControlChannelPackets: (3) STATUS_MORE_PROCESSING_REQUIRED (%X, %X, %X, %X)\n", Length, KdPacket->Tag, KdPacket->Unknown1, KdPacket->Unknown2);
 
         return STATUS_MORE_PROCESSING_REQUIRED;
@@ -857,7 +857,7 @@ HandleControlChannelPackets(
         return Status;
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("HandleControlChannelPackets: KdNetControlChannelPacketsDropped++ (%X)\n", Status);
 
     //KdNetControlChannelPacketsDropped++;
@@ -874,7 +874,7 @@ KdNicReceivePacket(
 {
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicReceivePacket: %X\n", PacketLength);
 
     if (InterlockedIncrement(&KdNicReceiveEntered) > 1)
@@ -882,7 +882,7 @@ KdNicReceivePacket(
 
     if (NetData->NicData != &KdNicData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNicReceivePacket: STATUS_INVALID_PARAMETER\n");
 
         Status = STATUS_INVALID_PARAMETER;
@@ -893,7 +893,7 @@ KdNicReceivePacket(
 
     if (!NetData->NicData->Reserved0)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNicReceivePacket: KdNicReceivePacketsIgnored++\n");
 
         //KdNicReceivePacketsIgnored++;
@@ -901,7 +901,7 @@ KdNicReceivePacket(
         goto Finish;
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicReceivePacket: FIXME! (%X)\n", NetData->NicData->Reserved0);
 
     ASSERT(FALSE);
@@ -936,7 +936,7 @@ WaitForSpecificRxIpPacket(
     USHORT EtherType = ETHERNET_TYPE_IPV4;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("WaitForSpecificRxIpPacket: %X, %X\n", HostIp, TargetIP);
 
     Status = WaitForSpecificRxPacket(NetData,
@@ -949,7 +949,7 @@ WaitForSpecificRxIpPacket(
                                      &EtherType);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("WaitForSpecificRxIpPacket: (1) Status %X\n", Status);
 
         return Status;
@@ -959,7 +959,7 @@ WaitForSpecificRxIpPacket(
     {
         if (*OutPacketLength < sizeof(KD_NET_IPv4_PACKET))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("WaitForSpecificRxIpPacket: KdNetRxPacketToSmallForIp++ (%X)\n", *OutPacketLength);
 
             //KdNetRxPacketToSmallForIp++;
@@ -979,7 +979,7 @@ WaitForSpecificRxIpPacket(
                 break;
             }
 
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("WaitForSpecificRxIpPacket: KdNetRxIpPacketsHandedOff++ (%X)\n", Protocol);
 
             //KdNetRxIpPacketsHandedOff++;
@@ -999,7 +999,7 @@ WaitForSpecificRxIpPacket(
                                          &EtherType);
         if (!NT_SUCCESS(Status))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("WaitForSpecificRxIpPacket: (2) Status %X\n", Status);
 
             return Status;
@@ -1019,7 +1019,7 @@ WaitForSpecificRxIpPacket(
 
     if (PacketLength > Length)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("WaitForSpecificRxIpPacket: KdNetRxIpPacketsHandedOff++ (%X, %X)\n", PacketLength, Length);
 
         //KdNetRxIpPacketsMalformed++;
@@ -1029,7 +1029,7 @@ WaitForSpecificRxIpPacket(
 
     *OutPacketLength = PacketLength;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("WaitForSpecificRxIpPacket: KdNetRxIpPacketsMatched++ (%X)\n", PacketLength);
 
     //KdNetRxIpPacketsMatched++;
@@ -1061,7 +1061,7 @@ WaitForSpecificRxUdpPacketEx(
     USHORT HostPort;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("WaitForSpecificRxUdpPacketEx: %X, %X\n", HostIp, TargetIP);
 
     Status = WaitForSpecificRxIpPacket(NetData,
@@ -1076,7 +1076,7 @@ WaitForSpecificRxUdpPacketEx(
                                        0x11);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("WaitForSpecificRxUdpPacketEx: (1) Status %X\n", Status);
 
         return Status;
@@ -1088,7 +1088,7 @@ WaitForSpecificRxUdpPacketEx(
 
         if (PacketLength < sizeof(KD_NET_UDP_PACKET))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("WaitForSpecificRxUdpPacketEx: KdNetRxPacketToSmallForUdp++ (%X)\n", PacketLength);
 
             //KdNetRxPacketToSmallForUdp++;
@@ -1127,7 +1127,7 @@ WaitForSpecificRxUdpPacketEx(
                                            0x11);
         if (!NT_SUCCESS(Status))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("WaitForSpecificRxUdpPacketEx: (2) Status %X\n", Status);
 
             return Status;
@@ -1173,7 +1173,7 @@ WaitForResponsePacket(
     ULONG PacketHandle;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("WaitForResponsePacket: %p, %X\n", NetData, HostIp);
 
     if (!NetData->NetParameters->IsVerifyHostMac && (NetData->YourIp & 0xFFFF0000) != AUTOIP_NET)
@@ -1194,7 +1194,7 @@ WaitForResponsePacket(
                                               &NetData->NetParameters->DebuggeePort);
         if (!NT_SUCCESS(Status))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("WaitForResponsePacket: Status %X\n", Status);
 
             break;
@@ -1203,7 +1203,7 @@ WaitForResponsePacket(
         Status = DecryptKdPacket(NetData, &Packet, &PacketLength);
         if (!NT_SUCCESS(Status))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("WaitForResponsePacket: Decrypt Status %X\n", Status);
 
             //KdNetRxKdPacketsHandedOff++;
@@ -1223,7 +1223,7 @@ NTAPI
 USB3InitializeController(
     _In_ PVOID NetData)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("USB3InitializeController: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -1236,7 +1236,7 @@ NTAPI
 KdVmInitializeController(
     _In_ PVOID NetData)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdVmInitializeController: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -1249,7 +1249,7 @@ NTAPI
 KdHvInitializeController(
     _In_ PVOID NetData)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdHvInitializeController: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -1265,7 +1265,7 @@ GetPacketAddress(
 {
     PVOID Packet = NULL;
 
-    //if (IsDbgComInitialized)
+    //if (IsAlowPrint)
     //    DbgPrint0("GetPacketAddress: %p, %X, %X\n", NetData, NetData->VendorId, PacketHandle);
 
     if (!NetData)
@@ -1273,7 +1273,7 @@ GetPacketAddress(
 
     if (NetData->VendorId == 0xFFFB)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetPacketAddress: Not implemented (%X)\n", NetData->VendorId);
 
         Packet = 0;//USB3GetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
@@ -1282,7 +1282,7 @@ GetPacketAddress(
     }
     else if (NetData->VendorId == 0xFFFC)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetPacketAddress: Not implemented (%X)\n", NetData->VendorId);
 
         Packet = 0;//KdVmGetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
@@ -1291,7 +1291,7 @@ GetPacketAddress(
     }
     else if (NetData->VendorId == 0xFFFD)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetPacketAddress: Not implemented (%X)\n", NetData->VendorId);
 
         Packet = 0;//KdVmGetPacketAddress(NetData->SharedData.Hardware, PacketHandle);
@@ -1391,7 +1391,7 @@ SwapPacket(
     PKD_NET_IPv4_PACKET Ipv4;
     USHORT EtherType;
 
-    //if (IsDbgComInitialized)
+    //if (IsAlowPrint)
     //    DbgPrint0("SwapPacket: %p, %X\n", Packet, IsSwapChecksum);
 
     EtherType = Header->EtherType;
@@ -1445,12 +1445,12 @@ GetTxPacket(
 {
     NTSTATUS Status;
 
-    //if (IsDbgComInitialized)
+    //if (IsAlowPrint)
     //    DbgPrint0("GetTxPacket: %p\n", PacketHandle);
 
     if (!NetData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetTxPacket: STATUS_INVALID_PARAMETER\n");
 
         return STATUS_INVALID_PARAMETER;
@@ -1459,7 +1459,7 @@ GetTxPacket(
     switch (NetData->VendorId)
     {
         case 0xFFFB:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
 
             //Status = USB3GetTxPacket(NetData->SharedData.Hardware, PacketHandle);
@@ -1468,7 +1468,7 @@ GetTxPacket(
             break;
 
         case 0xFFFC:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
 
             //Status = KdHvGetTxPacket(NetData->SharedData.Hardware, PacketHandle);
@@ -1477,7 +1477,7 @@ GetTxPacket(
             break;
 
         case 0xFFFD:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
 
             //Status = KdHvGetTxPacket(NetData->SharedData.Hardware, PacketHandle);
@@ -1490,7 +1490,7 @@ GetTxPacket(
             break;
 
         default:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetTxPacket: STATUS_NO_SUCH_DEVICE (%X)\n", NetData->VendorId);
 
             Status = STATUS_NO_SUCH_DEVICE;
@@ -1508,7 +1508,7 @@ UpdateTargetRandom(
     if (NetData->VendorId != 0xFFFC)
         return;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("UpdateTargetRandom: Unimplemented!\n");
 }
 
@@ -1521,12 +1521,12 @@ SendTxPacket(
 {
     NTSTATUS Status;
 
-    //if (IsDbgComInitialized)
+    //if (IsAlowPrint)
     //    DbgPrint0("SendTxPacket: %p, %X, %X\n", NetData, PacketHandle, PacketLength);
 
     if (!NetData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendTxPacket: STATUS_INVALID_PARAMETER\n");
 
         //KdNetTxError++;
@@ -1537,21 +1537,21 @@ SendTxPacket(
     switch (NetData->VendorId)
     {
         case 0xFFFB:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("SendTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
             //Status = USB3SendTxPacket(NetData->SharedData.Hardware, PacketHandle, PacketLength);
             Status = STATUS_NOT_IMPLEMENTED;
             break;
 
         case 0xFFFC:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("SendTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
             //Status = KdVmSendTxPacket(NetData, PacketHandle, PacketLength);
             Status = STATUS_NOT_IMPLEMENTED;
             break;
 
         case 0xFFFD:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("SendTxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
             //Status = KdHvSendTxPacket(NetData->SharedData.Hardware, PacketHandle, PacketLength);
             Status = STATUS_NOT_IMPLEMENTED;
@@ -1562,7 +1562,7 @@ SendTxPacket(
             break;
 
         default:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("SendTxPacket: STATUS_NO_SUCH_DEVICE (%X)\n", NetData->VendorId);
             //KdNetTxError++;
             return STATUS_NO_SUCH_DEVICE;
@@ -1570,14 +1570,14 @@ SendTxPacket(
 
     if (Status == STATUS_IO_TIMEOUT)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendTxPacket: STATUS_IO_TIMEOUT (%X, %X)\n", PacketHandle, PacketLength);
 
         //KdNetTxTimeout++;
     }
     else if (Status == STATUS_CONNECTION_RESET)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendTxPacket: STATUS_CONNECTION_RESET (%X, %X)\n", PacketHandle, PacketLength);
 
         UpdateTargetRandom(NetData);
@@ -1590,7 +1590,7 @@ SendTxPacket(
     }
     else
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendTxPacket: ret Status %X (%X, %X)\n", Status, PacketHandle, PacketLength);
 
         //KdNetTxError++;
@@ -1612,12 +1612,12 @@ SendEthernetPacket(
     PKD_NET_ETH_HEADER Packet;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("SendEthernetPacket: %X, %X\n", PacketHandle, PacketLength);
 
     if (!NetData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendEthernetPacket: STATUS_INVALID_PARAMETER, NetData is NULL\n");
 
         return STATUS_INVALID_PARAMETER;
@@ -1625,7 +1625,7 @@ SendEthernetPacket(
 
     if (!DestinationMac)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendEthernetPacket: STATUS_INVALID_PARAMETER, DestinationMac is NULL\n");
 
         return STATUS_INVALID_PARAMETER;
@@ -1633,7 +1633,7 @@ SendEthernetPacket(
 
     if (!SourceMac)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendEthernetPacket: STATUS_INVALID_PARAMETER, SourceMac is NULL\n");
 
         return STATUS_INVALID_PARAMETER;
@@ -1671,12 +1671,12 @@ SendIPPacket(
     ULONG Length;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("SendIPPacket: %X, %X\n", PacketHandle, PacketLength);
 
     if (PacketLength > 0xFFE3) // 65507
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendIPPacket: STATUS_INVALID_PARAMETER (%X, %X)\n", PacketHandle, PacketLength);
 
         return STATUS_INVALID_PARAMETER;
@@ -1725,12 +1725,12 @@ SendUDPPacketEx(
     ULONG Length;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("SendUDPPacketEx: %X, %X\n", PacketHandle, PacketLength);
 
     if (PacketLength > 0xFFE3) // 65507
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendUDPPacketEx: STATUS_INVALID_PARAMETER (%X, %X)\n", PacketHandle, PacketLength);
 
         return STATUS_INVALID_PARAMETER;
@@ -1774,7 +1774,7 @@ SendOfferPacketEx(
     KdPacketData = GetPacketKdData(NetData, PacketHandle);
     RtlZeroMemory(KdPacketData, sizeof(KD_NET_KD_DATA));
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("SendOfferPacketEx: %d, %p, %p\n", SendersPort, Packet, KdPacketData);
 
   #if 0
@@ -1810,13 +1810,13 @@ SendOfferPacketEx(
     else
         IsEnteredDebugger = FALSE;
 
-    //if (IsDbgComInitialized)
+    //if (IsAlowPrint)
     //    DbgPrint0("SendOfferPacketEx: %X, %X\n", KdPacketHeader, PacketLength);
     //KdNetDump(Packet, PacketLength + sizeof(KD_NET_UDP));
 
     EncryptKdPacket(KdPacketHeader, &PacketLength, NetData->AesCtx, NetData->KeyToken, NetData->NetParameters->Stamp, (IsEnteredDebugger?3:1));
 
-    //if (IsDbgComInitialized)
+    //if (IsAlowPrint)
     //    DbgPrint0("SendOfferPacketEx: %X, %X\n", KdPacketHeader, PacketLength);
     //KdNetDump(Packet, PacketLength + sizeof(KD_NET_UDP));
 
@@ -1833,13 +1833,13 @@ SendOfferPacketEx(
                              SendersPort);
     if (NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendOfferPacketEx: KdNetOfferPacketSent++\n");
         //KdNetOfferPacketSent++;
     }
     else
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendOfferPacketEx: Status %X\n", Status);
     }
 
@@ -1929,7 +1929,7 @@ SendPingPacket(
     Status = GetTxPacket(NetData, &PacketHandle);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendPingPacket: Status %X\n", Status);
 
         return Status;
@@ -1963,7 +1963,7 @@ SendOfferPacket(
     }
     else
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendOfferPacket: Status %X\n", Status);
     }
 
@@ -1980,7 +1980,7 @@ ProcessUnhandledPackets(
     ULONG PacketLength;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("ProcessUnhandledPackets: %X\n", PacketHandle);
 
     Status = HandleDhcp(NetData, PacketHandle);
@@ -1997,7 +1997,7 @@ ProcessUnhandledPackets(
     Status = KdNicReceivePacket(NetData, Packet, PacketLength);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("ProcessUnhandledPackets: Status %X\n", Status);
 
         //KdNetRxPacketsDiscarded++;
@@ -2012,7 +2012,7 @@ ReleaseRxPacket(
     _In_ PKD_NET_DATA NetData,
     _In_ ULONG PacketHandle)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("ReleaseRxPacket: %X\n", NetData->VendorId);
 
     if (!NetData)
@@ -2021,7 +2021,7 @@ ReleaseRxPacket(
     switch (NetData->VendorId)
     {
         case 0xFFFB:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("ReleaseRxPacket: Not implemented (%X)\n", NetData->VendorId);
 
             //USB3ReleaseRxPacket(NetData->SharedData.Hardware, PacketHandle);
@@ -2030,7 +2030,7 @@ ReleaseRxPacket(
             break;
 
         case 0xFFFC:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("ReleaseRxPacket: Not implemented (%X)\n", NetData->VendorId);
 
             //KdHvReleaseRxPacket(NetData->SharedData.Hardware, PacketHandle);
@@ -2039,7 +2039,7 @@ ReleaseRxPacket(
             break;
 
         case 0xFFFD:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("ReleaseRxPacket: Not implemented (%X)\n", NetData->VendorId);
 
             //KdHvReleaseRxPacket(NetData->SharedData.Hardware, PacketHandle);
@@ -2053,7 +2053,7 @@ ReleaseRxPacket(
             break;
 
         default:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("ReleaseRxPacket: Not supported %X\n", NetData->VendorId);
             break;
     }
@@ -2071,12 +2071,12 @@ HandleArp(
     UCHAR SenderMac[6];
     NTSTATUS Status = STATUS_MORE_PROCESSING_REQUIRED;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("HandleArp: %p\n", NetData);
 
     if (!NetData->YourIp)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleArp: NetData->YourIp is 0\n");
 
         return Status;
@@ -2091,7 +2091,7 @@ HandleArp(
         InPacket->Arp.Operation != 1 ||
         InPacket->Arp.TargetIp != NetData->YourIp)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleArp: Not handled packet\n");
 
         SwapPacket(InPacket, TRUE);
@@ -2106,7 +2106,7 @@ HandleArp(
     Status = GetTxPacket(NetData, &PacketHandle);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleArp: Status %X\n", Status);
 
         //KdNetArpPacketReplyFailures++;
@@ -2142,14 +2142,14 @@ HandleArp(
 
     if (NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleArp: KdNetArpPacketsHandled++\n");
 
         //KdNetArpPacketsHandled++;
     }
     else
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("HandleArp: Status %X\n", Status);
 
         //KdNetArpPacketReplyFailures++;
@@ -2171,33 +2171,33 @@ GetRxPacket(
 
     if (!NetData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetRxPacket: STATUS_INVALID_PARAMETER\n");
 
         return STATUS_INVALID_PARAMETER;
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("GetRxPacket: VendorId %X\n", NetData->VendorId);
 
     switch (NetData->VendorId)
     {
         case 0xFFFB:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetRxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
             Status = STATUS_NOT_IMPLEMENTED;
             //Status = USB3GetRxPacket(NetData->SharedData.Hardware, OutHandle, OutPacket, OutLength);
             break;
 
         case 0xFFFC:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetRxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
             Status = STATUS_NOT_IMPLEMENTED;
             //Status = KdVmGetRxPacket(NetData, OutHandle, OutPacket, OutLength, *OutCycleCount == 0);
             break;
 
         case 0xFFFD:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetRxPacket: STATUS_NOT_IMPLEMENTED (%X)\n", NetData->VendorId);
             Status = STATUS_NOT_IMPLEMENTED;
             //Status = KdHvGetRxPacket(NetData->SharedData.Hardware, OutHandle, OutPacket, OutLength);
@@ -2208,14 +2208,14 @@ GetRxPacket(
             break;
 
         default:
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetRxPacket: STATUS_INVALID_PARAMETER (%X)\n", NetData->VendorId);
             return STATUS_NO_SUCH_DEVICE;
     }
 
     if (Status == STATUS_CONNECTION_RESET)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetRxPacket: STATUS_CONNECTION_RESET -> STATUS_IO_TIMEOUT\n");
 
         UpdateTargetRandom(NetData);
@@ -2225,7 +2225,7 @@ GetRxPacket(
     //if (NT_SUCCESS(Status))
     //    KdNetRxPacketsReceived++;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("GetRxPacket: ret Status %X\n", Status);
 
     return Status;
@@ -2250,7 +2250,7 @@ WaitForRxPacket(
     ULONG Factor;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("WaitForRxPacket: %p\n", NetData);
 
     //KdNetWaitForRxPacketCalled++;
@@ -2277,7 +2277,7 @@ WaitForRxPacket(
          !NT_SUCCESS(Status);
          Status = GetRxPacket(NetData, OutHandle, OutPacket, OutLength, OutCycleCount))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("WaitForRxPacket: CycleCount %X\n", *OutCycleCount);
 
         if (!*OutCycleCount)
@@ -2333,7 +2333,7 @@ WaitForRxPacket(
             *OutCycleCount = 0;
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("WaitForRxPacket: ret Status %X\n", Status);
 
     return Status;
@@ -2354,14 +2354,14 @@ WaitForSpecificRxPacket(
     PKD_NET_ETH_HEADER Header;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("WaitForSpecificRxPacket()\n");
 
     for (Status = WaitForRxPacket(NetData, OutHandle, OutPacket, OutPacketLength, OutCycleCount);
          Status >= 0;
          Status = WaitForRxPacket(NetData, OutHandle, OutPacket, OutPacketLength, OutCycleCount))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("WaitForSpecificRxPacket: Status %X\n", Status);
 
         Header = *OutPacket;
@@ -2370,7 +2370,7 @@ WaitForSpecificRxPacket(
             (!HostMac || RtlEqualMemory(HostMac, Header->SourceMac, sizeof(Header->SourceMac))) &&
             (!EtherType || *EtherType ==  UshortSwap(Header->EtherType)))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("WaitForSpecificRxPacket: KdNetRxPacketsMatched++\n");
 
             *OutPacket = Add2Ptr(Header, sizeof(*Header));
@@ -2382,7 +2382,7 @@ WaitForSpecificRxPacket(
 
         if (UshortSwap(Header->EtherType) != ETHERNET_TYPE_ARP)
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("WaitForSpecificRxPacket: KdNetRxEthernetPacketsHandedOff++ (%X)\n", UshortSwap(Header->EtherType));
 
             //KdNetRxEthernetPacketsHandedOff++;
@@ -2394,7 +2394,7 @@ WaitForSpecificRxPacket(
 
             if (Status == STATUS_MORE_PROCESSING_REQUIRED)
             {
-                if (IsDbgComInitialized)
+                if (IsAlowPrint)
                     DbgPrint0("WaitForSpecificRxPacket: KdNetArpPacketsHandedOff++\n");
 
                 //KdNetArpPacketsHandedOff++;
@@ -2405,7 +2405,7 @@ WaitForSpecificRxPacket(
         ReleaseRxPacket(NetData, *OutHandle);
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("WaitForSpecificRxPacket: ret Status %X\n", Status);
 
     return Status;
@@ -2421,12 +2421,12 @@ InitializeController(
     USHORT VendorId;
     PDEBUG_DEVICE_DESCRIPTOR PciDevice;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("InitializeController: %p, %p\n", NetData, NetParameters);
 
     if (!NetData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("InitializeController: STATUS_INVALID_PARAMETER, NetData is NULL\n");
 
         Status = STATUS_INVALID_PARAMETER;
@@ -2435,7 +2435,7 @@ InitializeController(
 
     if (!NetParameters)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("InitializeController: STATUS_INVALID_PARAMETER, NetParameters is NULL\n");
 
         Status = STATUS_INVALID_PARAMETER;
@@ -2465,7 +2465,7 @@ InitializeController(
 
         if (!NT_SUCCESS(Status))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("InitializeController: KdInitializeController() fail (%X)\n", Status);
         }
     }
@@ -2495,7 +2495,7 @@ InitializeController(
 
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("InitializeController: Status %X\n", Status);
 
         goto Exit;
@@ -2521,7 +2521,7 @@ NTAPI
 GetTargetIPAddress(
     _In_ PKD_NET_DATA NetData)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("GetTargetIPAddress: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -2546,13 +2546,13 @@ GetNodeMacAddress(
     USHORT EtherType;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("GetNodeMacAddress: %X, %X\n", SenderIp, TargetIp);
 
     Status = GetTxPacket(NetData, &PacketHandle);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GetNodeMacAddress: (1) ret Status %X\n", Status);
 
         return Status;
@@ -2586,7 +2586,7 @@ GetNodeMacAddress(
         Status = SendTxPacket(NetData, PacketHandle, PacketLength);
         if (!NT_SUCCESS(Status))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetNodeMacAddress: (2) ret Status %X\n", Status);
 
             break;
@@ -2607,7 +2607,7 @@ GetNodeMacAddress(
                                              &EtherType);
             if (Status == STATUS_IO_TIMEOUT)
             {
-                if (IsDbgComInitialized)
+                if (IsAlowPrint)
                     DbgPrint0("GetNodeMacAddress: STATUS_IO_TIMEOUT. RetryCount %X\n", RetryCount);
 
                 if (RetryCount)
@@ -2616,7 +2616,7 @@ GetNodeMacAddress(
 
             if (!NT_SUCCESS(Status))
             {
-                if (IsDbgComInitialized)
+                if (IsAlowPrint)
                     DbgPrint0("GetNodeMacAddress: (3) ret Status %X\n", Status);
 
                 return Status;
@@ -2645,7 +2645,7 @@ GetNodeMacAddress(
         Status = GetTxPacket(NetData, &PacketHandle);
         if (!NT_SUCCESS(Status))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GetNodeMacAddress: (4) ret Status %X\n", Status);
 
             break;
@@ -2666,7 +2666,7 @@ GenerateTargetIPAddress(
     USHORT LowPartIp;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("GenerateTargetIPAddress: %X, %X\n", NetData->NetParameters->DebuggeeIp, NetData->YourIp);
 
     if (NetData->NetParameters->DebuggeeIp)
@@ -2676,7 +2676,7 @@ GenerateTargetIPAddress(
 
     LowPartIp = (USHORT)IpAddress;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("GenerateTargetIPAddress: LowPartIp %X\n", LowPartIp);
 
     if (IpAddress)
@@ -2686,7 +2686,7 @@ Start:
 
     LowPartIp = (__rdtsc() >> 4);
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("GenerateTargetIPAddress: LowPartIp %X\n", LowPartIp);
 
     while (TRUE)
@@ -2699,7 +2699,7 @@ Start:
 TryIp:
         Status = GetNodeMacAddress(NetData, 0, IpAddress, SenderMac, 2);
 
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("GenerateTargetIPAddress: (1) Status %X\n", Status);
 
         if (Status == STATUS_IO_TIMEOUT)
@@ -2708,14 +2708,14 @@ TryIp:
 
             if ((IpAddress & 0xFFFF0000) != AUTOIP_NET)
             {
-                if (IsDbgComInitialized)
+                if (IsAlowPrint)
                     DbgPrint0("GenerateTargetIPAddress: IpAddress %X\n", IpAddress);
                 break;
             }
 
             Status = GetNodeMacAddress(NetData, IpAddress, IpAddress, SenderMac, 1);
 
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GenerateTargetIPAddress: (2) Status %X\n", Status);
 
             if (Status == STATUS_IO_TIMEOUT)
@@ -2729,7 +2729,7 @@ TryIp:
 
         if (!NT_SUCCESS(Status))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GenerateTargetIPAddress: (3) Status %X\n", Status);
 
             IpAddress = 0;
@@ -2738,7 +2738,7 @@ TryIp:
 
         if (NetData->NetParameters->IsDhcp && NetData->YourIp == IpAddress)
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GenerateTargetIPAddress: Failed. Using APIPA.\n");
 
             KdNetErrorString = L"GenerateTargetIPAddress failed to validate the DHCP address. Using APIPA.";
@@ -2747,7 +2747,7 @@ TryIp:
 
         if (!ix)
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("GenerateTargetIPAddress: ix is 0\n");
 
             Status = STATUS_UNSUCCESSFUL;
@@ -2759,7 +2759,7 @@ TryIp:
         {
             if ((NetData->NetParameters->DebuggeeIp & 0xFFFF0000) != AUTOIP_NET)
             {
-                if (IsDbgComInitialized)
+                if (IsAlowPrint)
                     DbgPrint0("GenerateTargetIPAddress: STATUS_UNSUCCESSFUL. DebuggeeIp %X\n", NetData->NetParameters->DebuggeeIp);
 
                 Status = STATUS_UNSUCCESSFUL;
@@ -2793,18 +2793,18 @@ SendHostGratuitousArp(
 
     if (!NetData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendHostGratuitousArp: NetData is NULL\n");
 
         return Status;
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("SendHostGratuitousArp: %p, %p\n", NetData->NetParameters->DebuggeeIp, NetData->NetParameters->HostIp2);
 
     if (!NetData->YourIp)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendHostGratuitousArp: NetData->YourIp is NULL\n");
 
         return Status;
@@ -2812,7 +2812,7 @@ SendHostGratuitousArp(
 
     if ((NetData->YourIp & 0xFFFF0000) != AUTOIP_NET)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendHostGratuitousArp: TargetIP %p\n", NetData->YourIp);
 
         return Status;
@@ -2820,7 +2820,7 @@ SendHostGratuitousArp(
 
     if (!NetData->NetParameters->HostIp2)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendHostGratuitousArp: HostIp2 is NULL\n");
 
         return Status;
@@ -2833,7 +2833,7 @@ SendHostGratuitousArp(
         NetData->NetParameters->HostMac[4] == 0 &&
         NetData->NetParameters->HostMac[5] == 0)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendHostGratuitousArp: HostMac is 0\n");
 
         return Status;
@@ -2842,7 +2842,7 @@ SendHostGratuitousArp(
     Status = GetTxPacket(NetData, &PacketHandle);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendHostGratuitousArp: GetTxPacket() ret Status %X\n", Status);
 
         //KdNetGratuitousArpFailures++;
@@ -2877,7 +2877,7 @@ SendHostGratuitousArp(
     }
     else
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("SendHostGratuitousArp: KdNetGratuitousArpFailures++\n");
 
         //KdNetGratuitousArpFailures++;
@@ -2893,7 +2893,7 @@ SendDhcpPacket(
     _In_ ULONG Param2,
     _In_ UCHAR Param3)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("SendDhcpPacket: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -2910,7 +2910,7 @@ EnableHostReconnect(
     ULONG TimeOut;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("EnableHostReconnect: %d\n", AddTimeOut);
 
     TimeOut = (KdNetReconnectRunningTimeout + AddTimeOut);
@@ -2928,7 +2928,7 @@ EnableHostReconnect(
 
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("EnableHostReconnect: Status %X (%I64X:%I64X)\n", Status, *(LONGLONG*)&SharedUserData->InterruptTime, KdNetReconnectTimestamp);
 
         return;
@@ -2967,7 +2967,7 @@ EnableHostReconnect(
                              NetData->NetParameters->HostPort2);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("EnableHostReconnect: SendOfferPacket() ret Status %X\n", Status);
     }
 
@@ -2985,7 +2985,7 @@ InitializeNetwork(
     ULONG Timeout;
     NTSTATUS Status;
   
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("InitializeNetwork: %p\n", NetData);
 
     if (NetData->VendorId == 0xFFFC)
@@ -2998,7 +2998,7 @@ InitializeNetwork(
             Status = GetTargetIPAddress(NetData);
             if (!NT_SUCCESS(Status) && !KdNetErrorString)
             {
-                if (IsDbgComInitialized)
+                if (IsAlowPrint)
                     DbgPrint0("InitializeNetwork: GetTargetIPAddress failed to acquire an IP address using DHCP.\n");
 
                 KdNetErrorString = L"GetTargetIPAddress failed to acquire an IP address using DHCP.";
@@ -3012,7 +3012,7 @@ InitializeNetwork(
     {
         if (!KdNetErrorString)
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("InitializeNetwork: GenerateTargetIPAddress failed to acquire an unused IP address.\n");
 
             KdNetErrorString = L"GenerateTargetIPAddress failed to acquire an unused IP address.";
@@ -3034,14 +3034,14 @@ InitializeNetwork(
     Status = GetNodeMacAddress(NetData, TargetIP, HostIp2, NetData->NetParameters->HostMac, 2);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("InitializeNetwork failed to get the ethernet address of the host debugger.\n");
 
         KdNetErrorString = L"InitializeNetwork failed to get the ethernet address of the host debugger.";
 
         if (HostIp2 == NetData->GatewayIp)
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("InitializeNetwork failed to get the ethernet address of the router gateway.\n");
 
             KdNetErrorString = L"InitializeNetwork failed to get the ethernet address of the router gateway.";
@@ -3083,12 +3083,12 @@ KdNicUpdateStatus(
     _In_ NTSTATUS* NicDataStatus,
     _In_ UCHAR* OutLinkState)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicUpdateStatus()\n");
 
     if (NicData != &KdNicData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNicUpdateStatus: STATUS_INVALID_PARAMETER\n");
         return STATUS_INVALID_PARAMETER;
     }
@@ -3118,7 +3118,7 @@ KdNetInitialize(
     DEBUG_DEVICE_DESCRIPTOR_5x device5x;
   #endif
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNetInitialize: (1) %p, %p\n", NetParameters, LoaderBlock);
 
     InterlockedIncrement(&KdNetInitializeCount);
@@ -3127,12 +3127,12 @@ KdNetInitialize(
 
     NetParameters->PciDevice.Memory.Length = ContextSize = (KdNetHardwareContextSize + (2 * PAGE_SIZE));
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNetInitialize: (2) %X, %X\n", ContextSize, NetParameters->PciDevice.VendorID);
 
     if (NetParameters->PciDevice.VendorID != 0xFFFD && NetParameters->PciDevice.VendorID != 0xFFFC)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNetInitialize: KdSetupPciDeviceForDebugging %X\n", KdSetupPciDeviceForDebugging);
 
         /* There are differences in the structures DEBUG_DEVICE_DESCRIPTOR for RoS and for WIN8 */
@@ -3145,7 +3145,7 @@ KdNetInitialize(
 
         if (!NT_SUCCESS(NetStatus))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdNetInitialize: KdSetupPciDeviceForDebugging() ret %X\n", NetStatus);
 
             KdNetErrorString = L"KdSetupPciDeviceForDebugging failed.";
@@ -3161,7 +3161,7 @@ KdNetInitialize(
         if (NetParameters->PciDevice.Memory.Start.HighPart ||
             (NetParameters->PciDevice.Memory.Start.LowPart & 0xFFF))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdNetInitialize: Kdnet debug data not page aligned.\n");
 
             KdNetErrorString = L"Kdnet debug data not page aligned.";
@@ -3180,13 +3180,13 @@ KdNetInitialize(
 
     KdNetData = Add2Ptr(NetParameters->PciDevice.Memory.VirtualAddress, (KdNetHardwareContextSize + PAGE_SIZE));
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNetInitialize: Adapter %p, Size %X, KdNetData %p\n", NetParameters->PciDevice.Memory.VirtualAddress, KdNetHardwareContextSize, KdNetData);
 
     NetStatus = InitializeEncryption(KdNetData, NetParameters, SendPingPacket, SendOfferPacket);
     if (!NT_SUCCESS(NetStatus))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNetInitialize: (4) NetStatus %X\n", NetStatus);
         if (!KdNetErrorString)
         {
@@ -3198,7 +3198,7 @@ KdNetInitialize(
     NetStatus = InitializeController(KdNetData, NetParameters);
     if (!NT_SUCCESS(NetStatus))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNetInitialize: (5) NetStatus %X\n", NetStatus);
         if (!KdNetErrorString)
         {
@@ -3220,7 +3220,7 @@ KdNetInitialize(
     NetStatus = InitializeNetwork(KdNetData);
     if (!NT_SUCCESS(NetStatus))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNetInitialize: (6) NetStatus %X\n", NetStatus);
 
         if (!KdNetErrorString)
@@ -3239,10 +3239,10 @@ Finish:
     {
         if (LoaderBlock && IsPciDeviceSetupOk && !NT_SUCCESS(NetStatus))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdNetInitialize: (7) NetStatus %X\n", NetStatus);
 
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdNetInitialize: Unimplemented! LoaderBlock %p\n", NetParameters, LoaderBlock);
             KeBugCheck(MANUALLY_INITIATED_CRASH);
             return STATUS_NOT_IMPLEMENTED;
@@ -3282,7 +3282,7 @@ NTSTATUS
 NTAPI
 KdD0Transition(VOID)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdD0Transition: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -3293,7 +3293,7 @@ NTSTATUS
 NTAPI
 KdD3Transition(VOID)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdD3Transition: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -3319,17 +3319,17 @@ KdDebuggerInitialize0(
     BOOLEAN IsDebuggerActive;
     NTSTATUS Status = STATUS_INVALID_PARAMETER;
 
-    if (!IsDbgComInitialized)
+    if (!IsAlowPrint)
     {
         if (LoaderBlock->u.I386.CommonDataArea)
         {
             /* Default DbgPrint0 is not enabled */
             DbgPrint0 = LoaderBlock->u.I386.CommonDataArea;
-            IsDbgComInitialized = FALSE;
+            IsAlowPrint = FALSE;
         }
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdDebuggerInitialize0: LoaderBlock %p\n", LoaderBlock);
 
     InterlockedIncrement(&KdNetDebuggerInitialize0Count);
@@ -3380,7 +3380,7 @@ KdDebuggerInitialize0(
     Status = InitializeKdNetExtensibility(LoaderOptions, &KdNetParameters.PciDevice);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdDebuggerInitialize0: InitializeKdNetExtensibility() ret %X\n", Status);
 
         KdNetErrorString = L"Kdnet extensibility initialization failed.";
@@ -3397,7 +3397,7 @@ KdDebuggerInitialize0(
 
             if (KdNetParameters.PciDevice.Memory.Length > 0x1000000)
             {
-                if (IsDbgComInitialized)
+                if (IsAlowPrint)
                     DbgPrint0("KdDebuggerInitialize0: Requested too much memory (%X)\n", KdNetParameters.PciDevice.Memory.Length);
 
                 KdNetErrorString = L"Kdnet extensibility module requested too much memory.";
@@ -3432,7 +3432,7 @@ KdDebuggerInitialize0(
 
     if (!LoaderOptions)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdDebuggerInitialize0: No OS loadoptions string was passed to kdnet.(%X)\n", Status);
 
         KdNetErrorString = L"No OS loadoptions string was passed to kdnet.";
@@ -3457,7 +3457,7 @@ KdDebuggerInitialize0(
                 break;
         }
 
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
            DbgPrint0("KdDebuggerInitialize0: HOST_IP '%s'\n", (HostIp + 1));
 
         if (*HostIp)
@@ -3492,7 +3492,7 @@ KdDebuggerInitialize0(
 
         KdNetParameters.HostIp1 = _ip;
 
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
            DbgPrint0("KdDebuggerInitialize0: HostIp1 %X, HostIp2 %X\n", KdNetParameters.HostIp1, KdNetParameters.HostIp2);
     }
 
@@ -3506,7 +3506,7 @@ KdDebuggerInitialize0(
                 break;
         }
 
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
            DbgPrint0("KdDebuggerInitialize0: HOST_PORT '%s'\n", (HostPort + 1));
 
         if (*HostPort)
@@ -3549,7 +3549,7 @@ KdDebuggerInitialize0(
 
         if (*Start != '=')
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdDebuggerInitialize0: Status %X\n", Status);
 
             KdNetErrorString = L"No kdnet encryption key was specified in the OS loadoptions string.";
@@ -3565,7 +3565,7 @@ KdDebuggerInitialize0(
 
     if (!KdNetParameters.IsEncryptionKey || !Value.QuadPart)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdDebuggerInitialize0: No kdnet encryption key was specified in the OS loadoptions string.(%X)\n", Status);
 
         KdNetErrorString = L"No kdnet encryption key was specified in the OS loadoptions string.";
@@ -3592,7 +3592,7 @@ KdDebuggerInitialize0(
                 break;
         }
 
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
            DbgPrint0("KdDebuggerInitialize0: TARGET_IP '%s'\n", TargetIp + 1);
 
         if (*TargetIp)
@@ -3624,13 +3624,13 @@ KdDebuggerInitialize0(
                 }
             }
 
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                DbgPrint0("KdDebuggerInitialize0: DebuggeeIp %X\n", KdNetParameters.DebuggeeIp);
         }
     }
     else
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
            DbgPrint0("KdDebuggerInitialize0: DebuggeeIp %X\n", KdNetParameters.DebuggeeIp);
 
         _ip = KdNetParameters.DebuggeeIp;
@@ -3638,7 +3638,7 @@ KdDebuggerInitialize0(
 
     if (_ip && ((_ip & 0xFFFF0000) != 0xA9FE0000) && !KdNetParameters.IsEncryptionKey)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
            DbgPrint0("KdDebuggerInitialize0: DebuggeeIp is 0\n");
 
         KdNetParameters.DebuggeeIp = 0;
@@ -3646,7 +3646,7 @@ KdDebuggerInitialize0(
 
     if (strstr(LoaderOptions, "BUSPARAMS"))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdDebuggerInitialize0: BUSPARAMS Unimplemented! KeBugCheck\n");
 
         //KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -3661,7 +3661,7 @@ NetInitializing:
 
     if (IsDebuggerActive)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdDebuggerInitialize0: Debugger is active\n");
 
         return STATUS_SUCCESS;
@@ -3669,7 +3669,7 @@ NetInitializing:
 
     Status = KdNetInitialize(&KdNetParameters, LoaderBlock);
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdDebuggerInitialize0: (1) Status %X\n", Status);
 
     if (LoaderBlock &&
@@ -3701,7 +3701,7 @@ NetInitializing:
     if (NT_SUCCESS(Status))
         return Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdDebuggerInitialize0: (2) Status %X\n", Status);
 
 Exit:
@@ -3859,7 +3859,7 @@ NetReadKdPacket(
     ULONG KdStatus = 1;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("NetReadKdPacket: %p, %p, %X, %X\n", NetData, KdPacket, MessageHeader, MessageData);
 
     Status = WaitForSpecificRxUdpPacket(NetData,
@@ -3871,7 +3871,7 @@ NetReadKdPacket(
                                         OutDebuggeePort);
     if (Status == STATUS_IO_TIMEOUT)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("NetReadKdPacket: STATUS_IO_TIMEOUT\n");
 
         return KdStatus;
@@ -3879,7 +3879,7 @@ NetReadKdPacket(
 
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("NetReadKdPacket: Status %X\n", Status);
 
         return 2;
@@ -3888,7 +3888,7 @@ NetReadKdPacket(
     Status = DecryptKdPacket(NetData, &Packet, &PacketLength);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("NetReadKdPacket: KdNetRxKdPacketsHandedOff++\n");
 
         //KdNetRxKdPacketsHandedOff++;
@@ -3913,7 +3913,7 @@ NetReadKdPacket(
 
     if (Length < sizeof(KD_PACKET))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("NetReadKdPacket: Length %X\n", Length);
 
         KdStatus = 2;
@@ -3927,7 +3927,7 @@ NetReadKdPacket(
 
     if (!MessageHeader)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("NetReadKdPacket: MessageHeader is NULL\n");
 
         goto Finish;
@@ -3944,7 +3944,7 @@ NetReadKdPacket(
 
     if (Length < MessageHeader->MaximumLength)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("NetReadKdPacket: Length %X\n", Length);
         goto Finish;
     }
@@ -3968,7 +3968,7 @@ Finish:
 
     ReleaseRxPacket(NetData, OutPacketHandle);
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("NetReadKdPacket: ret %X\n", KdStatus);
 
     return KdStatus;
@@ -3981,12 +3981,12 @@ KdNicQueueSendPackets(
 {
     PSLIST_ENTRY TxSListEntry;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicQueueSendPackets: %p\n", NetData);
 
     if (NetData->NicData != &KdNicData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNicQueueSendPackets: %p\n", NetData->NicData);
 
         return STATUS_INVALID_PARAMETER;
@@ -3996,7 +3996,7 @@ KdNicQueueSendPackets(
     if (!TxSListEntry)
         return STATUS_SUCCESS;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicQueueSendPackets: Unimplemented! TxSListEntry %p\n", TxSListEntry);
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -4009,12 +4009,12 @@ NTAPI
 KdNicSendQueuedPackets(
     _In_ PKD_NET_DATA NetData)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicSendQueuedPackets: %p\n", NetData);
 
     if (NetData->NicData != &KdNicData)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNicSendQueuedPackets: STATUS_INVALID_PARAMETER %p\n", NetData->NicData);
 
         return STATUS_INVALID_PARAMETER;
@@ -4025,10 +4025,10 @@ KdNicSendQueuedPackets(
         if (IsListEmpty(&QueuedTxListHead))
             return STATUS_SUCCESS;
 
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNicSendQueuedPackets: %p, %p\n", &QueuedTxListHead, QueuedTxListHead.Flink);
 
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNicSendQueuedPackets: Unimplemented!\n");
 
         KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -4036,7 +4036,7 @@ KdNicSendQueuedPackets(
         return STATUS_NOT_IMPLEMENTED;
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicSendQueuedPackets: KdNicSendPacketsUnavailable++\n");
 
     //KdNicSendPacketsUnavailable++;
@@ -4053,7 +4053,7 @@ KdNicFlushQueuedSendPackets(
 {
     if (NicData->Reserved0)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdNicFlushQueuedSendPackets: exit (Reserved0 %p)\n", NicData->Reserved0);
 
         return;
@@ -4062,10 +4062,10 @@ KdNicFlushQueuedSendPackets(
     if (IsListEmpty(&QueuedTxListHead))
         return;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicFlushQueuedSendPackets: %p, %p\n", &QueuedTxListHead, QueuedTxListHead.Flink);
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicFlushQueuedSendPackets: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
@@ -4079,7 +4079,7 @@ KdNicSendPackets(
     NTSTATUS Status1;
     NTSTATUS Status2;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdNicSendPackets: %p\n", NetData);
 
     if (InterlockedIncrement(&KdNicSendEntered) > 1)
@@ -4120,7 +4120,7 @@ KdpSendControlPacket(
     ULONG PacketHandle;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdpSendControlPacket: %X, %X\n", PacketType, PacketId);
 
     //KdNetKdSendControlPacketCalled++;
@@ -4128,7 +4128,7 @@ KdpSendControlPacket(
     Status = GetTxPacket(NetData, &PacketHandle);
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdpSendControlPacket: (1) Status %X\n", Status);
 
         return;
@@ -4150,7 +4150,7 @@ KdpSendControlPacket(
 
     if (!NT_SUCCESS(Status))
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdpSendControlPacket: (2) Status %X\n", Status);
     }
     else
@@ -4177,12 +4177,12 @@ KdReceivePacket(
     ULONG Checksum;
     ULONG KdStatus;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdReceivePacket: %X, %p, %p\n", PacketType, MessageHeader, MessageData);
 
     if (!KdNetParameters.IsDebuggerActive)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdReceivePacket: CalledDebuggerNotActive++\n");
 
         //KdNetKdReceivePacketCalledDebuggerNotActive++;
@@ -4190,7 +4190,7 @@ KdReceivePacket(
         return 2;
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdReceivePacket: Called++, Retries--\n");
 
     //KdNetKdReceivePacketCalled++;
@@ -4200,14 +4200,14 @@ KdReceivePacket(
 
     while (TRUE)
     {
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdReceivePacket: Retries++\n");
 
         //KdNetKdReceivePacketRetries++;
 
         if (CycleCount1 < CycleCount2)
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdReceivePacket: TimeoutWrap++\n");
 
             //KdNetKdReceivePacketTimeoutWrap++;
@@ -4240,7 +4240,7 @@ KdReceivePacket(
             KdNicSendPackets(KdNetData);
             EnableHostReconnect(KdNetData, 0);
 
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdReceivePacket: [8] ret 1\n");
 
             return 1;
@@ -4250,7 +4250,7 @@ KdReceivePacket(
         {
             EnableHostReconnect(KdNetData, (CycleCount1 - CycleCount2));
 
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdReceivePacket: KdStatus %X\n", KdStatus);
 
             return KdStatus;
@@ -4264,7 +4264,7 @@ KdReceivePacket(
                 {
                     if (PacketType == 4)
                     {
-                        if (IsDbgComInitialized)
+                        if (IsAlowPrint)
                             DbgPrint0("KdReceivePacket: AckReceived++\n");
 
                         //KdNetKdReceivePacketAckReceived++;
@@ -4272,14 +4272,14 @@ KdReceivePacket(
                         return 0;
                     }
 
-                    if (IsDbgComInitialized)
+                    if (IsAlowPrint)
                         DbgPrint0("KdReceivePacket: AckIgnored++\n");
 
                     //KdNetKdReceivePacketAckIgnored++;
                 }
                 else
                 {
-                    if (IsDbgComInitialized)
+                    if (IsAlowPrint)
                         DbgPrint0("KdReceivePacket: MismatchedAckPacketId++\n");
 
                     //KdNetKdReceivePacketMismatchedAckPacketId++;
@@ -4293,7 +4293,7 @@ KdReceivePacket(
 
                     KdpSendControlPacket(KdNetData, 6, KdNetTxPacketId);
 
-                    if (IsDbgComInitialized)
+                    if (IsAlowPrint)
                         DbgPrint0("KdReceivePacket: ResetReceived++\n");
 
                     //KdNetKdReceivePacketResetReceived++;
@@ -4303,7 +4303,7 @@ KdReceivePacket(
 
                 if (KdPacket.PacketType == 5)
                 {
-                    if (IsDbgComInitialized)
+                    if (IsAlowPrint)
                         DbgPrint0("KdReceivePacket: ResendReceived++\n");
 
                     //KdNetKdReceivePacketResendReceived++;
@@ -4311,7 +4311,7 @@ KdReceivePacket(
                     return 2;
                 }
 
-                if (IsDbgComInitialized)
+                if (IsAlowPrint)
                     DbgPrint0("KdReceivePacket: BadControlPacketType++\n");
 
                 //KdNetKdReceivePacketBadControlPacketType++;
@@ -4322,7 +4322,7 @@ KdReceivePacket(
 
         if (KdPacket.PacketLeader != 0x30303030)
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdReceivePacket: BadPacketHeader++, ResendRequest++\n");
 
             //KdNetKdReceivePacketBadPacketHeader++;
@@ -4338,7 +4338,7 @@ KdReceivePacket(
             {
                 KdpSendControlPacket(KdNetData, 5, 0);
 
-                if (IsDbgComInitialized)
+                if (IsAlowPrint)
                     DbgPrint0("KdReceivePacket: AckPacketAssumed++\n");
 
                 //KdNetKdReceivePacketAckPacketAssumed++;
@@ -4348,7 +4348,7 @@ KdReceivePacket(
 
             KdpSendControlPacket(KdNetData, 4, KdPacket.PacketId);
 
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdReceivePacket: GratuitousAckSent++\n");
 
             //KdNetKdReceivePacketGratuitousAckSent++;
@@ -4358,7 +4358,7 @@ KdReceivePacket(
 
         if (PacketType != KdPacket.PacketType)
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdReceivePacket: BadPacketType++, ResendRequest++\n");
 
             //KdNetKdReceivePacketBadPacketType++;
@@ -4377,7 +4377,7 @@ KdReceivePacket(
 
         if (KdPacket.ByteCount > 0x580 || KdPacket.ByteCount < (USHORT)ByteCount)
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdReceivePacket: BadPacketSize++, ResendRequest++\n");
 
             //KdNetKdReceivePacketBadPacketSize++;
@@ -4425,7 +4425,7 @@ KdReceivePacket(
             break;
         }
 
-        if (IsDbgComInitialized)
+        if (IsAlowPrint)
             DbgPrint0("KdReceivePacket: BadPacketChecksum++, ResendRequest++\n");
 
         //KdNetKdReceivePacketBadPacketChecksum++;
@@ -4434,7 +4434,7 @@ KdReceivePacket(
         KdpSendControlPacket(KdNetData, 5, 0);
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdReceivePacket: (++) ret 0\n");
 
     //KdNetReceivedPackets++;
@@ -4447,7 +4447,7 @@ NTAPI
 KdRestore(
     _In_ BOOLEAN SleepTransition)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdRestore: SleepTransition %X\n", SleepTransition);
 
     return STATUS_SUCCESS;
@@ -4458,7 +4458,7 @@ NTAPI
 KdSave(
     _In_ BOOLEAN SleepTransition)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdSave: SleepTransition %X\n", SleepTransition);
 
     return STATUS_SUCCESS;
@@ -4483,7 +4483,7 @@ KdSendPacket(
     ULONG Length = 0;
     NTSTATUS Status;
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdSendPacket: %X, %p, %p\n", PacketType, MessageHeader, MessageData);
 
     if (!KdNetParameters.IsDebuggerActive)
@@ -4501,7 +4501,7 @@ KdSendPacket(
         Status = GetTxPacket(KdNetData, &PacketHandle);
         if (!NT_SUCCESS(Status))
         {
-            if (IsDbgComInitialized)
+            if (IsAlowPrint)
                 DbgPrint0("KdSendPacket: Status %X\n", Status);
 
             goto Exit;
@@ -4600,7 +4600,7 @@ KdSendPacket(
         RetryCount--;
     }
 
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdSendPacket: KdNetSentPackets++\n");
 
     //KdNetSentPackets++;
@@ -4627,7 +4627,7 @@ NTSTATUS
 NTAPI
 KdSetHiberRange(VOID)
 {
-    if (IsDbgComInitialized)
+    if (IsAlowPrint)
         DbgPrint0("KdD0Transition: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
