@@ -38,6 +38,8 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     OBJECT_ATTRIBUTES ObjectAttributes;
     WCHAR SourceString[54];
 
+    DPRINT("IopStartRamdisk: LoaderBlock %X\n", LoaderBlock);
+
     /* Scan memory descriptors */
     MemoryDescriptor = NULL;
     ListHead = &LoaderBlock->MemoryDescriptorListHead;
@@ -59,6 +61,8 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     /* Nothing found? */
     if (NextEntry == ListHead)
     {
+        DPRINT1("IopStartRamdisk: Bugcheck -- no data\n");
+
         /* Bugcheck -- no data */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_NO_XIPROM_DESCRIPTOR,
@@ -132,6 +136,8 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
                         FILE_SYNCHRONOUS_IO_NONALERT);
     if (!(NT_SUCCESS(Status)) || !(NT_SUCCESS(IoStatusBlock.Status)))
     {
+        DPRINT1("IopStartRamdisk: Bugcheck -- no driver\n");
+
         /* Bugcheck -- no driver */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_NO_RAMDISK_DRIVER,
@@ -154,6 +160,8 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     ZwClose(DriverHandle);
     if (!(NT_SUCCESS(Status)) || !(NT_SUCCESS(IoStatusBlock.Status)))
     {
+        DPRINT1("IopStartRamdisk: Bugcheck -- driver failed\n");
+
         /* Bugcheck -- driver failed */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_FSCTL_FAILED,
@@ -166,6 +174,8 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     Status = RtlStringFromGUID(&RamdiskCreate.DiskGuid, &GuidString);
     if (!NT_SUCCESS(Status))
     {
+        DPRINT1("IopStartRamdisk: Bugcheck -- GUID convert failed\n");
+
         /* Bugcheck -- GUID convert failed */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_GUID_CONVERT_FAILED,
@@ -189,6 +199,8 @@ IopStartRamdisk(IN PLOADER_PARAMETER_BLOCK LoaderBlock)
     RtlFreeUnicodeString(&GuidString);
     if (!NT_SUCCESS(Status))
     {
+        DPRINT1("IopStartRamdisk: Bugcheck -- symlink create failed\n");
+
         /* Bugcheck -- symlink create failed */
         KeBugCheckEx(RAMDISK_BOOT_INITIALIZATION_FAILED,
                      RD_SYMLINK_CREATE_FAILED,
