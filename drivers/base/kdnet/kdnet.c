@@ -12,7 +12,8 @@
 /* GLOBALS ********************************************************************/
 
 ULONG (*DbgPrint0)(_In_ const PCHAR Format, ...);
-BOOLEAN IsAlowPrint = FALSE;
+static BOOLEAN IsAlowPrint = FALSE;
+static BOOLEAN IsDbgComInitialized = FALSE;
 
 KDNET_EXTENSIBILITY_EXPORT KdNetExports;
 KD_NET_PARAMETERS KdNetParameters;
@@ -656,7 +657,7 @@ ProcessDhcpPacket(
     _In_ UCHAR Param4)
 {
     if (IsAlowPrint)
-        DbgPrint0("HandleDhcp: Unimplemented!\n");
+        DbgPrint0("ProcessDhcpPacket: Unimplemented!\n");
 
     KeBugCheck(MANUALLY_INITIATED_CRASH);
 
@@ -3319,14 +3320,21 @@ KdDebuggerInitialize0(
     BOOLEAN IsDebuggerActive;
     NTSTATUS Status = STATUS_INVALID_PARAMETER;
 
-    if (!IsAlowPrint)
+    if (!IsDbgComInitialized && LoaderBlock)
     {
         if (LoaderBlock->u.I386.CommonDataArea)
         {
             /* Default DbgPrint0 is not enabled */
-            DbgPrint0 = LoaderBlock->u.I386.CommonDataArea;
+            DbgKdPrint0 = LoaderBlock->u.I386.CommonDataArea;
+            IsAlowPrint = TRUE;
+        }
+        else
+        {
+            DbgKdPrint0 = NULL;
             IsAlowPrint = FALSE;
         }
+
+        IsDbgComInitialized = TRUE;
     }
 
     if (IsAlowPrint)
