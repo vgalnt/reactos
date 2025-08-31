@@ -129,35 +129,35 @@ CreateFreeLoaderReactOSEntries(
     Options->OsLoadPath = ArcPath;
 
     /* ReactOS */
-    // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS");
     BootEntry->FriendlyName = L"\"ReactOS\"";
     Options->OsLoadOptions = L"/HAL=halaacpi.dll";
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS"));
 
     /* ReactOS_Com */
-    // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS_Com");
     BootEntry->FriendlyName = L"\"ReactOS (COM Debug)\"";
     Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=COM1 /BAUDRATE=115200 /SOS";
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_Com"));
 
   #if VC_BUILD
     /* ReactOS_Net */
-    // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS_Net");
     BootEntry->FriendlyName = L"\"ReactOS (NET Debug)\"";
     Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=NET /W2003 /HOST_IP=10.0.5.5 /HOST_PORT=50000 /ENCRYPTION_KEY=make.reactos.great.always /CPUFREQ=3000 /TARGET_IP=10.0.5.4 /SOS";
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_Net"));
+
+    /* ReactOS_Net */
+    BootEntry->FriendlyName = L"\"ReactOS ((Log file + KD0))\"";
+    Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=FILE /DEBUGKD0=COMKD0-COM1-115200,SCREENKD0,FILEKD0 /SOS";
+    AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_LogFile_Kd0"));
   #endif
 
   #ifdef _WINKD_
     /* ReactOS_VBoxDebug */
-    // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS_VBoxDebug");
     BootEntry->FriendlyName = L"\"ReactOS (VBox Debug)\"";
     Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=VBOX /SOS";
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_VBoxDebug"));
 
   #elif DBG
     /* ReactOS_KdSerial */
-    // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS_KdSerial");
     BootEntry->FriendlyName = L"\"ReactOS (RosDbg)\"";
     Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=COM1 /BAUDRATE=115200 /SOS /KDSERIAL";
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_KdSerial"));
@@ -165,15 +165,12 @@ CreateFreeLoaderReactOSEntries(
 
   #if DBG
     /* ReactOS_Screen */
-    // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS_Screen");
     BootEntry->FriendlyName = L"\"ReactOS (Screen)\"";
     Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=SCREEN /SOS";
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_Screen"));
 
     /* ReactOS_LogFile */
-    // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS_LogFile");
     BootEntry->FriendlyName = L"\"ReactOS (Log file)\"";
-    //Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=FILE:\\ArcName\\multi(0)disk(0)rdisk(0)partition(1)\\debug.log /SOS";
 
     Status = RtlStringCchPrintfW(PathBuffer, ARRAYSIZE(PathBuffer), L"/DEBUG /DEBUGPORT=FILE:\\ArcName\\multi(0)disk(0)rdisk(%lu)partition(%lu)\\debug.log /SOS", HwFixedDiskNumber, OnDiskPartitionNumber);
     if (!NT_SUCCESS(Status))
@@ -186,32 +183,30 @@ CreateFreeLoaderReactOSEntries(
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_LogFile"));
 
     /* ReactOS_Ram */
-    // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS_Ram");
     BootEntry->FriendlyName = L"\"ReactOS (RAM Disk)\"";
     Options->OsLoadPath = L"ramdisk(0)\\ReactOS";
     Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=COM1 /BAUDRATE=115200 /SOS /RDPATH=reactos.img /RDIMAGEOFFSET=32256";
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_Ram"));
 
     /* ReactOS_EMS */
-    // BootEntry->BootEntryKey = MAKESTRKEY(L"ReactOS_EMS");
     BootEntry->FriendlyName = L"\"ReactOS (Emergency Management Services)\"";
     Options->OsLoadPath = ArcPath;
     Options->OsLoadOptions = L"/DEBUG /DEBUGPORT=COM1 /BAUDRATE=115200 /SOS /redirect=com2 /redirectbaudrate=115200";
     AddBootStoreEntry(BootStoreHandle, BootEntry, MAKESTRKEY(L"ReactOS_EMS"));
   #endif
 
-    /* DefaultOS=ReactOS */
-    BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS");
-
+    /* Default boot entry */
   #if DBG
     #if defined(_WINKD_)
-      BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS_Com");
+      BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS_LogFile_Kd0");
     #else
       if (IsUnattendedSetup)
           BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS_KdSerial");
       else
           BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS_Com");
     #endif
+  #else
+    BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS");
   #endif
 
     /* Timeout=0 for unattended or non debug */
