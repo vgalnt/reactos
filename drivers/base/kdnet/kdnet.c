@@ -11,7 +11,6 @@
 
 /* GLOBALS ********************************************************************/
 
-ULONG (*DbgPrint0)(_In_ const PCHAR Format, ...);
 static BOOLEAN IsAlowPrint = FALSE;
 static BOOLEAN IsDbgComInitialized = FALSE;
 

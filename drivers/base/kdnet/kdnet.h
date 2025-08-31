@@ -18,6 +18,43 @@
 #include <stdio.h>
 #include <ntstrsafe.h>
 
+#if defined(_WINKD_) && defined(__REACTOS__)
+  #if DBG
+    #if 1 // DBG_KD0
+      static ULONG kdix = 1;
+      ULONG (*DbgKdPrint0)(_In_ PCHAR Format, ...);
+      /* TODO: It would be nice to explore the possibility of automatically switching the print call in phase 0 and phase 1.
+               For phase 0 use DbgKdPrint0(), and for phase 1 use DbgPrint().
+      */
+      #define DbgPrint0(fmt, ...) do { \
+        if (DbgKdPrint0) \
+        { \
+          if (DbgKdPrint0("kdnet%03d:%d " fmt, kdix++,  __LINE__, ##__VA_ARGS__))  \
+              DbgKdPrint0("(kdnet%03d:%d) DbgKdPrint0() failed!\n", kdix, __LINE__); \
+        } \
+      } while (0)
+    #else
+      #if defined(_MSC_VER)
+        #define DbgPrint0 __noop
+      #else
+        #define DbgPrint0
+      #endif
+    #endif
+  #else
+    #if defined(_MSC_VER)
+      #define DbgPrint0 __noop
+    #else
+      #define DbgPrint0
+    #endif
+  #endif
+#else
+  #if defined(_MSC_VER)
+    #define DbgPrint0 __noop
+  #else
+    #define DbgPrint0
+  #endif
+#endif
+
 /* 169.254.0.0 */
 #define AUTOIP_NET              0xA9FE0000
 
