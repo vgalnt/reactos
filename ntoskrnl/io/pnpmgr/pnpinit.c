@@ -2583,18 +2583,6 @@ Next:
         return FALSE;
     }
 
-    /* Check if this was a ramdisk boot */
-    if (!_strnicmp(LoaderBlock->ArcBootDeviceName, "ramdisk(0)", 10))
-    {
-        /* Initialize the ramdisk driver */
-        IopStartRamdisk(LoaderBlock);
-        if (!IopWaitForBootDevicesStarted())
-        {
-            DPRINT1("IopWaitForBootDevicesStarted failed!\n");
-            return FALSE;
-        }
-    }
-
     if (IsWithoutGroupOrderIndex)
     {
         DPRINT("IopInitializeBootDrivers: Delay 1 second start\n", ix);
@@ -2617,6 +2605,18 @@ Next:
     {
         DPRINT1("IopCreateArcNames failed: %lx\n", Status);
         return FALSE;
+    }
+
+    /* Check if this was a ramdisk boot */
+    if (!_strnicmp(LoaderBlock->ArcBootDeviceName, "ramdisk(0)", 10))
+    {
+        /* Initialize the ramdisk driver */
+        IopStartRamdisk(LoaderBlock);
+        if (!IopWaitForBootDevicesStarted())
+        {
+            DPRINT1("IopWaitForBootDevicesStarted failed!\n");
+            return FALSE;
+        }
     }
 
     /* Mark the system boot partition */
