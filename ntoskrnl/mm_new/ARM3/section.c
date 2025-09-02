@@ -7405,7 +7405,7 @@ MiCheckControlAreaStatus(
         return TRUE;
     }
 
-    DPRINT1("MiCheckControlAreaStatus: FIXME EventCounter\n");
+    DPRINT("MiCheckControlAreaStatus: FIXME EventCounter\n");
     //ASSERT(FALSE);
 
     *OutControlArea = ControlArea;
@@ -9368,7 +9368,7 @@ MmFlushImageSection(
         ControlArea->NumberOfMappedViews = 1;
 
         LargeControlArea = NULL;
-        DPRINT1("NumberOfMappedViews: %p, %X\n", ControlArea, ControlArea->NumberOfMappedViews);
+        DPRINT("NumberOfMappedViews: %p, %X\n", ControlArea, ControlArea->NumberOfMappedViews);
 
         if (ControlArea->u.Flags.GlobalOnlyPerSession)
         {
