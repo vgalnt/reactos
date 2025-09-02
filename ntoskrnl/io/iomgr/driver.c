@@ -166,11 +166,8 @@ IopSuffixUnicodeString(
     return FALSE;
 }
 
-/*
- * IopDisplayLoadingMessage
- *
- * Display 'Loading XXX...' message.
- */
+/* Display 'Loading XXX...' message. */
+static int bWarnedOnce = 0;
 VOID
 FASTCALL
 IopDisplayLoadingMessage(PUNICODE_STRING ServiceName)
@@ -178,15 +175,27 @@ IopDisplayLoadingMessage(PUNICODE_STRING ServiceName)
     CHAR TextBuffer[256];
     UNICODE_STRING DotSys = RTL_CONSTANT_STRING(L".SYS");
 
-    if (ExpInTextModeSetup) return;
-    if (!KeLoaderBlock) return;
+    if (ExpInTextModeSetup)
+        return;
+
+    if (!KeLoaderBlock)
+        return;
+
+    if (!bWarnedOnce)
+    {
+        bWarnedOnce++;
+
+        snprintf(TextBuffer, sizeof(TextBuffer), "Loading drivers path: %s%s""system32\\drivers\\\r\n\r\n",
+                 KeLoaderBlock->ArcBootDeviceName, KeLoaderBlock->NtBootPathName);
+
+        HalDisplayString(TextBuffer);
+    }
+
     RtlUpcaseUnicodeString(ServiceName, ServiceName, FALSE);
-    snprintf(TextBuffer, sizeof(TextBuffer),
-            "%s%sSystem32\\Drivers\\%wZ%s\r\n",
-            KeLoaderBlock->ArcBootDeviceName,
-            KeLoaderBlock->NtBootPathName,
-            ServiceName,
-            IopSuffixUnicodeString(&DotSys, ServiceName) ? "" : ".SYS");
+
+    snprintf(TextBuffer, sizeof(TextBuffer), "   %wZ%s\r\n",
+             ServiceName, IopSuffixUnicodeString(&DotSys, ServiceName) ? "" : ".SYS");
+
     HalDisplayString(TextBuffer);
 }
 
