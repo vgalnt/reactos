@@ -1876,6 +1876,36 @@ RamdiskIoCompletionRoutine(IN PDEVICE_OBJECT DeviceObject,
     return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
+static
+NTSTATUS
+RamdiskPnpIrpProcessing(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp)
+{
+    PRAMDISK_BUS_EXTENSION DeviceExtension;
+    NTSTATUS Status;
+
+    /* Get the device extension and stack location */
+    DeviceExtension = DeviceObject->DeviceExtension;
+
+    /* Are we the bus and do we have an attached device? */
+    if (DeviceExtension->Type == RamdiskBus && DeviceExtension->AttachedDevice)
+    {
+        /* Forward the IRP */
+        IoSkipCurrentIrpStackLocation(Irp);
+        Status = IoCallDriver(DeviceExtension->AttachedDevice, Irp);
+    }
+    else
+    {
+        /* Is PDO */
+        ASSERT(KeGetCurrentIrql() <= DISPATCH_LEVEL);
+        Status = Irp->IoStatus.Status;
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    }
+
+    return Status;
+}
+
 NTSTATUS
 NTAPI
 RamdiskPnp(IN PDEVICE_OBJECT DeviceObject,
@@ -1886,6 +1916,8 @@ RamdiskPnp(IN PDEVICE_OBJECT DeviceObject,
     NTSTATUS Status;
     UCHAR Minor;
     KEVENT Event;
+
+    PAGED_CODE();
 
     /* Get the device extension and stack location */
     DeviceExtension = DeviceObject->DeviceExtension;
@@ -1920,7 +1952,7 @@ RamdiskPnp(IN PDEVICE_OBJECT DeviceObject,
     /* Query the IRP type */
     switch (Minor)
     {
-        case IRP_MN_START_DEVICE:
+        case IRP_MN_START_DEVICE: //0x00
         {
             if (DeviceExtension->Type == RamdiskDrive)
             {
@@ -1980,47 +2012,43 @@ RamdiskPnp(IN PDEVICE_OBJECT DeviceObject,
 
                 /* We're fine & up */
                 DriveExtension->State = RamdiskStateStarted;
-                Irp->IoStatus.Status = Status;
-                break;
             }
-
-            /* Prepare next stack to pass it down */
-            IoCopyCurrentIrpStackLocationToNext(Irp);
-
-            /* Initialize our notification event & our completion routine */
-            KeInitializeEvent(&Event, NotificationEvent, FALSE);
-            IoSetCompletionRoutine(Irp, RamdiskIoCompletionRoutine, &Event, TRUE, TRUE, TRUE);
-
-            /* Call lower driver */
-            Status = IoCallDriver(DeviceExtension->AttachedDevice, Irp);
-            if (Status == STATUS_PENDING)
+            else
             {
-                KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
-                Status = Irp->IoStatus.Status;
+                /* Prepare next stack to pass it down */
+                IoCopyCurrentIrpStackLocationToNext(Irp);
+
+                /* Initialize our notification Event & our completion routine */
+                KeInitializeEvent(&Event, NotificationEvent, FALSE);
+                IoSetCompletionRoutine(Irp, RamdiskIoCompletionRoutine, &Event, TRUE, TRUE, TRUE);
+
+                /* Call lower driver */
+                Status = IoCallDriver(DeviceExtension->AttachedDevice, Irp);
+                if (Status == STATUS_PENDING)
+                {
+                    KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+                    Status = Irp->IoStatus.Status;
+                }
+
+                /* If it succeed to start then enable ourselves and we're up! */
+                if (NT_SUCCESS(Status))
+                {
+                    Status = IoSetDeviceInterfaceState(&DeviceExtension->DriveDeviceName, TRUE);
+                    DeviceExtension->State = RamdiskStateStarted;
+                }
             }
 
-            /* If it succeed to start then enable ourselves and we're up! */
-            if (NT_SUCCESS(Status))
-            {
-                Status = IoSetDeviceInterfaceState(&DeviceExtension->DriveDeviceName, TRUE);
-                DeviceExtension->State = RamdiskStateStarted;
-            }
-
+            ASSERT(KeGetCurrentIrql() <= DISPATCH_LEVEL);
             Irp->IoStatus.Status = Status;
+            IoCompleteRequest(Irp, IO_NO_INCREMENT);
             break;
         }
-
-        case IRP_MN_QUERY_STOP_DEVICE:
-        case IRP_MN_CANCEL_STOP_DEVICE:
-        case IRP_MN_STOP_DEVICE:
-        case IRP_MN_QUERY_REMOVE_DEVICE:
-        case IRP_MN_CANCEL_REMOVE_DEVICE:
+        case IRP_MN_QUERY_REMOVE_DEVICE: //0x01
         {
             UNIMPLEMENTED_DBGBREAK("PnP IRP: %lx\n", Minor);
             break;
         }
-
-        case IRP_MN_REMOVE_DEVICE:
+        case IRP_MN_REMOVE_DEVICE: //0x02
         {
             /* Remove the proper device */
             if (DeviceExtension->Type == RamdiskBus)
@@ -2029,7 +2057,6 @@ RamdiskPnp(IN PDEVICE_OBJECT DeviceObject,
 
                 /* Return here, lower device has already been called
                  * And remove lock released. This is needed by the function. */
-                return Status;
             }
             else
             {
@@ -2040,49 +2067,19 @@ RamdiskPnp(IN PDEVICE_OBJECT DeviceObject,
                  * This has already been done by the function. */
                 Irp->IoStatus.Status = Status;
                 IoCompleteRequest(Irp, IO_NO_INCREMENT);
-                return Status;
             }
-        }
 
-        case IRP_MN_SURPRISE_REMOVAL:
+            return Status;
+        }
+        case IRP_MN_CANCEL_REMOVE_DEVICE: //0x03
+        case IRP_MN_STOP_DEVICE: //0x04
+        case IRP_MN_QUERY_STOP_DEVICE: //0x05
+        case IRP_MN_CANCEL_STOP_DEVICE: //0x06
+        {
             UNIMPLEMENTED_DBGBREAK("PnP IRP: %lx\n", Minor);
             break;
-
-        case IRP_MN_QUERY_ID:
-        {
-            /* Are we a drive? */
-            if (DeviceExtension->Type == RamdiskDrive)
-            {
-                Status = RamdiskQueryId((PRAMDISK_DRIVE_EXTENSION)DeviceExtension, Irp);
-            }
-            break;
         }
-
-        case IRP_MN_QUERY_BUS_INFORMATION:
-        {
-            /* Are we a drive? */
-            if (DeviceExtension->Type == RamdiskDrive)
-            {
-                Status = RamdiskQueryBusInformation(DeviceObject, Irp);
-            }
-            break;
-        }
-
-        case IRP_MN_EJECT:
-            UNIMPLEMENTED_DBGBREAK("PnP IRP: %lx\n", Minor);
-            break;
-
-        case IRP_MN_QUERY_DEVICE_TEXT:
-        {
-            /* Are we a drive? */
-            if (DeviceExtension->Type == RamdiskDrive)
-            {
-                Status = RamdiskQueryDeviceText((PRAMDISK_DRIVE_EXTENSION)DeviceExtension, Irp);
-            }
-            break;
-        }
-
-        case IRP_MN_QUERY_DEVICE_RELATIONS:
+        case IRP_MN_QUERY_DEVICE_RELATIONS: //0x07
         {
             /* Call our main routine */
             Status = RamdiskQueryDeviceRelations(IoStackLocation->
@@ -2090,46 +2087,124 @@ RamdiskPnp(IN PDEVICE_OBJECT DeviceObject,
                                                  QueryDeviceRelations.Type,
                                                  DeviceObject,
                                                  Irp);
-            goto ReleaseAndReturn;
+            break;
         }
-
-        case IRP_MN_QUERY_CAPABILITIES:
+        case IRP_MN_QUERY_INTERFACE: //0x08
+        {
+            Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
+        }
+        case IRP_MN_QUERY_CAPABILITIES: //0x09
         {
             /* Are we a drive? */
             if (DeviceExtension->Type == RamdiskDrive)
-            {
                 Status = RamdiskQueryCapabilities(DeviceObject, Irp);
+            else
+                Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
+        }
+        case IRP_MN_QUERY_RESOURCES: //0x0A //10
+        {
+            /* Complete immediately without touching it */
+            ASSERT(KeGetCurrentIrql() <= DISPATCH_LEVEL);
+            Status = Irp->IoStatus.Status;
+            IoCompleteRequest(Irp, IO_NO_INCREMENT);
+            break;
+        }
+        case IRP_MN_QUERY_RESOURCE_REQUIREMENTS: //0x0B //11
+        {
+            /* Complete immediately without touching it */
+            ASSERT(KeGetCurrentIrql() <= DISPATCH_LEVEL);
+            Status = Irp->IoStatus.Status;
+            IoCompleteRequest(Irp, IO_NO_INCREMENT);
+            break;
+        }
+        case IRP_MN_QUERY_DEVICE_TEXT: //0x0C //12
+        {
+            /* Are we a drive? */
+            if (DeviceExtension->Type == RamdiskDrive)
+                Status = RamdiskQueryDeviceText((PRAMDISK_DRIVE_EXTENSION)DeviceExtension, Irp);
+            else
+                Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
+        }
+        case IRP_MN_FILTER_RESOURCE_REQUIREMENTS: //0x0D //13
+        {
+            if (DeviceExtension->Type == RamdiskBus)
+            {
+                Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            }
+            else
+            {
+                ASSERT(KeGetCurrentIrql() <= DISPATCH_LEVEL);
+                Status = Irp->IoStatus.Status;
+                IoCompleteRequest(Irp, IO_NO_INCREMENT);
             }
             break;
         }
-
-        case IRP_MN_QUERY_RESOURCES:
-        case IRP_MN_QUERY_RESOURCE_REQUIREMENTS:
+        case IRP_MN_READ_CONFIG: //0x0F //15
         {
-            /* Complete immediately without touching it */
-            IoCompleteRequest(Irp, IO_NO_INCREMENT);
-            goto ReleaseAndReturn;
-        }
-
-        default:
-            DPRINT1("Illegal IRP: %lx\n", Minor);
+            Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
             break;
-    }
-
-    /* Are we the bus? */
-    if (DeviceExtension->Type == RamdiskBus)
-    {
-        /* Do we have an attached device? */
-        if (DeviceExtension->AttachedDevice)
+        }
+        case IRP_MN_WRITE_CONFIG: //0x10 //16
         {
-            /* Forward the IRP */
-            IoSkipCurrentIrpStackLocation(Irp);
-            Status = IoCallDriver(DeviceExtension->AttachedDevice, Irp);
+            Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
+        }
+        case IRP_MN_EJECT: //0x11 //17
+        {
+            UNIMPLEMENTED_DBGBREAK("PnP IRP: %lx\n", Minor);
+            break;
+        }
+        case IRP_MN_SET_LOCK: //0x12 //18
+        {
+            Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
+        }
+        case IRP_MN_QUERY_ID: //0x13 //19
+        {
+            /* Are we a drive? */
+            if (DeviceExtension->Type == RamdiskDrive)
+                Status = RamdiskQueryId((PRAMDISK_DRIVE_EXTENSION)DeviceExtension, Irp);
+            else
+                Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
+        }
+        case IRP_MN_QUERY_PNP_DEVICE_STATE: //0x14 //20
+        {
+            Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
+        }
+        case IRP_MN_QUERY_BUS_INFORMATION: //0x15 //21
+        {
+            Status = RamdiskQueryBusInformation(DeviceObject, Irp);
+            break;
+        }
+        case IRP_MN_DEVICE_USAGE_NOTIFICATION: //0x16 //22
+        {
+            Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
+        }
+        case IRP_MN_SURPRISE_REMOVAL: //0x17 //23
+        {
+            UNIMPLEMENTED_DBGBREAK("PnP IRP: %lx\n", Minor);
+            break;
+        }
+        case IRP_MN_QUERY_LEGACY_BUS_INFORMATION: //0x18 //24
+        {
+            Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
+        }
+        default:
+        {
+            DPRINT1("RamdiskPnp: Illegal IRP: %lx\n", Minor);
+            Status = RamdiskPnpIrpProcessing(DeviceObject, Irp);
+            break;
         }
     }
 
     /* Release the lock and return status */
-ReleaseAndReturn:
     IoReleaseRemoveLock(&DeviceExtension->RemoveLock, Irp);
     return Status;
 }
@@ -2333,6 +2408,7 @@ RamdiskAddDevice(IN PDRIVER_OBJECT DriverObject,
     NTSTATUS Status;
     UNICODE_STRING DeviceName;
     PDEVICE_OBJECT DeviceObject;
+    DPRINT("RamdiskAddDevice: %X, %X\n", DriverObject, PhysicalDeviceObject);
 
     /* Only create the bus FDO once */
     if (RamdiskBusFdo) return STATUS_DEVICE_ALREADY_ATTACHED;
@@ -2346,64 +2422,71 @@ RamdiskAddDevice(IN PDRIVER_OBJECT DriverObject,
                             FILE_DEVICE_SECURE_OPEN,
                             0,
                             &DeviceObject);
-    if (NT_SUCCESS(Status))
+    if (!NT_SUCCESS(Status))
     {
-        /* Initialize the bus FDO extension */
-        DeviceExtension = DeviceObject->DeviceExtension;
-        RtlZeroMemory(DeviceExtension, sizeof(*DeviceExtension));
-
-        /* Set bus FDO flags */
-        DeviceObject->Flags |= DO_POWER_PAGABLE | DO_DIRECT_IO;
-
-        /* Setup the bus FDO extension */
-        DeviceExtension->Type = RamdiskBus;
-        ExInitializeFastMutex(&DeviceExtension->DiskListLock);
-        IoInitializeRemoveLock(&DeviceExtension->RemoveLock, 'dmaR', 1, 0);
-        InitializeListHead(&DeviceExtension->DiskList);
-        DeviceExtension->PhysicalDeviceObject = PhysicalDeviceObject;
-        DeviceExtension->DeviceObject = DeviceObject;
-
-        /* Register the RAM disk device interface */
-        Status = IoRegisterDeviceInterface(PhysicalDeviceObject,
-                                           &RamdiskBusInterface,
-                                           NULL,
-                                           &DeviceExtension->BusDeviceName);
-        if (!NT_SUCCESS(Status))
-        {
-            /* Fail */
-            IoDeleteDevice(DeviceObject);
-            return Status;
-        }
-
-        /* Attach us to the device stack */
-        AttachedDevice = IoAttachDeviceToDeviceStack(DeviceObject,
-                                                     PhysicalDeviceObject);
-        DeviceExtension->AttachedDevice = AttachedDevice;
-        if (!AttachedDevice)
-        {
-            /* Fail */
-            IoSetDeviceInterfaceState(&DeviceExtension->BusDeviceName, 0);
-            RtlFreeUnicodeString(&DeviceExtension->BusDeviceName);
-            IoDeleteDevice(DeviceObject);
-            return STATUS_NO_SUCH_DEVICE;
-        }
-
-        /* Bus FDO is initialized */
-        RamdiskBusFdo = DeviceObject;
-
-        /* Loop for loader block */
-        if (KeLoaderBlock)
-        {
-            /* Are we being booted from setup? Not yet supported */
-            if (KeLoaderBlock->SetupLdrBlock)
-                DPRINT1("FIXME: RamdiskAddDevice is UNSUPPORTED when being started from SETUPLDR!\n");
-            // ASSERT(!KeLoaderBlock->SetupLdrBlock);
-        }
-
-        /* All done */
-        DeviceObject->Flags &= DO_DEVICE_INITIALIZING;
-        Status = STATUS_SUCCESS;
+        DPRINT1("RamdiskAddDevice: Status %X\n", Status);
+        goto Exit;
     }
+
+    /* Initialize the bus FDO extension */
+    DeviceExtension = DeviceObject->DeviceExtension;
+    RtlZeroMemory(DeviceExtension, sizeof(*DeviceExtension));
+
+    /* Set bus FDO flags */
+    DeviceObject->Flags |= DO_POWER_PAGABLE | DO_DIRECT_IO;
+
+    /* Setup the bus FDO extension */
+    DeviceExtension->Type = RamdiskBus;
+    ExInitializeFastMutex(&DeviceExtension->DiskListLock);
+    IoInitializeRemoveLock(&DeviceExtension->RemoveLock, 'dmaR', 1, 0);
+    InitializeListHead(&DeviceExtension->DiskList);
+    DeviceExtension->PhysicalDeviceObject = PhysicalDeviceObject;
+    DeviceExtension->DeviceObject = DeviceObject;
+
+    /* Register the RAM disk device interface */
+    Status = IoRegisterDeviceInterface(PhysicalDeviceObject,
+                                       &RamdiskBusInterface,
+                                       NULL,
+                                       &DeviceExtension->BusDeviceName);
+    if (!NT_SUCCESS(Status))
+    {
+        /* Fail */
+        DPRINT1("RamdiskAddDevice: Status %X\n", Status);
+        IoDeleteDevice(DeviceObject);
+        return Status;
+    }
+
+    /* Attach us to the device stack */
+    AttachedDevice = IoAttachDeviceToDeviceStack(DeviceObject,
+                                                 PhysicalDeviceObject);
+    DeviceExtension->AttachedDevice = AttachedDevice;
+    if (!AttachedDevice)
+    {
+        /* Fail */
+        DPRINT1("RamdiskAddDevice: STATUS_NO_SUCH_DEVICE. AttachedDevice is NULL!\n");
+        IoSetDeviceInterfaceState(&DeviceExtension->BusDeviceName, 0);
+        RtlFreeUnicodeString(&DeviceExtension->BusDeviceName);
+        IoDeleteDevice(DeviceObject);
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    /* Bus FDO is initialized */
+    RamdiskBusFdo = DeviceObject;
+
+    /* Loop for loader block */
+    if (KeLoaderBlock)
+    {
+        /* Are we being booted from setup? Not yet supported */
+        if (KeLoaderBlock->SetupLdrBlock)
+            DPRINT1("FIXME: RamdiskAddDevice is UNSUPPORTED when being started from SETUPLDR!\n");
+        // ASSERT(!KeLoaderBlock->SetupLdrBlock);
+    }
+
+    /* All done */
+    DeviceObject->Flags &= DO_DEVICE_INITIALIZING;
+    Status = STATUS_SUCCESS;
+
+Exit:
 
     /* Return status */
     return Status;
@@ -2519,6 +2602,7 @@ DriverEntry(IN PDRIVER_OBJECT DriverObject,
         Status = STATUS_SUCCESS;
     }
 
+    DPRINT("DriverEntry: ret Status %X\n", Status);
     /* Done */
     return Status;
 }
