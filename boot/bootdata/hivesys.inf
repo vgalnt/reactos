@@ -2822,14 +2822,19 @@ HKLM,"SYSTEM\CurrentControlSet\Services\fastfat","Start",0x00010001,0x00000003
 HKLM,"SYSTEM\CurrentControlSet\Services\fastfat","Type",0x00010001,0x00000002
 
 ; RAM Disk class driver
-HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","ErrorControl",0x00010001,0x00000000
-HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Group",0x00000000,"Primary disk"
+;HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","ErrorControl",0x00010001,0x00000000
+;HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Group",0x00000000,"Primary disk"
+;HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","ImagePath",0x00020000,"system32\drivers\ramdisk.sys"
+;HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Start",0x00010001,00000003
+;HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Type",0x00010001,0x00000002
+;HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Tag",0x00010001,00000001
+;HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Description",0x00000000,"RAM Disk Driver"
+;HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","DisplayName",0x00000000,"RAM Disk Driver"
+
+HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","ErrorControl",0x00010001,0x00000001
 HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","ImagePath",0x00020000,"system32\drivers\ramdisk.sys"
-HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Start",0x00010001,00000003
-HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Type",0x00010001,0x00000002
-HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Tag",0x00010001,00000001
-HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Description",0x00000000,"RAM Disk Driver"
-HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","DisplayName",0x00000000,"RAM Disk Driver"
+HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Start",0x00010001,0x00000000
+HKLM,"SYSTEM\CurrentControlSet\Services\RamDisk","Type",0x00010001,0x00000001
 
 ; EXT2 Filesystem driver
 HKLM,"SYSTEM\CurrentControlSet\Services\Ext2fs","ErrorControl",0x00010001,0x00000000
