@@ -1000,6 +1000,8 @@ extern PUCHAR GpeMap;
 extern PUCHAR GpeRunMethod;
 extern PUCHAR GpeComplete;
 extern PUCHAR GpeHandlerType;
+extern PUCHAR GpeSavedWakeStatus;
+extern PUCHAR GpeSavedWakeMask;
 extern BOOLEAN AcpiGpeWorkDone;
 extern BOOLEAN AcpiGpeDpcRunning;
 extern BOOLEAN AcpiGpeDpcScheduled;
@@ -7294,7 +7296,24 @@ NTAPI
 ACPIGpeHalEnableDisableEvents(
     _In_ BOOLEAN IsEnable)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    ULONG ix;
+
+    if (IsEnable)
+    {
+        for (ix = 0; ix < AcpiInformation->GpeSize; ix++)
+        {
+            GpeSavedWakeStatus[ix] = ACPIReadGpeStatusRegister(ix);
+        }
+
+        AcpiInformation->pm1_wake_status = READ_PM1_STATUS();
+    }
+    else
+    {
+        AcpiInformation->pm1_wake_mask = 0;
+        RtlZeroMemory(GpeSavedWakeMask, AcpiInformation->GpeSize);
+    }
+
+    ACPIGpeEnableDisableEvents(IsEnable);
 }
 
 VOID
