@@ -19,6 +19,10 @@
 #undef KdSave
 #undef KdRestore
 
+extern ULONG MaxScreenLine;
+extern ULONG ScreenPause;
+extern BOOLEAN ShortPath;
+
 /* PUBLIC FUNCTIONS *********************************************************/
 
 static VOID
@@ -62,6 +66,40 @@ KdpGetDebugMode(
         /* Enable It */
         p2 += 6;
         KdpDebugMode.Screen = TRUE;
+        /* " .. /DEBUGPORT=SCREEN:30,4,1 .."
+           MaxScreenLine(1..64), ScreenPause(0..15), ShortPath(0..1)
+        */
+        if (*p2 == ':')
+        {
+            p2++;
+            Value = (ULONG)atol(p2);
+            if (Value > 0 && Value < 65)
+                MaxScreenLine = Value;
+
+            while (*p2 != '\0' && *p2 != ' ')
+            {
+                p2++;
+                if (*p2 == ',')
+                {
+                    p2++;
+                    Value = (ULONG)atol(p2);
+                    if (Value >= 0 && Value < 16)
+                        ScreenPause = Value;
+
+                    while (*p2 != '\0' && *p2 != ' ')
+                    {
+                        p2++;
+                        if (*p2 == ',')
+                        {
+                            p2++;
+                            Value = (ULONG)atol(p2);
+                            if (Value == 0 || Value == 1)
+                                ShortPath = (Value == 1);
+                        }
+                    }
+                }
+            }
+        }
     }
     /* Check for Serial Debugging */
     else if (!_strnicmp(p2, "COM", 3))

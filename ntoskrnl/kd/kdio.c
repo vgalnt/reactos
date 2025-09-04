@@ -57,6 +57,13 @@ PKDP_INIT_ROUTINE InitRoutines[KdMax] =
 #endif
 };
 
+ULONG LineCount = 0;
+
+/* From <LoaderBlock->LoadOptions> for "SCREEN" mode (see KdpGetDebugMode()) */
+ULONG MaxScreenLine = 30;  // (1 .. 64) screen block height for pause
+ULONG ScreenPause = 0;     // (0 .. 15) pause between screen blocks
+BOOLEAN ShortPath = FALSE; // (FALSE|TRUE) use shortened file path
+
 /* LOCKING FUNCTIONS *********************************************************/
 
 KIRQL
@@ -464,8 +471,58 @@ KdpScreenPrint(
     _In_ PCCH String,
     _In_ ULONG Length)
 {
-    PCCH pch = String;
+    PCCH pch;
+    ULONG len;
+    ULONG tmp;
+    ULONG ix;
+    ULONG jx;
+    BOOLEAN IsFound;
 
+    if (KeGetPreviousMode() == UserMode)
+        return;
+
+    pch = String;
+    if (ShortPath && pch[0] == '(')
+    {
+        len = 0;
+
+        while (pch < &String[Length] && pch[0] != '\0')
+        {
+            if (pch[0] == ')' && pch[1] == ' ')
+            {
+                len = (&pch[0] - String);
+                break;
+            }
+
+            pch++;
+        }
+
+        IsFound = FALSE;
+
+        while (len)
+        {
+            if (String[len] == '/')
+            {
+                IsFound = TRUE;
+                break;
+            }
+            else if (String[len] == '\\')
+            {
+                IsFound = TRUE;
+                break;
+            }
+
+            len--;
+        }
+
+        if (IsFound)
+        {
+            String = &String[len];
+            Length = (Length - len);
+        }
+    }
+
+    pch = String;
     while (pch < String + Length && *pch)
     {
         if (*pch == '\b')
@@ -492,7 +549,24 @@ KdpScreenPrint(
         {
             /* Print buffered characters */
             if (KdpScreenLineBufferPos != KdpScreenLineLength)
+            {
                 HalDisplayString(KdpScreenLineBuffer + KdpScreenLineBufferPos);
+
+                if (ScreenPause)
+                {
+                    LineCount++;
+                    if (LineCount > MaxScreenLine)
+                    {
+                        LineCount = 0;
+
+                        for (ix = 0, tmp = 0xFFFF; ix <= ScreenPause; ix++)
+                        {
+                            for (jx = 0; jx < 0x10000000; jx++)
+                                tmp = ((tmp + 10) * 5);
+                        }
+                    }
+                }
+            }
 
             /* Clear line buffer */
             KdpScreenLineBuffer[0] = '\0';
@@ -507,6 +581,20 @@ KdpScreenPrint(
     {
         HalDisplayString(KdpScreenLineBuffer + KdpScreenLineBufferPos);
         KdpScreenLineBufferPos = KdpScreenLineLength;
+
+        if (ScreenPause)
+        {
+            LineCount++;
+            if (LineCount > MaxScreenLine)
+            {
+                LineCount = 0;
+                for (ix = 0, tmp = 0xFFFF; ix <= ScreenPause; ix++)
+                {
+                    for (jx = 0; jx < 0x10000000; jx++)
+                        tmp = ((tmp + 10) * 5);
+                }
+            }
+        }
     }
 }
 
@@ -527,6 +615,8 @@ KdpScreenInit(
         /* Register for BootPhase 1 initialization and as a Provider */
         DispatchTable->KdpInitRoutine = KdpScreenInit;
         InsertTailList(&KdProviders, &DispatchTable->KdProvidersList);
+
+        LineCount = 0;
     }
     else if (BootPhase == 1)
     {
