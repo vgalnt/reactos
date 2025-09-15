@@ -9837,6 +9837,34 @@ Finish:
         IoDeleteDevice(DeviceObject);
 }
 
+BOOLEAN
+NTAPI
+ACPIInitDeleteChildDeviceList(
+    _In_ PDEVICE_EXTENSION DeviceExtension)
+{
+    ACPI_EXT_LIST_ENUM_DATA ExtList;
+    PDEVICE_EXTENSION Extension;
+    BOOLEAN Result;
+
+    ExtList.List = &DeviceExtension->ChildDeviceList;
+    ExtList.SpinLock = &AcpiDeviceTreeLock;
+    ExtList.Offset = FIELD_OFFSET(DEVICE_EXTENSION, SiblingDeviceList);
+    ExtList.ExtListEnum2 = 1;
+
+    for (Extension = ACPIExtListStartEnum(&ExtList);
+         ;
+         Extension = ACPIExtListEnumNext(&ExtList))
+    {
+        Result = ACPIExtListTestElement(&ExtList, TRUE);
+        if (!Result)
+            break;
+
+        ACPIInitResetDeviceExtension(Extension);
+    }
+
+    return Result;
+}
+
 NTSTATUS
 NTAPI
 ACPIBusIrpRemoveDevice(
