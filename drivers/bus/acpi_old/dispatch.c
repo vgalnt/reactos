@@ -6697,6 +6697,26 @@ ACPIInternalDecrementIrpReferenceCount(
     return OldReferenceCount;
 }
 
+VOID
+NTAPI
+ACPIWakeCompleteRequestQueue(
+    _In_ PLIST_ENTRY List,
+    _In_ NTSTATUS Status)
+{
+    PACPI_POWER_REQUEST Request;
+    PLIST_ENTRY Entry;
+
+    for (Entry = List->Flink; Entry != List; Entry = Entry->Flink)
+    {
+        Request = CONTAINING_RECORD(Entry, ACPI_POWER_REQUEST, ListEntry);
+
+        DPRINT1("ACPIWakeCompleteRequestQueue: Completing %p (%X)\n", Request, Status);
+
+        Request->Status = Status;
+        ACPIDeviceIrpWaitWakeRequestComplete(Request);
+    }
+}
+
 NTSTATUS
 NTAPI
 ACPIDispatchIrp(
