@@ -16852,15 +16852,14 @@ ACPIFilterIrpQueryDeviceRelations(
 
     IoStack = Irp->Tail.Overlay.CurrentStackLocation;
 
-    if (IoStack->Parameters.QueryDeviceRelations.Type == 0)
+    if (IoStack->Parameters.QueryDeviceRelations.Type == BusRelations)
     {
         IsBusRelation = TRUE;
         Status = ACPIRootIrpQueryBusRelations(DeviceObject, Irp, &OutDeviceRelation);
     }
-    else if (IoStack->Parameters.QueryDeviceRelations.Type == 1)
+    else if (IoStack->Parameters.QueryDeviceRelations.Type == EjectionRelations)
     {
-        DPRINT("ACPIFilterIrpQueryDeviceRelations: FIXME\n");
-        ASSERT(FALSE);
+        Status = ACPIBusAndFilterIrpQueryEjectRelations(DeviceObject, Irp, &OutDeviceRelation);
     }
     else
     {
@@ -17167,6 +17166,7 @@ ACPIFilterIrpQueryPnpDeviceState(
                                                         FALSE,
                                                         FALSE);
 }
+
 NTSTATUS
 NTAPI
 ACPIFilterIrpSurpriseRemoval(
