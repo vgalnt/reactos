@@ -7555,6 +7555,41 @@ ACPIDetectEjectDevices(
     return STATUS_SUCCESS;
 }
 
+NTSTATUS
+NTAPI
+ACPIBusAndFilterIrpQueryEjectRelations(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp,
+    _In_ PDEVICE_RELATIONS* OutDeviceRelation)
+{
+    PDEVICE_EXTENSION DeviceExtension;
+    PDEVICE_EXTENSION DockExtension;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT1("ACPIBusAndFilterIrpQueryEjectRelations: %p, %p\n", DeviceObject, Irp);
+
+    DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+    if (!DeviceExtension->AcpiObject)
+    {
+        DPRINT1("ACPIBusAndFilterIrpQueryEjectRelations: (%p) invalid ACPIObject (is NULL)\n", Irp);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (ACPIDockIsDockDevice(DeviceExtension->AcpiObject))
+        DockExtension = ACPIDockFindCorrespondingDock(DeviceExtension);
+    else
+        DockExtension = NULL;
+
+    Status = ACPIDetectEjectDevices(DeviceExtension, OutDeviceRelation, DockExtension);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIBusAndFilterIrpQueryEjectRelations: (%p) Status %X\n", Irp, Status);
+    }
+
+    return Status;
+}
+
 /* HAL FUNCTIOS *************************************************************/
 
 VOID
