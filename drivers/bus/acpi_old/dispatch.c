@@ -7329,6 +7329,90 @@ Exit:
     KeReleaseSpinLockFromDpcLevel(&GpeTableLock);
 }
 
+VOID
+NTAPI
+ACPIBuildMissingEjectionRelations(VOID)
+{
+    PDEVICE_EXTENSION DeviceExtension;
+    PDEVICE_EXTENSION Extension;
+    AMLI_OBJECT_DATA ChildEjectData;
+    PAMLI_NAME_SPACE_OBJECT ChildNsObject;
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    LIST_ENTRY list;
+    KIRQL Irql;
+    NTSTATUS Status;
+
+    DPRINT1("ACPIBuildMissingEjectionRelations: IsListEmpty %X\n", IsListEmpty(&AcpiUnresolvedEjectList));
+    ASSERT(KeGetCurrentIrql() <= DISPATCH_LEVEL);
+
+    InitializeListHead(&list);
+    KeAcquireSpinLock(&AcpiDeviceTreeLock, &Irql);
+
+    if (IsListEmpty(&AcpiUnresolvedEjectList))
+    {
+        KeReleaseSpinLock(&AcpiDeviceTreeLock, Irql);
+        return;
+    }
+
+    ACPIInternalMoveList(&AcpiUnresolvedEjectList, &list);
+
+    while (!IsListEmpty(&list))
+    {
+        DeviceExtension = CONTAINING_RECORD(list.Flink, DEVICE_EXTENSION, EjectDeviceList);
+        RemoveEntryList(list.Flink);
+
+        ChildNsObject = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, 'DJE_');
+        if (!ChildNsObject)
+            continue;
+
+        InterlockedIncrement(&DeviceExtension->ReferenceCount);
+
+        KeReleaseSpinLock(&AcpiDeviceTreeLock, Irql);
+        Status = AMLIEvalNameSpaceObject(ChildNsObject, &ChildEjectData, 0, NULL);
+        KeAcquireSpinLock(&AcpiDeviceTreeLock, &Irql);
+
+        if (!InterlockedDecrement(&DeviceExtension->ReferenceCount))
+        {
+            ACPIInitDeleteDeviceExtension(DeviceExtension);
+            continue;
+        }
+
+        if (!NT_SUCCESS(Status))
+        {
+            InsertTailList(&AcpiUnresolvedEjectList, &DeviceExtension->EjectDeviceList);
+            continue;
+        }
+
+        if (ChildEjectData.DataType != 2)
+        {
+            DPRINT1("ACPIBuildMissingEjectionRelations: KeBugCheckEx(0xA5, 0xA, %p, %p, %X)\n",
+                    DeviceExtension, ChildNsObject, ChildEjectData.DataType);
+            KeBugCheckEx(0xA5, 0xA, (ULONG_PTR)DeviceExtension, (ULONG_PTR)ChildNsObject, ChildEjectData.DataType);
+        }
+
+        NsObject = NULL;
+
+        Status = AMLIGetNameSpaceObject(ChildEjectData.DataBuff, NULL, &NsObject, 0);
+        if (NT_SUCCESS(Status))
+            AMLIFreeDataBuffs(&ChildEjectData, 1);
+
+        if (!NT_SUCCESS(Status) || !NsObject || !NsObject->Context)
+        {
+            InsertTailList(&AcpiUnresolvedEjectList, &DeviceExtension->EjectDeviceList);
+            continue;
+        }
+
+        Extension = NsObject->Context;
+
+        InsertTailList(&Extension->EjectDeviceHead, &DeviceExtension->EjectDeviceList);
+
+        if (!(Extension->Flags & 0x0000000000000008))
+            IoInvalidateDeviceRelations(Extension->PhysicalDeviceObject, EjectionRelations);
+    }
+
+    KeReleaseSpinLock(&AcpiDeviceTreeLock, Irql);
+}
+
 /* HAL FUNCTIOS *************************************************************/
 
 VOID
