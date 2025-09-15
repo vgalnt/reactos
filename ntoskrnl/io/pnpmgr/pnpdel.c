@@ -714,7 +714,7 @@ PipRequestDeviceRemoval(
         return;
     }
 
-    if (!DeviceNode->InstancePath.Length == 0)
+    if (!DeviceNode->InstancePath.Length)
     {
         DPRINT("PipRequestDeviceRemoval: Driver '%wZ', child DeviceNode %p\n", &DeviceNode->Parent->ServiceName, DeviceNode);
         ASSERT(DeviceNode->InstancePath.Length != 0);
