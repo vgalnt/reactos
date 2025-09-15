@@ -682,6 +682,7 @@ PipEnumerateCompleted(
     PEXTENDED_DEVOBJ_EXTENSION DeviceExt;
     PDEVICE_RELATIONS DeviceRelations;
     PDEVICE_NODE ChildDeviceNode;
+    PDEVICE_NODE SiblingDeviceNode;
     BOOLEAN RemovalChild;
     ULONG ix;
     BOOLEAN IsNoChildDeviceNode;
@@ -776,15 +777,19 @@ PipEnumerateCompleted(
          IsNoChildDeviceNode == FALSE;
          IsNoChildDeviceNode = ChildDeviceNode == NULL)
     {
+        SiblingDeviceNode = ChildDeviceNode->Sibling;
+
         if (!(ChildDeviceNode->Flags & DNF_ENUMERATED) &&
             !(ChildDeviceNode->Flags & DNF_DEVICE_GONE))
         {
+            DPRINT1("PipEnumerateCompleted: %p (%p, '%wZ' '%wZ')\n", ChildDeviceNode, DeviceNode, &DeviceNode->InstancePath, &DeviceNode->ServiceName);
+
             ChildDeviceNode->Flags |= DNF_DEVICE_GONE;
             PipRequestDeviceRemoval(ChildDeviceNode, TRUE, CM_PROB_DEVICE_NOT_THERE);
             RemovalChild = TRUE;
         }
 
-        ChildDeviceNode = ChildDeviceNode->Sibling;
+        ChildDeviceNode = SiblingDeviceNode;
     }
 
     ASSERT(DeviceNode->State == DeviceNodeEnumerateCompletion);
