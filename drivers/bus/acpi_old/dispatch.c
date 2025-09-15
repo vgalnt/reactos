@@ -10051,8 +10051,7 @@ ACPIBusIrpQueryDeviceRelations(
             break;
 
         case EjectionRelations:
-            DPRINT1("ACPIBusIrpQueryDeviceRelations: FIXME\n");
-            ASSERT(FALSE);
+            Status = ACPIBusAndFilterIrpQueryEjectRelations(DeviceObject, Irp, &DeviceRelations);
             break;
 
         case TargetDeviceRelation:
