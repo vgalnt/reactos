@@ -7855,7 +7855,7 @@ ACPIRootIrpQueryRemoveOrStopDevice(
     PDEVICE_EXTENSION DeviceExtension;
     NTSTATUS Status;
 
-    DPRINT("ACPIBusIrpQueryRemoveOrStopDevice: %X\n", DeviceObject);
+    DPRINT("ACPIRootIrpQueryRemoveOrStopDevice: %X\n", DeviceObject);
     PAGED_CODE();
 
     DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
@@ -9688,6 +9688,71 @@ ACPIBusIrpQueryRemoveOrStopDevice(
     IoCompleteRequest(Irp, 0);
 
     return Status;
+}
+
+NTSTATUS
+NTAPI
+ACPIInitStopDevice(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ BOOLEAN IsSetFlag)
+{
+    PAMLI_NAME_SPACE_OBJECT NsObject;
+    KEVENT Event;
+    ULONG Value;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT1("ACPIInitStopDevice: %p, %X\n", DeviceExtension, IsSetFlag);
+
+    if (DeviceExtension->PowerInfo.PowerState)
+    {
+        KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
+
+        Status = ACPIDeviceInternalDeviceRequest(DeviceExtension, PowerDeviceD3, ACPIDevicePowerNotifyEvent, &Event, (IsSetFlag ? 8 : 0));
+        if (Status  == STATUS_PENDING)
+        {
+            KeWaitForSingleObject(&Event, Executive, KernelMode, FALSE, NULL);
+        }
+    }
+
+    if ((DeviceExtension->Flags & 0x0000002000000000) && DeviceExtension->Module.ArbitersNeeded)
+    {
+        DPRINT1("ACPIInitStopDevice: FIXME\n");
+        UNIMPLEMENTED_DBGBREAK();
+    }
+
+    if (!DeviceExtension->AcpiObject)
+        goto Exit;
+
+    NsObject = ACPIAmliGetNamedChild(DeviceExtension->AcpiObject, 'SID_');
+    if (!NsObject)
+        goto Exit;
+
+    Status = AMLIEvalNameSpaceObject(NsObject, NULL, 0, NULL);
+    if (!NT_SUCCESS(Status))
+        goto Exit;
+
+    Status = ACPIGet(DeviceExtension, 'ATS_', 0x20040802, NULL, 0, NULL, 0, (PVOID *)&Value, 0);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ACPIInitStopDevice: GetDevicePresenceSync Status %X\n", Status);
+        goto Exit;
+    }
+
+    if (Value & 2)
+    {
+        DPRINT1("ACPIInitStopDevice: STA_STATUS_ENABLED - %X\n", Value);
+    }
+
+Exit:
+
+    if (DeviceExtension->ResourceList)
+    {
+        ExFreePool(DeviceExtension->ResourceList);
+        DeviceExtension->ResourceList = NULL;
+    }
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
