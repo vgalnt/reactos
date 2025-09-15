@@ -6850,8 +6850,7 @@ ACPIDispatchIrp(
         KeInitializeEvent(&Event, SynchronizationEvent, FALSE);
         DeviceExtension->RemoveEvent = &Event;
 
-        DPRINT1("ACPIDispatchIrp: FIXME ACPIWakeEmptyRequestQueue()\n");
-        ASSERT(FALSE);
+        ACPIWakeEmptyRequestQueue(DeviceExtension);
 
         OldReferenceCount = InterlockedDecrement(&DeviceExtension->OutstandingIrpCount);
         ASSERT(OldReferenceCount >= 0);
