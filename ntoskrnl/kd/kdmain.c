@@ -67,7 +67,7 @@ KdpGetDebugMode(
         p2 += 6;
         KdpDebugMode.Screen = TRUE;
         /* " .. /DEBUGPORT=SCREEN:30,4,1 .."
-           MaxScreenLine(1..64), ScreenPause(0..15), ShortPath(0..1)
+           MaxScreenLine(1..64), ScreenPause(0..31), ShortPath(0..1)
         */
         if (*p2 == ':')
         {
@@ -83,7 +83,7 @@ KdpGetDebugMode(
                 {
                     p2++;
                     Value = (ULONG)atol(p2);
-                    if (Value >= 0 && Value < 16)
+                    if (Value >= 0 && Value < 32)
                         ScreenPause = Value;
 
                     while (*p2 != '\0' && *p2 != ' ')

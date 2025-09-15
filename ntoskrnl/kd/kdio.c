@@ -61,7 +61,7 @@ ULONG LineCount = 0;
 
 /* From <LoaderBlock->LoadOptions> for "SCREEN" mode (see KdpGetDebugMode()) */
 ULONG MaxScreenLine = 30;  // (1 .. 64) screen block height for pause
-ULONG ScreenPause = 0;     // (0 .. 15) pause between screen blocks
+ULONG ScreenPause = 0;     // (0 .. 31) pause between screen blocks
 BOOLEAN ShortPath = FALSE; // (FALSE|TRUE) use shortened file path
 
 /* LOCKING FUNCTIONS *********************************************************/
