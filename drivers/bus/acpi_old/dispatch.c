@@ -9871,8 +9871,52 @@ ACPIBusIrpRemoveDevice(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PDEVICE_EXTENSION DeviceExtension = ACPIInternalGetDeviceExtension(DeviceObject);
+
+    DPRINT1("ACPIBusIrpRemoveDevice: %p, %p\n", DeviceObject, Irp);
+
+    if (!(DeviceExtension->Flags & 0x100))
+    {
+        DeviceExtension->DeviceState = 0;
+
+        ACPIInitDeleteChildDeviceList(DeviceExtension);
+
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+        IoCompleteRequest(Irp, 0);
+
+        ACPIInitStopDevice(DeviceExtension, TRUE);
+
+        return STATUS_SUCCESS;
+    }
+
+    if (DeviceExtension->DeviceState == 3)
+    {
+        DPRINT1("ACPIBusIrpRemoveDevice: STATUS_NO_SUCH_DEVICE (%p, %p)\n", DeviceObject, Irp);
+        Irp->IoStatus.Status = STATUS_NO_SUCH_DEVICE;
+        IoCompleteRequest(Irp, 0);
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    if (DeviceExtension->DeviceState != 4)
+    {
+        if (IsPciBus(DeviceExtension->DeviceObject))
+            EnableDisableRegions(DeviceExtension->AcpiObject, FALSE);
+
+        ACPIInitStopDevice(DeviceExtension, TRUE);
+    }
+
+    ACPIInitDeleteChildDeviceList(DeviceExtension);
+
+    DeviceExtension->DeviceState = 3;
+
+    Irp->IoStatus.Status = 0;
+    Irp->IoStatus.Information = 0;
+
+    IoCompleteRequest(Irp, 0);
+
+    ACPIInitResetDeviceExtension(DeviceExtension);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS
