@@ -2009,6 +2009,23 @@ ACPIRegDumpAcpiTables(
     VOID
 );
 
+NTSTATUS
+NTAPI
+ACPIDetectCouldExtensionBeInRelation(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PDEVICE_RELATIONS DeviceRelation,
+    _In_ BOOLEAN Param3,
+    _In_ BOOLEAN Param4,
+    _Out_ PDEVICE_OBJECT* OutPdoObject
+);
+
+BOOLEAN
+__cdecl
+ACPIExtListIsMemberOfRelation(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PDEVICE_RELATIONS DeviceRelation
+);
+
 #endif /* _ACPI_H_ */
 
 /* EOF */

@@ -7413,6 +7413,148 @@ ACPIBuildMissingEjectionRelations(VOID)
     KeReleaseSpinLock(&AcpiDeviceTreeLock, Irql);
 }
 
+NTSTATUS
+NTAPI
+ACPIDetectEjectDevices(
+    _In_ PDEVICE_EXTENSION DeviceExtension,
+    _In_ PDEVICE_RELATIONS* OutDeviceRelation,
+    _In_ PDEVICE_EXTENSION DockExtension)
+{
+    PDEVICE_EXTENSION Extension = NULL;
+    PDEVICE_RELATIONS InDeviceRelation = NULL;
+    PDEVICE_RELATIONS DeviceRelation = NULL;
+    ACPI_EXT_LIST_ENUM_DATA ExtList;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_OBJECT PdoObject;
+    ULONG InCount = 0;
+    ULONG Count;
+    ULONG Size;
+    ULONG ix;
+    NTSTATUS Status;
+
+    DPRINT1("ACPIDetectEjectDevices: %p, %X\n", DeviceExtension, DockExtension);
+
+    ACPIBuildMissingEjectionRelations();
+
+    if (OutDeviceRelation && *OutDeviceRelation)
+    {
+        InDeviceRelation = *OutDeviceRelation;
+        InCount = InDeviceRelation->Count;
+    }
+
+    ExtList.List = &DeviceExtension->EjectDeviceHead;
+    ExtList.SpinLock = &AcpiDeviceTreeLock;
+    ExtList.Offset = FIELD_OFFSET(DEVICE_EXTENSION, EjectDeviceList);
+    ExtList.ExtListEnum2 = 1;
+
+    for (Extension = ACPIExtListStartEnum(&ExtList);
+         ACPIExtListTestElement(&ExtList, TRUE);
+         Extension = ACPIExtListEnumNext(&ExtList))
+    {
+        if (!(Extension->Flags & 0x0002000000000002) &&
+            !(Extension->Flags & 0x0002000000000000) &&
+            Extension->PhysicalDeviceObject)
+        {
+            Status = ACPIDetectCouldExtensionBeInRelation(Extension, InDeviceRelation, FALSE, FALSE, &PdoObject);
+
+            if (!PdoObject && NT_SUCCESS(Status) && Extension->PhysicalDeviceObject)
+            {
+                if (!ACPIExtListIsMemberOfRelation(Extension->PhysicalDeviceObject, InDeviceRelation))
+                    InCount++;
+            }
+        }
+    }
+
+    if (DockExtension && !(DockExtension->Flags & 0x0002000000000002) && DockExtension->PhysicalDeviceObject)
+    {
+        if (!ACPIExtListIsMemberOfRelation(DockExtension->PhysicalDeviceObject, InDeviceRelation))
+            InCount++;
+    }
+
+    if (InDeviceRelation && InDeviceRelation->Count == InCount)
+        return STATUS_SUCCESS;
+
+    if (!InDeviceRelation && !InCount)
+        return STATUS_SUCCESS;
+
+    Size = (sizeof(DEVICE_RELATIONS) + (sizeof(PDEVICE_OBJECT) * (InCount - 1)));
+
+    DeviceRelation = ExAllocatePoolWithTag(PagedPool, Size, 'DpcA');
+    if (!DeviceRelation)
+    {
+        DPRINT1("ACPIDetectEjectDevices: STATUS_INSUFFICIENT_RESOURCES (%p, %X)\n", DeviceExtension, DockExtension);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(DeviceRelation, Size);
+
+    if (InDeviceRelation)
+    {
+        RtlCopyMemory(DeviceRelation->Objects, InDeviceRelation->Objects, (InDeviceRelation->Count * sizeof(PDEVICE_OBJECT)));
+        Count = InDeviceRelation->Count;
+    }
+    else
+    {
+        Count = 0;
+    }
+
+    ExtList.List = &DeviceExtension->EjectDeviceHead;
+    ExtList.SpinLock = &AcpiDeviceTreeLock;
+    ExtList.Offset = FIELD_OFFSET(DEVICE_EXTENSION, EjectDeviceList);
+    ExtList.ExtListEnum2 = 1;
+
+    for (Extension = ACPIExtListStartEnum(&ExtList);
+         ACPIExtListTestElement(&ExtList, (Count == InCount ? FALSE : TRUE));
+         Extension = ACPIExtListEnumNext(&ExtList))
+    {
+        if (!Extension)
+        {
+            ACPIExtListExitEnumEarly(&ExtList);
+            break;
+        }
+
+        if (!(Extension->Flags & 0x0002000000000002) && !(Extension->Flags & 0x0200000000000000) && Extension->PhysicalDeviceObject)
+        {
+            if (!ACPIExtListIsMemberOfRelation(Extension->PhysicalDeviceObject, InDeviceRelation))
+                DeviceRelation->Objects[Count++] = Extension->PhysicalDeviceObject;
+        }
+    }
+
+    if (DockExtension && !(DockExtension->Flags & 0x0002000000000002) && DockExtension->PhysicalDeviceObject)
+    {
+        if (!ACPIExtListIsMemberOfRelation(DockExtension->PhysicalDeviceObject, InDeviceRelation))
+            DeviceRelation->Objects[Count++] = DockExtension->PhysicalDeviceObject;
+    }
+
+    DeviceRelation->Count = Count;
+
+    if (InDeviceRelation)
+        ix = InDeviceRelation->Count;
+    else
+        ix = 0;
+
+    for (; ix < Count; ix++)
+    {
+        Status = ObReferenceObjectByPointer(DeviceRelation->Objects[ix], 0, NULL, KernelMode);
+        if (!NT_SUCCESS(Status))
+        {
+            DPRINT1("ACPIDetectEjectDevices: Status %X for %p\n", Status, DeviceRelation->Objects[ix]);
+
+            DeviceRelation->Count--;
+
+            DeviceObject = DeviceRelation->Objects[DeviceRelation->Count];
+            DeviceRelation->Objects[DeviceRelation->Count] = DeviceRelation->Objects[ix];
+            DeviceRelation->Objects[ix] = DeviceObject;
+        }
+    }
+
+    if (InDeviceRelation)
+        ExFreePool(*OutDeviceRelation);
+
+    *OutDeviceRelation = DeviceRelation;
+
+    return STATUS_SUCCESS;
+}
+
 /* HAL FUNCTIOS *************************************************************/
 
 VOID
