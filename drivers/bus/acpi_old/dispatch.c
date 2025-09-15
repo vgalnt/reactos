@@ -6717,6 +6717,27 @@ ACPIWakeCompleteRequestQueue(
     }
 }
 
+VOID
+NTAPI
+ACPIWakeEmptyRequestQueue(
+    _In_ PDEVICE_EXTENSION DeviceExtension)
+{
+    LIST_ENTRY list;
+    KIRQL Irql;
+
+    InitializeListHead(&list);
+
+    IoAcquireCancelSpinLock(&Irql);
+    KeAcquireSpinLockAtDpcLevel(&AcpiPowerLock);
+
+    ACPIWakeRemoveDevicesAndUpdate(DeviceExtension, &list);
+
+    KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
+    IoReleaseCancelSpinLock(Irql);
+
+    ACPIWakeCompleteRequestQueue(&list, STATUS_NO_SUCH_DEVICE);
+}
+
 NTSTATUS
 NTAPI
 ACPIDispatchIrp(
