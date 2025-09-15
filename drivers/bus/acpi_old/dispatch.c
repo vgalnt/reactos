@@ -9755,6 +9755,88 @@ Exit:
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+ACPIInitResetDeviceExtension(
+    _In_ PDEVICE_EXTENSION DeviceExtension)
+{
+    PDEVICE_OBJECT TargetDevice = NULL;
+    PDEVICE_OBJECT DeviceObject;
+    PVOID ResourceList;
+    LONG OldReferenceCount;
+    KIRQL Irql;
+
+    KeAcquireSpinLock(&AcpiDeviceTreeLock, &Irql);
+
+    if (DeviceExtension->Flags & 0x0000000000000040)
+    {
+        if (DeviceExtension->Flags & 0x0000000000000020)
+        {
+            TargetDevice = DeviceExtension->TargetDeviceObject;
+            if (TargetDevice)
+                ObDereferenceObject(TargetDevice);
+        }
+        else
+        {
+            TargetDevice = DeviceExtension->TargetDeviceObject;
+        }
+    }
+
+    if (DeviceExtension->PnpResourceList)
+    {
+        ExFreePool(DeviceExtension->PnpResourceList);
+        DeviceExtension->PnpResourceList = NULL;
+    }
+
+    ResourceList = DeviceExtension->ResourceList;
+    if (DeviceExtension->ResourceList)
+        DeviceExtension->ResourceList = NULL;
+
+    DeviceObject = DeviceExtension->DeviceObject;
+    if (DeviceObject)
+    {
+        DeviceObject->DeviceExtension = NULL;
+        DeviceExtension->DeviceObject = NULL;
+
+        if ((DeviceExtension->Flags & 0x0000002000000000) && DeviceExtension->Module.ArbitersNeeded)
+        {
+            DPRINT1("ACPIInitResetDeviceExtension: FIXME\n");
+            UNIMPLEMENTED_DBGBREAK();
+        }
+
+        OldReferenceCount = InterlockedDecrement(&DeviceExtension->ReferenceCount);
+        ASSERT(OldReferenceCount >= 0);
+        if (!OldReferenceCount)
+        {
+            ACPIInitDeleteDeviceExtension(DeviceExtension);
+            goto Finish;
+        }
+    }
+
+    DeviceExtension->TargetDeviceObject = NULL;
+    DeviceExtension->PhysicalDeviceObject = NULL;
+
+    if (!(DeviceExtension->Flags & 0x0000000000000001))
+    {
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x00000000000001FF, TRUE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000000000008, FALSE);
+        ACPIInternalUpdateFlags(&DeviceExtension->Flags, 0x0000000000000004, FALSE);
+    }
+
+Finish:
+
+    KeReleaseSpinLock(&AcpiDeviceTreeLock, Irql);
+
+    if (ResourceList)
+        ExFreePool(ResourceList);
+
+    if (TargetDevice)
+        IoDetachDevice(TargetDevice);
+
+    if (DeviceObject)
+        IoDeleteDevice(DeviceObject);
+}
+
 NTSTATUS
 NTAPI
 ACPIBusIrpRemoveDevice(
