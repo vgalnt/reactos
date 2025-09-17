@@ -925,7 +925,7 @@ EHCI_InitializeSchedule(IN PEHCI_EXTENSION EhciExtension,
     AsyncHead->HwQH.EndpointParams.HeadReclamationListFlag = 1;
     AsyncHead->HwQH.EndpointCaps.PipeMultiplier = 1;
     AsyncHead->HwQH.NextTD |= TERMINATE_POINTER;
-    AsyncHead->HwQH.Token.Status = (UCHAR)EHCI_TOKEN_STATUS_HALTED;
+    AsyncHead->HwQH.Token.Status |= (UCHAR)EHCI_TOKEN_STATUS_HALTED;
 
     AsyncHead->PhysicalAddress = AsyncHeadPA;
     AsyncHead->PrevHead = AsyncHead->NextHead = (PEHCI_HCD_QH)AsyncHead;
@@ -1981,7 +1981,7 @@ EHCI_ControlTransfer(IN PEHCI_EXTENSION EhciExtension,
     FirstTD->HwTD.Token.AsULONG = 0;
     FirstTD->HwTD.Token.ErrorCounter = 3;
     FirstTD->HwTD.Token.PIDCode = EHCI_TD_TOKEN_PID_SETUP;
-    FirstTD->HwTD.Token.Status = (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
+    FirstTD->HwTD.Token.Status |= (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
     FirstTD->HwTD.Token.TransferBytes = sizeof(FirstTD->SetupPacket);
 
     RtlCopyMemory(&FirstTD->SetupPacket,
@@ -2060,7 +2060,7 @@ EHCI_ControlTransfer(IN PEHCI_EXTENSION EhciExtension,
             TD->HwTD.Token.PIDCode = EHCI_TD_TOKEN_PID_OUT;
 
         TD->HwTD.Token.DataToggle = DataToggle;
-        TD->HwTD.Token.Status = (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
+        TD->HwTD.Token.Status |= (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
 
         if (DataToggle)
             TD->HwTD.Token.DataToggle = 1;
@@ -2088,7 +2088,7 @@ EHCI_ControlTransfer(IN PEHCI_EXTENSION EhciExtension,
     LastTD->LengthThisTD = 0;
 
     Token.AsULONG = 0;
-    Token.Status = (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
+    Token.Status |= (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
     Token.InterruptOnComplete = 1;
     Token.DataToggle = 1;
 
@@ -2193,7 +2193,7 @@ EHCI_BulkTransfer(IN PEHCI_EXTENSION EhciExtension,
             else
                 TD->HwTD.Token.PIDCode = EHCI_TD_TOKEN_PID_OUT;
 
-            TD->HwTD.Token.Status = (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
+            TD->HwTD.Token.Status |= (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
             TD->HwTD.Token.DataToggle = 1;
 
             TransferedLen = EHCI_MapAsyncTransferToTd(EhciExtension,
@@ -2252,7 +2252,7 @@ EHCI_BulkTransfer(IN PEHCI_EXTENSION EhciExtension,
 
         TD->HwTD.Buffer[0] = TD->PhysicalAddress;
 
-        TD->HwTD.Token.Status = (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
+        TD->HwTD.Token.Status |= (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
         TD->HwTD.Token.DataToggle = 1;
 
         TD->LengthThisTD = 0;
@@ -2348,7 +2348,7 @@ EHCI_InterruptTransfer(IN PEHCI_EXTENSION EhciExtension,
         else
             TD->HwTD.Token.PIDCode = EHCI_TD_TOKEN_PID_OUT;
 
-        TD->HwTD.Token.Status = (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
+        TD->HwTD.Token.Status |= (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
         TD->HwTD.Token.DataToggle = 1;
 
         TransferedLen = EHCI_MapAsyncTransferToTd(EhciExtension,
@@ -2517,7 +2517,7 @@ EHCI_AbortAsyncTransfer(IN PEHCI_EXTENSION EhciExtension,
         QH->sqh.HwQH.AlternateNextTD = TD->HwTD.AlternateNextTD;
 
         QH->sqh.HwQH.Token.TransferBytes = 0;
-        QH->sqh.HwQH.Token.Status = (UCHAR)~(EHCI_TOKEN_STATUS_ACTIVE |
+        QH->sqh.HwQH.Token.Status &= (UCHAR)~(EHCI_TOKEN_STATUS_ACTIVE |
                                              EHCI_TOKEN_STATUS_HALTED);
 
         EhciEndpoint->HcdHeadP = TD;
@@ -2567,7 +2567,7 @@ EHCI_AbortAsyncTransfer(IN PEHCI_EXTENSION EhciExtension,
         {
             QH->sqh.HwQH.CurrentTD = EhciEndpoint->DmaBufferPA;
 
-            QH->sqh.HwQH.Token.Status = (UCHAR)~EHCI_TOKEN_STATUS_ACTIVE;
+            QH->sqh.HwQH.Token.Status &= (UCHAR)~EHCI_TOKEN_STATUS_ACTIVE;
             QH->sqh.HwQH.Token.TransferBytes = 0;
 
             QH->sqh.HwQH.NextTD = NextTD;
