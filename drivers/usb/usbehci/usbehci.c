@@ -2104,22 +2104,23 @@ EHCI_ControlTransfer(IN PEHCI_EXTENSION EhciExtension,
     EHCI_TD_TOKEN Token;
     ULONG DataToggle = 1;
 
-    DPRINT_EHCI("EHCI_ControlTransfer: EhciEndpoint - %p, EhciTransfer - %p\n",
-                EhciEndpoint,
-                EhciTransfer);
+    DPRINT_EHCI("EHCI_ControlTransfer: %p, %p\n", EhciEndpoint, EhciTransfer);
 
     if (EhciEndpoint->RemainTDs < EHCI_MAX_CONTROL_TD_COUNT)
+    {
+        DPRINT("EHCI_ControlTransfer: ret MP_STATUS_FAILURE (%p, %p)\n", EhciEndpoint, EhciTransfer);//DPRINT_EHCI
         return MP_STATUS_FAILURE;
+    }
 
-    EhciExtension->PendingTransfers++;
     EhciEndpoint->PendingTDs++;
-
     EhciTransfer->TransferOnAsyncList = 1;
 
-    FirstTD = EHCI_AllocTd(EhciExtension, EhciEndpoint);
+    EHCI_IncPendingTransfer(EhciExtension, EhciTransfer);
 
+    FirstTD = EHCI_AllocTd(EhciExtension, EhciEndpoint);
     if (!FirstTD)
     {
+        DPRINT("EHCI_ControlTransfer: ret MP_STATUS_FAILURE (%p, %p)\n", EhciEndpoint, EhciTransfer);//DPRINT_EHCI
         RegPacket.UsbPortBugCheck(EhciExtension);
         return MP_STATUS_FAILURE;
     }
@@ -2146,14 +2147,12 @@ EHCI_ControlTransfer(IN PEHCI_EXTENSION EhciExtension,
     FirstTD->HwTD.Token.Status |= (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
     FirstTD->HwTD.Token.TransferBytes = sizeof(FirstTD->SetupPacket);
 
-    RtlCopyMemory(&FirstTD->SetupPacket,
-                  &TransferParameters->SetupPacket,
-                  sizeof(FirstTD->SetupPacket));
+    RtlCopyMemory(&FirstTD->SetupPacket, &TransferParameters->SetupPacket, sizeof(FirstTD->SetupPacket));
 
     LastTD = EHCI_AllocTd(EhciExtension, EhciEndpoint);
-
     if (!LastTD)
     {
+        DPRINT("EHCI_ControlTransfer: ret MP_STATUS_FAILURE (%p, %p)\n", EhciEndpoint, EhciTransfer);//DPRINT_EHCI
         RegPacket.UsbPortBugCheck(EhciExtension);
         return MP_STATUS_FAILURE;
     }
@@ -2185,9 +2184,9 @@ EHCI_ControlTransfer(IN PEHCI_EXTENSION EhciExtension,
     while (TransferedLen < TransferParameters->TransferBufferLength)
     {
         TD = EHCI_AllocTd(EhciExtension, EhciEndpoint);
-
         if (!TD)
         {
+            DPRINT1("EHCI_ControlTransfer: ret MP_STATUS_FAILURE (%p, %p)\n", EhciEndpoint, EhciTransfer);//DPRINT_EHCI
             RegPacket.UsbPortBugCheck(EhciExtension);
             return MP_STATUS_FAILURE;
         }
@@ -2249,7 +2248,7 @@ EHCI_ControlTransfer(IN PEHCI_EXTENSION EhciExtension,
     LastTD->HwTD.Buffer[0] = 0;
     LastTD->LengthThisTD = 0;
 
-    Token.AsULONG = 0;
+    Token.AsULONG =  LastTD->HwTD.Token.AsULONG;
     Token.Status |= (UCHAR)EHCI_TOKEN_STATUS_ACTIVE;
     Token.InterruptOnComplete = 1;
     Token.DataToggle = 1;
@@ -2264,12 +2263,13 @@ EHCI_ControlTransfer(IN PEHCI_EXTENSION EhciExtension,
     LastTD->NextHcdTD = EhciEndpoint->HcdTailP;
     LastTD->HwTD.NextTD = EhciEndpoint->HcdTailP->PhysicalAddress;
 
-    EHCI_EnableAsyncList(EhciExtension);
+    //EHCI_EnableAsyncList(EhciExtension);
     EHCI_LinkTransferToQueue(EhciExtension, EhciEndpoint, FirstTD);
 
     ASSERT(EhciEndpoint->HcdTailP->NextHcdTD == NULL);
     ASSERT(EhciEndpoint->HcdTailP->AltNextHcdTD == NULL);
 
+    DPRINT_EHCI("EHCI_ControlTransfer: ret MP_STATUS_SUCCESS (%p, %p)\n", EhciEndpoint, EhciTransfer);
     return MP_STATUS_SUCCESS;
 }
 
