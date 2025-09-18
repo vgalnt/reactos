@@ -2,7 +2,7 @@
  * PROJECT:     ReactOS USB EHCI Miniport Driver
  * LICENSE:     GPL-2.0+ (https://spdx.org/licenses/GPL-2.0+)
  * PURPOSE:     USBEHCI declarations
- * COPYRIGHT:   Copyright 2017-2018 Vadim Galyant <vgal@rambler.ru>
+ * COPYRIGHT:   Copyright 2017-2018, 2025 Vadim Galyant <vgal@rambler.ru>
  */
 
 #ifndef USBEHCI_H__
@@ -105,9 +105,9 @@ typedef struct _EHCI_STATIC_QH {
   ULONG Period;
   ULONG Ordinal;
 #ifdef _WIN64
-  ULONG Pad[11];
+  ULONG Pad[8];
 #else
-  ULONG Pad[13];
+  ULONG Pad[10];
 #endif
 } EHCI_STATIC_QH, *PEHCI_STATIC_QH;
 
@@ -335,3 +335,5 @@ EHCI_RH_EnableIrq(
   IN PVOID ohciExtension);
 
 #endif /* USBEHCI_H__ */
+
+/* EOF */

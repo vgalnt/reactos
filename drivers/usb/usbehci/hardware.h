@@ -2,7 +2,7 @@
  * PROJECT:     ReactOS USB EHCI Miniport Driver
  * LICENSE:     GPL-2.0+ (https://spdx.org/licenses/GPL-2.0+)
  * PURPOSE:     USBEHCI hardware declarations
- * COPYRIGHT:   Copyright 2017-2018 Vadim Galyant <vgal@rambler.ru>
+ * COPYRIGHT:   Copyright 2017-2018, 2025 Vadim Galyant <vgal@rambler.ru>
  */
 
 #define EHCI_FRAME_LIST_MAX_ENTRIES  1024 // Number of frames in Frame List
@@ -412,6 +412,9 @@ typedef struct _EHCI_QUEUE_HEAD { // must be aligned on 32-byte boundaries
   EHCI_TD_TOKEN Token;
   ULONG Buffer[5];
   ULONG ExtendedBuffer[5];
+  ULONG Pad[3];
 } EHCI_QUEUE_HEAD, *PEHCI_QUEUE_HEAD;
 
-C_ASSERT(sizeof(EHCI_QUEUE_HEAD) == 68);
+C_ASSERT(sizeof(EHCI_QUEUE_HEAD) == 80);
+
+/* EOF */
