@@ -208,8 +208,6 @@ typedef struct _EHCI_EXTENSION {
   ULONG SuspendPortBits;
   ULONG ResetPortBits;
   ULONG FinishResetPortBits;
-  /* Transfers */
-  ULONG PendingTransfers;
   /* Lock Queue */
   PEHCI_HCD_QH PrevQH;
   PEHCI_HCD_QH LockQH;
