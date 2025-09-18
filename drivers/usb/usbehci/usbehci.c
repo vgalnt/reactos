@@ -1106,50 +1106,51 @@ EHCI_TakeControlHC(IN PEHCI_EXTENSION EhciExtension)
 {
     LARGE_INTEGER EndTime;
     LARGE_INTEGER CurrentTime;
-    EHCI_LEGACY_EXTENDED_CAPABILITY LegacyCapability;
     UCHAR OffsetEECP;
+    struct {
+        EHCI_LEGACY_EXTENDED_CAPABILITY LegacyCapability;
+        ULONG LegacyCtlSts;
+    } LegacySupport;
 
-    DPRINT("EHCI_TakeControlHC: EhciExtension - %p\n", EhciExtension);
+    DPRINT_EHCI("EHCI_TakeControlHC: %p\n", EhciExtension);
 
     OffsetEECP = EHCI_GetOffsetEECP(EhciExtension, 1);
-
     if (OffsetEECP == 0)
         return MP_STATUS_SUCCESS;
 
-    DPRINT("EHCI_TakeControlHC: OffsetEECP - %X\n", OffsetEECP);
+    DPRINT_EHCI("EHCI_TakeControlHC: %X\n", OffsetEECP);
 
     RegPacket.UsbPortReadWriteConfigSpace(EhciExtension,
                                           TRUE,
-                                          &LegacyCapability.AsULONG,
+                                          &LegacySupport,
                                           OffsetEECP,
-                                          sizeof(LegacyCapability));
+                                          sizeof(LegacySupport));
 
-    if (LegacyCapability.BiosOwnedSemaphore == 0)
+    if (LegacySupport.LegacyCapability.BiosOwnedSemaphore == 0)
         return MP_STATUS_SUCCESS;
 
-    LegacyCapability.OsOwnedSemaphore = 1;
+    LegacySupport.LegacyCapability.OsOwnedSemaphore = 1;
 
     RegPacket.UsbPortReadWriteConfigSpace(EhciExtension,
                                           FALSE,
-                                          &LegacyCapability.AsULONG,
+                                          &LegacySupport.LegacyCapability.AsULONG,
                                           OffsetEECP,
-                                          sizeof(LegacyCapability));
-
+                                          sizeof(LegacySupport.LegacyCapability));
     KeQuerySystemTime(&EndTime);
-    EndTime.QuadPart += 100 * 10000;
+    EndTime.QuadPart += (100 * 10000);
 
     do
     {
         RegPacket.UsbPortReadWriteConfigSpace(EhciExtension,
                                               TRUE,
-                                              &LegacyCapability.AsULONG,
+                                              &LegacySupport.LegacyCapability.AsULONG,
                                               OffsetEECP,
-                                              sizeof(LegacyCapability));
+                                              sizeof(LegacySupport.LegacyCapability));
         KeQuerySystemTime(&CurrentTime);
 
-        if (LegacyCapability.BiosOwnedSemaphore)
+        if (LegacySupport.LegacyCapability.BiosOwnedSemaphore)
         {
-            DPRINT("EHCI_TakeControlHC: Ownership is ok\n");
+            DPRINT_EHCI("EHCI_TakeControlHC: Ownership is ok\n");
             break;
         }
     }
