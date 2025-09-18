@@ -568,7 +568,7 @@ EHCI_ReopenEndpoint(IN PVOID ehciExtension,
     PEHCI_ENDPOINT EhciEndpoint;
     ULONG TransferType;
     PEHCI_HCD_QH QH;
-    MPSTATUS MPStatus;
+    MPSTATUS MPStatus = MP_STATUS_SUCCESS;
 
     EhciEndpoint = ehciEndpoint;
 
@@ -614,7 +614,6 @@ EHCI_ReopenEndpoint(IN PVOID ehciExtension,
 
         default:
             DPRINT1("EHCI_ReopenEndpoint: Unknown TransferType\n");
-            MPStatus = MP_STATUS_SUCCESS;
             break;
     }
 
