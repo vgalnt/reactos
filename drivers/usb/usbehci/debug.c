@@ -68,3 +68,12 @@ if (QH->sqh.HwQH.Token.AsULONG)
            QH->sqh.HwQH.Token.PIDCode,
            QH->sqh.HwQH.Token.Status);
 }
+
+VOID
+NTAPI
+EHCI_DumpEndpointQH(IN PEHCI_ENDPOINT EhciEndpoint)
+{
+    EHCI_DumpHwQH(EhciEndpoint->QH);
+    EHCI_DumpHwTD(EhciEndpoint->HcdHeadP);
+}
+
