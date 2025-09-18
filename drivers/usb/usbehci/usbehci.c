@@ -2971,6 +2971,7 @@ NTAPI
 EHCI_InsertQhInAsyncList(IN PEHCI_EXTENSION EhciExtension,
                          IN PEHCI_HCD_QH QH)
 {
+    PEHCI_TRANSFER EhciTransfer;
     PEHCI_STATIC_QH AsyncHead;
     ULONG QhPA;
     PEHCI_HCD_QH NextHead;
@@ -2980,11 +2981,12 @@ EHCI_InsertQhInAsyncList(IN PEHCI_EXTENSION EhciExtension,
     ASSERT((QH->sqh.QhFlags & EHCI_QH_FLAG_IN_SCHEDULE) == 0);
     ASSERT((QH->sqh.QhFlags & EHCI_QH_FLAG_NUKED) == 0);
 
+    EhciTransfer = EHCI_RefAsyncIdle(EhciExtension);
+
     AsyncHead = EhciExtension->AsyncHead;
     NextHead = AsyncHead->NextHead;
 
     QH->sqh.HwQH.HorizontalLink = AsyncHead->HwQH.HorizontalLink;
-    QH->sqh.QhFlags |= EHCI_QH_FLAG_IN_SCHEDULE;
     QH->sqh.NextHead = NextHead;
     QH->sqh.PrevHead = (PEHCI_HCD_QH)AsyncHead;
 
@@ -2997,6 +2999,10 @@ EHCI_InsertQhInAsyncList(IN PEHCI_EXTENSION EhciExtension,
     AsyncHead->HwQH.HorizontalLink.AsULONG = QhPA;
 
     AsyncHead->NextHead = QH;
+
+    QH->sqh.QhFlags |= EHCI_QH_FLAG_IN_SCHEDULE;
+
+    EHCI_DerefAsyncIdle(EhciExtension, EhciTransfer);
 }
 
 VOID
