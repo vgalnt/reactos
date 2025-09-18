@@ -1756,6 +1756,39 @@ EHCI_IncPendingTransfer(_In_ PEHCI_EXTENSION EhciExtension,
 
 VOID
 NTAPI
+EHCI_DecPendingTransfer(_In_ PEHCI_EXTENSION EhciExtension,
+                        _In_ PEHCI_TRANSFER EhciTransfer)
+{
+    PEHCI_HW_REGISTERS OperationalRegs;
+    EHCI_USB_COMMAND Command;
+
+    OperationalRegs = EhciExtension->OperationalRegs;
+
+    ASSERT(EhciTransfer != NULL);
+
+    ASSERT(EhciExtension->PendingSmode > 0);
+    EhciExtension->PendingSmode--;
+
+  #if 0
+    RemoveEntryList(&EhciTransfer->DD_TransferLink);
+
+    EhciTransfer->DD_TransferLink.Flink = NULL;
+    EhciTransfer->DD_TransferLink.Blink = NULL;
+  #endif
+
+    Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
+
+    if (!EhciExtension->PendingSmode &&
+        !Command.InterruptAdvanceDoorbell &&
+        EhciExtension->AsyncScheduleState &&
+        (EhciExtension->Flags & EHCI_FLAGS_IDLE_SUPPORT))
+    {
+        EHCI_iDisableAsyncList(EhciExtension);
+    }
+}
+
+VOID
+NTAPI
 EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
 {
     PEHCI_HW_REGISTERS OperationalRegs;
