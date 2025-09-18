@@ -2,7 +2,7 @@
  * PROJECT:     ReactOS USB EHCI Miniport Driver
  * LICENSE:     GPL-2.0+ (https://spdx.org/licenses/GPL-2.0+)
  * PURPOSE:     USBEHCI debugging functions
- * COPYRIGHT:   Copyright 2017-2018 Vadim Galyant <vgal@rambler.ru>
+ * COPYRIGHT:   Copyright 2017-2018, 2025 Vadim Galyant <vgal@rambler.ru>
  */
 
 #include "usbehci.h"
@@ -14,13 +14,22 @@ VOID
 NTAPI
 EHCI_DumpHwTD(IN PEHCI_HCD_TD TD)
 {
+    if (!TD)
+        return;
+
     while (TD)
     {
-        DPRINT(": TD                       - %p\n", TD);
-        DPRINT(": TD->PhysicalAddress      - %lx\n", TD->PhysicalAddress);
-        DPRINT(": TD->HwTD.NextTD          - %lx\n", TD->HwTD.NextTD);
-        DPRINT(": TD->HwTD.AlternateNextTD - %lx\n", TD->HwTD.AlternateNextTD);
-        DPRINT(": TD->HwTD.Token.AsULONG   - %lx\n", TD->HwTD.Token.AsULONG);
+        DPRINT("TD              %p %p %p %p\n", TD, TD->PhysicalAddress, TD->HwTD.NextTD, TD->HwTD.AlternateNextTD);
+    if (TD->HwTD.Token.AsULONG)
+        DPRINT("Token           %p (dt %X tb %X ioc %X cp %X ec %X pc %X st %X)\n",
+               TD->HwTD.Token.AsULONG,
+               TD->HwTD.Token.DataToggle,
+               TD->HwTD.Token.TransferBytes,
+               TD->HwTD.Token.InterruptOnComplete,
+               TD->HwTD.Token.CurrentPage,
+               TD->HwTD.Token.ErrorCounter,
+               TD->HwTD.Token.PIDCode,
+               TD->HwTD.Token.Status);
 
         TD = TD->NextHcdTD;
     }
