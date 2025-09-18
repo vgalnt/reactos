@@ -2651,6 +2651,9 @@ EHCI_AbortAsyncTransfer(IN PEHCI_EXTENSION EhciExtension,
     ASSERT(EhciEndpoint->PendingTDs);
     EhciEndpoint->PendingTDs--;
 
+    if (EhciTransfer->TransferOnAsyncList)
+        EHCI_DecPendingTransfer(EhciExtension, EhciTransfer);
+
     if (TD->EhciTransfer == EhciTransfer)
     {
         TransferLength = 0;
