@@ -1693,6 +1693,35 @@ EHCI_iGetAsyncListHwAddress(IN PEHCI_EXTENSION EhciExtension)
 
 VOID
 NTAPI
+EHCI_iEnableAsyncList(IN PEHCI_EXTENSION EhciExtension)
+{
+    PEHCI_HW_REGISTERS OperationalRegs;
+    EHCI_USB_STATUS Status;
+    ULONG HwAddress;
+    EHCI_USB_COMMAND Command;
+
+    OperationalRegs = EhciExtension->OperationalRegs;
+    Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
+    Status.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcStatus.AsULONG);
+
+    DPRINT_EHCI("EHCI_iEnableAsyncList: %p, %X\n", EhciExtension, EhciExtension->AsyncScheduleState);
+
+    EhciExtension->AsyncScheduleState = 1;
+
+    HwAddress = EHCI_iGetAsyncListHwAddress(EhciExtension);
+
+    if (!Status.AsynchronousStatus)
+    {
+        DPRINT_EHCI("EHCI_iEnableAsyncList: %p\n", HwAddress);
+        WRITE_REGISTER_ULONG(&OperationalRegs->AsyncListBase, HwAddress);
+    }
+
+    Command.AsynchronousEnable = 1;
+    WRITE_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG, Command.AsULONG);
+}
+
+VOID
+NTAPI
 EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
 {
     PEHCI_HW_REGISTERS OperationalRegs;

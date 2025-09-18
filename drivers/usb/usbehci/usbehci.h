@@ -198,6 +198,9 @@ typedef struct _EHCI_EXTENSION {
   ULONG IsoDummyQHListPA;
   ULONG FrameIndex;
   ULONG FrameHighPart;
+  LIST_ENTRY PendingSmodeListHead;
+  ULONG PendingSmode;
+  BOOLEAN AsyncScheduleState;
   /* Root Hub Bits */
   ULONG ConnectPortBits;
   ULONG SuspendPortBits;
