@@ -2293,14 +2293,14 @@ EHCI_BulkTransfer(IN PEHCI_EXTENSION EhciExtension,
     if (((TransferParameters->TransferBufferLength /
         ((EHCI_MAX_QTD_BUFFER_PAGES - 1) * PAGE_SIZE)) + 1) > EhciEndpoint->RemainTDs)
     {
-        DPRINT1("EHCI_BulkTransfer: return MP_STATUS_FAILURE\n");
+        DPRINT1("EHCI_BulkTransfer: MP_STATUS_FAILURE (%X, %X)\n", TransferParameters->TransferBufferLength, EhciEndpoint->RemainTDs);
         return MP_STATUS_FAILURE;
     }
 
-    EhciExtension->PendingTransfers++;
     EhciEndpoint->PendingTDs++;
-
     EhciTransfer->TransferOnAsyncList = 1;
+
+    EHCI_IncPendingTransfer(EhciExtension, EhciTransfer);
 
     TransferedLen = 0;
     PrevTD = NULL;
@@ -2310,9 +2310,9 @@ EHCI_BulkTransfer(IN PEHCI_EXTENSION EhciExtension,
         while (TransferedLen < TransferParameters->TransferBufferLength)
         {
             TD = EHCI_AllocTd(EhciExtension, EhciEndpoint);
-
             if (!TD)
             {
+                DPRINT1("EHCI_BulkTransfer: BugCheck(%p, %p)\n", EhciEndpoint, EhciTransfer);
                 RegPacket.UsbPortBugCheck(EhciExtension);
                 return MP_STATUS_FAILURE;
             }
@@ -2372,9 +2372,9 @@ EHCI_BulkTransfer(IN PEHCI_EXTENSION EhciExtension,
     else
     {
         TD = EHCI_AllocTd(EhciExtension, EhciEndpoint);
-
         if (!TD)
         {
+            DPRINT1("EHCI_BulkTransfer: BugCheck(%p, %p)\n", EhciEndpoint, EhciTransfer);
             RegPacket.UsbPortBugCheck(EhciExtension);
             return MP_STATUS_FAILURE;
         }
@@ -2423,7 +2423,7 @@ EHCI_BulkTransfer(IN PEHCI_EXTENSION EhciExtension,
     TD->HwTD.NextTD = EhciEndpoint->HcdTailP->PhysicalAddress;
     TD->NextHcdTD = EhciEndpoint->HcdTailP;
 
-    EHCI_EnableAsyncList(EhciExtension);
+    //EHCI_EnableAsyncList(EhciExtension);
     EHCI_LinkTransferToQueue(EhciExtension, EhciEndpoint, FirstTD);
 
     ASSERT(EhciEndpoint->HcdTailP->NextHcdTD == 0);
