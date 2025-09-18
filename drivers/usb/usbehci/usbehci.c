@@ -1722,6 +1722,25 @@ EHCI_iEnableAsyncList(IN PEHCI_EXTENSION EhciExtension)
 
 VOID
 NTAPI
+EHCI_iDisableAsyncList(IN PEHCI_EXTENSION EhciExtension)
+{
+    PEHCI_HW_REGISTERS OperationalRegs;
+    EHCI_USB_COMMAND Command;
+  
+    DPRINT_EHCI("EHCI_iDisableAsyncList: %p\n", EhciExtension);
+
+    OperationalRegs = EhciExtension->OperationalRegs;
+
+    ASSERT(EhciExtension->PendingSmode == 0);
+    EhciExtension->AsyncScheduleState = 0;
+
+    Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
+    Command.AsynchronousEnable = 0;
+    WRITE_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG, Command.AsULONG);
+}
+
+VOID
+NTAPI
 EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
 {
     PEHCI_HW_REGISTERS OperationalRegs;
