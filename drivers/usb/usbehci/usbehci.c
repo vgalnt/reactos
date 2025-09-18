@@ -876,6 +876,7 @@ EHCI_InitializeInterruptSchedule(IN PEHCI_EXTENSION EhciExtension)
             StaticQH->QhFlags |= EHCI_QH_FLAG_STATIC_FAST;
     }
 
+    EhciExtension->PeriodicHead[0]->HwQH.HorizontalLink.AsULONG = 0;        
     EhciExtension->PeriodicHead[0]->HwQH.HorizontalLink.Terminate = 1;
 
     EhciExtension->PeriodicHead[0]->QhFlags |= (EHCI_QH_FLAG_STATIC |
