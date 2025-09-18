@@ -3233,6 +3233,7 @@ EHCI_PollActiveAsyncEndpoint(IN PEHCI_EXTENSION EhciExtension,
     PEHCI_HCD_TD CurrentTD;
     ULONG CurrentTDPhys;
     BOOLEAN IsScheduled;
+    BOOLEAN IsNextOrAltNext;
 
     DPRINT_EHCI("EHCI_PollActiveAsyncEndpoint: ... \n");
 
@@ -3297,16 +3298,23 @@ EHCI_PollActiveAsyncEndpoint(IN PEHCI_EXTENSION EhciExtension,
         }
     }
 
-    if (CurrentTD->HwTD.Token.Status & EHCI_TOKEN_STATUS_ACTIVE)
+    if (CurrentTD->NextHcdTD == EhciEndpoint->HcdTailP &&
+        !(CurrentTD->HwTD.Token.AsULONG & 0x80))
     {
-        ASSERT(TD != NULL);
-        EhciEndpoint->HcdHeadP = TD;
-        return;
+        IsNextOrAltNext = TRUE;
+    }
+    else if (CurrentTD->AltNextHcdTD == EhciEndpoint->HcdTailP &&
+             !(CurrentTD->HwTD.Token.AsULONG & 0x80) &&
+             CurrentTD->HwTD.Token.TransferBytes)
+    {
+        IsNextOrAltNext = TRUE;
+    }
+    else
+    {
+        IsNextOrAltNext = FALSE;
     }
 
-    if ((CurrentTD->NextHcdTD != EhciEndpoint->HcdTailP) &&
-        (CurrentTD->AltNextHcdTD != EhciEndpoint->HcdTailP ||
-         CurrentTD->HwTD.Token.TransferBytes == 0))
+    if (!IsNextOrAltNext)
     {
         ASSERT(TD != NULL);
         EhciEndpoint->HcdHeadP = TD;
