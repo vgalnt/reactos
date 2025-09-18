@@ -1833,22 +1833,25 @@ NTAPI
 EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
 {
     PEHCI_HW_REGISTERS OperationalRegs;
+    PEHCI_TRANSFER EhciTransfer;
     EHCI_USB_COMMAND Command;
     EHCI_USB_STATUS Status;
     LARGE_INTEGER CurrentTime;
     LARGE_INTEGER EndTime;
     EHCI_USB_COMMAND Cmd;
 
-    DPRINT_EHCI("EHCI_FlushAsyncCache: EhciExtension - %p\n", EhciExtension);
+    DPRINT_EHCI("EHCI_FlushAsyncCache: %p\n", EhciExtension);
+
+    EhciTransfer = EHCI_RefAsyncIdle(EhciExtension);
 
     OperationalRegs = EhciExtension->OperationalRegs;
     Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
     Status.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcStatus.AsULONG);
 
-    if (!Status.AsynchronousStatus && !Command.AsynchronousEnable)
-        return;
+    if (!Command.AsynchronousEnable)
+        goto Finish;
 
-    if (Status.AsynchronousStatus && !Command.AsynchronousEnable)
+    if (!Status.AsynchronousStatus)
     {
         KeQuerySystemTime(&EndTime);
         EndTime.QuadPart += 100 * 10000;  //100 ms
@@ -1857,25 +1860,7 @@ EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
         {
             Status.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcStatus.AsULONG);
             Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
-            KeQuerySystemTime(&CurrentTime);
 
-            if (CurrentTime.QuadPart > EndTime.QuadPart)
-                RegPacket.UsbPortBugCheck(EhciExtension);
-        }
-        while (Status.AsynchronousStatus && Command.AsULONG != -1 && Command.Run);
-
-        return;
-    }
-
-    if (!Status.AsynchronousStatus && Command.AsynchronousEnable)
-    {
-        KeQuerySystemTime(&EndTime);
-        EndTime.QuadPart += 100 * 10000;  //100 ms
-
-        do
-        {
-            Status.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcStatus.AsULONG);
-            Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
             KeQuerySystemTime(&CurrentTime);
         }
         while (!Status.AsynchronousStatus && Command.AsULONG != -1 && Command.Run);
@@ -1898,6 +1883,7 @@ EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
 
             KeStallExecutionProcessor(1);
             Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
+
             KeQuerySystemTime(&CurrentTime);
 
             if (!Command.InterruptAdvanceDoorbell)
@@ -1907,8 +1893,13 @@ EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
         }
     }
 
-    /* InterruptOnAsyncAdvance */
-    WRITE_REGISTER_ULONG(&OperationalRegs->HcStatus.AsULONG, 0x20);
+    Status.AsULONG = 0;
+    Status.InterruptOnAsyncAdvance = 1;
+    WRITE_REGISTER_ULONG(&OperationalRegs->HcStatus.AsULONG, Status.AsULONG);
+
+Finish:
+
+    EHCI_DerefAsyncIdle(EhciExtension, EhciTransfer);
 }
 
 VOID
