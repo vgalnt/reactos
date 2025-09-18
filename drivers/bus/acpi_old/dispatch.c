@@ -5361,6 +5361,31 @@ ACPIDeviceCompletePhase3On(
     ACPIDeviceCompleteCommon(&PowerNode->WorkDone, 0);
 }
 
+VOID
+__cdecl
+ACPIDeviceCompletePhase3Off(
+    _In_ PAMLI_NAME_SPACE_OBJECT NsObject,
+    _In_ NTSTATUS InStatus,
+    _In_ PAMLI_OBJECT_DATA Data,
+    _In_ PVOID Context)
+{
+    PACPI_POWER_DEVICE_NODE PowerNode = Context;
+    KIRQL Irql;
+
+    DPRINT("ACPIDeviceCompletePhase3Off: (OFF) PowerNode %p, InStatus %X\n", PowerNode, InStatus);
+
+    KeAcquireSpinLock(&AcpiPowerLock, &Irql);
+
+    if (NT_SUCCESS(InStatus))
+        ACPIInternalUpdateFlags(&PowerNode->Flags, 0x10, 1);
+    else
+        ACPIInternalUpdateFlags(&PowerNode->Flags, 0x10000, 0);
+
+    KeReleaseSpinLock(&AcpiPowerLock, Irql);
+
+    ACPIDeviceCompleteCommon(&PowerNode->WorkDone, 0);
+}
+
 NTSTATUS
 NTAPI
 ACPIDevicePowerProcessPhase3(VOID)
@@ -5444,8 +5469,18 @@ ACPIDevicePowerProcessPhase3(VOID)
         WorkDone = InterlockedCompareExchange((PLONG)&PowerNode->WorkDone, 1, 4);
         if (WorkDone == 4)
         {
-            DPRINT1("ACPIDevicePowerProcessPhase3: FIXME\n");
-            UNIMPLEMENTED_DBGBREAK();
+            KeReleaseSpinLockFromDpcLevel(&AcpiPowerLock);
+
+            Status = AMLIAsyncEvalObject(PowerNode->PowerOffObject, NULL, 0, NULL, ACPIDeviceCompletePhase3Off, PowerNode);
+
+            DPRINT("ACPIDevicePowerProcessPhase3: (OFF) PowerNode %X, Status %X\n", PowerNode, Status);
+
+            if (Status != STATUS_PENDING)
+                ACPIDeviceCompletePhase3Off(PowerNode->PowerOffObject, Status, NULL, PowerNode);
+            else
+                Result = TRUE;
+
+            KeAcquireSpinLockAtDpcLevel(&AcpiPowerLock);
             continue;
         }
 
