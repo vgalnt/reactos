@@ -1672,6 +1672,25 @@ EHCI_EnablePeriodicList(IN PEHCI_EXTENSION EhciExtension)
     WRITE_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG, Command.AsULONG);
 }
 
+ULONG
+NTAPI
+EHCI_iGetAsyncListHwAddress(IN PEHCI_EXTENSION EhciExtension)
+{
+    PEHCI_STATIC_QH AsyncHeadVA;
+    EHCI_LINK_POINTER HwAddress;
+
+    DPRINT_EHCI("EHCI_iGetAsyncListHwAddress: %p\n", EhciExtension);
+
+    AsyncHeadVA = EhciExtension->AsyncHead;
+    ASSERT(AsyncHeadVA->PhysicalAddress != 0); // "asyncHwQh.HwAddress != 0"
+
+    HwAddress.AsULONG = AsyncHeadVA->PhysicalAddress;
+    HwAddress.Reserved = 0;
+    HwAddress.Type = EHCI_LINK_TYPE_QH;
+
+    return HwAddress.AsULONG;
+}
+
 VOID
 NTAPI
 EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
