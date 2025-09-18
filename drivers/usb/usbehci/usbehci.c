@@ -1813,6 +1813,23 @@ EHCI_RefAsyncIdle(_In_ PEHCI_EXTENSION EhciExtension)
 
 VOID
 NTAPI
+EHCI_DerefAsyncIdle(_In_ PEHCI_EXTENSION EhciExtension,
+                    _In_ PEHCI_TRANSFER EhciTransfer)
+{
+    if (!EhciTransfer)
+    {
+        DPRINT1("EHCI_DerefAsyncIdle: BugCheck(%p)\n", EhciExtension);
+        RegPacket.UsbPortBugCheck(EhciExtension);
+        return;
+    }
+
+    EHCI_DecPendingTransfer(EhciExtension, EhciTransfer);
+
+    ExFreePool(EhciTransfer);
+}
+
+VOID
+NTAPI
 EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
 {
     PEHCI_HW_REGISTERS OperationalRegs;
