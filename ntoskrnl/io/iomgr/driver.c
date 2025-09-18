@@ -166,6 +166,7 @@ IopSuffixUnicodeString(
     return FALSE;
 }
 
+#ifdef __REACTOS__
 /* Display 'Loading XXX...' message. */
 static int bWarnedOnce = 0;
 VOID
@@ -175,8 +176,8 @@ IopDisplayLoadingMessage(PUNICODE_STRING ServiceName)
     CHAR TextBuffer[256];
     UNICODE_STRING DotSys = RTL_CONSTANT_STRING(L".SYS");
 
-    if (ExpInTextModeSetup)
-        return;
+    //if (ExpInTextModeSetup)
+    //    return;
 
     if (!KeLoaderBlock)
         return;
@@ -198,6 +199,7 @@ IopDisplayLoadingMessage(PUNICODE_STRING ServiceName)
 
     HalDisplayString(TextBuffer);
 }
+#endif
 
 /*
  * IopNormalizeImagePath

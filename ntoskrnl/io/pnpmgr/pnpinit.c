@@ -1525,8 +1525,10 @@ IopInitializeBuiltinDriver(
             DriverObject->Flags |= DRVO_LEGACY_DRIVER;
         }
 
+      #ifdef __REACTOS__
         /* Display 'Loading XXX...' message */
         IopDisplayLoadingMessage(&BootLdrEntry->BaseDllName);
+      #endif
     }
 
     InbvIndicateProgress();
