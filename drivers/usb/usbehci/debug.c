@@ -77,3 +77,27 @@ EHCI_DumpEndpointQH(IN PEHCI_ENDPOINT EhciEndpoint)
     EHCI_DumpHwTD(EhciEndpoint->HcdHeadP);
 }
 
+VOID
+NTAPI
+EHCI_DumpOpRegs(IN PEHCI_EXTENSION EhciExtension)
+{
+    PEHCI_HW_REGISTERS OperationalRegs;
+    EHCI_USB_COMMAND Command;
+    EHCI_USB_STATUS Status;
+    EHCI_INTERRUPT_ENABLE Interrupt;
+    //ULONG FrameIndex;
+    //ULONG PeriodicListBase;
+    ULONG AsyncListBase;
+
+    OperationalRegs = EhciExtension->OperationalRegs;
+
+    Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
+    Status.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcStatus.AsULONG);
+    Interrupt.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcInterruptEnable.AsULONG);
+    AsyncListBase = READ_REGISTER_ULONG(&OperationalRegs->AsyncListBase);
+
+    DbgPrint("EHCI_DumpOpRegs: Cmd %p Sts %p Int %p %p\n",
+             Command.AsULONG, Status.AsULONG, Interrupt.AsULONG, AsyncListBase);
+}
+
+/* EOF */
