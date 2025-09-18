@@ -1967,6 +1967,14 @@ EHCI_LockQH(IN PEHCI_EXTENSION EhciExtension,
 
 VOID
 NTAPI
+EHCI_ReEnableAsyncList(IN PEHCI_EXTENSION EhciExtension)
+{
+    if (EhciExtension->PendingSmode)
+        EHCI_iEnableAsyncList(EhciExtension);
+}
+
+VOID
+NTAPI
 EHCI_UnlockQH(IN PEHCI_EXTENSION EhciExtension,
               IN PEHCI_HCD_QH QH)
 {
