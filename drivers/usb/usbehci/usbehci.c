@@ -1995,6 +1995,8 @@ EHCI_UnlockQH(IN PEHCI_EXTENSION EhciExtension,
     QhPA |= (EHCI_LINK_TYPE_QH << 1);
 
     EhciExtension->PrevQH->sqh.HwQH.HorizontalLink.AsULONG = QhPA;
+
+    EHCI_ReEnableAsyncList(EhciExtension);
 }
 
 VOID
