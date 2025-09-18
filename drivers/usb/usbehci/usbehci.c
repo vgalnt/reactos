@@ -1741,6 +1741,21 @@ EHCI_iDisableAsyncList(IN PEHCI_EXTENSION EhciExtension)
 
 VOID
 NTAPI
+EHCI_IncPendingTransfer(_In_ PEHCI_EXTENSION EhciExtension,
+                        _In_ PEHCI_TRANSFER EhciTransfer)
+{
+    EhciExtension->PendingSmode++;
+
+    ASSERT(EhciTransfer != NULL);
+    EhciTransfer->CurrentThread = KeGetCurrentThread();
+
+    //InsertTailList(&EhciExtension->PendingSmodeListHead, &EhciTransfer->DD_TransferLink);
+
+    EHCI_iEnableAsyncList(EhciExtension);
+}
+
+VOID
+NTAPI
 EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
 {
     PEHCI_HW_REGISTERS OperationalRegs;

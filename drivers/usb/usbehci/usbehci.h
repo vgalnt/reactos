@@ -155,7 +155,9 @@ typedef struct _EHCI_ENDPOINT {
 
 /* EHCI Transfer follows USBPORT Transfer */
 typedef struct _EHCI_TRANSFER {
-  ULONG Reserved;
+  LIST_ENTRY DD_TransferLink;
+  PRKTHREAD CurrentThread;
+  ULONG Sig;
   PUSBPORT_TRANSFER_PARAMETERS TransferParameters;
   ULONG USBDStatus;
   ULONG TransferLen;
