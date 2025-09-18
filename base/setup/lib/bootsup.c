@@ -203,7 +203,7 @@ CreateFreeLoaderReactOSEntries(
       if (IsUnattendedSetup)
           BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS_KdSerial");
       else
-          BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS_Com");
+          BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS_LogFile");
     #endif
   #else
     BootOptions.CurrentBootEntryKey = MAKESTRKEY(L"ReactOS");
