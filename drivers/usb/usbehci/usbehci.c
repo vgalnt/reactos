@@ -2849,45 +2849,56 @@ NTAPI
 EHCI_RemoveQhFromAsyncList(IN PEHCI_EXTENSION EhciExtension,
                            IN PEHCI_HCD_QH QH)
 {
+    PEHCI_TRANSFER EhciTransfer;
     PEHCI_HCD_QH NextHead;
     ULONG NextHeadPA;
     PEHCI_HCD_QH PrevHead;
     PEHCI_STATIC_QH AsyncHead;
     ULONG AsyncHeadPA;
 
-    DPRINT("EHCI_RemoveQhFromAsyncList: QH - %p\n", QH);
+    EhciTransfer = EHCI_RefAsyncIdle(EhciExtension);
 
-    if (QH->sqh.QhFlags & EHCI_QH_FLAG_IN_SCHEDULE)
+    if (!(QH->sqh.QhFlags & EHCI_QH_FLAG_IN_SCHEDULE))
     {
-        NextHead = QH->sqh.NextHead;
-        PrevHead = QH->sqh.PrevHead;
-
-        AsyncHead = EhciExtension->AsyncHead;
-
-        AsyncHeadPA = AsyncHead->PhysicalAddress;
-        AsyncHeadPA &= LINK_POINTER_MASK + TERMINATE_POINTER;
-        AsyncHeadPA |= (EHCI_LINK_TYPE_QH << 1);
-
-        NextHeadPA = NextHead->sqh.PhysicalAddress;
-        NextHeadPA &= LINK_POINTER_MASK + TERMINATE_POINTER;
-        NextHeadPA |= (EHCI_LINK_TYPE_QH << 1);
-
-        PrevHead->sqh.HwQH.HorizontalLink.AsULONG = NextHeadPA;
-
-        PrevHead->sqh.NextHead = NextHead;
-        NextHead->sqh.PrevHead = PrevHead;
-
-        EHCI_FlushAsyncCache(EhciExtension);
-
-        if (READ_REGISTER_ULONG(&EhciExtension->OperationalRegs->AsyncListBase) ==
-            QH->sqh.PhysicalAddress)
-        {
-            WRITE_REGISTER_ULONG(&EhciExtension->OperationalRegs->AsyncListBase,
-                                 AsyncHeadPA);
-        }
-
-        QH->sqh.QhFlags &= ~EHCI_QH_FLAG_IN_SCHEDULE;
+        DPRINT("EHCI_RemoveQhFromAsyncList: not EHCI_QH_FLAG_IN_SCHEDULE (%p, %p)\n", EhciExtension, QH);
+        goto Finish;
     }
+    else
+    {
+        DPRINT("EHCI_RemoveQhFromAsyncList: %p, %p\n", EhciExtension, QH);
+    }
+
+    NextHead = QH->sqh.NextHead;
+    PrevHead = QH->sqh.PrevHead;
+
+    AsyncHead = EhciExtension->AsyncHead;
+
+    AsyncHeadPA = AsyncHead->PhysicalAddress;
+    AsyncHeadPA &= LINK_POINTER_MASK + TERMINATE_POINTER;
+    AsyncHeadPA |= (EHCI_LINK_TYPE_QH << 1);
+
+    NextHeadPA = NextHead->sqh.PhysicalAddress;
+    NextHeadPA &= LINK_POINTER_MASK + TERMINATE_POINTER;
+    NextHeadPA |= (EHCI_LINK_TYPE_QH << 1);
+
+    PrevHead->sqh.HwQH.HorizontalLink.AsULONG = NextHeadPA;
+
+    PrevHead->sqh.NextHead = NextHead;
+    NextHead->sqh.PrevHead = PrevHead;
+
+    EHCI_FlushAsyncCache(EhciExtension);
+
+    if (READ_REGISTER_ULONG(&EhciExtension->OperationalRegs->AsyncListBase) == QH->sqh.PhysicalAddress)
+    {
+        DPRINT("EHCI_RemoveQhFromAsyncList: %p, %p\n", READ_REGISTER_ULONG(&EhciExtension->OperationalRegs->AsyncListBase), AsyncHeadPA);
+        WRITE_REGISTER_ULONG(&EhciExtension->OperationalRegs->AsyncListBase, AsyncHeadPA);
+    }
+
+    QH->sqh.QhFlags &= ~EHCI_QH_FLAG_IN_SCHEDULE;
+
+Finish:
+
+    EHCI_DerefAsyncIdle(EhciExtension, EhciTransfer);
 }
 
 VOID
