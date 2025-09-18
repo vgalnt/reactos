@@ -1179,29 +1179,10 @@ EHCI_StartController(IN PVOID ehciExtension,
     UCHAR CapabilityRegLength;
     UCHAR Fladj;
 
-    DPRINT("EHCI_StartController: ... \n");
+    DPRINT("EHCI_StartController: %p %X\n", EhciExtension, EhciExtension->FrameIndex);
 
-    if ((Resources->ResourcesTypes & (USBPORT_RESOURCES_MEMORY | USBPORT_RESOURCES_INTERRUPT)) !=
-                                     (USBPORT_RESOURCES_MEMORY | USBPORT_RESOURCES_INTERRUPT))
-    {
-        DPRINT1("EHCI_StartController: Resources->ResourcesTypes - %x\n",
-                Resources->ResourcesTypes);
-
-        return MP_STATUS_ERROR;
-    }
-
-    CapabilityRegisters = (PEHCI_HC_CAPABILITY_REGISTERS)Resources->ResourceBase;
-    EhciExtension->CapabilityRegisters = CapabilityRegisters;
-
-    CapabilityRegLength = READ_REGISTER_UCHAR(&CapabilityRegisters->RegistersLength);
-
-    OperationalRegs = (PEHCI_HW_REGISTERS)((ULONG_PTR)CapabilityRegisters +
-                                                      CapabilityRegLength);
-
-    EhciExtension->OperationalRegs = OperationalRegs;
-
-    DPRINT("EHCI_StartController: CapabilityRegisters - %p\n", CapabilityRegisters);
-    DPRINT("EHCI_StartController: OperationalRegs     - %p\n", OperationalRegs);
+    EhciExtension->IsStarted = FALSE;
+    //EHCI_MarkOldQueueHeadsInvalid(EhciExtension);
 
     RegPacket.UsbPortReadWriteConfigSpace(EhciExtension,
                                           TRUE,
@@ -1211,10 +1192,27 @@ EHCI_StartController(IN PVOID ehciExtension,
 
     EhciExtension->FrameLengthAdjustment = Fladj;
 
+    if ((Resources->ResourcesTypes & (USBPORT_RESOURCES_MEMORY | USBPORT_RESOURCES_INTERRUPT)) !=
+                                     (USBPORT_RESOURCES_MEMORY | USBPORT_RESOURCES_INTERRUPT))
+    {
+        DPRINT1("EHCI_StartController: ResourcesTypes %X\n", Resources->ResourcesTypes);
+        return MP_STATUS_ERROR;
+    }
+
+    CapabilityRegisters = (PEHCI_HC_CAPABILITY_REGISTERS)Resources->ResourceBase;
+    EhciExtension->CapabilityRegisters = CapabilityRegisters;
+
+    CapabilityRegLength = READ_REGISTER_UCHAR(&CapabilityRegisters->RegistersLength);
+
+    OperationalRegs = (PEHCI_HW_REGISTERS)((ULONG_PTR)CapabilityRegisters + CapabilityRegLength);
+    EhciExtension->OperationalRegs = OperationalRegs;
+
+    DPRINT_EHCI("EHCI_StartController: %p, %p\n", CapabilityRegisters, OperationalRegs);
+
     EHCI_GetRegistryParameters(EhciExtension);
+    //if (EhciExtension->Flags & 8)
 
     MPStatus = EHCI_TakeControlHC(EhciExtension);
-
     if (MPStatus)
     {
         DPRINT1("EHCI_StartController: Unsuccessful TakeControlHC()\n");
@@ -1222,7 +1220,6 @@ EHCI_StartController(IN PVOID ehciExtension,
     }
 
     MPStatus = EHCI_InitializeHardware(EhciExtension);
-
     if (MPStatus)
     {
         DPRINT1("EHCI_StartController: Unsuccessful InitializeHardware()\n");
@@ -1258,8 +1255,7 @@ EHCI_StartController(IN PVOID ehciExtension,
 
     /* Port routing control logic default-routes all ports to this HC */
     EhciExtension->PortRoutingControl = EHCI_CONFIG_FLAG_CONFIGURED;
-    WRITE_REGISTER_ULONG(&OperationalRegs->ConfigFlag,
-                         EhciExtension->PortRoutingControl);
+    WRITE_REGISTER_ULONG(&OperationalRegs->ConfigFlag, EhciExtension->PortRoutingControl);
 
     Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
     Command.InterruptThreshold = 1; // one micro-frame
@@ -1276,17 +1272,16 @@ EHCI_StartController(IN PVOID ehciExtension,
         ULONG Port;
 
         for (Port = 1; Port <= EhciExtension->NumberOfPorts; Port++)
-        {
             EHCI_RH_SetFeaturePortPower(EhciExtension, Port);
-        }
 
         RegPacket.UsbPortWait(EhciExtension, 200);
 
         for (Port = 1; Port <= EhciExtension->NumberOfPorts; Port++)
-        {
             EHCI_RH_ChirpRootPort(EhciExtension, Port++);
-        }
     }
+
+    Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
+    DPRINT_EHCI("EHCI_StartController: Command %X\n", Command.AsULONG);
 
     return MPStatus;
 }
