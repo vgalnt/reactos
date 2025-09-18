@@ -2,7 +2,7 @@
  * PROJECT:     ReactOS USB EHCI Miniport Driver
  * LICENSE:     GPL-2.0+ (https://spdx.org/licenses/GPL-2.0+)
  * PURPOSE:     USBEHCI main driver functions
- * COPYRIGHT:   Copyright 2017-2018 Vadim Galyant <vgal@rambler.ru>
+ * COPYRIGHT:   Copyright 2017-2018, 2025 Vadim Galyant <vgal@rambler.ru>
  */
 
 #include "usbehci.h"
@@ -11,6 +11,9 @@
 #include <debug.h>
 
 #define NDEBUG_EHCI_TRACE
+#define NODPRINT
+#define NODPRINT1
+#define NOASSERT
 #include "dbg_ehci.h"
 
 USBPORT_REGISTRATION_PACKET RegPacket;
