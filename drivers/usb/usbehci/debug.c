@@ -42,8 +42,29 @@ EHCI_DumpHwQH(IN PEHCI_HCD_QH QH)
     if (!QH)
         return;
 
-    DPRINT(": QH->sqh.HwQH.CurrentTD       - %lx\n", QH->sqh.HwQH.CurrentTD);
-    DPRINT(": QH->sqh.HwQH.NextTD          - %lx\n", QH->sqh.HwQH.NextTD);
-    DPRINT(": QH->sqh.HwQH.AlternateNextTD - %lx\n", QH->sqh.HwQH.AlternateNextTD);
-    DPRINT(": QH->sqh.HwQH.Token.AsULONG   - %lx\n", QH->sqh.HwQH.Token.AsULONG);
+    DPRINT("EHCI_DumpHwQH:  %p %p\n", QH, QH->sqh.HwQH.HorizontalLink.AsULONG);
+    //DPRINT("HorizontalLink  %p\n");
+    DPRINT("EndpointParams  %p nak %X %X len %X %X dt %X %X num %X %X %X\n",
+           QH->sqh.HwQH.EndpointParams.AsULONG,
+           QH->sqh.HwQH.EndpointParams.NakCountReload,
+           QH->sqh.HwQH.EndpointParams.ControlEndpointFlag,
+           QH->sqh.HwQH.EndpointParams.MaximumPacketLength,
+           QH->sqh.HwQH.EndpointParams.HeadReclamationListFlag,
+           QH->sqh.HwQH.EndpointParams.DataToggleControl,
+           QH->sqh.HwQH.EndpointParams.EndpointSpeed,
+           QH->sqh.HwQH.EndpointParams.EndpointNumber,
+           QH->sqh.HwQH.EndpointParams.InactivateOnNextTransaction,
+           QH->sqh.HwQH.EndpointParams.DeviceAddress);
+    //DPRINT("EndpointCaps    %p\n", QH->sqh.HwQH.EndpointCaps.AsULONG);
+    DPRINT("TD Cur Next Alt %p %p %p\n", QH->sqh.HwQH.CurrentTD, QH->sqh.HwQH.NextTD, QH->sqh.HwQH.AlternateNextTD);
+if (QH->sqh.HwQH.Token.AsULONG)
+    DPRINT("Token           %p (dt %X tb %X ioc %X cp %X ec %X pc %X st %X)\n",
+           QH->sqh.HwQH.Token.AsULONG,
+           QH->sqh.HwQH.Token.DataToggle,
+           QH->sqh.HwQH.Token.TransferBytes,
+           QH->sqh.HwQH.Token.InterruptOnComplete,
+           QH->sqh.HwQH.Token.CurrentPage,
+           QH->sqh.HwQH.Token.ErrorCounter,
+           QH->sqh.HwQH.Token.PIDCode,
+           QH->sqh.HwQH.Token.Status);
 }
