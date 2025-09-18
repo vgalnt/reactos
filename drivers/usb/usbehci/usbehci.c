@@ -1787,6 +1787,30 @@ EHCI_DecPendingTransfer(_In_ PEHCI_EXTENSION EhciExtension,
     }
 }
 
+PEHCI_TRANSFER
+NTAPI
+EHCI_RefAsyncIdle(_In_ PEHCI_EXTENSION EhciExtension)
+{
+    PEHCI_TRANSFER EhciTransfer;
+
+    EhciTransfer = ExAllocatePoolWithTag(NonPagedPool, sizeof(*EhciTransfer), 'ehci');
+    if (!EhciTransfer)
+    {
+        DPRINT1("EHCI_RefAsyncIdle: BugCheck(%p)\n", EhciExtension);
+        RegPacket.UsbPortBugCheck(EhciExtension);
+        return NULL;
+    }
+
+    RtlZeroMemory(EhciTransfer, sizeof(*EhciTransfer));
+
+    EhciTransfer->Sig = 'hslf';
+    EhciTransfer->TransferOnAsyncList = 1;
+
+    EHCI_IncPendingTransfer(EhciExtension, EhciTransfer);
+
+    return EhciTransfer;
+}
+
 VOID
 NTAPI
 EHCI_FlushAsyncCache(IN PEHCI_EXTENSION EhciExtension)
