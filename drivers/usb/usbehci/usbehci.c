@@ -3549,18 +3549,20 @@ NTAPI
 EHCI_Get32BitFrameNumber(IN PVOID ehciExtension)
 {
     PEHCI_EXTENSION EhciExtension = ehciExtension;
-    ULONG FrameIdx;
+    ULONG FrameHighPart;
     ULONG FrameIndex;
     ULONG FrameNumber;
 
     //DPRINT_EHCI("EHCI_Get32BitFrameNumber: EhciExtension - %p\n", EhciExtension);
 
-    FrameIdx = EhciExtension->FrameIndex;
-    FrameIndex = READ_REGISTER_ULONG(&EhciExtension->OperationalRegs->FrameIndex);
+    FrameHighPart = EhciExtension->FrameHighPart;
 
-    FrameNumber = (USHORT)FrameIdx ^ ((FrameIndex / EHCI_MICROFRAMES) & EHCI_FRINDEX_FRAME_MASK);
-    FrameNumber &= EHCI_FRAME_LIST_MAX_ENTRIES;
-    FrameNumber += FrameIndex | ((FrameIndex / EHCI_MICROFRAMES) & EHCI_FRINDEX_INDEX_MASK);
+    FrameIndex = READ_REGISTER_ULONG(&EhciExtension->OperationalRegs->FrameIndex);
+    FrameIndex /= EHCI_MICROFRAMES;
+    FrameIndex &= EHCI_FRINDEX_FRAME_MASK;
+
+    FrameNumber = (FrameHighPart | FrameIndex);
+    FrameNumber += ((FrameHighPart ^ FrameIndex) & EHCI_FRAME_LIST_MAX_ENTRIES);
 
     return FrameNumber;
 }
