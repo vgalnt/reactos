@@ -88,9 +88,14 @@ typedef struct _EHCI_STATIC_QH {
   /* Hardware part */
   EHCI_QUEUE_HEAD HwQH;
   /* Software part */
-  ULONG QhFlags;
   ULONG PhysicalAddress;
-  struct _EHCI_HCD_QH * PrevHead;
+  ULONG Sig;
+  ULONG QhFlags;
+  ULONG Ordinal;
+  ULONG Period;
+  ULONG Unknown;
+  ULONG HcStateTag;
+  struct _EHCI_ENDPOINT * EhciEndpoint;
 #ifndef _WIN64
   ULONG Pad2;
 #endif
@@ -98,16 +103,18 @@ typedef struct _EHCI_STATIC_QH {
 #ifndef _WIN64
   ULONG Pad3;
 #endif
-  struct _EHCI_STATIC_QH * StaticQH;
+  struct _EHCI_HCD_QH * PrevHead;
 #ifndef _WIN64
   ULONG Pad4;
 #endif
-  ULONG Period;
-  ULONG Ordinal;
+  struct _EHCI_STATIC_QH * StaticQH;
+#ifndef _WIN64
+  ULONG Pad5;
+#endif
 #ifdef _WIN64
-  ULONG Pad[8];
+  ULONG Pad[3];
 #else
-  ULONG Pad[10];
+  ULONG Pad[5];
 #endif
 } EHCI_STATIC_QH, *PEHCI_STATIC_QH;
 
@@ -219,6 +226,16 @@ VOID
 NTAPI
 EHCI_DumpHwQH(
   IN PEHCI_HCD_QH QH);
+
+VOID
+NTAPI
+EHCI_DumpEndpointQH(
+  IN PEHCI_ENDPOINT EhciEndpoint);
+
+VOID
+NTAPI
+EHCI_DumpOpRegs(
+  IN PEHCI_EXTENSION EhciExtension);
 
 /* roothub.c */
 MPSTATUS
