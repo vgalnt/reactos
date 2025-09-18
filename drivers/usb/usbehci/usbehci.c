@@ -3165,8 +3165,6 @@ EHCI_ProcessDoneAsyncTd(IN PEHCI_EXTENSION EhciExtension,
     PEHCI_ENDPOINT EhciEndpoint;
     ULONG LengthTransfered;
     USBD_STATUS USBDStatus;
-    PEHCI_HW_REGISTERS OperationalRegs;
-    EHCI_USB_COMMAND Command;
 
     DPRINT_EHCI("EHCI_ProcessDoneAsyncTd: TD - %p\n", TD);
 
@@ -3191,7 +3189,10 @@ EHCI_ProcessDoneAsyncTd(IN PEHCI_EXTENSION EhciExtension,
             EhciTransfer->TransferLen += LengthTransfered;
 
         if (USBDStatus != USBD_STATUS_SUCCESS)
+        {
+            DPRINT("EHCI_ProcessDoneAsyncTd: %p, %X\n", TD, USBDStatus);
             EhciTransfer->USBDStatus = USBDStatus;
+        }
     }
 
     TD->HwTD.NextTD = 0;
@@ -3211,19 +3212,7 @@ EHCI_ProcessDoneAsyncTd(IN PEHCI_EXTENSION EhciExtension,
         if (TransferType == USBPORT_TRANSFER_TYPE_CONTROL ||
             TransferType == USBPORT_TRANSFER_TYPE_BULK)
         {
-            EhciExtension->PendingTransfers--;
-
-            if (EhciExtension->PendingTransfers == 0)
-            {
-                OperationalRegs = EhciExtension->OperationalRegs;
-                Command.AsULONG = READ_REGISTER_ULONG(&OperationalRegs->HcCommand.AsULONG);
-
-                if (!Command.InterruptAdvanceDoorbell &&
-                    (EhciExtension->Flags & EHCI_FLAGS_IDLE_SUPPORT))
-                {
-                    EHCI_DisableAsyncList(EhciExtension);
-                }
-            }
+            EHCI_DecPendingTransfer(EhciExtension, EhciTransfer);
         }
 
         RegPacket.UsbPortCompleteTransfer(EhciExtension,
