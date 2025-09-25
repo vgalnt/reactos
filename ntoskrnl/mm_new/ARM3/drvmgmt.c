@@ -111,7 +111,14 @@ NTAPI
 MmLockPageableSectionByHandle(
     _In_ PVOID ImageSectionHandle)
 {
-    UNIMPLEMENTED_DBGBREAK();
+    static ULONG Warn = 0;
+
+    //UNIMPLEMENTED_DBGBREAK();
+
+    if (!Warn++)
+    {
+        UNIMPLEMENTED;
+    }
 }
 
 ULONG
