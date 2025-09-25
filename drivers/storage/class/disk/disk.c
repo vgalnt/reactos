@@ -3821,7 +3821,7 @@ Return Value:
 
               #ifdef REACTOS_NT5x
 
-                DPRINT1("DiskFdoProcessError: SET_FLAG DO_VERIFY_VOLUME (%X)\n", Fdo->Flags);
+                DPRINT("DiskFdoProcessError: SET_FLAG DO_VERIFY_VOLUME (%X)\n", Fdo->Flags);
 
                 if (fdoExtension->CommonExtension.ChildList)
                 {
@@ -3851,7 +3851,7 @@ Return Value:
             Data->CachedPartitionTableValid = FALSE;
 
             //ClassDebugPrint(0x10, "DiskIPT: Invalidating PT cache for FDO %#p\n", fdoExtension);
-            DPRINT1("DiskIPT: Invalidating PT cache for FDO %#p (%X)\n", fdoExtension, Result);
+            DPRINT("DiskIPT: Invalidating PT cache for FDO %#p (%X)\n", fdoExtension, Result);
 
             if (Result)
                 IoInvalidateDeviceRelations(fdoExtension->LowerPdo, BusRelations);
