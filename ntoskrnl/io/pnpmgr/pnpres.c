@@ -1256,6 +1256,9 @@ IopTranslateAndAdjustReqDesc(
             DPRINT1("Status %X NewIoDescCounters[ix] %p\n", Status, NewIoDescCounters[ix]);
             PipDumpIoResourceDescriptor(ioDescriptor, 0);
 
+            DPRINT1("Dumping Node: %p\n", DeviceNode);
+            PipDumpDeviceNodes(DeviceNode, 1+2+4+8, 0);
+
             NewIoDescCounters[ix] = 0;
             target[ix] = ioDescriptor;
             NumbersOfIoDescs++;
