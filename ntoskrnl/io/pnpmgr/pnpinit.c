@@ -2679,11 +2679,16 @@ Next:
 
     ExFreePoolWithTag(IopGroupTable, 'nipP');
 
-#if DBG
-    DPRINT("Dumping Nodes:\n");
-    PipDumpDeviceNodes(NULL, 1+2+4+8, 0);
-    DPRINT("\n");
-    //ASSERT(FALSE);
+#ifdef __REACTOS__
+  #if DBG
+    if (IsRosDbgFull)
+    {
+        DPRINT("Dumping Nodes:\n");
+        PipDumpDeviceNodes(NULL, 1+2+4+8, 0);
+        DPRINT("\n");
+        //ASSERT(FALSE);
+    }
+  #endif
 #endif
 
     DPRINT("IopInitializeBootDrivers: return TRUE\n");
