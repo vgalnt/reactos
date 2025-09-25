@@ -186,7 +186,7 @@ IopDisplayLoadingMessage(PUNICODE_STRING ServiceName)
     {
         bWarnedOnce++;
 
-        snprintf(TextBuffer, sizeof(TextBuffer), "Loading drivers path: %s%s""system32\\drivers\\\r\n\r\n",
+        snprintf(TextBuffer, sizeof(TextBuffer), "Load path: %s%s""system32\\drivers\\\r\n\r\n",
                  KeLoaderBlock->ArcBootDeviceName, KeLoaderBlock->NtBootPathName);
 
         HalDisplayString(TextBuffer);
