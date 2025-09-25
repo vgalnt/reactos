@@ -7540,7 +7540,7 @@ RegOpcodeHandler(
     {
         if (Term->CallBack && Handler)
         {
-            DPRINT1("AMLIRegEventHandler: opcode or opcode class already has a handler\n");
+            DPRINT1("RegOpcodeHandler: opcode or opcode class already has a handler\n");
             ASSERT(FALSE);
             Status = STATUS_ACPI_HANDLER_COLLISION;
         }
@@ -7553,7 +7553,7 @@ RegOpcodeHandler(
     }
     else
     {
-        DPRINT1("AMLIRegEventHandler: either invalid opcode or opcode does not allow callback\n");
+        DPRINT1("RegOpcodeHandler: either invalid opcode or opcode does not allow callback\n");
         ASSERT(FALSE);
         Status = STATUS_ACPI_REG_HANDLER_FAILED;
     }
@@ -11147,7 +11147,7 @@ ParseArgObj(
     }
     else
     {
-        DPRINT1("ParseOpcode: Arg%d does not exist\n", ix);
+        DPRINT1("ParseArgObj: Arg%d does not exist\n", ix);
         ASSERT(FALSE);
         Status = STATUS_ACPI_INVALID_ARGUMENT;
     }
