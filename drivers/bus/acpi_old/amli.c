@@ -4855,10 +4855,10 @@ NTSTATUS __cdecl ExprOp1(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT
             DPRINT("Not(Value %X)\n", TermContext->DataArgs->DataValue);
             giIndent++;
 
-            Value = (ULONG)TermContext->DataArgs->DataValue;
+            Result = ~(ULONG)TermContext->DataArgs->DataValue;
 
             giIndent--;
-            DPRINT("Not 0, Result %X\n", ~Value);
+            DPRINT("Not 0, Result %X\n", Result);
             break;
 
         case 0x81:
