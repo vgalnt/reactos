@@ -668,6 +668,12 @@ extern ULONG TraceDataBufferPosition;
   extern ULONG KdpStubCounter;
 #endif
 
+#ifdef __REACTOS__
+  #if DBG
+    extern BOOLEAN IsRosDbgFull;
+  #endif
+#endif
+
 //
 // Debug Filter Component Table
 //

@@ -539,6 +539,13 @@ KdInitSystem(
                     }
                 }
 
+              #ifdef __REACTOS__
+                #if DBG
+                  if ((strstr(CommandLine, "ROS_DBG_FULL")) != NULL)
+                      IsRosDbgFull = TRUE;
+                #endif
+              #endif
+
               #if DBG_KD0
                 if ((strstr(CommandLine, "NET")) != NULL)
                     PatchKdStub(LoaderBlock);

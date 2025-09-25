@@ -549,6 +549,12 @@ ULONG KdComponentTableSize = RTL_NUMBER_OF(KdComponentTable);
 LIST_ENTRY KdpDebuggerDataListHead;
 KSPIN_LOCK KdpDataSpinLock;
 
+#ifdef __REACTOS__
+  #if DBG
+    BOOLEAN IsRosDbgFull = FALSE;
+  #endif
+#endif
+
 //
 // Debugger Version and Data Block
 //
