@@ -7321,7 +7321,7 @@ EvalPackageElement(
     else
     {
         DPRINT1("EvalPackageElement: STATUS_ACPI_INVALID_INDEX (%X, %X)\n", Index, PackageObject->Elements);
-        ASSERT(FALSE);
+        //ASSERT(FALSE);
         Status = STATUS_ACPI_INVALID_INDEX;
     }
 
