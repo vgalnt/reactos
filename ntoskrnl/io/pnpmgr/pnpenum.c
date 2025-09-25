@@ -4246,7 +4246,7 @@ PipProcessStartPhase2(
 
     if (!NT_SUCCESS(CompletionStatus))
     {
-        DPRINT1("PipProcessStartPhase2: CompletionStatus %X\n", CompletionStatus);
+        DPRINT1("PipProcessStartPhase2: [%p] '%wZ' '%wZ' (%X)\n", DeviceNode, &DeviceNode->InstancePath, &DeviceNode->ServiceName, CompletionStatus);
 
         DeviceNode->DebugStatus = DeviceNode->CompletionStatus;
 
