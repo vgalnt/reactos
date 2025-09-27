@@ -1188,11 +1188,12 @@ IopTranslateAndAdjustReqDesc(
     PIO_RESOURCE_DESCRIPTOR Descriptor;
     PULONG NewIoDescCounters;
     ULONG NumbersOfIoDescs = 0;
+    ULONG Size;
     ULONG ix;
     NTSTATUS OutStatus = STATUS_SUCCESS;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     BOOLEAN IsTranslate = FALSE;
-#if 1
+#if DBG
     PDEVICE_NODE DeviceNode;
 
     ASSERT(ReqDescriptor->ReqEntry.PhysicalDevice);
@@ -1213,16 +1214,18 @@ IopTranslateAndAdjustReqDesc(
 
     *OutReqDesc = NULL;
 
-    target = ExAllocatePoolWithTag(PagedPool, (4 * ReqDescriptor->ReqEntry.Count), 'erpP');
+    Size = (sizeof(PIO_RESOURCE_DESCRIPTOR) * ReqDescriptor->ReqEntry.Count);
+
+    target = ExAllocatePoolWithTag(PagedPool, Size, 'erpP');
     if (!target)
     {
         DPRINT1("IopTranslateAndAdjustReqDesc: STATUS_INSUFFICIENT_RESOURCES\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
     DPRINT("IopTranslateAndAdjustReqDesc: target %p\n", target);
-    RtlZeroMemory(target, (4 * ReqDescriptor->ReqEntry.Count));
+    RtlZeroMemory(target, Size);
 
-    NewIoDescCounters = ExAllocatePoolWithTag(PagedPool, (4 * ReqDescriptor->ReqEntry.Count), 'erpP');
+    NewIoDescCounters = ExAllocatePoolWithTag(PagedPool, Size, 'erpP');
     if (!NewIoDescCounters)
     {
         DPRINT1("IopTranslateAndAdjustReqDesc: STATUS_INSUFFICIENT_RESOURCES\n");
@@ -1230,7 +1233,7 @@ IopTranslateAndAdjustReqDesc(
         return STATUS_INSUFFICIENT_RESOURCES;
     }
     DPRINT("IopTranslateAndAdjustReqDesc: NewIoDescCounters %p\n", NewIoDescCounters);
-    RtlZeroMemory(NewIoDescCounters, (4 * ReqDescriptor->ReqEntry.Count));
+    RtlZeroMemory(NewIoDescCounters, Size);
 
     ioDescriptor = ReqDescriptor->ReqEntry.IoDescriptor;
 
@@ -1247,21 +1250,37 @@ IopTranslateAndAdjustReqDesc(
         {
             NumbersOfIoDescs += NewIoDescCounters[ix];
             IsTranslate = TRUE;
-            //DPRINT1("TranslateResourceRequirements ret ok\n", DeviceNode->InstancePath.Buffer);
-            PipDumpIoResourceDescriptor(ioDescriptor, 0);
+
+        #ifdef __REACTOS__
+          #if DBG
+            if (IsRosDbgFull)
+            {
+                DPRINT("TranslateResourceRequirements ret ok\n", DeviceNode->InstancePath.Buffer);
+                PipDumpIoResourceDescriptor(ioDescriptor, 0);
+            }
+          #endif
+        #endif
         }
         else
         {
-            DPRINT1("Translator failed to adjust resreqlist for %S\n", DeviceNode->InstancePath.Buffer);
-            DPRINT1("Status %X NewIoDescCounters[ix] %p\n", Status, NewIoDescCounters[ix]);
-            PipDumpIoResourceDescriptor(ioDescriptor, 0);
-
-            DPRINT1("Dumping Node: %p\n", DeviceNode);
-            PipDumpDeviceNodes(DeviceNode, 1+2+4+8, 0);
-
             NewIoDescCounters[ix] = 0;
             target[ix] = ioDescriptor;
             NumbersOfIoDescs++;
+
+            DPRINT1("Translator failed to adjust resreqlist for %S\n", DeviceNode->InstancePath.Buffer);
+            DPRINT1("Status %X, NewIoDescCounters[%X] %X\n", Status, ix, NewIoDescCounters[ix]);
+
+        #ifdef __REACTOS__
+          #if DBG
+            if (IsRosDbgFull)
+            {
+                PipDumpIoResourceDescriptor(ioDescriptor, 0);
+
+                DPRINT1("Dumping Node: %p\n", DeviceNode);
+                PipDumpDeviceNodes(DeviceNode, 1+2+4+8, 0);
+            }
+          #endif
+        #endif
         }
 
         if (NT_SUCCESS(Status) && OutStatus != STATUS_TRANSLATION_COMPLETE)
@@ -1308,8 +1327,18 @@ IopTranslateAndAdjustReqDesc(
     Res->pCmDescriptor = &NewReqResDescs->ReqEntry.CmDescriptor;
     InitializeListHead(&Res->Link);
 
-    if (ReqDescriptor->ReqEntry.Count == 0)
-        ASSERT(FALSE); // IoDbgBreakPointEx();
+#ifdef __REACTOS__
+  #if DBG
+    if (IsRosDbgFull)
+    {
+        if (ReqDescriptor->ReqEntry.Count == 0)
+        {
+            DPRINT1("IopTranslateAndAdjustReqDesc: ReqDescriptor->ReqEntry.Count == 0 (%p, %p)\n", ReqDescriptor, ReqDescriptor->ReqEntry.PhysicalDevice);
+            DbgBreakPoint();
+        }
+    }
+  #endif
+#endif
 
     Descriptor = ReqDescriptor->ReqEntry.IoDescriptor;
 
@@ -1364,74 +1393,73 @@ IopTranslateAndAdjustReqDesc(
         NewIoDescriptors++;
     }
 
-    Descriptor = NewReqResDescs->ReqEntry.IoDescriptor;
-
-    if (Descriptor->Option & IO_RESOURCE_ALTERNATIVE)
+#ifdef __REACTOS__
+  #if DBG
+    if (IsRosDbgFull)
     {
-        PDEVICE_NODE DeviceNode = NULL;
+        Descriptor = NewReqResDescs->ReqEntry.IoDescriptor;
 
-        if (ReqDescriptor->ReqEntry.PhysicalDevice)
+        //ASSERT((Descriptor->Option & IO_RESOURCE_ALTERNATIVE) == 0);
+        if (Descriptor->Option & IO_RESOURCE_ALTERNATIVE)
         {
-            DeviceNode = IopGetDeviceNode(ReqDescriptor->ReqEntry.PhysicalDevice);
-            ASSERT(DeviceNode);
+            PDEVICE_NODE DeviceNode = NULL;
+
+            if (ReqDescriptor->ReqEntry.PhysicalDevice)
+            {
+                DeviceNode = IopGetDeviceNode(ReqDescriptor->ReqEntry.PhysicalDevice);
+                ASSERT(DeviceNode);
+            }
+
+            DPRINT1("IopTranslateAndAdjustReqDesc: Pdo %X, Node %X Descriptor %X\n", ReqDescriptor->ReqEntry.PhysicalDevice, DeviceNode, Descriptor);
+            PipDumpIoResourceDescriptor(Descriptor, 0);
+
+            if (DeviceNode)
+            {
+                DPRINT1("IopTranslateAndAdjustReqDesc: Dumping Node '%wZ' '%wZ'\n", &DeviceNode->InstancePath, &DeviceNode->ServiceName);
+                PipDumpDeviceNodes(NULL, 1+2+4+8, 0); // !devnode from WinDbg
+                DPRINT1("\n");
+                DbgBreakPoint();
+            }
+            else
+            {
+                DbgBreakPoint();
+            }
         }
 
-        DPRINT1("IopTranslateAndAdjustReqDesc: Pdo %X, Node %X Descriptor %X\n", ReqDescriptor->ReqEntry.PhysicalDevice, DeviceNode, Descriptor);
-        DPRINT1("IopTranslateAndAdjustReqDesc: '%wZ' '%wZ'\n", &DeviceNode->InstancePath, &DeviceNode->ServiceName);
-        PipDumpIoResourceDescriptor(Descriptor, 0);
+        Descriptor++;
 
-        if (DeviceNode)
+        for (ix = 1; ix < NumbersOfIoDescs; ix++, Descriptor++)
         {
-          #if DBG
-            DPRINT1("Dumping Node:\n");
-            PipDumpDeviceNodes(NULL, 1+2+4+8, 0); // !devnode from WinDbg
-            DPRINT1("\n");
-            DbgBreakPoint(); // IoDbgBreakPointEx();
-          #endif
-        }
-        else
-        {
-            DbgBreakPoint(); // IoDbgBreakPointEx();
-        }
+            PDEVICE_NODE DeviceNode = NULL;
 
-        DbgBreakPoint(); // IoDbgBreakPointEx(); // ASSERT(!(Descriptor->Option & IO_RESOURCE_ALTERNATIVE));
+            //ASSERT(Descriptor->Option & IO_RESOURCE_ALTERNATIVE);
+            if ((Descriptor->Option & IO_RESOURCE_ALTERNATIVE) != 0)
+                continue;
+
+            if (ReqDescriptor->ReqEntry.PhysicalDevice)
+            {
+                DeviceNode = IopGetDeviceNode(ReqDescriptor->ReqEntry.PhysicalDevice);
+                ASSERT(DeviceNode);
+            }
+
+            DPRINT1("IopTranslateAndAdjustReqDesc: Pdo %X, Node %X Descriptor %X\n", ReqDescriptor->ReqEntry.PhysicalDevice, DeviceNode, Descriptor);
+            PipDumpIoResourceDescriptor(Descriptor, 0);
+
+            if (DeviceNode)
+            {
+                DPRINT1("IopTranslateAndAdjustReqDesc: Dumping Node '%wZ' '%wZ'\n", &DeviceNode->InstancePath, &DeviceNode->ServiceName);
+                PipDumpDeviceNodes(NULL, 1+2+4+8, 0); // !devnode from WinDbg
+                DPRINT1("\n");
+                DbgBreakPoint();
+            }
+            else
+            {
+                DbgBreakPoint();
+            }
+        }
     }
-
-    Descriptor++;
-
-    for (ix = 1; ix < NumbersOfIoDescs; ix++, Descriptor++)
-    {
-        PDEVICE_NODE DeviceNode = NULL;
-
-        if ((Descriptor->Option & IO_RESOURCE_ALTERNATIVE) != 0)
-            continue;
-
-        if (ReqDescriptor->ReqEntry.PhysicalDevice)
-        {
-            DeviceNode = IopGetDeviceNode(ReqDescriptor->ReqEntry.PhysicalDevice);
-            ASSERT(DeviceNode);
-        }
-
-        DPRINT1("IopTranslateAndAdjustReqDesc: Pdo %X, Node %X Descriptor %X\n", ReqDescriptor->ReqEntry.PhysicalDevice, DeviceNode, Descriptor);
-        DPRINT1("IopTranslateAndAdjustReqDesc: '%wZ' '%wZ'\n", &DeviceNode->InstancePath, &DeviceNode->ServiceName);
-        PipDumpIoResourceDescriptor(Descriptor, 0);
-
-        if (DeviceNode)
-        {
-          #if DBG
-            DPRINT1("Dumping Node: %p\n", DeviceNode);
-            PipDumpDeviceNodes(DeviceNode, 1+2+4+8, 0);
-            DPRINT1("\n");
-            DbgBreakPoint(); // IoDbgBreakPointEx();
-          #endif
-        }
-        else
-        {
-            DbgBreakPoint(); // IoDbgBreakPointEx(); // ASSERT(DeviceNode);
-        }
-
-        DbgBreakPoint(); // IoDbgBreakPointEx(); // ASSERT(Descriptor->Option & IO_RESOURCE_ALTERNATIVE);
-    }
+  #endif
+#endif
 
     *OutReqDesc = NewReqResDescs;
 
