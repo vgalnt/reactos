@@ -1044,7 +1044,8 @@ PciReadDeviceCapability(
     _Out_ PPCI_CAPABILITIES_HEADER CapabilitiesHeader,
     _In_ ULONG Length)
 {
-    ULONG CapabilityCount = 0;
+    ULONG CapabilityCount;
+    UCHAR Result = 0;
 
     DPRINT("PciReadDeviceCapability: %p, %X, %X, %X\n", PdoExtension, Offset, CapabilityId, Length);
 
@@ -1058,11 +1059,26 @@ PciReadDeviceCapability(
     ASSERT(CapabilitiesHeader);
     ASSERT(Length >= sizeof(PCI_CAPABILITIES_HEADER));
 
+    CapabilityCount = 0;
+
     /* Loop all capabilities */
-    while (Offset)
+    while (TRUE)
     {
         /* Make sure the pointer is spec-aligned and spec-sized */
-        ASSERT((Offset >= PCI_COMMON_HDR_LENGTH) && ((Offset & 0x3) == 0));
+
+        if (Offset < 0x40)
+        {
+            DPRINT1("PciReadDeviceCapability: ret 0 (%p, %X, %X, %X)\n", PdoExtension, Offset, CapabilityId, Length);
+            //ASSERT((Offset >= PCI_COMMON_HDR_LENGTH) && ((Offset & 0x3) == 0));
+            break;
+        }
+
+        if (Offset & 3)
+        {
+            DPRINT1("PciReadDeviceCapability: ret 0 (%p, %X, %X, %X)\n", PdoExtension, Offset, CapabilityId, Length);
+            //ASSERT((Offset >= PCI_COMMON_HDR_LENGTH) && ((Offset & 0x3) == 0));
+            break;
+        }
 
         /* Read the capability header */
         PciReadDeviceConfig(PdoExtension, CapabilitiesHeader, Offset, sizeof(PCI_CAPABILITIES_HEADER));
@@ -1076,32 +1092,41 @@ PciReadDeviceCapability(
                 /* Sanity check */
                 ASSERT(Length <= (sizeof(PCI_COMMON_CONFIG) - Offset));
 
+                if (Length > (sizeof(PCI_COMMON_CONFIG) - Offset))
+                    Length = (sizeof(PCI_COMMON_CONFIG) - Offset);
+
                 /* Now read the whole capability data into the buffer */
                 PciReadDeviceConfig(PdoExtension,
-                                    Add2Ptr(CapabilitiesHeader, sizeof(PCI_CAPABILITIES_HEADER)),
+                                    Add2Ptr(CapabilitiesHeader, sizeof(*CapabilitiesHeader)),
                                     (Offset + sizeof(PCI_CAPABILITIES_HEADER)),
                                     (Length - sizeof(PCI_CAPABILITIES_HEADER)));
             }
 
             /* Return the offset where the capability was found */
-            return Offset;
+            Result = Offset;
+            break;
         }
 
         /* Try the next capability instead */
         CapabilityCount++;
-        Offset = CapabilitiesHeader->Next;
 
         /* There can't be more than 48 capabilities (256 bytes max) */
         if (CapabilityCount > 0x30)
         {
             /* Fail, since this is basically a broken PCI device */
             DPRINT1("PciReadDeviceCapability: PCI device %p capabilities list is broken.\n", PdoExtension);
-            return 0;
+            break;
+        }
+
+        Offset = CapabilitiesHeader->Next;
+        if (!Offset)
+        {
+            Result = 0;
+            break;
         }
     }
 
-    /* Capability wasn't found, fail */
-    return 0;
+    return Result;
 }
 
 BOOLEAN
