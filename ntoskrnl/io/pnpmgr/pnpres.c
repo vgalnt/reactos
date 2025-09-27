@@ -1308,11 +1308,12 @@ IopTranslateAndAdjustReqDesc(
     Res->pCmDescriptor = &NewReqResDescs->ReqEntry.CmDescriptor;
     InitializeListHead(&Res->Link);
 
-    Descriptor = ReqDescriptor->ReqEntry.IoDescriptor;
     if (ReqDescriptor->ReqEntry.Count == 0)
         ASSERT(FALSE); // IoDbgBreakPointEx();
 
-    for (ix = 0; ix < ReqDescriptor->ReqEntry.Count; ix++)
+    Descriptor = ReqDescriptor->ReqEntry.IoDescriptor;
+
+    for (ix = 0; ix < ReqDescriptor->ReqEntry.Count; ix++, Descriptor++)
     {
         if (NewIoDescCounters[ix])
         {
