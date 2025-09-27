@@ -1741,9 +1741,9 @@ PciGetEnhancedCapabilities(
     PCI_CAPABILITIES_HEADER AgpCapability;
     PCI_PM_CAPABILITY PowerCapabilities;
     DEVICE_POWER_STATE WakeLevel;
-    ULONG TargetAgpCapabilityId;
-    ULONG HeaderType;
-    ULONG CapPtr;
+    UCHAR TargetAgpCapabilityId;
+    UCHAR HeaderType;
+    UCHAR CapPtr;
     USHORT CommandEnables;
 
     PAGED_CODE();
@@ -1763,29 +1763,31 @@ PciGetEnhancedCapabilities(
 
     /* There's capabilities, need to figure out where to get the offset */
     HeaderType = PCI_CONFIGURATION_TYPE(PciData);
-    if (HeaderType == PCI_CARDBUS_BRIDGE_TYPE)
-    {
+
+    if (HeaderType == PCI_DEVICE_TYPE || HeaderType == PCI_BRIDGE_TYPE)
+        /* Use the device header */
+        CapPtr = PciData->u.type0.CapabilitiesPtr;
+    else if (HeaderType == PCI_CARDBUS_BRIDGE_TYPE)
         /* Use the bridge's header */
         CapPtr = PciData->u.type2.CapabilitiesPtr;
-    }
     else
+        CapPtr = 0;
+
+    if (CapPtr)
     {
-        /* Use the device header */
-        ASSERT(HeaderType <= PCI_CARDBUS_BRIDGE_TYPE);
-        CapPtr = PciData->u.type0.CapabilitiesPtr;
+        /* Skip garbage capabilities pointer */
+        if ((CapPtr & 0x3) || CapPtr < PCI_COMMON_HDR_LENGTH)
+        {
+            DPRINT1("PciGetEnhancedCapabilities: Device has garbage capabilities %X\n", CapPtr);
+            ASSERT(((CapPtr & 0x3) == 0) && (CapPtr >= PCI_COMMON_HDR_LENGTH));
+        }
+        else
+        {
+            PdoExtension->CapabilitiesPtr = CapPtr;
+        }
     }
 
-    /* Skip garbage capabilities pointer */
-    if ((CapPtr & 0x3) || CapPtr < PCI_COMMON_HDR_LENGTH)
-    {
-        /* Report no extended capabilities */
-        PdoExtension->CapabilitiesPtr = 0;
-        PdoExtension->HackFlags |= PCI_HACK_NO_PM_CAPS;
-        goto Finish;
-    }
-
-    DPRINT("PciGetEnhancedCapabilities: Device has capabilities %X\n", CapPtr);
-    PdoExtension->CapabilitiesPtr = CapPtr;
+    DPRINT("PciGetEnhancedCapabilities: Device has capabilities %X (%X)\n", PdoExtension->CapabilitiesPtr, CapPtr);
 
     /* Check for PCI-to-PCI Bridges and AGP bridges */
     if (PdoExtension->BaseClass == PCI_CLASS_BRIDGE_DEV &&
@@ -1804,7 +1806,7 @@ PciGetEnhancedCapabilities(
                                     sizeof(PCI_CAPABILITIES_HEADER)))
         {
             /* AGP target ID was found, store it */
-            DPRINT("PciGetEnhancedCapabilities: AGP ID %X\n", TargetAgpCapabilityId);
+            DPRINT1("PciGetEnhancedCapabilities: AGP ID %X\n", TargetAgpCapabilityId);
             PdoExtension->TargetAgpCapabilityId = TargetAgpCapabilityId;
         }
     }
@@ -1818,7 +1820,7 @@ PciGetEnhancedCapabilities(
                                  PdoExtension->CapabilitiesPtr,
                                  PCI_CAPABILITY_ID_POWER_MANAGEMENT,
                                  &PowerCapabilities.Header,
-                                 sizeof(PCI_PM_CAPABILITY)))
+                                 sizeof(PowerCapabilities)))
     {
         /* No power management, so act as if it had the hackflag set */
         DPRINT("PciGetEnhancedCapabilities: No PM caps, disabling PM\n");
