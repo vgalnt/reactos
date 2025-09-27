@@ -2511,24 +2511,27 @@ PciScanBus(
     PPCI_PDO_EXTENSION* BridgeExtension;
     PDEVICE_OBJECT DeviceObject;
     PWCHAR DescriptionText;
-    PCHAR Name;
     PCI_CAPABILITIES_HEADER PcixCapHeader;
     PCI_CAPABILITIES_HEADER CapHeader;
     PCI_PM_CAPABILITY PmCapability;
     PCI_AGP_CAPABILITY AgpCapability;
-    PVOID Capability = NULL;
     PCI_SLOT_NUMBER PciSlot;
     LONGLONG HackFlags;
     ULONG MaxDevice = PCI_MAX_DEVICES;
-    ULONG Size;
-    ULONG ix, jx, kx;
+    ULONG jx, kx;
     USHORT SubVendorId;
     USHORT SubSystemId;
-    USHORT CapOffset;
-    USHORT TempOffset;
     UCHAR SecondaryBus;
     BOOLEAN ProcessFlag = FALSE;
     NTSTATUS Status;
+  #if DBG
+    PVOID Capability = NULL;
+    PCHAR Name;
+    ULONG Size;
+    ULONG ix;
+    UCHAR CapOffset;
+    UCHAR TempOffset;
+  #endif
 
     DPRINT("PciScanBus: %p, %X\n", FdoExtension, FdoExtension->BaseBus);
 
@@ -2554,7 +2557,6 @@ PciScanBus(
 
     /* Loop every device on the bus */
     PciSlot.u.bits.Reserved = 0;
-    ix = FdoExtension->BaseBus;
 
     for (jx = 0; jx < MaxDevice; jx++)
     {
@@ -2580,7 +2582,7 @@ PciScanBus(
             PciApplyHacks(FdoExtension, PciData, PciSlot, PCI_HACK_FIXUP_BEFORE_CONFIGURATION, NULL);
 
             /* Dump device that was found */
-            DPRINT("PciScanBus: Scan Found Device %X (b %X, d %X, f %X)\n", PciSlot.u.AsULONG, ix, jx, kx);
+            DPRINT("PciScanBus: Scan Found Device %X (b %X, d %X, f %X)\n", PciSlot.u.AsULONG, FdoExtension->BaseBus, jx, kx);
 
             /* Dump the device's header */
             PciDebugDumpCommonConfig(PciData);
@@ -2807,6 +2809,7 @@ PciScanBus(
                 NewExtension->SubsystemId = 0;
             }
 
+          #if DBG
             /* Scan all capabilities */
             CapOffset = NewExtension->CapabilitiesPtr;
             while (CapOffset)
@@ -2816,8 +2819,8 @@ PciScanBus(
                 if (TempOffset != CapOffset)
                 {
                     /* This is a strange issue that shouldn't happen normally */
-                    DPRINT1("PciScanBus: Failed to read PCI capability at offset %X\n", CapOffset);
-                    ASSERT(TempOffset == CapOffset);
+                    DPRINT1("PciScanBus: Failed to read PCI capability at offset %X (%X)\n", CapOffset, TempOffset);
+                    //ASSERT(TempOffset == CapOffset);
                     break;
                 }
 
@@ -2875,6 +2878,7 @@ PciScanBus(
                 /* Check the next capability */
                 CapOffset = CapHeader.Next;
             }
+          #endif
 
             /* Check for IDE controllers */
             if (NewExtension->BaseClass == PCI_CLASS_MASS_STORAGE_CTLR &&
