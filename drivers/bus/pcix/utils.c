@@ -1040,7 +1040,7 @@ NTAPI
 PciReadDeviceCapability(
     _In_ PPCI_PDO_EXTENSION PdoExtension,
     _In_ UCHAR Offset,
-    _In_ ULONG CapabilityId,
+    _In_ UCHAR CapabilityId,
     _Out_ PPCI_CAPABILITIES_HEADER CapabilitiesHeader,
     _In_ ULONG Length)
 {

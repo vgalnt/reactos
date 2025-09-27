@@ -267,7 +267,7 @@ typedef struct _PCI_PDO_EXTENSION
     BOOLEAN AdjustedInterruptLine;
     BOOLEAN InterruptPin;
     BOOLEAN RawInterruptLine;
-    BOOLEAN CapabilitiesPtr;
+    UCHAR CapabilitiesPtr;
     BOOLEAN SavedLatencyTimer;
     BOOLEAN SavedCacheLineSize;
     BOOLEAN HeaderType;
@@ -1129,7 +1129,7 @@ NTAPI
 PciReadDeviceCapability(
     _In_ PPCI_PDO_EXTENSION DeviceExtension,
     _In_ UCHAR Offset,
-    _In_ ULONG CapabilityId,
+    _In_ UCHAR CapabilityId,
     _Out_ PPCI_CAPABILITIES_HEADER Buffer,
     _In_ ULONG Length
 );

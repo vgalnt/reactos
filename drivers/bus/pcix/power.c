@@ -282,7 +282,7 @@ PciSetPowerManagedDevicePowerState(
 {
     NTSTATUS Status;
     PCI_PM_CAPABILITY PmCaps;
-    ULONG CapsOffset;
+    UCHAR CapsOffset;
 
     DPRINT("PciSetPowerManagedDevicePowerState: %p, %X, %X\n", PdoExtension, DeviceState, IsSetIrp);
 
