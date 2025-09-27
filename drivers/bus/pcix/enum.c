@@ -1858,7 +1858,7 @@ PciGetEnhancedCapabilities(
 Finish:
 
     /* At the very end of all this, does this device not have power management? */
-    if (PdoExtension->HackFlags & PCI_HACK_NO_PM_CAPS)
+    if (!(PdoExtension->HackFlags & PCI_HACK_NO_PM_CAPS))
         return;
 
     /* Then guess the current state based on whether the decodes are on */
