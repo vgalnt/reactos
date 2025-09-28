@@ -261,16 +261,21 @@ USBSTOR_SelectConfigurationAndInterface(
     PURB Urb;
     PUSBD_INTERFACE_LIST_ENTRY InterfaceList;
 
-    Status = USBSTOR_ScanConfigurationDescriptor(DeviceExtension->ConfigurationDescriptor, &InterfaceDescriptor, &InEndpointDescriptor, &OutEndpointDescriptor);
+    Status = USBSTOR_ScanConfigurationDescriptor(DeviceExtension->ConfigurationDescriptor,
+                                                 &InterfaceDescriptor,
+                                                 &InEndpointDescriptor,
+                                                 &OutEndpointDescriptor);
     if (!NT_SUCCESS(Status))
     {
+        DPRINT1("USBSTOR_SelectConfigurationAndInterface: Status %x\n", Status);
         return Status;
     }
 
     // now allocate one interface entry and terminating null entry
-    InterfaceList = (PUSBD_INTERFACE_LIST_ENTRY)AllocateItem(PagedPool, sizeof(USBD_INTERFACE_LIST_ENTRY) * 2);
+    InterfaceList = AllocateItem(PagedPool, (2 * sizeof(USBD_INTERFACE_LIST_ENTRY)));
     if (!InterfaceList)
     {
+        DPRINT1("USBSTOR_SelectConfigurationAndInterface: STATUS_INSUFFICIENT_RESOURCES\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -281,10 +286,10 @@ USBSTOR_SelectConfigurationAndInterface(
     Urb = USBD_CreateConfigurationRequestEx(DeviceExtension->ConfigurationDescriptor, InterfaceList);
     if (!Urb)
     {
+        DPRINT1("USBSTOR_SelectConfigurationAndInterface: STATUS_INSUFFICIENT_RESOURCES\n");
         FreeItem(InterfaceList);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
-
 
     ASSERT(InterfaceList[0].Interface);
 
@@ -300,25 +305,34 @@ USBSTOR_SelectConfigurationAndInterface(
     }
 
     // backup interface information
-    DeviceExtension->InterfaceInformation = (PUSBD_INTERFACE_INFORMATION)AllocateItem(NonPagedPool, Urb->UrbSelectConfiguration.Interface.Length);
+    DeviceExtension->InterfaceInformation = AllocateItem(NonPagedPool, Urb->UrbSelectConfiguration.Interface.Length);
     if (!DeviceExtension->InterfaceInformation)
     {
+        DPRINT1("USBSTOR_SelectConfigurationAndInterface: STATUS_INSUFFICIENT_RESOURCES\n");
         FreeItem(InterfaceList);
         ExFreePoolWithTag(Urb, 0);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
     // copy interface information
-    RtlCopyMemory(DeviceExtension->InterfaceInformation, &Urb->UrbSelectConfiguration.Interface, Urb->UrbSelectConfiguration.Interface.Length);
+    RtlCopyMemory(DeviceExtension->InterfaceInformation,
+                  &Urb->UrbSelectConfiguration.Interface,
+                  Urb->UrbSelectConfiguration.Interface.Length);
 
     // store pipe handle
     DeviceExtension->ConfigurationHandle = Urb->UrbSelectConfiguration.ConfigurationHandle;
 
     // now prepare interface urb
-    UsbBuildSelectInterfaceRequest(Urb, GET_SELECT_INTERFACE_REQUEST_SIZE(InterfaceDescriptor->bNumEndpoints), DeviceExtension->ConfigurationHandle, InterfaceDescriptor->bInterfaceNumber, InterfaceDescriptor->bAlternateSetting);
+    UsbBuildSelectInterfaceRequest(Urb,
+                                   GET_SELECT_INTERFACE_REQUEST_SIZE(InterfaceDescriptor->bNumEndpoints),
+                                   DeviceExtension->ConfigurationHandle,
+                                   InterfaceDescriptor->bInterfaceNumber,
+                                   InterfaceDescriptor->bAlternateSetting);
 
     // copy interface information structure back - as offset for SelectConfiguration / SelectInterface request do differ
-    RtlCopyMemory(&Urb->UrbSelectInterface.Interface, DeviceExtension->InterfaceInformation, DeviceExtension->InterfaceInformation->Length);
+    RtlCopyMemory(&Urb->UrbSelectInterface.Interface,
+                  DeviceExtension->InterfaceInformation,
+                  DeviceExtension->InterfaceInformation->Length);
 
     // now select the interface
     Status = USBSTOR_SyncUrbRequest(DeviceExtension->LowerDeviceObject, Urb);
@@ -326,7 +340,9 @@ USBSTOR_SelectConfigurationAndInterface(
     {
         // update configuration info
         ASSERT(Urb->UrbSelectInterface.Interface.Length == DeviceExtension->InterfaceInformation->Length);
-        RtlCopyMemory(DeviceExtension->InterfaceInformation, &Urb->UrbSelectInterface.Interface, Urb->UrbSelectInterface.Interface.Length);
+        RtlCopyMemory(DeviceExtension->InterfaceInformation,
+                      &Urb->UrbSelectInterface.Interface,
+                      Urb->UrbSelectInterface.Interface.Length);
     }
 
     FreeItem(InterfaceList);
