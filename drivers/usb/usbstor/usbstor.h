@@ -345,8 +345,8 @@ USBSTOR_HandleExecuteSCSI(
 
 NTSTATUS
 USBSTOR_SendCSWRequest(
-    PFDO_DEVICE_EXTENSION FDODeviceExtension,
-    PIRP Irp);
+    _In_ PFDO_DEVICE_EXTENSION FDODeviceExtension,
+    _In_ PIRP Irp);
 
 NTSTATUS
 NTAPI

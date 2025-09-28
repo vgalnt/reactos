@@ -240,14 +240,30 @@ ResetRecovery:
 
 NTSTATUS
 USBSTOR_SendCSWRequest(
-    PFDO_DEVICE_EXTENSION FDODeviceExtension,
-    PIRP Irp)
+    _In_ PFDO_DEVICE_EXTENSION FDODeviceExtension,
+    _In_ PIRP Irp)
 {
+    ULONG TransferBufferLength;
+    ULONG TransferFlags;
+
+    DPRINT("USBSTOR_SendCSWRequest: %p, %p\n", FDODeviceExtension, Irp);
+
+    if (FDODeviceExtension->InterfaceInformation->Pipes[FDODeviceExtension->BulkInPipeIndex].MaximumPacketSize == 0x200)
+    {
+        TransferBufferLength = 0x200;
+        TransferFlags = USBD_SHORT_TRANSFER_OK;
+    }
+    else
+    {
+        TransferBufferLength = sizeof(CSW);
+        TransferFlags = 0;
+    }
+
     return USBSTOR_IssueBulkOrInterruptRequest(FDODeviceExtension,
                                                Irp,
                                                FDODeviceExtension->InterfaceInformation->Pipes[FDODeviceExtension->BulkInPipeIndex].PipeHandle,
-                                               USBD_TRANSFER_DIRECTION_IN,
-                                               sizeof(CSW),
+                                               TransferFlags,
+                                               TransferBufferLength,
                                                &FDODeviceExtension->CurrentIrpContext.csw,
                                                NULL,
                                                USBSTOR_CSWCompletionRoutine);
