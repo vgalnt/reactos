@@ -169,9 +169,61 @@ typedef struct _ERRORHANDLER_WORKITEM_DATA
     PIRP Irp;
 } ERRORHANDLER_WORKITEM_DATA, *PERRORHANDLER_WORKITEM_DATA;
 
+//---------------------------------------------------------------------
+// descriptor.c routines
+//
+NTSTATUS
+USBSTOR_GetDescriptors(
+    IN PDEVICE_OBJECT DeviceObject);
+
+NTSTATUS
+USBSTOR_SelectConfigurationAndInterface(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PFDO_DEVICE_EXTENSION DeviceExtension);
+
+NTSTATUS
+USBSTOR_GetPipeHandles(
+    IN PFDO_DEVICE_EXTENSION DeviceExtension);
 
 //---------------------------------------------------------------------
+// disk.c routines
 //
+NTSTATUS
+USBSTOR_HandleDeviceControl(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN PIRP Irp);
+
+//---------------------------------------------------------------------
+// error.c routines
+//
+NTSTATUS
+USBSTOR_GetEndpointStatus(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN UCHAR bEndpointAddress,
+    OUT PUSHORT Value);
+
+NTSTATUS
+USBSTOR_ResetPipeWithHandle(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN USBD_PIPE_HANDLE PipeHandle);
+
+VOID
+NTAPI
+USBSTOR_TimerRoutine(
+    PDEVICE_OBJECT DeviceObject,
+     PVOID Context);
+
+VOID
+NTAPI
+USBSTOR_QueueResetPipe(
+    IN PFDO_DEVICE_EXTENSION FDODeviceExtension);
+
+VOID
+NTAPI
+USBSTOR_QueueResetDevice(
+    IN PFDO_DEVICE_EXTENSION FDODeviceExtension);
+
+//---------------------------------------------------------------------
 // fdo.c routines
 //
 NTSTATUS
@@ -180,21 +232,6 @@ USBSTOR_FdoHandlePnp(
     IN OUT PIRP Irp);
 
 //---------------------------------------------------------------------
-//
-// pdo.c routines
-//
-NTSTATUS
-USBSTOR_PdoHandlePnp(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN OUT PIRP Irp);
-
-NTSTATUS
-USBSTOR_CreatePDO(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN UCHAR LUN);
-
-//---------------------------------------------------------------------
-//
 // misc.c routines
 //
 NTSTATUS
@@ -241,55 +278,19 @@ USBSTOR_ResetDevice(
     IN PFDO_DEVICE_EXTENSION DeviceExtension);
 
 //---------------------------------------------------------------------
+// pdo.c routines
 //
-// descriptor.c routines
-//
-
 NTSTATUS
-USBSTOR_GetDescriptors(
-    IN PDEVICE_OBJECT DeviceObject);
-
-NTSTATUS
-USBSTOR_SelectConfigurationAndInterface(
+USBSTOR_PdoHandlePnp(
     IN PDEVICE_OBJECT DeviceObject,
-    IN PFDO_DEVICE_EXTENSION DeviceExtension);
+    IN OUT PIRP Irp);
 
 NTSTATUS
-USBSTOR_GetPipeHandles(
-    IN PFDO_DEVICE_EXTENSION DeviceExtension);
+USBSTOR_CreatePDO(
+    IN PDEVICE_OBJECT DeviceObject,
+    IN UCHAR LUN);
 
 //---------------------------------------------------------------------
-//
-// scsi.c routines
-//
-NTSTATUS
-USBSTOR_HandleExecuteSCSI(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN PIRP Irp);
-
-NTSTATUS
-USBSTOR_SendCSWRequest(
-    PFDO_DEVICE_EXTENSION FDODeviceExtension,
-    PIRP Irp);
-
-NTSTATUS
-NTAPI
-USBSTOR_Scsi(
-    _In_ PDEVICE_OBJECT DeviceObject,
-    _In_ PIRP Irp
-);
-
-//---------------------------------------------------------------------
-//
-// disk.c routines
-//
-NTSTATUS
-USBSTOR_HandleDeviceControl(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN PIRP Irp);
-
-//---------------------------------------------------------------------
-//
 // queue.c routines
 //
 VOID
@@ -331,34 +332,23 @@ USBSTOR_QueueTerminateRequest(
     IN PIRP Irp);
 
 //---------------------------------------------------------------------
-//
-// error.c routines
+// scsi.c routines
 //
 NTSTATUS
-USBSTOR_GetEndpointStatus(
+USBSTOR_HandleExecuteSCSI(
     IN PDEVICE_OBJECT DeviceObject,
-    IN UCHAR bEndpointAddress,
-    OUT PUSHORT Value);
+    IN PIRP Irp);
 
 NTSTATUS
-USBSTOR_ResetPipeWithHandle(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN USBD_PIPE_HANDLE PipeHandle);
+USBSTOR_SendCSWRequest(
+    PFDO_DEVICE_EXTENSION FDODeviceExtension,
+    PIRP Irp);
 
-VOID
+NTSTATUS
 NTAPI
-USBSTOR_TimerRoutine(
-    PDEVICE_OBJECT DeviceObject,
-     PVOID Context);
-
-VOID
-NTAPI
-USBSTOR_QueueResetPipe(
-    IN PFDO_DEVICE_EXTENSION FDODeviceExtension);
-
-VOID
-NTAPI
-USBSTOR_QueueResetDevice(
-    IN PFDO_DEVICE_EXTENSION FDODeviceExtension);
+USBSTOR_Scsi(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp
+);
 
 #endif // _USBSTOR_H_
