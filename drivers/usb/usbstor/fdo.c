@@ -151,23 +151,21 @@ USBSTOR_FdoHandleStartDevice(
     PUSB_INTERFACE_DESCRIPTOR InterfaceDesc;
     NTSTATUS Status;
     UCHAR Index = 0;
-    PIO_WORKITEM WorkItem;
 
     // forward irp to lower device
     Status = USBSTOR_SyncForwardIrp(DeviceExtension->LowerDeviceObject, Irp);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("USBSTOR_FdoHandleStartDevice Lower device failed to start %x\n", Status);
+        DPRINT1("USBSTOR_FdoHandleStartDevice: Lower device failed to start %x\n", Status);
         return Status;
     }
 
     if (!DeviceExtension->ResetDeviceWorkItem)
     {
-        WorkItem = IoAllocateWorkItem(DeviceObject);
-        DeviceExtension->ResetDeviceWorkItem = WorkItem;
-
-        if (!WorkItem)
+        DeviceExtension->ResetDeviceWorkItem = IoAllocateWorkItem(DeviceObject);
+        if (!DeviceExtension->ResetDeviceWorkItem)
         {
+            DPRINT1("USBSTOR_FdoHandleStartDevice: STATUS_INSUFFICIENT_RESOURCES\n");
             return STATUS_INSUFFICIENT_RESOURCES;
         }
     }
@@ -179,7 +177,7 @@ USBSTOR_FdoHandleStartDevice(
     Status = USBSTOR_GetDescriptors(DeviceObject);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("USBSTOR_FdoHandleStartDevice failed to get device descriptor with %x\n", Status);
+        DPRINT1("USBSTOR_FdoHandleStartDevice: failed to get device descriptor with %x\n", Status);
         return Status;
     }
 
@@ -190,19 +188,21 @@ USBSTOR_FdoHandleStartDevice(
     // Check that this device uses bulk transfers and is SCSI
 
     InterfaceDesc = (PUSB_INTERFACE_DESCRIPTOR)((ULONG_PTR)DeviceExtension->ConfigurationDescriptor + sizeof(USB_CONFIGURATION_DESCRIPTOR));
+
     ASSERT(InterfaceDesc->bDescriptorType == USB_INTERFACE_DESCRIPTOR_TYPE);
     ASSERT(InterfaceDesc->bLength == sizeof(USB_INTERFACE_DESCRIPTOR));
 
-    DPRINT("bInterfaceSubClass %x\n", InterfaceDesc->bInterfaceSubClass);
+    DPRINT("USBSTOR_FdoHandleStartDevice: bInterfaceSubClass %x\n", InterfaceDesc->bInterfaceSubClass);
+
     if (InterfaceDesc->bInterfaceProtocol != USB_PROTOCOL_BULK)
     {
-        DPRINT1("USB Device is not a bulk only device and is not currently supported\n");
+        DPRINT1("USBSTOR_FdoHandleStartDevice: USB Device is not a bulk only device and is not currently supported\n");
         return STATUS_NOT_SUPPORTED;
     }
 
     if (InterfaceDesc->bInterfaceSubClass == USB_SUBCLASS_UFI)
     {
-        DPRINT1("USB Floppy devices are not supported\n");
+        DPRINT1("USBSTOR_FdoHandleStartDevice: USB Floppy devices are not supported\n");
         return STATUS_NOT_SUPPORTED;
     }
 
@@ -211,7 +211,7 @@ USBSTOR_FdoHandleStartDevice(
     if (!NT_SUCCESS(Status))
     {
         // failed to get device descriptor
-        DPRINT1("USBSTOR_FdoHandleStartDevice failed to select configuration / interface with %x\n", Status);
+        DPRINT1("USBSTOR_FdoHandleStartDevice: failed to select configuration / interface with %x\n", Status);
         return Status;
     }
 
@@ -219,14 +219,14 @@ USBSTOR_FdoHandleStartDevice(
     Status = USBSTOR_GetPipeHandles(DeviceExtension);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("USBSTOR_FdoHandleStartDevice no pipe handles %x\n", Status);
+        DPRINT1("USBSTOR_FdoHandleStartDevice: no pipe handles %x\n", Status);
         return Status;
     }
 
     Status = USBSTOR_GetMaxLUN(DeviceExtension->LowerDeviceObject, DeviceExtension);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("USBSTOR_FdoHandleStartDevice failed to get max lun %x\n", Status);
+        DPRINT1("USBSTOR_FdoHandleStartDevice: failed to get max lun %x\n", Status);
         return Status;
     }
 
@@ -234,17 +234,17 @@ USBSTOR_FdoHandleStartDevice(
     do
     {
         Status = USBSTOR_CreatePDO(DeviceObject, Index);
-
         if (!NT_SUCCESS(Status))
         {
-            DPRINT1("USBSTOR_FdoHandleStartDevice USBSTOR_CreatePDO failed for Index %lu with Status %x\n", Index, Status);
+            DPRINT1("USBSTOR_FdoHandleStartDevice: USBSTOR_CreatePDO failed for Index %lu with Status %x\n", Index, Status);
             return Status;
         }
 
         Index++;
         DeviceExtension->InstanceCount++;
 
-    } while(Index < DeviceExtension->MaxLUN);
+    }
+    while (Index < DeviceExtension->MaxLUN);
 
 #if 0
     //
@@ -256,14 +256,14 @@ USBSTOR_FdoHandleStartDevice(
         //
         // failed to device interface
         //
-        DPRINT1("USBSTOR_FdoHandleStartDevice failed to get device interface %x\n", Status);
+        DPRINT1("USBSTOR_FdoHandleStartDevice: failed to get device interface %x\n", Status);
         return Status;
     }
 #endif
 
     //IoStartTimer(DeviceObject);
 
-    DPRINT("USBSTOR_FdoHandleStartDevice FDO is initialized\n");
+    DPRINT("USBSTOR_FdoHandleStartDevice: FDO is initialized\n");
     return STATUS_SUCCESS;
 }
 
