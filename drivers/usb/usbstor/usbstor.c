@@ -98,15 +98,6 @@ USBSTOR_DispatchDeviceControl(
 
 NTSTATUS
 NTAPI
-USBSTOR_DispatchScsi(
-    PDEVICE_OBJECT DeviceObject,
-    PIRP Irp)
-{
-    return USBSTOR_HandleInternalDeviceControl(DeviceObject, Irp);
-}
-
-NTSTATUS
-NTAPI
 USBSTOR_DispatchReadWrite(
     PDEVICE_OBJECT DeviceObject,
     PIRP Irp)
@@ -200,7 +191,7 @@ DriverEntry(
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = USBSTOR_DispatchDeviceControl; // scsi pass through requests
     DriverObject->MajorFunction[IRP_MJ_READ] = USBSTOR_DispatchReadWrite;
     DriverObject->MajorFunction[IRP_MJ_WRITE] = USBSTOR_DispatchReadWrite;
-    DriverObject->MajorFunction[IRP_MJ_SCSI] = USBSTOR_DispatchScsi;
+    DriverObject->MajorFunction[IRP_MJ_SCSI] = USBSTOR_Scsi;
     DriverObject->MajorFunction[IRP_MJ_PNP] = USBSTOR_DispatchPnp;
     DriverObject->MajorFunction[IRP_MJ_SYSTEM_CONTROL] = USBSTOR_DispatchSystemControl;
     DriverObject->MajorFunction[IRP_MJ_POWER] = USBSTOR_DispatchPower;

@@ -272,16 +272,17 @@ USBSTOR_SendCSWRequest(
     PFDO_DEVICE_EXTENSION FDODeviceExtension,
     PIRP Irp);
 
+NTSTATUS
+NTAPI
+USBSTOR_Scsi(
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PIRP Irp
+);
 
 //---------------------------------------------------------------------
 //
 // disk.c routines
 //
-NTSTATUS
-USBSTOR_HandleInternalDeviceControl(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN PIRP Irp);
-
 NTSTATUS
 USBSTOR_HandleDeviceControl(
     IN PDEVICE_OBJECT DeviceObject,
