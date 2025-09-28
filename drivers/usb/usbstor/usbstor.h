@@ -17,6 +17,10 @@
 #define SrbGetCdb(srb) ((PCDB)(srb->Cdb))
 #endif
 
+#ifndef Add2Ptr
+  #define Add2Ptr(P,I) ((PVOID)((PUCHAR)(P) + (I)))
+#endif
+
 // Storage subclass codes
 
 #define USB_SUBCLASS_RBC        0x01    // Typically, flash devices

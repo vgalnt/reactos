@@ -53,7 +53,7 @@ USBSTOR_FdoHandleDeviceRelations(
     if (IoStack->Parameters.QueryDeviceRelations.Type == BusRelations)
     {
         // go through array and count device objects
-        for (Index = 0; Index < max(DeviceExtension->MaxLUN, 1); Index++)
+        for (Index = 0; Index <= DeviceExtension->MaxLUN; Index++)
         {
             if (DeviceExtension->ChildPDO[Index])
             {
@@ -61,7 +61,9 @@ USBSTOR_FdoHandleDeviceRelations(
             }
         }
 
-        DeviceRelations = ExAllocatePoolWithTag(PagedPool, sizeof(DEVICE_RELATIONS) + (DeviceCount - 1) * sizeof(PDEVICE_OBJECT), USB_STOR_TAG);
+        DeviceRelations = ExAllocatePoolWithTag(PagedPool,
+                                                sizeof(DEVICE_RELATIONS) + (DeviceCount - 1) * sizeof(PDEVICE_OBJECT),
+                                                USB_STOR_TAG);
         if (!DeviceRelations)
         {
             Irp->IoStatus.Information = 0;
@@ -73,7 +75,7 @@ USBSTOR_FdoHandleDeviceRelations(
         DeviceRelations->Count = 0;
 
         // add device objects
-        for (Index = 0; Index < max(DeviceExtension->MaxLUN, 1); Index++)
+        for (Index = 0; Index <= DeviceExtension->MaxLUN; Index++)
         {
             if (DeviceExtension->ChildPDO[Index])
             {
@@ -187,7 +189,7 @@ USBSTOR_FdoHandleStartDevice(
 
     // Check that this device uses bulk transfers and is SCSI
 
-    InterfaceDesc = (PUSB_INTERFACE_DESCRIPTOR)((ULONG_PTR)DeviceExtension->ConfigurationDescriptor + sizeof(USB_CONFIGURATION_DESCRIPTOR));
+    InterfaceDesc = Add2Ptr(DeviceExtension->ConfigurationDescriptor, sizeof(USB_CONFIGURATION_DESCRIPTOR));
 
     ASSERT(InterfaceDesc->bDescriptorType == USB_INTERFACE_DESCRIPTOR_TYPE);
     ASSERT(InterfaceDesc->bLength == sizeof(USB_INTERFACE_DESCRIPTOR));
@@ -223,15 +225,27 @@ USBSTOR_FdoHandleStartDevice(
         return Status;
     }
 
-    Status = USBSTOR_GetMaxLUN(DeviceExtension->LowerDeviceObject, DeviceExtension);
-    if (!NT_SUCCESS(Status))
+    if (InterfaceDesc->bInterfaceClass == USB_DEVICE_CLASS_STORAGE)
     {
-        DPRINT1("USBSTOR_FdoHandleStartDevice: failed to get max lun %x\n", Status);
-        return Status;
+        Status = USBSTOR_GetMaxLUN(DeviceExtension->LowerDeviceObject, DeviceExtension);
+
+        if (NT_SUCCESS(Status))
+        {
+            DPRINT1("USBSTOR_FdoHandleStartDevice: GetMaxLun returned %X\n", DeviceExtension->MaxLUN);
+            if (!DeviceExtension->SerialNumber)
+            {
+                DPRINT1("USBSTOR_FdoHandleStartDevice: Multiple Lun but no SerialNumber!\n");
+                DeviceExtension->MaxLUN = 0;
+            }
+        }
+        else
+        {
+            DPRINT1("USBSTOR_FdoHandleStartDevice: failed to get max lun %x\n", Status);
+        }
     }
 
-    // now create for each LUN a device object, 1 minimum
-    do
+    /* now create for each LUN a device object, 1 minimum */
+    for (Index = 0; Index <= DeviceExtension->MaxLUN; Index++)
     {
         Status = USBSTOR_CreatePDO(DeviceObject, Index);
         if (!NT_SUCCESS(Status))
@@ -239,12 +253,7 @@ USBSTOR_FdoHandleStartDevice(
             DPRINT1("USBSTOR_FdoHandleStartDevice: USBSTOR_CreatePDO failed for Index %lu with Status %x\n", Index, Status);
             return Status;
         }
-
-        Index++;
-        DeviceExtension->InstanceCount++;
-
     }
-    while (Index < DeviceExtension->MaxLUN);
 
 #if 0
     //
