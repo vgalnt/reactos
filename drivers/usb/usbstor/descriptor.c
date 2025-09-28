@@ -281,6 +281,10 @@ USBSTOR_SelectConfigurationAndInterface(
 
     // initialize interface list entry
     InterfaceList[0].InterfaceDescriptor = InterfaceDescriptor;
+    InterfaceList[1].InterfaceDescriptor = NULL;
+
+    DeviceExtension->ConfigurationDescriptor->bNumInterfaces = 1;
+
 
     // now allocate the urb
     Urb = USBD_CreateConfigurationRequestEx(DeviceExtension->ConfigurationDescriptor, InterfaceList);
