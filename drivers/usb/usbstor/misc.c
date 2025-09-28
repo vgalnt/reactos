@@ -220,47 +220,98 @@ USBSTOR_ClassRequest(
 
 NTSTATUS
 USBSTOR_GetMaxLUN(
-    IN PDEVICE_OBJECT DeviceObject,
-    IN PFDO_DEVICE_EXTENSION DeviceExtension)
+    _In_ PDEVICE_OBJECT DeviceObject,
+    _In_ PFDO_DEVICE_EXTENSION DeviceExtension)
 {
     PUCHAR Buffer;
+    PURB Urb;
+    ULONG ix;
     NTSTATUS Status;
 
-    Buffer = (PUCHAR)ExAllocatePoolWithTag(NonPagedPool, sizeof(UCHAR), USB_STOR_TAG);
-    if (!Buffer)
+    DPRINT("USBSTOR_GetMaxLUN: %p, %p\n", DeviceObject, DeviceExtension);
+
+    Urb = ExAllocatePoolWithTag(NonPagedPool, (sizeof(*Urb) + sizeof(*Buffer)), USB_STOR_TAG);
+    if (!Urb)
     {
-        return STATUS_INSUFFICIENT_RESOURCES;
+        DPRINT1("USBSTOR_GetMaxLUN: STATUS_INSUFFICIENT_RESOURCES\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Exit;
     }
 
-    Status = USBSTOR_ClassRequest(DeviceObject, DeviceExtension, USB_BULK_GET_MAX_LUN, DeviceExtension->InterfaceInformation->InterfaceNumber, USBD_TRANSFER_DIRECTION_IN, sizeof(UCHAR), Buffer);
+    Buffer = (PUCHAR)&Urb[1];
 
-    DPRINT("MaxLUN: %x\n", *Buffer);
-
-    if (NT_SUCCESS(Status))
+    for (ix = 0; ix < 2; ix++)
     {
-        if (*Buffer > MAX_LUN)
+        RtlZeroMemory(Urb, (sizeof(*Urb) + sizeof(*Buffer)));
+
+        Urb->UrbHeader.Length = sizeof(struct _URB_CONTROL_VENDOR_OR_CLASS_REQUEST);
+        Urb->UrbHeader.Function = URB_FUNCTION_CLASS_INTERFACE;
+
+        Urb->UrbControlVendorClassRequest.Request = USB_BULK_GET_MAX_LUN;
+        Urb->UrbControlVendorClassRequest.Index = DeviceExtension->InterfaceInformation->InterfaceNumber;
+
+        Urb->UrbControlVendorClassRequest.TransferFlags = USBD_TRANSFER_DIRECTION_IN;
+        Urb->UrbControlVendorClassRequest.TransferBuffer = Buffer;
+        Urb->UrbControlVendorClassRequest.TransferBufferLength = sizeof(*Buffer);
+
+        Status = USBSTOR_SyncUrbRequest(DeviceObject, Urb);
+        if (!NT_SUCCESS(Status))
         {
-            // invalid response documented in usb mass storage specification
-            Status = STATUS_DEVICE_DATA_ERROR;
+            DPRINT1("USBSTOR_GetMaxLUN: Status %X\n", Status);
+
+            if (USBD_STATUS(Urb->UrbHeader.Status) == USBD_STATUS(USBD_STATUS_STALL_PID))
+            {
+                /* "USB Mass Storage Class. Bulk-Only Transport. Revision 1.0"
+                   3.2  Get Max LUN (class-specific request) :
+                   Devices that do not support multiple LUNs may STALL this command.
+                */
+
+                RtlZeroMemory(Urb, sizeof(*Urb));
+
+                Urb->UrbHeader.Length = sizeof(struct _URB_CONTROL_VENDOR_OR_CLASS_REQUEST);
+                Urb->UrbHeader.Function = URB_FUNCTION_CLEAR_FEATURE_TO_ENDPOINT;
+
+                Urb->UrbControlFeatureRequest.FeatureSelector = 0;
+
+                USBSTOR_SyncUrbRequest(DeviceObject, Urb);
+            }
+
+            continue;
         }
-        else
+
+        if (Urb->UrbControlVendorClassRequest.TransferBufferLength == 1)
         {
-            // store maxlun
-            DeviceExtension->MaxLUN = *Buffer;
+            if (*Buffer > 0xF)
+            {
+                DPRINT1("USBSTOR_GetMaxLUN: STATUS_DEVICE_DATA_ERROR (%X)\n", *Buffer);
+
+                /* invalid response documented in usb mass storage specification */
+                Status = STATUS_DEVICE_DATA_ERROR;
+            }
+            else
+            {
+                /* store maxlun */
+                DeviceExtension->MaxLUN = *Buffer;
+
+                if (DeviceExtension->MaxLUN)
+                {
+                    DPRINT("USBSTOR_GetMaxLUN: MaxLUN %X (%p)\n", *Buffer, DeviceObject);
+                }
+            }
+
+            break;
         }
-    }
-    else
-    {
-        // "USB Mass Storage Class. Bulk-Only Transport. Revision 1.0"
-        // 3.2  Get Max LUN (class-specific request) :
-        // Devices that do not support multiple LUNs may STALL this command.
-        USBSTOR_ResetDevice(DeviceExtension->LowerDeviceObject, DeviceExtension);
 
-        DeviceExtension->MaxLUN = 0;
-        Status = STATUS_SUCCESS;
+        DPRINT1("USBSTOR_GetMaxLUN: STATUS_DEVICE_DATA_ERROR\n");
+        Status = STATUS_DEVICE_DATA_ERROR;
     }
 
-    ExFreePoolWithTag(Buffer, USB_STOR_TAG);
+    ExFreePoolWithTag(Urb, USB_STOR_TAG);
+
+Exit:
+
+    DPRINT("USBSTOR_GetMaxLUN: ret %X\n", Status);
+
     return Status;
 }
 
