@@ -82,7 +82,12 @@ USBSTOR_GetDescriptors(
     DeviceExtension = (PFDO_DEVICE_EXTENSION)DeviceObject->DeviceExtension;
 
      // first get device descriptor
-     Status = USBSTOR_GetDescriptor(DeviceExtension->LowerDeviceObject, USB_DEVICE_DESCRIPTOR_TYPE, sizeof(USB_DEVICE_DESCRIPTOR), 0, 0, (PVOID*)&DeviceExtension->DeviceDescriptor);
+     Status = USBSTOR_GetDescriptor(DeviceExtension->LowerDeviceObject,
+                                    USB_DEVICE_DESCRIPTOR_TYPE,
+                                    sizeof(USB_DEVICE_DESCRIPTOR),
+                                    0,
+                                    0,
+                                    (PVOID*)&DeviceExtension->DeviceDescriptor);
      if (!NT_SUCCESS(Status))
      {
          DeviceExtension->DeviceDescriptor = NULL;
@@ -90,7 +95,12 @@ USBSTOR_GetDescriptors(
      }
 
      // now get basic configuration descriptor
-     Status = USBSTOR_GetDescriptor(DeviceExtension->LowerDeviceObject, USB_CONFIGURATION_DESCRIPTOR_TYPE, sizeof(USB_CONFIGURATION_DESCRIPTOR), 0, 0, (PVOID*)&DeviceExtension->ConfigurationDescriptor);
+     Status = USBSTOR_GetDescriptor(DeviceExtension->LowerDeviceObject,
+                                    USB_CONFIGURATION_DESCRIPTOR_TYPE,
+                                    sizeof(USB_CONFIGURATION_DESCRIPTOR),
+                                    0,
+                                    0,
+                                    (PVOID*)&DeviceExtension->ConfigurationDescriptor);
      if (!NT_SUCCESS(Status))
      {
          FreeItem(DeviceExtension->DeviceDescriptor);
@@ -106,7 +116,12 @@ USBSTOR_GetDescriptors(
      DeviceExtension->ConfigurationDescriptor = NULL;
 
      // allocate full descriptor
-     Status = USBSTOR_GetDescriptor(DeviceExtension->LowerDeviceObject, USB_CONFIGURATION_DESCRIPTOR_TYPE, DescriptorLength, 0, 0, (PVOID*)&DeviceExtension->ConfigurationDescriptor);
+     Status = USBSTOR_GetDescriptor(DeviceExtension->LowerDeviceObject,
+                                    USB_CONFIGURATION_DESCRIPTOR_TYPE,
+                                    DescriptorLength,
+                                    0,
+                                    0,
+                                    (PVOID*)&DeviceExtension->ConfigurationDescriptor);
      if (!NT_SUCCESS(Status))
      {
          FreeItem(DeviceExtension->DeviceDescriptor);
@@ -115,21 +130,26 @@ USBSTOR_GetDescriptors(
      }
 
      // check if there is a serial number provided
-     if (DeviceExtension->DeviceDescriptor->iSerialNumber)
+     if (!DeviceExtension->DeviceDescriptor->iSerialNumber)
+         return Status;
+
+     // get serial number
+     Status = USBSTOR_GetDescriptor(DeviceExtension->LowerDeviceObject,
+                                    USB_STRING_DESCRIPTOR_TYPE,
+                                    (100 * sizeof(WCHAR)),
+                                    DeviceExtension->DeviceDescriptor->iSerialNumber,
+                                    0x0409,
+                                    (PVOID*)&DeviceExtension->SerialNumber);
+     if (!NT_SUCCESS(Status))
      {
-         // get serial number
-         Status = USBSTOR_GetDescriptor(DeviceExtension->LowerDeviceObject, USB_STRING_DESCRIPTOR_TYPE, 100 * sizeof(WCHAR), DeviceExtension->DeviceDescriptor->iSerialNumber, 0x0409, (PVOID*)&DeviceExtension->SerialNumber);
-         if (!NT_SUCCESS(Status))
-         {
-             FreeItem(DeviceExtension->DeviceDescriptor);
-             DeviceExtension->DeviceDescriptor = NULL;
+         FreeItem(DeviceExtension->DeviceDescriptor);
+         DeviceExtension->DeviceDescriptor = NULL;
 
-             FreeItem(DeviceExtension->ConfigurationDescriptor);
-             DeviceExtension->ConfigurationDescriptor = NULL;
+         FreeItem(DeviceExtension->ConfigurationDescriptor);
+         DeviceExtension->ConfigurationDescriptor = NULL;
 
-             DeviceExtension->SerialNumber = NULL;
-             return Status;
-          }
+         DeviceExtension->SerialNumber = NULL;
+         return Status;
      }
 
      return Status;
