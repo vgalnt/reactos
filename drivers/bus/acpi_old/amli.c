@@ -4437,8 +4437,25 @@ PutIntObjData(
     _In_ PAMLI_OBJECT_DATA DataObj,
     _In_ ULONG IntValue)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    AMLI_OBJECT_DATA DataResult;
+    NTSTATUS Status;
+
+    DPRINT("PutIntObjData: %X, %X, %X\n", AmliContext, DataObj, IntValue);
+
+    giIndent++;
+
+    RtlZeroMemory(&DataResult, sizeof(DataResult));
+
+    DataResult.DataType = 1;
+    DataResult.DataValue = (PVOID)IntValue;
+
+    Status = WriteObject(AmliContext, DataObj, &DataResult);
+
+    giIndent--;
+
+    DPRINT("PutIntObjData: %X\n", Status);
+
+    return Status;
 }
 
 /* TERM HANDLERS ************************************************************/
