@@ -1384,7 +1384,7 @@ NewObjData(
             break;
 
         default:
-            DPRINT1("NewObjData: NewObjData: invalid object type '%s'\n", GetObjectTypeName(Src->DataType));
+            DPRINT1("NewObjData: invalid object type '%s'\n", GetObjectTypeName(Src->DataType));
             ASSERT(FALSE);
             return NULL;
     }
