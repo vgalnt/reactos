@@ -4394,8 +4394,40 @@ ProcessDivide(
     _In_ PAMLI_POST_CONTEXT AmliPostContext,
     _In_ NTSTATUS InStatus)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    ULONG Stage;
+
+    if (InStatus == STATUS_SUCCESS)
+        Stage = (AmliPostContext->FrameHeader.Flags & 0xF);
+    else
+        Stage = 1;
+
+    DPRINT("ProcessDivide: %X, %X, %X, %X, %X\n", Stage, AmliContext, AmliContext->Op, AmliPostContext, InStatus);
+
+    giIndent++;
+
+    ASSERT(AmliPostContext->FrameHeader.Signature == 'TSOP'); // SIG_POST
+
+    if (Stage == 0)
+    {
+        AmliPostContext->FrameHeader.Flags++;
+
+        InStatus = WriteObject(AmliContext, AmliPostContext->Data1, AmliPostContext->DataResult);
+        if (InStatus != 0x8004)
+        {
+            if ((PVOID)AmliPostContext == AmliContext->LocalHeap.HeapEnd)
+                PopFrame(AmliContext);
+        }
+    }
+    else if (Stage == 1)
+    {
+        PopFrame(AmliContext);
+    }
+
+    giIndent--;
+
+    DPRINT("ProcessDivide: %X (%X)\n", InStatus, AmliPostContext->DataResult->DataValue);
+
+    return InStatus;
 }
 
 NTSTATUS
