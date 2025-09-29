@@ -4387,6 +4387,28 @@ MatchData(
     return Result;
 }
 
+NTSTATUS
+__cdecl
+ProcessDivide(
+    _In_ PAMLI_CONTEXT AmliContext,
+    _In_ PAMLI_POST_CONTEXT AmliPostContext,
+    _In_ NTSTATUS InStatus)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+__cdecl
+PutIntObjData(
+    _In_ PAMLI_CONTEXT AmliContext,
+    _In_ PAMLI_OBJECT_DATA DataObj,
+    _In_ ULONG IntValue)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
 /* TERM HANDLERS ************************************************************/
 
 #if 1
@@ -4798,8 +4820,90 @@ NTSTATUS __cdecl Device(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT 
 }
 NTSTATUS __cdecl Divide(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PAMLI_OBJECT_DATA RemainderData;
+    PAMLI_OBJECT_DATA DividendData;
+    ULONG Dividend = 0;
+    ULONG Remainder = 0;
+    ULONG Value1;
+    ULONG Value2;
+    NTSTATUS Status;
+
+    DPRINT("Divide: %X, %X, %X\n", AmliContext, AmliContext->Op, TermContext);
+
+    giIndent++;
+
+    Status = ValidateArgTypes(TermContext->DataArgs, "II");
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("Divide: Status %X\n", Status);
+        goto Exit;
+    }
+
+    Status = ValidateTarget((TermContext->DataArgs + 2), 0x87, &RemainderData);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("Divide: Status %X\n", Status);
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    Status = ValidateTarget((TermContext->DataArgs + 3), 0x87, &DividendData);
+    if (Status != STATUS_SUCCESS)
+    {
+        DPRINT1("Divide: Status %X\n", Status);
+        ASSERT(FALSE);
+        goto Exit;
+    }
+
+    Value1 = (ULONG)TermContext->DataArgs[0].DataValue;
+    Value2 = (ULONG)TermContext->DataArgs[1].DataValue;
+
+    DPRINT("Divide: %X, %X\n", Value1, Value2);
+
+    giIndent++;
+
+    if (TermContext->DataArgs[1].DataValue)
+    {
+        Dividend = (Value1 / Value2);
+        Remainder = (Value1 % Value2);
+    }
+    else
+    {
+        Dividend = 0;
+        Remainder = 0;
+
+        DbgPrint("AMLI_ERROR: ");
+        DbgPrint("Divide: AML code attempted divide by zero. Contact your system vendor for an updated BIOS.");
+        DbgPrint("\n");
+
+        DbgBreakPoint();
+
+        if (gDebugger.Flags & 0x1000)
+        {
+            DPRINT1("\nProcess AML Debugger Request.\n");
+            gDebugger.Flags &= ~0x1000;
+            AMLIDebugger(0);
+        }
+    }
+
+    giIndent--;
+
+    DPRINT("Divide: %X (%X, %X)\n", STATUS_SUCCESS, Dividend, Remainder);
+
+    TermContext->DataResult->DataType = 1;
+    TermContext->DataResult->DataValue = (PVOID)Dividend;
+
+    Status = PushPost(AmliContext, ProcessDivide, DividendData, NULL, TermContext->DataResult);
+    if (Status == STATUS_SUCCESS)
+        Status = PutIntObjData(AmliContext, RemainderData, Remainder);
+
+Exit:
+
+    giIndent--;
+
+    DPRINT("Divide: %X (%X, %X)\n", Status, Dividend, Remainder);
+
+    return Status;
 }
 NTSTATUS __cdecl Event(_In_ PAMLI_CONTEXT AmliContext, _In_ PAMLI_TERM_CONTEXT TermContext)
 {
