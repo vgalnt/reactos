@@ -1267,12 +1267,14 @@ USBPORT_AllocateUsbAddress(IN PDEVICE_OBJECT FdoDevice)
             if (!(FdoExtension->UsbAddressBitMap[ix] & BitMapIdx))
             {
                 FdoExtension->UsbAddressBitMap[ix] |= BitMapIdx;
-                return 32 * ix + BitNumber;
+                return ((ix * 32) + BitNumber);
             }
 
-            BitMapIdx <<= 2;
+            BitMapIdx <<= 1;
         }
     }
+
+    DPRINT1("USBPORT_AllocateUsbAddress: failed allocate\n");
 
     return 0;
 }
@@ -1295,7 +1297,7 @@ USBPORT_FreeUsbAddress(IN PDEVICE_OBJECT FdoDevice,
     for (ix = 0; ix < 4; ++ix)
     {
         BitMapIdx = 1;
-        CurrentAddress = 32 * ix;
+        CurrentAddress = (ix * 32);
 
         for (BitNumber = 0; BitNumber < 32; ++BitNumber)
         {
@@ -1305,7 +1307,7 @@ USBPORT_FreeUsbAddress(IN PDEVICE_OBJECT FdoDevice,
                 return;
             }
 
-            BitMapIdx <<= 2;
+            BitMapIdx <<= 1;
             CurrentAddress++;
         }
     }
