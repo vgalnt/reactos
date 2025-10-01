@@ -581,7 +581,7 @@ USBPORT_USBDStatusToNtStatus(
 NTSTATUS
 NTAPI
 USBPORT_Wait(
-  IN PVOID MiniPortExtension,
+  IN PDEVICE_OBJECT FdoDevice,
   IN ULONG Milliseconds);
 
 VOID

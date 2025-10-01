@@ -538,13 +538,18 @@ USBPORT_USBDStatusToNtStatus(IN PURB Urb,
 
 NTSTATUS
 NTAPI
-USBPORT_Wait(IN PVOID MiniPortExtension,
+USBPORT_Wait(IN PDEVICE_OBJECT FdoDevice,
              IN ULONG Milliseconds)
 {
     LARGE_INTEGER Interval = {{0, 0}};
 
+    if (!Milliseconds)
+        return STATUS_SUCCESS;
+
     DPRINT("USBPORT_Wait: Milliseconds - %x\n", Milliseconds);
-    Interval.QuadPart -= 10000 * Milliseconds + (KeQueryTimeIncrement() - 1);
+
+    Interval.QuadPart -= ((Milliseconds * 10000) + (KeQueryTimeIncrement() - 1));
+
     return KeDelayExecutionThread(KernelMode, FALSE, &Interval);
 }
 
@@ -2876,7 +2881,7 @@ USBPORT_RegisterUSBPortDriver(IN PDRIVER_OBJECT DriverObject,
     RegPacket->UsbPortGetMappedVirtualAddress = USBPORT_GetMappedVirtualAddress;
     RegPacket->UsbPortRequestAsyncCallback = USBPORT_RequestAsyncCallback;
     RegPacket->UsbPortReadWriteConfigSpace = USBPORT_ReadWriteConfigSpace;
-    RegPacket->UsbPortWait = USBPORT_Wait;
+    RegPacket->UsbPortWait = (PVOID)USBPORT_Wait;
     RegPacket->UsbPortInvalidateController = USBPORT_InvalidateController;
     RegPacket->UsbPortBugCheck = USBPORT_BugCheck;
     RegPacket->UsbPortNotifyDoubleBuffer = USBPORT_NotifyDoubleBuffer;
