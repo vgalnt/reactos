@@ -1321,7 +1321,7 @@ USBPORT_InitializeDevice(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
     PUSBPORT_ENDPOINT Endpoint;
     USB_DEFAULT_PIPE_SETUP_PACKET CtrlSetup;
     ULONG TransferedLen;
-    USHORT DeviceAddress = 0;
+    USHORT DeviceAddress;
     UCHAR MaxPacketSize;
     NTSTATUS Status;
     PUSBPORT_DEVICE_EXTENSION FdoExtension;
@@ -1358,10 +1358,11 @@ USBPORT_InitializeDevice(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
            DeviceAddress,
            Status);
 
+    DeviceHandle->DeviceAddress = DeviceAddress;
+
     if (!NT_SUCCESS(Status))
         goto ExitError;
 
-    DeviceHandle->DeviceAddress = DeviceAddress;
     Endpoint = DeviceHandle->PipeHandle.Endpoint;
 
     Endpoint->EndpointProperties.TotalMaxPacketSize = DeviceHandle->DeviceDescriptor.bMaxPacketSize0;
