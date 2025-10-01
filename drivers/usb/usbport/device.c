@@ -1338,7 +1338,12 @@ USBPORT_InitializeDevice(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
                           FALSE,
                           NULL);
 
+    /* HACK! In some cases, without this next Status is STATUS_UNSUCCESSFUL. */
+    //USBPORT_Wait(FdoDevice, 1);
+
     DeviceAddress = USBPORT_AllocateUsbAddress(FdoDevice);
+    DPRINT("USBPORT_InitializeDevice: assigning %X address (%p, %p)\n", DeviceAddress, DeviceHandle, FdoDevice);
+
     ASSERT(DeviceHandle->DeviceAddress == USB_DEFAULT_DEVICE_ADDRESS);
 
     RtlZeroMemory(&CtrlSetup, sizeof(USB_DEFAULT_PIPE_SETUP_PACKET));
@@ -1354,14 +1359,14 @@ USBPORT_InitializeDevice(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
                                      NULL,
                                      NULL);
 
-    DPRINT("USBPORT_InitializeDevice: DeviceAddress - %x. SendSetupPacket Status - %x\n",
-           DeviceAddress,
-           Status);
-
     DeviceHandle->DeviceAddress = DeviceAddress;
+    DPRINT("USBPORT_InitializeDevice: DeviceAddress %X\n", DeviceAddress);
 
     if (!NT_SUCCESS(Status))
-        goto ExitError;
+    {
+        DPRINT1("USBPORT_InitializeDevice: Status %X (%p, %p)\n", Status, DeviceHandle, FdoDevice);
+        goto Exit;
+    }
 
     Endpoint = DeviceHandle->PipeHandle.Endpoint;
 
@@ -1369,9 +1374,11 @@ USBPORT_InitializeDevice(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
     Endpoint->EndpointProperties.DeviceAddress = DeviceAddress;
 
     Status = USBPORT_ReopenPipe(FdoDevice, Endpoint);
-
     if (!NT_SUCCESS(Status))
-        goto ExitError;
+    {
+        DPRINT1("USBPORT_InitializeDevice: Status %X\n", Status);
+        goto Exit;
+    }
 
     USBPORT_Wait(FdoDevice, 10);
 
@@ -1411,9 +1418,10 @@ USBPORT_InitializeDevice(IN PUSBPORT_DEVICE_HANDLE DeviceHandle,
     }
     else
     {
-ExitError:
-        DPRINT1("USBPORT_InitializeDevice: ExitError. Status - %x\n", Status);
+        DPRINT1("USBPORT_InitializeDevice: Status %X\n", Status);
     }
+
+Exit:
 
     KeReleaseSemaphore(&FdoExtension->DeviceSemaphore,
                        LOW_REALTIME_PRIORITY,
@@ -1965,6 +1973,12 @@ USBPORT_InitializeTT(IN PDEVICE_OBJECT FdoDevice,
     DPRINT("USBPORT_InitializeTT: HubDeviceHandle - %p, TtNumber - %X\n",
            HubDeviceHandle,
            TtNumber);
+
+    if (TtNumber > 1)
+    {
+        DPRINT1("USBPORT_InitializeTT: %p, %X\n", HubDeviceHandle, TtNumber);
+        //DbgBreakPoint();
+    }
 
     FdoExtension = FdoDevice->DeviceExtension;
 
