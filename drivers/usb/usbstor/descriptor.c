@@ -90,6 +90,7 @@ USBSTOR_GetDescriptors(
                                     (PVOID*)&DeviceExtension->DeviceDescriptor);
      if (!NT_SUCCESS(Status))
      {
+         DPRINT1("USBSTOR_GetDescriptors: Status %x\n", Status);
          DeviceExtension->DeviceDescriptor = NULL;
          return Status;
      }
@@ -103,6 +104,7 @@ USBSTOR_GetDescriptors(
                                     (PVOID*)&DeviceExtension->ConfigurationDescriptor);
      if (!NT_SUCCESS(Status))
      {
+         DPRINT1("USBSTOR_GetDescriptors: Status %x\n", Status);
          FreeItem(DeviceExtension->DeviceDescriptor);
          DeviceExtension->DeviceDescriptor = NULL;
          return Status;
@@ -124,6 +126,7 @@ USBSTOR_GetDescriptors(
                                     (PVOID*)&DeviceExtension->ConfigurationDescriptor);
      if (!NT_SUCCESS(Status))
      {
+         DPRINT1("USBSTOR_GetDescriptors: Status %x\n", Status);
          FreeItem(DeviceExtension->DeviceDescriptor);
          DeviceExtension->DeviceDescriptor = NULL;
          return Status;
@@ -142,6 +145,7 @@ USBSTOR_GetDescriptors(
                                     (PVOID*)&DeviceExtension->SerialNumber);
      if (!NT_SUCCESS(Status))
      {
+         DPRINT1("USBSTOR_GetDescriptors: Status %x\n", Status);
          FreeItem(DeviceExtension->DeviceDescriptor);
          DeviceExtension->DeviceDescriptor = NULL;
 
