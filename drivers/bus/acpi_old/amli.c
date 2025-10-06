@@ -3432,6 +3432,46 @@ ACPIReleaseHardwareGlobalLock(VOID)
         WRITE_PM1_CONTROL(4, FALSE, 3);
 }
 
+VOID
+NTAPI
+ACPIStartNextGlobalLockRequest(VOID)
+{
+    PAMLI_CONTEXT_DATA OwnerContext;
+    PLIST_ENTRY Entry;
+    PIRP Irp;
+
+    Entry = ExInterlockedRemoveHeadList(&AcpiInformation->GlobalLockQueue, &AcpiInformation->GlobalLockQueueLock);
+    if (!Entry)
+    {
+        DPRINT("ACPIStartNextGlobalLockRequest: Queue is empty, releasing lock\n");
+        ACPIReleaseHardwareGlobalLock();
+        return;
+    }
+
+    OwnerContext = CONTAINING_RECORD (Entry, AMLI_CONTEXT_DATA, Link);
+
+    AcpiInformation->GlobalLockOwnerContext = OwnerContext;
+    AcpiInformation->GlobalLockOwnerDepth = OwnerContext->Depth;
+
+    DPRINT("ACPIStartNextGlobalLockRequest: Dispatch new owner (%X, %X\n", OwnerContext, OwnerContext->Data1);
+
+    if (OwnerContext->LockData == 1)
+    {
+        Irp = OwnerContext->Data1;
+        Irp->IoStatus.Status = STATUS_SUCCESS;
+
+        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    }
+    else if (OwnerContext->LockData == 2)
+    {
+        ((VOID (__cdecl*)(PVOID))OwnerContext->Callback)(OwnerContext);
+    }
+    else
+    {
+        DbgBreakPoint();
+    }
+}
+
 NTSTATUS
 __cdecl
 ACPIReleaseGlobalLock(
@@ -3467,9 +3507,7 @@ ACPIReleaseGlobalLock(
         return STATUS_SUCCESS;
 
     if (ACPIAcquireHardwareGlobalLock(AcpiInformation->GlobalLock))
-    {
-        UNIMPLEMENTED_DBGBREAK();
-    }
+        ACPIStartNextGlobalLockRequest();
 
     return STATUS_SUCCESS;
 }
