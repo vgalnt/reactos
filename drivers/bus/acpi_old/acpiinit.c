@@ -3377,11 +3377,16 @@ AcpiArbFindSuitableRange(
         return FALSE;
     }
 
-    DPRINT1("AcpiArbFindSuitableRange: Status %X\n", Status);
-    ASSERT(FALSE);
+    ArbState->Start = DeviceIrq;
+    ArbState->End = DeviceIrq;
 
+    ArbState->CurrentAlternative->Length = 1;
 
-    return FALSE;
+    DPRINT1("AcpiArbFindSuitableRange: found %X from a link node that is in use.\n", (ULONG)ArbState->Start);
+
+    ASSERT(HalAcpiDispatchTable->HalIsVectorValid(DeviceIrq));
+
+    return TRUE;
 }
 
 NTSTATUS
