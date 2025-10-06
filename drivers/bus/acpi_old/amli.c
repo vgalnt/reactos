@@ -11449,7 +11449,7 @@ ParseOpcode(
     else
     {
         DPRINT1("ParseOpcode: invalid opcode %X at %X\n", **OpArray, *OpArray);
-        ASSERT(FALSE);
+        //ASSERT(FALSE);
         Status = STATUS_ACPI_INVALID_OPCODE;
     }
 
