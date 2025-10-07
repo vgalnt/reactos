@@ -1492,8 +1492,70 @@ IopCallArbiter(
     _In_ PVOID Param2,
     _In_ PVOID Param3)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PARBITER_INTERFACE ArbiterInterface = ResArbEntry->ArbiterInterface;
+    PARBITER_PARAMETERS Dummy;
+    ARBITER_PARAMETERS Parameters;
+    NTSTATUS Status;
+
+    DPRINT1("IopCallArbiter: %p, %X\n", ResArbEntry, Action);
+
+    switch (Action)
+    {
+        case ArbiterActionTestAllocation: // 0
+        case ArbiterActionRetestAllocation: // 1
+        {
+            Parameters.Parameters.TestAllocation.ArbitrationList = Param1;
+            Parameters.Parameters.TestAllocation.AllocateFromCount = (ULONG)(ULONG_PTR)Param2;
+            Parameters.Parameters.TestAllocation.AllocateFrom = Param3;
+
+            Status = ArbiterInterface->ArbiterHandler(ArbiterInterface->Context, Action, &Parameters);
+            break;
+        }
+        case ArbiterActionCommitAllocation: // 2
+        case ArbiterActionWriteReservedResources: // 5
+        {
+            Dummy = NULL;
+            Status = ArbiterInterface->ArbiterHandler(ArbiterInterface->Context, Action, Dummy);
+            break;
+        }
+        case ArbiterActionQueryAllocatedResources: // 4
+        {
+            DPRINT1("IopCallArbiter: <Break point> ArbiterActionQueryAllocatedResources (%p, %X)\n", ResArbEntry, Action);
+            DbgBreakPoint();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+        }
+        case ArbiterActionQueryConflict: // 6
+        {
+            DPRINT1("IopCallArbiter: <Break point> ArbiterActionQueryConflict (%p, %X)\n", ResArbEntry, Action);
+            DbgBreakPoint();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+        }
+        case ArbiterActionQueryArbitrate: // 7
+        {
+            DPRINT1("IopCallArbiter: <Break point> ArbiterActionQueryArbitrate (%p, %X)\n", ResArbEntry, Action);
+            DbgBreakPoint();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+        }
+        case ArbiterActionBootAllocation: // 9
+        {
+            DPRINT1("IopCallArbiter: <Break point> ArbiterActionBootAllocation (%p, %X)\n", ResArbEntry, Action);
+            DbgBreakPoint();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+        }
+        default:
+        {
+            DPRINT1("IopCallArbiter: <Break point> Not supported Action (%p, %X)\n", ResArbEntry, Action);
+            DbgBreakPoint();
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+    }
+
+    return Status;
 }
 
 NTSTATUS
@@ -3641,7 +3703,7 @@ IopRestoreResourcesInternal(
     return STATUS_NOT_IMPLEMENTED;
 }
 
-NTSTATUS
+VOID
 NTAPI
 IopReleaseResourcesInternal(
     _In_ PDEVICE_NODE DeviceNode)
