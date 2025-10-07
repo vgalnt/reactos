@@ -14609,8 +14609,34 @@ ACPIBusIrpQueryBusInformation(
     _In_ PDEVICE_OBJECT DeviceObject,
     _In_ PIRP Irp)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PPNP_BUS_INFORMATION BusInfo;
+    NTSTATUS Status;
+
+    DPRINT("ACPIBusIrpQueryBusInformation: %p, %p\n", DeviceObject, Irp);
+    PAGED_CODE();
+
+    BusInfo = ExAllocatePoolWithTag(PagedPool, sizeof(PNP_BUS_INFORMATION), 'MpcA');
+    if (!BusInfo)
+    {
+        DPRINT1("ACPIBusIrpQueryBusInformation: Could not allocate %X bytes\n");
+        Status = STATUS_INSUFFICIENT_RESOURCES;
+        goto Finish;
+    }
+
+    BusInfo->BusTypeGuid = GUID_BUS_TYPE_ISAPNP;
+    BusInfo->BusNumber = 0;
+    BusInfo->LegacyBusType = 1;
+
+    Status = STATUS_SUCCESS;
+
+Finish:
+
+    Irp->IoStatus.Status = Status;
+    Irp->IoStatus.Information = (ULONG_PTR)BusInfo;
+
+    IoCompleteRequest(Irp, 0);
+
+    return Status;
 }
 
 NTSTATUS
