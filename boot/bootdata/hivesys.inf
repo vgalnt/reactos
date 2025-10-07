@@ -142,6 +142,8 @@ HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_8086&DEV_3
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_8086&DEV_3B29&CC_0106","ClassGUID",0x00000000,"{4D36E96A-E325-11CE-BFC1-08002BE10318}"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_8086&DEV_3B2F&CC_0106","Service",0x00000000,"iaStor"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_8086&DEV_3B2F&CC_0106","ClassGUID",0x00000000,"{4D36E96A-E325-11CE-BFC1-08002BE10318}"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_8086&DEV_8C02&CC_0106","Service",0x00000000,"iaStor"
+HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_8086&DEV_8C02&CC_0106","ClassGUID",0x00000000,"{4D36E96A-E325-11CE-BFC1-08002BE10318}"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_8086&DEV_7000","Service",0x00000000,"isapnp"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_8086&DEV_7000","ClassGUID",0x00000000,"{4D36E97D-E325-11CE-BFC1-08002BE10318}"
 HKLM,"SYSTEM\CurrentControlSet\Control\CriticalDeviceDatabase\PCI#VEN_8086&DEV_7010&CC_0101","Service",0x00000000,"intelide"
