@@ -1485,6 +1485,19 @@ Exit:
 
 NTSTATUS
 NTAPI
+IopCallArbiter(
+    _In_ PPI_RESOURCE_ARBITER_ENTRY ResArbEntry,
+    _In_ ARBITER_ACTION Action,
+    _In_ PVOID Param1,
+    _In_ PVOID Param2,
+    _In_ PVOID Param3)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_NOT_IMPLEMENTED;
+}
+
+NTSTATUS
+NTAPI
 IopSetupArbiterAndTranslators(
     _In_ PPNP_REQ_DESCRIPTOR ReqDescriptor)
 {
@@ -1607,8 +1620,7 @@ IopSetupArbiterAndTranslators(
             {
                 if (ResArbiterEntry->ArbiterInterface->Flags & 1) // FIXME
                 {
-                    ASSERT(FALSE);Status = STATUS_NOT_IMPLEMENTED;
-                    //Status = IopCallArbiter(ResArbiterEntry, ArbiterActionQueryArbitrate, ReqDescriptor->TranslatedReqDesc, NULL, NULL);
+                    Status = IopCallArbiter(ResArbiterEntry, ArbiterActionQueryArbitrate, ReqDescriptor->TranslatedReqDesc, NULL, NULL);
                     if (!NT_SUCCESS(Status))
                         IsArbiterFound = FALSE;
                 }
@@ -3634,9 +3646,128 @@ NTAPI
 IopReleaseResourcesInternal(
     _In_ PDEVICE_NODE DeviceNode)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // IoDbgBreakPointEx();
-    return STATUS_NOT_IMPLEMENTED;
+    PCM_FULL_RESOURCE_DESCRIPTOR CmFullDesc;
+    PCM_PARTIAL_RESOURCE_DESCRIPTOR CmDesc;
+    PPI_RESOURCE_ARBITER_ENTRY ResArbEntry;
+    ARBITER_LIST_ENTRY ArbiterEntry;
+    INTERFACE_TYPE InterfaceType;
+    PCM_RESOURCE_LIST CmList;
+    PDEVICE_NODE ParentNode;
+    PLIST_ENTRY Entry;
+    ULONG CmListCount;
+    ULONG BusNumber;
+    ULONG ix;
+    ULONG jx;
+    UCHAR CmDescType;
+    BOOLEAN IsContinue = TRUE;
+    NTSTATUS Status;
+
+    DPRINT1("IopReleaseResourcesInternal: %p\n", DeviceNode);
+
+    InitializeListHead(&ArbiterEntry.ListEntry);
+
+    ArbiterEntry.AlternativeCount = 0;
+    ArbiterEntry.Alternatives = NULL;
+    ArbiterEntry.PhysicalDeviceObject = DeviceNode->PhysicalDeviceObject;
+    ArbiterEntry.Flags = 0;
+    ArbiterEntry.WorkSpace = 0;
+    ArbiterEntry.Assignment = NULL;
+    ArbiterEntry.RequestSource = ArbiterRequestPnpEnumerated;
+
+    if (DeviceNode->ResourceList)
+        CmList = DeviceNode->ResourceList;
+    else
+        CmList = DeviceNode->BootResources;
+
+    if (CmList && CmList->Count > 0)
+    {
+        CmListCount = CmList->Count;
+        CmFullDesc = &CmList->List[0];
+    }
+    else
+    {
+        CmListCount = 1;
+        CmList = NULL;
+        CmFullDesc = NULL;
+    }
+
+    for (ix = 0; ix < CmListCount; ix++)
+    {
+        if (CmList)
+        {
+            BusNumber = CmFullDesc->BusNumber;
+
+            if (InterfaceType == InterfaceTypeUndefined)
+                InterfaceType = PnpDefaultInterfaceType;
+            else
+                InterfaceType = CmFullDesc->InterfaceType;
+        }
+        else
+        {
+            BusNumber = 0;
+            InterfaceType = PnpDefaultInterfaceType;
+        }
+
+        for (ParentNode = DeviceNode->Parent; ParentNode; ParentNode = ParentNode->Parent)
+        {
+            if (ParentNode == IopRootDeviceNode && IsContinue)
+            {
+                ParentNode = IopFindLegacyBusDeviceNode(InterfaceType, BusNumber);
+
+                if (ParentNode == IopRootDeviceNode && InterfaceType == Internal)
+                    ParentNode = IopFindLegacyBusDeviceNode(Isa, 0);
+
+                IsContinue = FALSE;
+            }
+
+            Entry = ParentNode->DeviceArbiterList.Flink;
+
+            while (Entry != &ParentNode->DeviceArbiterList)
+            {
+                ResArbEntry = CONTAINING_RECORD(Entry, PI_RESOURCE_ARBITER_ENTRY, DeviceArbiterList);
+                if (ResArbEntry->ArbiterInterface)
+                {
+                    IsContinue = FALSE;
+
+                    ASSERT(IsListEmpty(&ResArbEntry->ResourceList));
+                    InitializeListHead(&ResArbEntry->ResourceList);
+
+                    InsertTailList(&ResArbEntry->ResourceList, &ArbiterEntry.ListEntry);
+
+                    Status = IopCallArbiter(ResArbEntry, ArbiterActionTestAllocation, &ResArbEntry->ResourceList, NULL, NULL);
+                    ASSERT(Status == STATUS_SUCCESS);
+
+                    Status = IopCallArbiter(ResArbEntry, ArbiterActionCommitAllocation, NULL, NULL, NULL);
+                    ASSERT(Status == STATUS_SUCCESS);
+
+                    RemoveEntryList(&ArbiterEntry.ListEntry);
+
+                    InitializeListHead(&ArbiterEntry.ListEntry);
+                }
+
+                Entry = Entry->Flink;
+            }
+        }
+
+        if (CmListCount > 1)
+        {
+            CmDesc = CmFullDesc->PartialResourceList.PartialDescriptors;
+
+            for (jx = 0; jx < CmFullDesc->PartialResourceList.Count; jx++)
+            {
+                CmDescType = CmDesc->Type;
+
+                CmDesc++;
+
+                if (CmDescType == CmResourceTypeDeviceSpecific)
+                     CmDesc = Add2Ptr(CmDesc, CmDesc->u.DeviceSpecificData.DataSize);
+            }
+
+            CmFullDesc = (PCM_FULL_RESOURCE_DESCRIPTOR)CmDesc;
+        }
+    }
+
+    IopWriteAllocatedResourcesToRegistry(DeviceNode, NULL, 0);
 }
 
 VOID
