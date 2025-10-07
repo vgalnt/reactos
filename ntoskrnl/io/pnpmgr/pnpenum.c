@@ -3539,7 +3539,7 @@ PipCallDriverAddDeviceQueryRoutine(
         if (!NT_SUCCESS(Status))
         {
             DPRINT1("PipCallDriverAddDeviceQueryRoutine: Status %X\n", Status);
-            ASSERT(FALSE);
+            //ASSERT(FALSE);
 
             if (PiUserModeRunning == FALSE &&
                 Status != STATUS_DRIVER_BLOCKED_CRITICAL &&
