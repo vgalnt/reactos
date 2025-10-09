@@ -73,7 +73,7 @@ SetAccountsDomainSid(
 /* Log File APIs */
 
 BOOL WINAPI
-InitializeSetupActionLog(IN BOOL bDeleteOldLogFile);
+InitializeSetupLog(IN BOOL bDeleteOldLogFile);
 
 VOID WINAPI
 TerminateSetupActionLog(VOID);

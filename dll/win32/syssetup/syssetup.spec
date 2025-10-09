@@ -6,8 +6,8 @@
 @ stub AsrRestorePlugPlayRegistryData
 @ stub AsrpGetLocalDiskInfo
 @ stub AsrpGetLocalVolumeInfo
-@ stub AsprRestoreNonCriticalDisksW
-@ stdcall CdromPropPageProvider(ptr ptr long)
+@ stub AsrpRestoreNonCriticalDisksW
+@ stdcall -stub -version=0x0501 CdromPropPageProvider(ptr ptr long)
 @ stdcall ComputerClassInstaller(long ptr ptr)
 @ stub CreateLocalAdminAccount
 @ stub CreateLocalAdminAccountEx
@@ -18,10 +18,11 @@
 @ stdcall DiskPropPageProvider(ptr ptr long)
 @ stub DoInstallComponentInfs
 @ stdcall EisaUpHalCoInstaller(long ptr ptr ptr)
-@ stdcall EisaUpHalPropPageProvider(ptr ptr long)
+@ stdcall -stub -version=0x0501 EisaUpHalPropPageProvider(ptr ptr long)
 @ stub GenerateName
+@ stub GetAnswerFileSetting
 @ stdcall HdcClassInstaller(long ptr ptr)
-@ stdcall InitializeSetupActionLog(long)
+@ stdcall InitializeSetupLog(long)
 @ stdcall InstallWindowsNt(long ptr)
 @ stub InvokeExternalApplicationEx
 @ stdcall KeyboardClassInstaller(long ptr ptr)
@@ -47,14 +48,17 @@
 @ stub SetupDestroyPhoneList
 @ stub SetupEnumerateRegisteredOsComponents
 @ stub SetupExtendPartition
+@ stdcall -stub -version=0x0502 SetupGetInstallMode(ptr ptr)
 @ stub SetupGetGeoOptions
 @ stub SetupGetKeyboardOptions
 @ stub SetupGetLocaleOptions
 @ stub SetupGetProductType
 @ stub SetupGetSetupInfo
 @ stub SetupGetValidEula
+@ stdcall -stub -version=0x0502 SetupIEHardeningSettings(wstr wstr)
 @ stdcall SetupInfObjectInstallActionW() SETUPAPI.InstallHinfSectionW
 @ stub SetupInstallCatalog
+@ stdcall -stub -version=0x0501 SetupIsPnpRebootRequired()
 @ stub SetupMapTapiToIso
 @ stub SetupOobeBnk
 @ stub SetupOobeCleanup
@@ -65,6 +69,7 @@
 @ stdcall -stub SetupQueryRegisteredOsComponent(ptr ptr ptr)
 @ stub SetupQueryRegisteredOsComponentsOrder
 @ stub SetupReadPhoneList
+@ stdcall -stub -version=0x0501 SetupRegisterOsComponent(ptr ptr)
 @ stub SetupSetAdminPassword
 @ stub SetupSetDisplay
 @ stub SetupSetIntlOptions

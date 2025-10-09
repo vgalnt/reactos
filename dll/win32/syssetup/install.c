@@ -1197,7 +1197,7 @@ InstallReactOS(VOID)
     HANDLE hHotkeyThread;
     BOOL ret;
 
-    InitializeSetupActionLog(FALSE);
+    InitializeSetupLog(FALSE);
     LogItem(NULL, L"Installing ReactOS");
 
     CreateTempDir(L"TEMP");

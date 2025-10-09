@@ -39,7 +39,7 @@ HANDLE hLogFile = NULL;
 /* FUNCTIONS ****************************************************************/
 
 BOOL WINAPI
-InitializeSetupActionLog (BOOL bDeleteOldLogFile)
+InitializeSetupLog (BOOL bDeleteOldLogFile)
 {
     WCHAR szFileName[MAX_PATH];
 
