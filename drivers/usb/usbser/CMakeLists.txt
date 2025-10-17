@@ -21,4 +21,4 @@ add_library(usbser MODULE
 set_module_type(usbser kernelmodedriver)
 add_importlibs(usbser usbd wmilib ntoskrnl hal)
 add_pch(usbser usbser.h SOURCE)
-add_cd_file(TARGET usbser DESTINATION reactos/system32/drivers NO_CAB FOR all)
+add_cd_file(TARGET usbser DESTINATION reactos/system32/drivers FOR all)
