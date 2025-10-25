@@ -488,9 +488,185 @@ NTSTATUS NTAPI PiControlGetInterfaceDeviceList(ULONG PnPControlClass, PVOID PnPC
 
 NTSTATUS NTAPI PiControlGetPropertyData(ULONG PnPControlClass, PVOID PnPControlData, ULONG PnPControlDataLength, KPROCESSOR_MODE AccessMode)
 {
-    UNIMPLEMENTED;
-    ASSERT(FALSE); // IoDbgBreakPointEx();
-    return STATUS_NOT_IMPLEMENTED;
+    PPLUGPLAY_CONTROL_PROPERTY_DATA PropertyData = PnPControlData;
+    UNICODE_STRING DeviceInstance;
+    PDEVICE_OBJECT DeviceObject;
+    PDEVICE_NODE DeviceNode;
+    PVOID PropertyBuffer = NULL;
+    SIZE_T BufferLength;
+    USHORT InstanceLength;
+    NTSTATUS status;
+    NTSTATUS Status;
+
+    PAGED_CODE();
+    DPRINT1("PiControlGetPropertyData: %p, %X\n", PropertyData, PnPControlDataLength);
+
+    ASSERT(PnPControlClass == PlugPlayControlProperty);
+    ASSERT(PnPControlDataLength == sizeof(PLUGPLAY_CONTROL_PROPERTY_DATA));
+
+    InstanceLength = PropertyData->DeviceInstance.Length;
+    DeviceInstance.MaximumLength = DeviceInstance.Length = InstanceLength;
+
+    if (!PropertyData->DeviceInstance.Length)
+    {
+        DPRINT1("PiControlGetPropertyData: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (InstanceLength > 400)
+    {
+        DPRINT1("PiControlGetPropertyData: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (InstanceLength & 1)
+    {
+        DPRINT1("PiControlGetPropertyData: STATUS_INVALID_PARAMETER\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    Status = PiControlMakeUserModeCallersCopy((PVOID *)&DeviceInstance.Buffer,
+                                              PropertyData->DeviceInstance.Buffer,
+                                              InstanceLength,
+                                              2,
+                                              AccessMode,
+                                              TRUE);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("PiControlGetPropertyData: Status %X\n", Status);
+        return Status;
+    }
+
+    PpDevNodeLockTree(0);
+
+    DeviceObject = IopDeviceObjectFromDeviceInstance(&DeviceInstance);
+
+    if (AccessMode && DeviceInstance.Buffer)
+        ExFreePool(DeviceInstance.Buffer);
+
+    if (!DeviceObject)
+    {
+        PpDevNodeUnlockTree(0);
+        DPRINT1("PiControlGetPropertyData: STATUS_NO_SUCH_DEVICE ('%wZ')\n", &DeviceInstance);
+        //UNIMPLEMENTED_DBGBREAK();
+        return STATUS_NO_SUCH_DEVICE;
+    }
+
+    DeviceNode = IopGetDeviceNode(DeviceObject);
+    if (!DeviceNode)
+    {
+        DPRINT1("PiControlGetPropertyData: STATUS_NO_SUCH_DEVICE\n");
+        Status = STATUS_NO_SUCH_DEVICE;
+        BufferLength = 0;
+        goto Exit;
+    }
+
+    BufferLength = PropertyData->BufferSize;
+
+    if (BufferLength)
+    {
+        if (AccessMode)
+        {
+            PropertyBuffer = ExAllocatePoolWithQuotaTag((PagedPool | POOL_QUOTA_FAIL_INSTEAD_OF_RAISE), BufferLength, '  pP');
+            if (!PropertyBuffer)
+            {
+                DPRINT1("PiControlGetPropertyData: STATUS_INSUFFICIENT_RESOURCES\n");
+                Status = STATUS_INSUFFICIENT_RESOURCES;
+                goto Exit;
+            }
+
+            RtlZeroMemory(PropertyBuffer, BufferLength);
+        }
+        else
+        {
+            PropertyBuffer = PropertyData->Buffer;
+        }
+    }
+    else
+    {
+        PropertyBuffer = NULL;
+    }
+
+    switch (PropertyData->Property)
+    {
+        case 1:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 2:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 3:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 4:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 8:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 5:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 6:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 7:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 0xA:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 0xB:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        case 0xC:
+            UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_NOT_IMPLEMENTED;
+            break;
+
+        default:
+            DPRINT1("PiControlGetPropertyData: STATUS_INVALID_PARAMETER (%X)\n", PropertyData->Property);
+            //UNIMPLEMENTED_DBGBREAK();
+            Status = STATUS_INVALID_PARAMETER;
+            break;
+    }
+
+Exit:
+
+    PpDevNodeUnlockTree(0);
+    ObDereferenceObject(DeviceObject);
+
+    status = PiControlMakeUserModeCallersCopy(&PropertyData->Buffer, PropertyBuffer, BufferLength, 1, AccessMode, FALSE);
+    if (!NT_SUCCESS(status))
+    {
+        DPRINT1("PiControlGetPropertyData: Status %X\n", status);
+        Status = status;
+    }
+
+    if (AccessMode && PropertyBuffer)
+        ExFreePoolWithTag(PropertyBuffer, '  pP');
+
+    return Status;
 }
 
 NTSTATUS NTAPI PiControlDeviceClassAssociation(ULONG PnPControlClass, PVOID PnPControlData, ULONG PnPControlDataLength, KPROCESSOR_MODE AccessMode)
