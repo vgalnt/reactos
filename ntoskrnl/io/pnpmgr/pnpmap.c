@@ -830,14 +830,110 @@ Exit:
     *BufferEnd = UNICODE_NULL;
 }
 
+#define PNP_MAPPER_BITMAP_SIZE 0x20 // 32 bytes
+#define BITS_PER_BYTE 8
+
 NTSTATUS
 NTAPI
 ComPortDBAdd(
     _In_ HANDLE Handle,
     _In_ PWSTR ComPortStr)
 {
-    UNIMPLEMENTED_DBGBREAK();
-    return STATUS_NOT_IMPLEMENTED;
+    PKEY_VALUE_PARTIAL_INFORMATION ValueInfo;
+    HANDLE KeyHandle;
+    UNICODE_STRING ComPortName;
+    UNICODE_STRING ComName;
+    UNICODE_STRING ValueName;
+    UNICODE_STRING KeyName;
+    ULONG ResultLength;
+    ULONG PortNumber;
+    ULONG Size;
+    NTSTATUS Status;
+
+    DPRINT("ComPortDBAdd: '%S'\n", ComPortStr);
+
+    RtlInitUnicodeString(&ComPortName, ComPortStr);
+
+    if (ComPortName.Length > 6)
+        ComPortName.Length = 6; // size L"COM"
+
+    RtlInitUnicodeString(&ComName, L"COM");
+
+    if (RtlCompareUnicodeString(&ComPortName, &ComName, TRUE) != 0)
+    {
+        DPRINT1("ComPortDBAdd: ComPortName '%wZ'\n", &ComPortName);
+        goto Finish;
+    }
+
+    PortNumber = _wtol(ComPortStr + 3); // Skip "COM"
+    if (PortNumber <= 0)
+    {
+        DPRINT1("ComPortDBAdd: PortNumber %d\n", PortNumber);
+        goto Finish;
+    }
+
+    if (PortNumber > (PNP_MAPPER_BITMAP_SIZE * BITS_PER_BYTE))
+    {
+        DPRINT1("ComPortDBAdd: PortNumber %d\n", PortNumber);
+        goto Finish;
+    }
+
+    RtlInitUnicodeString(&KeyName, L"\\Registry\\Machine\\System\\CurrentControlSet\\Control\\COM Name Arbiter");
+
+    Status = IopCreateRegistryKeyEx(&KeyHandle, 0, &KeyName, KEY_ALL_ACCESS, REG_OPTION_NON_VOLATILE, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DPRINT1("ComPortDBAdd: Status %X\n", Status);
+        goto Finish;
+    }
+
+    RtlInitUnicodeString(&ValueName, L"ComDB Merge");
+
+    Size = (PNP_MAPPER_BITMAP_SIZE + sizeof(*ValueInfo));
+
+    ValueInfo = ExAllocatePoolWithTag(PagedPool, Size, 'rpaM');
+    if (!ValueInfo)
+    {
+        DPRINT1("ComPortDBAdd: Not allocated %X\n", Size);
+        ZwClose(KeyHandle);
+        goto Finish;
+    }
+
+    Status = ZwQueryValueKey(KeyHandle, &ValueName, KeyValuePartialInformation, ValueInfo, Size, &ResultLength);
+    if (Status == STATUS_OBJECT_NAME_NOT_FOUND)
+    {
+        Status = STATUS_SUCCESS;
+
+        ValueInfo->Type = REG_BINARY;
+        ValueInfo->DataLength = PNP_MAPPER_BITMAP_SIZE;
+
+        RtlZeroMemory(ValueInfo->Data, PNP_MAPPER_BITMAP_SIZE);
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        ValueInfo->Data[(PortNumber - 1) / BITS_PER_BYTE] |= (1 << ((PortNumber - 1) & (BITS_PER_BYTE - 1)));
+
+        Status = ZwSetValueKey(KeyHandle, &ValueName, 0, ValueInfo->Type, ValueInfo->Data, ValueInfo->DataLength);
+        ASSERT(NT_SUCCESS(Status));
+    }
+    else
+    {
+        DPRINT1("ComPortDBAdd: Status %X\n", Status);
+    }
+
+    ExFreePoolWithTag(ValueInfo, 'rpaM');
+    ZwClose(KeyHandle);
+
+Finish:
+
+    RtlInitUnicodeString(&ValueName, L"DosDeviceName");
+    Size = wcslen(ComPortStr);
+
+    Status = ZwSetValueKey(Handle, &ValueName, 0, REG_SZ, ComPortStr, ((Size + 1) * sizeof(WCHAR)));
+
+    DPRINT1("ComPortDBAdd: Status %X (%S)\n", Status, ComPortStr);
+    return Status;
 }
 
 #define PNP_MAPPER_SEED_BUFFER_SIZE 0x400
