@@ -540,6 +540,10 @@ NTSTATUS NTAPI PiControlGetPropertyData(ULONG PnPControlClass, PVOID PnPControlD
     PpDevNodeLockTree(0);
 
     DeviceObject = IopDeviceObjectFromDeviceInstance(&DeviceInstance);
+    if (!DeviceObject)
+    {
+        DPRINT1("PiControlGetPropertyData: STATUS_NO_SUCH_DEVICE ('%wZ')\n", &DeviceInstance);
+    }
 
     if (AccessMode && DeviceInstance.Buffer)
         ExFreePool(DeviceInstance.Buffer);
@@ -547,7 +551,6 @@ NTSTATUS NTAPI PiControlGetPropertyData(ULONG PnPControlClass, PVOID PnPControlD
     if (!DeviceObject)
     {
         PpDevNodeUnlockTree(0);
-        DPRINT1("PiControlGetPropertyData: STATUS_NO_SUCH_DEVICE ('%wZ')\n", &DeviceInstance);
         //UNIMPLEMENTED_DBGBREAK();
         return STATUS_NO_SUCH_DEVICE;
     }
