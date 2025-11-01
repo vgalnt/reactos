@@ -15,16 +15,43 @@
 
 typedef enum _PORT_TYPE
 {
-    UnknownPort,
     ParallelPort,
-    SerialPort
+    SerialPort,
+    OtherPort
 } PORT_TYPE;
 
 LPWSTR pszCom = L"COM";
 LPWSTR pszLpt = L"LPT";
 
+DWORD PollingPeriods[7] = { 0xFFFFFFFF, 0, 10, 50, 100, 300, 600 };
 
+DWORD 
+WINAPI
+myatoi(_In_ PWCHAR String)
+{
+    PWCHAR Ptr;
+    DWORD Result = 0;
+    WCHAR Number;
+
+    for (Ptr = String; *Ptr; Ptr++)
+    {
+        Number = (*Ptr - L'0');
+        if (Number > 9)
+            break;
+
+        Result = (Number + (Result * 10));
+    }
+
+    return Result;
+}
+
+/* It is HACK!
+   DetermineComNumberFromResources() from NT5.x
+   use CM_Get_First_Log_Conf(), CM_Get_Next_Res_Des(), CM_Get_Res_Des_Data() instead.
+*/
+#ifdef __REACTOS__
 BOOL
+WINAPI
 GetBootResourceList(HDEVINFO DeviceInfoSet,
                     PSP_DEVINFO_DATA DeviceInfoData,
                     PCM_RESOURCE_LIST *ppResourceList)
@@ -138,8 +165,8 @@ done:
     return ret;
 }
 
-
 DWORD
+WINAPI
 GetSerialPortNumber(IN HDEVINFO DeviceInfoSet,
                     IN PSP_DEVINFO_DATA DeviceInfoData)
 {
@@ -209,9 +236,247 @@ GetSerialPortNumber(IN HDEVINFO DeviceInfoSet,
 
     return dwPortNumber;
 }
-
+#else
+  #error FIXME DetermineComNumberFromResources()
+#endif
 
 DWORD
+WINAPI
+InstallPnPSerialPort(_In_ HDEVINFO DeviceInfoSet,
+                     _In_ PSP_DEVINFO_DATA DeviceInfoData)
+{
+    HCOMDB ComDB = HCOMDB_INVALID_HANDLE_VALUE;
+    WCHAR DeviceDescription[256];
+    WCHAR ReturnedString[260];
+    WCHAR PropertyBuffer[260];
+    WCHAR FriendlyName[256];
+    WCHAR NameBuffer[40];
+    WCHAR PortName[40];
+    PWCHAR PortPtr;
+    HKEY Key;
+    DWORD FirmwareId;
+    DWORD FirmwareIdSize;
+    DWORD MaxPortsReported;
+    DWORD PortNumber = 0;
+    DWORD PollingPeriod;
+    DWORD Size;
+    CONFIGRET Cr;
+    ULONG Status;
+    ULONG Problem;
+    LONG Error;
+    BYTE PortUsage[32];
+    BOOL IsFound = FALSE;
+    BOOL Result;
+
+    TRACE("InstallPnPSerialPort: %p, %p\n", DeviceInfoSet, DeviceInfoData);
+
+    ZeroMemory(NameBuffer, sizeof(NameBuffer));
+
+    /* Open the com port database */
+    ComDBOpen(&ComDB);
+
+    /* Try to read the value from REG and determine the port number */
+    Key = SetupDiOpenDevRegKey(DeviceInfoSet, DeviceInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DEV, KEY_READ);
+    if (Key != INVALID_HANDLE_VALUE)
+    {
+        Size = sizeof(NameBuffer);
+        Error = RegQueryValueExW(Key, L"PortName", NULL, NULL, (LPBYTE)NameBuffer, &Size);
+
+        if (Error == NO_ERROR)
+        {
+           ERR("InstallPnPSerialPort: COM port found '%S'\n", NameBuffer);
+           IsFound = TRUE;
+        }
+        else
+        {
+            Size = sizeof(NameBuffer);
+            Error = RegQueryValueExW(Key, L"DosDeviceName", NULL, NULL, (LPBYTE)NameBuffer, &Size);
+
+            if (Error == NO_ERROR)
+            {
+                ERR("InstallPnPSerialPort: COM port found '%S'\n", NameBuffer);
+                IsFound = TRUE;
+            }
+            else
+            {
+                Result = SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
+                                                           DeviceInfoData,
+                                                           SPDRP_ENUMERATOR_NAME,
+                                                           NULL,
+                                                           (LPBYTE)PropertyBuffer,
+                                                           sizeof(PropertyBuffer),
+                                                           NULL);
+                if (Result)
+                {
+                    if (!lstrcmpiW(PropertyBuffer, L"ACPI"))
+                    {
+                        ERR("InstallPnPSerialPort: COM port found '%S'\n", PropertyBuffer);
+                        IsFound = TRUE;
+                    }
+                    else if (!lstrcmpiW(PropertyBuffer, L"Root"))
+                    {
+                        Cr = CM_Get_DevNode_Status(&Status, &Problem, DeviceInfoData->DevInst, 0);
+                        if (Cr == CR_SUCCESS)
+                        {
+                            if (!(Status & DN_ROOT_ENUMERATED))
+                            {
+                                ERR("InstallPnPSerialPort: COM port found '%S'\n", PropertyBuffer);
+                                IsFound = TRUE;
+                            }
+                        }
+                    }
+                }
+
+                if (!IsFound)
+                {
+                    FirmwareIdSize = sizeof(FirmwareId);
+
+                    Error = RegQueryValueExW(Key, L"FirmwareIdentified", NULL, NULL, (LPBYTE)&FirmwareId, &FirmwareIdSize);
+                    if (Error == NO_ERROR)
+                    {
+                        ERR("InstallPnPSerialPort: FirmwareId found %lu\n", FirmwareId);
+                        IsFound = TRUE;
+                    }
+                }
+            }
+        }
+
+        RegCloseKey(Key);
+
+        if (IsFound)
+        {
+            if (NameBuffer[0])
+            {
+                _wcsupr(NameBuffer);
+
+                PortPtr = wcsstr(NameBuffer, pszCom);
+                if (PortPtr)
+                    PortNumber = myatoi(&PortPtr[wcslen(pszCom)]);
+            }
+
+            if (PortNumber == 0)
+            {
+              /* Determine the port number from its resources ... */
+              #ifdef __REACTOS__
+                PortNumber = GetSerialPortNumber(DeviceInfoSet, DeviceInfoData);
+                ERR("InstallPnPSerialPort: PortNumber %lu\n", PortNumber);
+                if (PortNumber == 0 && ComDB != HCOMDB_INVALID_HANDLE_VALUE)
+                {
+                    Error = ComDBGetCurrentPortUsage(ComDB, PortUsage, 32, 0, &MaxPortsReported);
+                    if (Error == NO_ERROR)
+                    {
+                        if (!(PortUsage[0] & 0x1))
+                            PortNumber = 1;
+                        else if (!(PortUsage[0] & 0x2))
+                            PortNumber = 2;
+                        else if (!(PortUsage[0] & 0x4))
+                            PortNumber = 3;
+                        else if (!(PortUsage[0] & 0x8))
+                            PortNumber = 4;
+                        else
+                            PortNumber = 0;
+                    }
+                }
+              #else
+                #error FIXME!
+                #if 0
+                Result = DetermineComNumberFromResources(DeviceInfoData->DevInst, &PortNumber);
+                if (!Result && ComDB != HCOMDB_INVALID_HANDLE_VALUE)
+                {
+                    Error = ComDBGetCurrentPortUsage(ComDB, PortUsage, 32, 0, &MaxPortsReported);
+                    if (Error == NO_ERROR)
+                    {
+                        if (!(PortUsage[0] & 0x1))
+                            PortNumber = 1;
+                        else if (!(PortUsage[0] & 0x2))
+                            PortNumber = 2;
+                        else if (!(PortUsage[0] & 0x4))
+                            PortNumber = 3;
+                        else if (!(PortUsage[0] & 0x8))
+                            PortNumber = 4;
+                        else
+                            PortNumber = 0;
+                    }
+                }
+                #endif
+              #endif
+            }
+        }
+    }
+
+    if (PortNumber)
+        /* Claim the port number in the database */
+        ComDBClaimPort(ComDB, PortNumber, TRUE, NULL);
+    else if (ComDB != HCOMDB_INVALID_HANDLE_VALUE)
+        /* Claim the next free port number */
+        ComDBClaimNextFreePort(ComDB, &PortNumber);
+    else
+        PortNumber = 5;
+
+    /* Close the com port database */
+    if (ComDB != HCOMDB_INVALID_HANDLE_VALUE)
+        ComDBClose(ComDB);
+
+    /* Build the name of the port device */
+    wsprintf(PortName, L"%s%d", pszCom, PortNumber);
+
+    /* Set the 'PortName' value */
+    Key = SetupDiCreateDevRegKeyW(DeviceInfoSet, DeviceInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DEV, NULL, NULL);
+    if (Key != INVALID_HANDLE_VALUE)
+    {
+        PollingPeriod = PollingPeriods[1];
+
+        RegSetValueExW(Key, L"PortName", 0, REG_SZ, (LPBYTE)PortName, ((lstrlenW(PortName) + 1) * sizeof(WCHAR)));
+        RegSetValueExW(Key, L"PollingPeriod", 0, REG_DWORD, (LPBYTE)&PollingPeriod, sizeof(DWORD));
+
+        RegCloseKey(Key);
+    }
+
+    /* Install the device */
+    if (!SetupDiInstallDevice(DeviceInfoSet, DeviceInfoData))
+    {
+        ERR("InstallPnPSerialPort: Device installation failed (%lu)\n", GetLastError());
+        return GetLastError();
+    }
+
+    /* Get the device description... */
+    Result = SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
+                                               DeviceInfoData,
+                                               SPDRP_DEVICEDESC,
+                                               NULL,
+                                               (LPBYTE)DeviceDescription,
+                                               sizeof(DeviceDescription),
+                                               NULL);
+    if (Result)
+        /* ... and use it to build a new friendly name */
+        wsprintfW(FriendlyName, L"%s (%s)", DeviceDescription, PortName);
+    else
+        /* ... or build a generic friendly name */
+        lstrcpyW(FriendlyName, PortName);
+
+    /* Set the friendly name for the device */
+    SetupDiSetDeviceRegistryPropertyW(DeviceInfoSet,
+                                      DeviceInfoData,
+                                      SPDRP_FRIENDLYNAME,
+                                      (LPBYTE)FriendlyName,
+                                      (lstrlenW(FriendlyName) + 1) * sizeof(WCHAR));
+
+    wcscat(PortName, L":");
+    ReturnedString[0] = 0;
+
+    Size = (sizeof(ReturnedString) / sizeof(WCHAR));
+    GetProfileString(L"Ports", PortName, L"", ReturnedString, Size);
+
+    if (ReturnedString[0] == 0)
+        WriteProfileString(L"Ports", PortName, L"9600,n,8,1");
+
+    return NO_ERROR;
+}
+
+// FIXME! Not changed code. Need test it.
+#ifdef __REACTOS__
+DWORD
+WINAPI
 GetParallelPortNumber(IN HDEVINFO DeviceInfoSet,
                       IN PSP_DEVINFO_DATA DeviceInfoData)
 {
@@ -276,146 +541,10 @@ GetParallelPortNumber(IN HDEVINFO DeviceInfoSet,
     return dwPortNumber;
 }
 
-
-static DWORD
-InstallSerialPort(IN HDEVINFO DeviceInfoSet,
-                  IN PSP_DEVINFO_DATA DeviceInfoData)
-{
-    WCHAR szDeviceDescription[256];
-    WCHAR szFriendlyName[256];
-    WCHAR szPortName[8];
-    DWORD dwPortNumber = 0;
-    DWORD dwSize;
-    HCOMDB hComDB = HCOMDB_INVALID_HANDLE_VALUE;
-    HKEY hKey;
-    LONG lError;
-
-    TRACE("InstallSerialPort(%p, %p)\n",
-          DeviceInfoSet, DeviceInfoData);
-
-    /* Open the com port database */
-    ComDBOpen(&hComDB);
-
-    /* Try to read the 'PortName' value and determine the port number */
-    hKey = SetupDiCreateDevRegKeyW(DeviceInfoSet,
-                                   DeviceInfoData,
-                                   DICS_FLAG_GLOBAL,
-                                   0,
-                                   DIREG_DEV,
-                                   NULL,
-                                   NULL);
-    if (hKey != INVALID_HANDLE_VALUE)
-    {
-        dwSize = sizeof(szPortName);
-        lError = RegQueryValueEx(hKey,
-                                 L"PortName",
-                                 NULL,
-                                 NULL,
-                                 (PBYTE)szPortName,
-                                 &dwSize);
-        if (lError  == ERROR_SUCCESS)
-        {
-            if (_wcsnicmp(szPortName, pszCom, wcslen(pszCom)) == 0)
-            {
-                dwPortNumber = _wtoi(szPortName + wcslen(pszCom));
-                TRACE("COM port number found: %lu\n", dwPortNumber);
-            }
-        }
-
-        RegCloseKey(hKey);
-    }
-
-    /* Determine the port number from its resources ... */
-    if (dwPortNumber == 0)
-        dwPortNumber = GetSerialPortNumber(DeviceInfoSet,
-                                           DeviceInfoData);
-
-    if (dwPortNumber != 0)
-    {
-        /* ... and claim the port number in the database */
-        ComDBClaimPort(hComDB,
-                       dwPortNumber,
-                       FALSE,
-                       NULL);
-    }
-    else
-    {
-        /* ... or claim the next free port number */
-        ComDBClaimNextFreePort(hComDB,
-                               &dwPortNumber);
-    }
-
-    /* Build the name of the port device */
-    swprintf(szPortName, L"%s%u", pszCom, dwPortNumber);
-
-    /* Close the com port database */
-    if (hComDB != HCOMDB_INVALID_HANDLE_VALUE)
-        ComDBClose(hComDB);
-
-    /* Set the 'PortName' value */
-    hKey = SetupDiCreateDevRegKeyW(DeviceInfoSet,
-                                   DeviceInfoData,
-                                   DICS_FLAG_GLOBAL,
-                                   0,
-                                   DIREG_DEV,
-                                   NULL,
-                                   NULL);
-    if (hKey != INVALID_HANDLE_VALUE)
-    {
-        RegSetValueExW(hKey,
-                       L"PortName",
-                       0,
-                       REG_SZ,
-                       (LPBYTE)szPortName,
-                       (wcslen(szPortName) + 1) * sizeof(WCHAR));
-
-        RegCloseKey(hKey);
-    }
-
-    /* Install the device */
-    if (!SetupDiInstallDevice(DeviceInfoSet,
-                              DeviceInfoData))
-    {
-        return GetLastError();
-    }
-
-    /* Get the device description... */
-    if (SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
-                                          DeviceInfoData,
-                                          SPDRP_DEVICEDESC,
-                                          NULL,
-                                          (LPBYTE)szDeviceDescription,
-                                          256 * sizeof(WCHAR),
-                                          NULL))
-    {
-        /* ... and use it to build a new friendly name */
-        swprintf(szFriendlyName,
-                 L"%s (%s)",
-                 szDeviceDescription,
-                 szPortName);
-    }
-    else
-    {
-        /* ... or build a generic friendly name */
-        swprintf(szFriendlyName,
-                 L"Serial Port (%s)",
-                 szPortName);
-    }
-
-    /* Set the friendly name for the device */
-    SetupDiSetDeviceRegistryPropertyW(DeviceInfoSet,
-                                      DeviceInfoData,
-                                      SPDRP_FRIENDLYNAME,
-                                      (LPBYTE)szFriendlyName,
-                                      (wcslen(szFriendlyName) + 1) * sizeof(WCHAR));
-
-    return ERROR_SUCCESS;
-}
-
-
-static DWORD
-InstallParallelPort(IN HDEVINFO DeviceInfoSet,
-                    IN PSP_DEVINFO_DATA DeviceInfoData)
+DWORD
+WINAPI
+InstallPnPParallelPort(IN HDEVINFO DeviceInfoSet,
+                       IN PSP_DEVINFO_DATA DeviceInfoData)
 {
     WCHAR szDeviceDescription[256];
     WCHAR szFriendlyName[256];
@@ -562,263 +691,232 @@ InstallParallelPort(IN HDEVINFO DeviceInfoSet,
 
     return ERROR_SUCCESS;
 }
+#else
+  #error FIXME
+#endif
 
-
-VOID
-InstallDeviceData(IN HDEVINFO DeviceInfoSet,
-                  IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL)
+DWORD
+WINAPI
+GetPortType(_In_ HDEVINFO DeviceInfoSet,
+            _In_ PSP_DEVINFO_DATA DeviceInfoData,
+            _In_ BOOLEAN IsInfInstall)
 {
-    HKEY hKey = NULL;
-    HINF hInf = INVALID_HANDLE_VALUE;
-    SP_DRVINFO_DATA DriverInfoData;
-    PSP_DRVINFO_DETAIL_DATA DriverInfoDetailData;
-    WCHAR InfSectionWithExt[256];
-    BYTE buffer[2048];
-    DWORD dwRequired;
+    HINF InfHandle = INVALID_HANDLE_VALUE;
+    SP_DRVINFO_DETAIL_DATA_W DriverInfoDetailData;
+    SP_DRVINFO_DATA_W DriverInfoData;
+    PORT_TYPE PortType = SerialPort;
+    WCHAR InfSectionWithExt[0x100];
+    HKEY Key;
+    DWORD Type;
+    DWORD Size;
+    BYTE PortSubClass = 0;
+    BOOL Result;
+    LONG Error;
 
-    TRACE("InstallDeviceData()\n");
+    ERR("GetPortType: %p, %p, %X\n", DeviceInfoSet, DeviceInfoData, IsInfInstall);
 
-    hKey = SetupDiCreateDevRegKeyW(DeviceInfoSet,
+    Key = SetupDiCreateDevRegKeyW(DeviceInfoSet,
                                    DeviceInfoData,
                                    DICS_FLAG_GLOBAL,
                                    0,
                                    DIREG_DRV,
                                    NULL,
                                    NULL);
-    if (hKey == NULL)
-        goto done;
-
-    DriverInfoData.cbSize = sizeof(SP_DRVINFO_DATA);
-    if (!SetupDiGetSelectedDriverW(DeviceInfoSet,
-                                   DeviceInfoData,
-                                   &DriverInfoData))
+    if (!Key)
     {
-        goto done;
+        ERR("GetPortType: ret PortType\n");
+        return PortType;
     }
 
-    DriverInfoDetailData = (PSP_DRVINFO_DETAIL_DATA)buffer;
-    DriverInfoDetailData->cbSize = sizeof(SP_DRVINFO_DETAIL_DATA);
-    if (!SetupDiGetDriverInfoDetailW(DeviceInfoSet,
-                                     DeviceInfoData,
-                                     &DriverInfoData,
-                                     DriverInfoDetailData,
-                                     2048,
-                                     &dwRequired))
+    if (IsInfInstall)
     {
-        if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
-            goto done;
+        DriverInfoData.cbSize = sizeof(DriverInfoData);
+
+        Result = SetupDiGetSelectedDriverW(DeviceInfoSet, DeviceInfoData, &DriverInfoData);
+        if (!Result)
+        {
+            ERR("GetPortType: exit %p, %p, %X\n", DeviceInfoSet, DeviceInfoData, IsInfInstall);
+            goto Exit;
+        }
+
+        DriverInfoDetailData.cbSize = sizeof(DriverInfoDetailData);
+
+        Result = SetupDiGetDriverInfoDetailW(DeviceInfoSet,
+                                             DeviceInfoData,
+                                             &DriverInfoData,
+                                             &DriverInfoDetailData,
+                                             sizeof(DriverInfoDetailData),
+                                             NULL);
+
+        if (!Result && GetLastError() != 122)
+        {
+            ERR("GetPortType: exit with error %X (%p, %p, %X)\n", GetLastError(), DeviceInfoSet, DeviceInfoData, IsInfInstall);
+            goto Exit;
+        }
+
+        TRACE("GetPortType: Inf '%S'\n", DriverInfoDetailData.InfFileName);
+
+        InfHandle = SetupOpenInfFileW(DriverInfoDetailData.InfFileName, NULL, INF_STYLE_WIN4, NULL);
+        if (InfHandle == INVALID_HANDLE_VALUE)
+        {
+            ERR("GetPortType: exit %p, %p, %X\n", DeviceInfoSet, DeviceInfoData, IsInfInstall);
+            goto Exit;
+        }
+
+        TRACE("GetPortType: Section '%S'\n", DriverInfoDetailData.SectionName);
+
+        SetupDiGetActualSectionToInstallW(InfHandle, DriverInfoDetailData.SectionName, InfSectionWithExt, 0x100, NULL, NULL);
+
+        TRACE("GetPortType: Section ext '%S'\n", InfSectionWithExt);
+
+        SetupInstallFromInfSectionW(NULL, InfHandle, InfSectionWithExt, SPINST_REGISTRY, Key, NULL, 0, NULL, NULL, NULL, NULL);
     }
 
-    TRACE("Inf file name: %S\n", DriverInfoDetailData->InfFileName);
+    Size = sizeof(PortSubClass);
+    Error = RegQueryValueExW(Key, L"PortSubClassOther", NULL, &Type, &PortSubClass, &Size);
 
-    hInf = SetupOpenInfFileW(DriverInfoDetailData->InfFileName,
-                             NULL,
-                             INF_STYLE_WIN4,
-                             NULL);
-    if (hInf == INVALID_HANDLE_VALUE)
-        goto done;
-
-    TRACE("Section name: %S\n", DriverInfoDetailData->SectionName);
-
-    if (!SetupDiGetActualSectionToInstallW(hInf,
-                                           DriverInfoDetailData->SectionName,
-                                           InfSectionWithExt,
-                                           256,
-                                           NULL,
-                                           NULL))
-        goto done;
-
-    TRACE("InfSectionWithExt: %S\n", InfSectionWithExt);
-
-    SetupInstallFromInfSectionW(NULL,
-                                hInf,
-                                InfSectionWithExt,
-                                SPINST_REGISTRY,
-                                hKey,
-                                NULL,
-                                0,
-                                NULL,
-                                NULL,
-                                NULL,
-                                NULL);
-
-    TRACE("Done\n");
-
-done:
-    if (hKey != NULL)
-        RegCloseKey(hKey);
-
-    if (hInf != INVALID_HANDLE_VALUE)
-        SetupCloseInfFile(hInf);
-}
-
-
-
-PORT_TYPE
-GetPortType(IN HDEVINFO DeviceInfoSet,
-            IN PSP_DEVINFO_DATA DeviceInfoData)
-{
-    HKEY hKey = NULL;
-    DWORD dwSize;
-    DWORD dwType = 0;
-    BYTE bData = 0;
-    PORT_TYPE PortType = UnknownPort;
-    LONG lError;
-
-    TRACE("GetPortType()\n");
-
-    hKey = SetupDiCreateDevRegKeyW(DeviceInfoSet,
-                                   DeviceInfoData,
-                                   DICS_FLAG_GLOBAL,
-                                   0,
-                                   DIREG_DRV,
-                                   NULL,
-                                   NULL);
-    if (hKey == NULL)
+    if (!Error && Size == sizeof(PortSubClass) && Type == REG_BINARY && PortSubClass != 0)
     {
-        goto done;
+        ERR("GetPortType: OtherPort %p, %p, %X\n", DeviceInfoSet, DeviceInfoData, IsInfInstall);
+        PortType = OtherPort;
+        goto Exit;
     }
 
-    dwSize = sizeof(BYTE);
-    lError = RegQueryValueExW(hKey,
-                              L"PortSubClass",
-                              NULL,
-                              &dwType,
-                              &bData,
-                              &dwSize);
+    Size = sizeof(PortSubClass);
+    Error = RegQueryValueExW(Key, L"PortSubClass", NULL, &Type, &PortSubClass, &Size);
 
-    TRACE("lError: %ld\n", lError);
-    TRACE("dwSize: %lu\n", dwSize);
-    TRACE("dwType: %lu\n", dwType);
-
-    if (lError == ERROR_SUCCESS &&
-        dwSize == sizeof(BYTE) &&
-        dwType == REG_BINARY)
+    if (Error == NO_ERROR && Size == sizeof(PortSubClass) && Type == REG_BINARY)
     {
-        if (bData == 0)
-            PortType = ParallelPort;
-        else
+        if (PortSubClass)
+        {
+            ERR("GetPortType: SerialPort %p, %p, %X\n", DeviceInfoSet, DeviceInfoData, IsInfInstall);
             PortType = SerialPort;
+        }
+        else
+        {
+            ERR("GetPortType: ParallelPort %p, %p, %X\n", DeviceInfoSet, DeviceInfoData, IsInfInstall);
+            PortType = ParallelPort;
+        }
     }
 
-done:
-    if (hKey != NULL)
-        RegCloseKey(hKey);
+Exit:
 
-    TRACE("GetPortType() returns %u \n", PortType);
+    RegCloseKey(Key);
+
+    if (InfHandle != INVALID_HANDLE_VALUE)
+        SetupCloseInfFile(InfHandle);
 
     return PortType;
 }
 
-
-static DWORD
-InstallPort(IN HDEVINFO DeviceInfoSet,
-            IN PSP_DEVINFO_DATA DeviceInfoData)
+DWORD
+WINAPI
+InstallSerialOrParallelPort(_In_ HDEVINFO DeviceInfoSet,
+                            _In_ PSP_DEVINFO_DATA DeviceInfoData)
 {
-    PORT_TYPE PortType;
+    PORT_TYPE PortType = GetPortType(DeviceInfoSet, DeviceInfoData, TRUE);
 
-    InstallDeviceData(DeviceInfoSet, DeviceInfoData);
-
-    PortType = GetPortType(DeviceInfoSet, DeviceInfoData);
     switch (PortType)
     {
         case ParallelPort:
-            return InstallParallelPort(DeviceInfoSet, DeviceInfoData);
+            return InstallPnPParallelPort(DeviceInfoSet, DeviceInfoData);
 
         case SerialPort:
-            return InstallSerialPort(DeviceInfoSet, DeviceInfoData);
+            return InstallPnPSerialPort(DeviceInfoSet, DeviceInfoData);
 
         default:
             return ERROR_DI_DO_DEFAULT;
     }
 }
-
-
-static DWORD
-RemovePort(IN HDEVINFO DeviceInfoSet,
-           IN PSP_DEVINFO_DATA DeviceInfoData)
-{
-    PORT_TYPE PortType;
-    HCOMDB hComDB = HCOMDB_INVALID_HANDLE_VALUE;
-    HKEY hKey;
-    LONG lError;
-    DWORD dwPortNumber;
-    DWORD dwPortNameSize;
-    WCHAR szPortName[8];
-
-    /* If we are removing a serial port ... */
-    PortType = GetPortType(DeviceInfoSet, DeviceInfoData);
-    if (PortType == SerialPort)
-    {
-        /* Open the port database */
-        if (ComDBOpen(&hComDB) == ERROR_SUCCESS)
-        {
-            /* Open the device key */
-            hKey = SetupDiOpenDevRegKey(DeviceInfoSet,
-                                        DeviceInfoData,
-                                        DICS_FLAG_GLOBAL,
-                                        0,
-                                        DIREG_DEV,
-                                        KEY_READ);
-            if (hKey != INVALID_HANDLE_VALUE)
-            {
-                /* Query the port name */
-                dwPortNameSize = sizeof(szPortName);
-                lError = RegQueryValueEx(hKey,
-                                         L"PortName",
-                                         NULL,
-                                         NULL,
-                                         (PBYTE)szPortName,
-                                         &dwPortNameSize);
-
-                /* Close the device key */
-                RegCloseKey(hKey);
-
-                /* If we got a valid port name ...*/
-                if (lError == ERROR_SUCCESS)
-                {
-                    /* Get the port number */
-                    dwPortNumber = _wtoi(szPortName + wcslen(pszCom));
-
-                    /* Release the port */
-                    ComDBReleasePort(hComDB, dwPortNumber);
-                }
-            }
-
-            /* Close the port database */
-            ComDBClose(hComDB);
-        }
-    }
-
-    /* Remove the device */
-    if (!SetupDiRemoveDevice(DeviceInfoSet, DeviceInfoData))
-        return GetLastError();
-
-    return ERROR_SUCCESS;
-}
-
 
 DWORD
 WINAPI
-PortsClassInstaller(IN DI_FUNCTION InstallFunction,
-                    IN HDEVINFO DeviceInfoSet,
-                    IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL)
+PortsClassInstaller(_In_ DI_FUNCTION InstallFunction,
+                    _In_ HDEVINFO DeviceInfoSet,
+                    _In_ PSP_DEVINFO_DATA DeviceInfoData OPTIONAL)
 {
-    TRACE("PortsClassInstaller(%lu, %p, %p)\n",
-          InstallFunction, DeviceInfoSet, DeviceInfoData);
+    HCOMDB ComDB;
+    HKEY Key;
+    WCHAR PortName[20];
+    DWORD PortNameSize;
+    DWORD PortNumber;
+    DWORD ErrorCode;
 
-    switch (InstallFunction)
+    ERR("PortsClassInstaller(%lu, %p, %p)\n", InstallFunction, DeviceInfoSet, DeviceInfoData);
+
+    if (InstallFunction == DIF_INSTALLDEVICE)
+        return InstallSerialOrParallelPort(DeviceInfoSet, DeviceInfoData);
+
+    if (InstallFunction == DIF_REMOVE)
     {
-        case DIF_INSTALLDEVICE:
-            return InstallPort(DeviceInfoSet, DeviceInfoData);
+        /* If we are removing a serial port ... */
+        if (GetPortType(DeviceInfoSet, DeviceInfoData, 0) == SerialPort)
+        {
+            /* Open the port database */
+            if (ComDBOpen(&ComDB) == NO_ERROR)
+            {
+                /* Open the device key */
+                Key = SetupDiOpenDevRegKey(DeviceInfoSet, DeviceInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DEV, KEY_READ);
+                if (Key != INVALID_HANDLE_VALUE)
+                {
+                    /* Query the port name */
+                    PortNameSize = sizeof(PortName);
+                    ErrorCode = RegQueryValueExW(Key, L"PortName", NULL, NULL, (LPBYTE)PortName, &PortNameSize);
 
-        case DIF_REMOVE:
-            return RemovePort(DeviceInfoSet, DeviceInfoData);
+                    /* Close the device key */
+                    RegCloseKey(Key);
 
-        default:
-            TRACE("Install function %u ignored\n", InstallFunction);
-            return ERROR_DI_DO_DEFAULT;
+                    /* If we got a valid port name ...*/
+                    if (!ErrorCode)
+                    {
+                        /* Get the port number */
+                        PortNumber = myatoi(&PortName[wcslen(pszCom)]);
+
+                        /* Release the port */
+                        ComDBReleasePort(ComDB, PortNumber);
+                    }
+                }
+
+                /* Close the port database */
+                ComDBClose(ComDB);
+            }
+        }
+
+        /* Remove the device */
+        if (!SetupDiRemoveDevice(DeviceInfoSet, DeviceInfoData))
+        {
+            ERR("PortsClassInstaller: SetupDiRemoveDevice() fail %lu\n", GetLastError());
+            return GetLastError();
+        }
+
+        return NO_ERROR;
     }
+
+    if (InstallFunction == DIF_FIRSTTIMESETUP)
+    {
+        ERR("PortsClassInstaller: NOT IMPEMENTED! (%lu, %p, %p)\n", InstallFunction, DeviceInfoSet, DeviceInfoData);
+        return ERROR_DI_DO_DEFAULT;
+    }
+
+    if (InstallFunction == DIF_MOVEDEVICE)
+    {
+        ERR("PortsClassInstaller: NOT IMPEMENTED! (%lu, %p, %p)\n", InstallFunction, DeviceInfoSet, DeviceInfoData);
+        return ERROR_DI_DO_DEFAULT;
+    }
+
+    if (InstallFunction == DIF_DETECT)
+    {
+        ERR("PortsClassInstaller: NOT IMPEMENTED! (%lu, %p, %p)\n", InstallFunction, DeviceInfoSet, DeviceInfoData);
+        return ERROR_DI_DO_DEFAULT;
+    }
+
+    if (InstallFunction == DIF_REGISTERDEVICE)
+    {
+        ERR("PortsClassInstaller: NOT IMPEMENTED! (%lu, %p, %p)\n", InstallFunction, DeviceInfoSet, DeviceInfoData);
+        return ERROR_DI_DO_DEFAULT;
+    }
+
+    return ERROR_DI_DO_DEFAULT;
 }
 
 /* EOF */

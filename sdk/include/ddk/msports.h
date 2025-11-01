@@ -19,41 +19,55 @@ typedef HCOMDB *PHCOMDB;
 
 LONG
 WINAPI
-ComDBClaimNextFreePort(IN HCOMDB hComDB,
-                       OUT LPDWORD ComNumber);
+ComDBClaimNextFreePort(
+    _In_ HCOMDB hComDB,
+    _Out_ DWORD* OutComNumber
+);
 
 LONG
 WINAPI
-ComDBClaimPort(IN HCOMDB hComDB,
-               IN DWORD ComNumber,
-               IN BOOL ForceClaim,
-               OUT PBOOL Forced);
+ComDBClaimPort(
+    _In_ HCOMDB hComDB,
+    _In_ DWORD ComNumber,
+    _In_ BOOL IsForceClaim,
+    _Out_ BOOL* OutIsForced
+);
 
 LONG
 WINAPI
-ComDBClose(IN HCOMDB hComDB);
+ComDBClose(
+    _In_ HCOMDB hComDB
+);
 
 LONG
 WINAPI
-ComDBGetCurrentPortUsage(IN HCOMDB hComDB,
-                         OUT PBYTE Buffer,
-                         IN DWORD BufferSize,
-                         IN DWORD ReportType,
-                         OUT LPDWORD MaxPortsReported);
+ComDBGetCurrentPortUsage(
+    _In_ HCOMDB hComDB,
+    _Out_ BYTE* OutBuffer,
+    _In_ DWORD BufferSize,
+    _In_ DWORD ReportType,
+    _Out_ DWORD* OutMaxPortsReported
+);
 
 LONG
 WINAPI
-ComDBOpen(OUT HCOMDB *phComDB);
+ComDBOpen(
+    _Out_ HCOMDB* phComDB
+);
 
 LONG
 WINAPI
-ComDBReleasePort(IN HCOMDB hComDB,
-                 IN DWORD ComNumber);
+ComDBReleasePort(
+    _In_ HCOMDB hComDB,
+    _In_ DWORD ComNumber
+);
 
 LONG
 WINAPI
-ComDBResizeDatabase(IN HCOMDB hComDB,
-                    IN DWORD NewSize);
+ComDBResizeDatabase(
+    _In_ HCOMDB hComDB,
+    _In_ DWORD NewSize
+);
 
 #ifdef __cplusplus
 }

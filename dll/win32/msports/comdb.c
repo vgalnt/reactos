@@ -12,655 +12,753 @@
 #define BITMAP_SIZE_INCREMENT 0x400
 #define BITMAP_SIZE_INVALID_BITS 0x3FF
 
-typedef struct _COMDB
+typedef struct _COM_PORTS_DATA
 {
-    HANDLE hMutex;
-    HKEY hKey;
-} COMDB, *PCOMDB;
+    HANDLE Event;
+    HANDLE Mutex;
+    HKEY Key;
+    PBYTE ComDB;
+    ULONG ComDBSize;
+} COM_PORTS_DATA, *PCOM_PORTS_DATA;
 
-
-LONG
+BOOL
 WINAPI
-ComDBClaimNextFreePort(IN HCOMDB hComDB,
-                       OUT LPDWORD ComNumber)
+ResizeDatabase(_In_ PCOM_PORTS_DATA ComPortsData,
+               _In_ DWORD PortCount)
 {
-    PCOMDB pComDB;
-    DWORD dwBitIndex;
-    DWORD dwByteIndex;
-    DWORD dwSize;
-    DWORD dwType;
-    PBYTE pBitmap = NULL;
-    BYTE cMask;
-    LONG lError;
+    PBYTE NewDatabase;
 
-    TRACE("ComDBClaimNextFreePort(%p %p)\n", hComDB, ComNumber);
-
-    if (hComDB == INVALID_HANDLE_VALUE ||
-        hComDB == NULL ||
-        ComNumber == NULL)
-        return ERROR_INVALID_PARAMETER;
-
-    pComDB = (PCOMDB)hComDB;
-
-    /* Wait for the mutex */
-    WaitForSingleObject(pComDB->hMutex, INFINITE);
-
-    /* Get the required bitmap size */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              NULL,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
+    if (!ComPortsData->ComDB)
     {
-        ERR("Failed to query the bitmap size!\n");
-        goto done;
+        ComPortsData->ComDBSize = (PortCount / BITS_PER_BYTE);
+        ComPortsData->ComDB = LocalAlloc(LMEM_ZEROINIT, ComPortsData->ComDBSize);
+
+        return (ComPortsData->ComDB != NULL);
     }
 
-    /* Allocate the bitmap */
-    pBitmap = HeapAlloc(GetProcessHeap(),
-                        HEAP_ZERO_MEMORY,
-                        dwSize);
-    if (pBitmap == NULL)
+    NewDatabase = LocalAlloc(LMEM_ZEROINIT, (PortCount / BITS_PER_BYTE));
+    if (!NewDatabase)
     {
-        ERR("Failed to allocate the bitmap!\n");
-        lError = ERROR_NOT_ENOUGH_MEMORY;
-        goto done;
+        ERR("ResizeDatabase: Failed to allocate the database!\n");
+        return FALSE;
     }
 
-    /* Read the bitmap */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              pBitmap,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
-        goto done;
+    CopyMemory(NewDatabase, ComPortsData->ComDB, ComPortsData->ComDBSize);
 
-    lError = ERROR_INVALID_PARAMETER;
-    for (dwBitIndex = 0; dwBitIndex < (dwSize * BITS_PER_BYTE); dwBitIndex++)
-    {
-        /* Calculate the byte index and a mask for the affected bit */
-        dwByteIndex = dwBitIndex / BITS_PER_BYTE;
-        cMask = 1 << (dwBitIndex % BITS_PER_BYTE);
+    LocalFree(ComPortsData->ComDB);
 
-        if ((pBitmap[dwByteIndex] & cMask) == 0)
-        {
-            pBitmap[dwByteIndex] |= cMask;
-            *ComNumber = dwBitIndex + 1;
-             lError = ERROR_SUCCESS;
-             break;
-        }
-    }
+    ComPortsData->ComDB = NewDatabase;
+    ComPortsData->ComDBSize = (PortCount / BITS_PER_BYTE);
 
-    /* Save the bitmap if it was modified */
-    if (lError == ERROR_SUCCESS)
-    {
-        lError = RegSetValueExW(pComDB->hKey,
-                                L"ComDB",
-                                0,
-                                REG_BINARY,
-                                pBitmap,
-                                dwSize);
-    }
-
-done:;
-    /* Release the mutex */
-    ReleaseMutex(pComDB->hMutex);
-
-    /* Release the bitmap */
-    if (pBitmap != NULL)
-        HeapFree(GetProcessHeap(), 0, pBitmap);
-
-    return lError;
+    return TRUE;
 }
 
-
-LONG
+VOID
 WINAPI
-ComDBClaimPort(IN HCOMDB hComDB,
-               IN DWORD ComNumber,
-               IN BOOL ForceClaim,
-               OUT PBOOL Forced)
+RegisterForNotification(_In_ PCOM_PORTS_DATA ComPortsData)
 {
-    PCOMDB pComDB;
-    DWORD dwBitIndex;
-    DWORD dwByteIndex;
-    DWORD dwType;
-    DWORD dwSize;
-    PBYTE pBitmap = NULL;
-    BYTE cMask;
-    LONG lError;
+    LONG Error;
 
-    TRACE("ComDBClaimPort(%p %lu)\n", hComDB, ComNumber);
+    ResetEvent(ComPortsData->Event);
 
-    if (hComDB == INVALID_HANDLE_VALUE ||
-        hComDB == NULL ||
-        ComNumber == 0 ||
-        ComNumber > COMDB_MAX_PORTS_ARBITRATED)
-        return ERROR_INVALID_PARAMETER;
-
-    pComDB = (PCOMDB)hComDB;
-
-    /* Wait for the mutex */
-    WaitForSingleObject(pComDB->hMutex, INFINITE);
-
-    /* Get the required bitmap size */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              NULL,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
+    Error = RegNotifyChangeKeyValue(ComPortsData->Key, FALSE, REG_NOTIFY_CHANGE_LAST_SET, ComPortsData->Event, TRUE);
+    if (Error != NO_ERROR)
     {
-        ERR("Failed to query the bitmap size!\n");
-        goto done;
+        ERR("RegisterForNotification: Error %lu (%p)\n", Error, ComPortsData);
+        CloseHandle(ComPortsData->Event);
+        ComPortsData->Event = INVALID_HANDLE_VALUE;
     }
-
-    /* Allocate the bitmap */
-    pBitmap = HeapAlloc(GetProcessHeap(),
-                        HEAP_ZERO_MEMORY,
-                        dwSize);
-    if (pBitmap == NULL)
-    {
-        ERR("Failed to allocate the bitmap!\n");
-        lError = ERROR_NOT_ENOUGH_MEMORY;
-        goto done;
-    }
-
-    /* Read the bitmap */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              pBitmap,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
-        goto done;
-
-    /* Get the bit index */
-    dwBitIndex = ComNumber - 1;
-
-    /* Check if the bit to set fits into the bitmap */
-    if (dwBitIndex >= (dwSize * BITS_PER_BYTE))
-    {
-        FIXME("Resize the bitmap\n");
-
-        lError = ERROR_INVALID_PARAMETER;
-        goto done;
-    }
-
-    /* Calculate the byte index and a mask for the affected bit */
-    dwByteIndex = dwBitIndex / BITS_PER_BYTE;
-    cMask = 1 << (dwBitIndex % BITS_PER_BYTE);
-
-    lError = ERROR_SHARING_VIOLATION;
-
-    /* Check if the bit is not set */
-    if ((pBitmap[dwByteIndex] & cMask) == 0)
-    {
-        /* Set the bit */
-        pBitmap[dwByteIndex] |= cMask;
-        lError = ERROR_SUCCESS;
-    }
-
-    /* Save the bitmap if it was modified */
-    if (lError == ERROR_SUCCESS)
-    {
-        lError = RegSetValueExW(pComDB->hKey,
-                                L"ComDB",
-                                0,
-                                REG_BINARY,
-                                pBitmap,
-                                dwSize);
-    }
-
-done:
-    /* Release the mutex */
-    ReleaseMutex(pComDB->hMutex);
-
-    /* Release the bitmap */
-    if (pBitmap != NULL)
-        HeapFree(GetProcessHeap(), 0, pBitmap);
-
-    return lError;
 }
 
-
-LONG
+VOID
 WINAPI
-ComDBClose(IN HCOMDB hComDB)
+DestroyDBInfo(_In_ PCOM_PORTS_DATA ComPortsData)
 {
-    PCOMDB pComDB;
+    if (ComPortsData->Mutex && ComPortsData->Mutex != INVALID_HANDLE_VALUE)
+        CloseHandle(ComPortsData->Mutex);
 
-    TRACE("ComDBClose(%p)\n", hComDB);
+    if (ComPortsData->Event && ComPortsData->Event != INVALID_HANDLE_VALUE)
+        CloseHandle(ComPortsData->Event);
 
-    if (hComDB == HCOMDB_INVALID_HANDLE_VALUE ||
-        hComDB == NULL)
-        return ERROR_INVALID_PARAMETER;
+    if (ComPortsData->Key && ComPortsData->Key != INVALID_HANDLE_VALUE)
+        RegCloseKey(ComPortsData->Key);
 
-    pComDB = (PCOMDB)hComDB;
+    if (ComPortsData->ComDB)
+        LocalFree(ComPortsData->ComDB);
 
-    /* Close the registry key */
-    if (pComDB->hKey != NULL)
-        RegCloseKey(pComDB->hKey);
-
-    /* Close the mutex */
-    if (pComDB->hMutex != NULL)
-        CloseHandle(pComDB->hMutex);
-
-    /* Release the database */
-    HeapFree(GetProcessHeap(), 0, pComDB);
-
-    return ERROR_SUCCESS;
+    LocalFree(ComPortsData);
 }
 
-
-LONG
+BOOL
 WINAPI
-ComDBGetCurrentPortUsage(IN HCOMDB hComDB,
-                         OUT PBYTE Buffer,
-                         IN DWORD BufferSize,
-                         IN DWORD ReportType,
-                         OUT LPDWORD MaxPortsReported)
+EnterDB(_In_ PCOM_PORTS_DATA ComPortsData)
 {
-    PCOMDB pComDB;
-    DWORD dwBitIndex;
-    DWORD dwByteIndex;
-    DWORD dwType;
-    DWORD dwSize;
-    PBYTE pBitmap = NULL;
-    BYTE cMask;
-    LONG lError = ERROR_SUCCESS;
+    DWORD WaitStatus;
+    DWORD Size;
+    DWORD Type;
+    LONG Error;
+    BOOL IsNotify;
 
-    TRACE("ComDBGetCurrentPortUsage(%p %p %lu %lu %p)\n",
-          hComDB, Buffer, BufferSize, ReportType, MaxPortsReported);
+    WaitForSingleObject(ComPortsData->Mutex, INFINITE);
 
-    if (hComDB == INVALID_HANDLE_VALUE ||
-        hComDB == NULL ||
-        (Buffer == NULL && MaxPortsReported == NULL) ||
-        (ReportType != CDB_REPORT_BITS && ReportType != CDB_REPORT_BYTES))
-        return ERROR_INVALID_PARAMETER;
-
-    pComDB = (PCOMDB)hComDB;
-
-    /* Wait for the mutex */
-    WaitForSingleObject(pComDB->hMutex, INFINITE);
-
-    /* Get the required bitmap size */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              NULL,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
+    if (ComPortsData->Event != INVALID_HANDLE_VALUE)
     {
-        ERR("Failed to query the bitmap size!\n");
-        goto done;
-    }
+        WaitStatus = WaitForSingleObject(ComPortsData->Event, 0);
+        if (WaitStatus != WAIT_OBJECT_0)
+            return TRUE;
 
-    /* Allocate the bitmap */
-    pBitmap = HeapAlloc(GetProcessHeap(),
-                        HEAP_ZERO_MEMORY,
-                        dwSize);
-    if (pBitmap == NULL)
-    {
-        ERR("Failed to allocate the bitmap!\n");
-        lError = ERROR_NOT_ENOUGH_MEMORY;
-        goto done;
-    }
-
-    /* Read the bitmap */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              pBitmap,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
-        goto done;
-
-    if (Buffer == NULL)
-    {
-        *MaxPortsReported = dwSize * BITS_PER_BYTE;
+        IsNotify = TRUE;
     }
     else
     {
-        if (ReportType == CDB_REPORT_BITS)
-        {
-            /* Clear the buffer */
-            memset(Buffer, 0, BufferSize);
-
-            memcpy(Buffer,
-                   pBitmap,
-                   min(dwSize, BufferSize));
-
-            if (MaxPortsReported != NULL)
-                *MaxPortsReported = min(dwSize, BufferSize) * BITS_PER_BYTE;
-        }
-        else if (ReportType == CDB_REPORT_BYTES)
-        {
-            /* Clear the buffer */
-            memset(Buffer, 0, BufferSize);
-
-            for (dwBitIndex = 0; dwBitIndex < min(dwSize * BITS_PER_BYTE, BufferSize); dwBitIndex++)
-            {
-                /* Calculate the byte index and a mask for the affected bit */
-                dwByteIndex = dwBitIndex / BITS_PER_BYTE;
-                cMask = 1 << (dwBitIndex % BITS_PER_BYTE);
-
-                if ((pBitmap[dwByteIndex] & cMask) != 0)
-                    Buffer[dwBitIndex] = 1;
-            }
-        }
+        IsNotify = FALSE;
     }
 
-done:;
-    /* Release the mutex */
-    ReleaseMutex(pComDB->hMutex);
+    Size = 0;
 
-    /* Release the bitmap */
-    HeapFree(GetProcessHeap(), 0, pBitmap);
+    Error = RegQueryValueExW(ComPortsData->Key, L"ComDB", 0, &Type, 0, &Size);
+    if (Error != NO_ERROR)
+    {
+        ERR("EnterDB: Error %lu (%p)\n", Error, ComPortsData);
+        ReleaseMutex(ComPortsData->Mutex);
+        return FALSE;
+    }
 
-    return lError;
+    if (Type != REG_BINARY)
+    {
+        ERR("EnterDB: Type %lu (%p)\n", Type, ComPortsData);
+        ReleaseMutex(ComPortsData->Mutex);
+        return FALSE;
+    }
+
+    if (Size != ComPortsData->ComDBSize)
+        ResizeDatabase(ComPortsData, (Size * BITS_PER_BYTE));
+
+    RegQueryValueExW(ComPortsData->Key, L"ComDB", 0, &Type, ComPortsData->ComDB, &Size);
+
+    if (IsNotify)
+        RegisterForNotification(ComPortsData);
+
+    return TRUE;
 }
 
+DWORD
+WINAPI
+LeaveDB(_In_ PCOM_PORTS_DATA ComPortsData,
+        _In_ BOOL IsFound)
+{
+    DWORD ErrorCode = NO_ERROR;
+    LONG Error;
+
+    if (!IsFound)
+    {
+        goto Exit;
+    }
+
+    Error = RegSetValueExW(ComPortsData->Key, L"ComDB", 0, REG_BINARY, ComPortsData->ComDB, ComPortsData->ComDBSize);
+    if (Error != NO_ERROR)
+    {
+        ERR("LeaveDB: ERROR_CANTWRITE %lu (%p, %lu)\n", Error, ComPortsData, IsFound);
+        ErrorCode = ERROR_CANTWRITE;
+    }
+
+    if (ComPortsData->Event != INVALID_HANDLE_VALUE)
+        RegisterForNotification(ComPortsData);
+
+Exit:
+
+    ReleaseMutex(ComPortsData->Mutex);
+
+    return ErrorCode;
+}
+
+VOID
+WINAPI
+GetByteAndMask(_In_ PCOM_PORTS_DATA ComPortsData,
+               _In_ DWORD ComNumber,
+               _Out_ PBYTE* OutByte,
+               _Out_ BYTE* OutMask)
+{
+    *OutByte = &ComPortsData->ComDB[(ComNumber - 1) >> 3];
+    *OutMask = (1 << ((ComNumber - 1) & 7));
+}
 
 LONG
 WINAPI
-ComDBOpen(OUT HCOMDB *phComDB)
+ComDBClaimNextFreePort(_In_ HCOMDB hComDB,
+                       _Out_ DWORD* OutComNumber)
 {
-    PCOMDB pComDB;
-    DWORD dwDisposition;
-    DWORD dwType;
-    DWORD dwSize;
-    PBYTE pBitmap;
-    LONG lError;
+    PCOM_PORTS_DATA ComPortsData;
+    PBYTE Byte;
+    PBYTE Buffer;
+    PBYTE End;
+    DWORD ErrorCode;
+    DWORD ComNumber;
+    BYTE BitMask;
+    BOOL IsFound = FALSE;
 
-    TRACE("ComDBOpen(%p)\n", phComDB);
+    ERR("ComDBClaimNextFreePort: %p\n", hComDB);
+
+    if (hComDB == HCOMDB_INVALID_HANDLE_VALUE)
+    {
+        ERR("ComDBClaimNextFreePort: ERROR_INVALID_PARAMETER (%p)\n", hComDB);
+        return ERROR_INVALID_PARAMETER;
+    }
+
+    ComPortsData = (PCOM_PORTS_DATA)hComDB;
+
+    if (!EnterDB(ComPortsData))
+    {
+        ERR("ComDBClaimNextFreePort: ERROR_NOT_CONNECTED (%p)\n", ComPortsData);
+        return ERROR_NOT_CONNECTED;
+    }
+
+    Buffer = Byte = ComPortsData->ComDB;
+    End = &Buffer[ComPortsData->ComDBSize];
+
+    BitMask = 4;
+
+    for (ComNumber = 3; Buffer != End; ComNumber++)
+    {
+        if (!(BitMask & *Buffer))
+        {
+            *OutComNumber = ComNumber;
+            *Buffer |= BitMask;
+
+            ERR("ComDBClaimNextFreePort: %X, %X\n", *OutComNumber, *Buffer);
+
+            IsFound = TRUE;
+            break;
+        }
+
+        if (BitMask & 0x80)
+        {
+            BitMask = 1;
+            Buffer++;
+            Byte = Buffer;
+        }
+        else
+        {
+            BitMask <<= 1;
+        }
+    }
+
+    if (Buffer == End && !IsFound && ComNumber < 4096)
+    {
+        ResizeDatabase(ComPortsData, ((ComNumber >> 10) + 1) << 10);
+        GetByteAndMask(ComPortsData, ComNumber, &Byte, &BitMask);
+
+        *OutComNumber = ComNumber;
+        *Byte |= BitMask;
+
+        ERR("ComDBClaimNextFreePort: %X, %X\n", *OutComNumber, *Buffer);
+
+        IsFound = TRUE;
+    }
+
+    ErrorCode = LeaveDB(ComPortsData, IsFound);
+
+    if (!IsFound)
+    {
+        ERR("ComDBClaimNextFreePort: ERROR_NO_LOG_SPACE (%p)\n", ComPortsData);
+        ErrorCode = ERROR_NO_LOG_SPACE;
+    }
+
+    return ErrorCode;
+}
+
+LONG
+WINAPI
+ComDBClaimPort(_In_ HCOMDB hComDB,
+               _In_ DWORD ComNumber,
+               _In_ BOOL IsForceClaim,
+               _Out_ BOOL* OutIsForced)
+{
+    PCOM_PORTS_DATA ComPortsData;
+    PBYTE Byte;
+    LONG Error;
+    BYTE Mask;
+    BOOL dummy;
+
+    ERR("ComDBClaimPort: %p, %lu, %X\n", hComDB, ComNumber, IsForceClaim);
+
+    if (!OutIsForced)
+        OutIsForced = &dummy;
+
+    if (ComNumber > 0x1000)
+    {
+        ERR("ComDBClaimPort: ERROR_INVALID_PARAMETER (%p, %lu, %X)\n", hComDB, ComNumber, IsForceClaim);
+        return ERROR_INVALID_PARAMETER;
+    }
+
+    if (hComDB == HCOMDB_INVALID_HANDLE_VALUE)
+    {
+        ERR("ComDBClaimPort: ERROR_INVALID_PARAMETER (%p, %lu, %X)\n", hComDB, ComNumber, IsForceClaim);
+        return ERROR_INVALID_PARAMETER;
+    }
+
+    ComPortsData = (PCOM_PORTS_DATA)hComDB;
+
+    if (!EnterDB(ComPortsData))
+    {
+        ERR("ComDBClaimPort: ERROR_INVALID_PARAMETER (%p, %lu, %X)\n", ComPortsData, ComNumber, IsForceClaim);
+        return ERROR_NOT_CONNECTED;
+    }
+
+    if (ComNumber > (ComPortsData->ComDBSize * BITS_PER_BYTE))
+        ResizeDatabase(ComPortsData, (((ComNumber >> 10) + 1) << 10));
+
+    GetByteAndMask(ComPortsData, ComNumber, &Byte, &Mask);
+
+    if (!(*Byte & Mask))
+    {
+        if (OutIsForced)
+            *OutIsForced = FALSE;
+
+        *Byte |= Mask;
+
+        return LeaveDB(ComPortsData, TRUE);
+    }
+
+    if (IsForceClaim)
+    {
+        if (OutIsForced)
+            *OutIsForced = TRUE;
+
+        return LeaveDB(ComPortsData, FALSE);
+    }
+
+    Error = LeaveDB(ComPortsData, FALSE);
+    if (Error != NO_ERROR)
+    {
+        ERR("ComDBClaimPort: Error %lu (%p, %lu, %X)\n", Error, ComPortsData, ComNumber, IsForceClaim);
+        return Error;
+    }
+
+    return ERROR_SHARING_VIOLATION;
+}
+
+LONG
+WINAPI
+ComDBClose(_In_ HCOMDB hComDB)
+{
+    ERR("ComDBClose: %p\n", hComDB);
+
+    if (hComDB == HCOMDB_INVALID_HANDLE_VALUE)
+    {
+        ERR("ComDBClose: ERROR_INVALID_PARAMETER (%p)\n", hComDB);
+        return ERROR_INVALID_PARAMETER;
+    }
+
+  #ifdef __REACTOS__
+    if (hComDB == NULL)
+    {
+        ERR("ComDBClose: ERROR_INVALID_PARAMETER\n");
+        return ERROR_INVALID_PARAMETER;
+    }
+  #endif
+
+    DestroyDBInfo((PCOM_PORTS_DATA)hComDB);
+
+    return NO_ERROR;
+}
+
+LONG
+WINAPI
+ComDBGetCurrentPortUsage(_In_ HCOMDB hComDB,
+                         _Out_ BYTE* OutBuffer,
+                         _In_ DWORD BufferSize,
+                         _In_ DWORD ReportType,
+                         _Out_ DWORD* OutMaxPortsReported)
+{
+    PCOM_PORTS_DATA ComPortsData;
+    DWORD Size;
+    PBYTE Byte;
+    PBYTE End;
+    BYTE Mask;
+
+    ERR("ComDBGetCurrentPortUsage: %p, %p, %X, %X\n", hComDB, OutBuffer, BufferSize, ReportType);
+
+    if (hComDB == HCOMDB_INVALID_HANDLE_VALUE)
+    {
+        ERR("ComDBGetCurrentPortUsage: ERROR_INVALID_PARAMETER\n");
+        return ERROR_INVALID_PARAMETER;
+    }
+
+    ComPortsData = (PCOM_PORTS_DATA)hComDB;
+
+    if (!EnterDB(ComPortsData))
+    {
+        ERR("ComDBGetCurrentPortUsage: ERROR_NOT_CONNECTED\n");
+        return ERROR_NOT_CONNECTED;
+    }
+
+    if (!OutBuffer)
+    {
+        ERR("ComDBGetCurrentPortUsage: OutBuffer is NULL\n");
+
+        if (OutMaxPortsReported)
+        {
+            *OutMaxPortsReported = (ComPortsData->ComDBSize * BITS_PER_BYTE);
+            return LeaveDB(ComPortsData, FALSE);
+        }
+        else
+        {
+            ERR("ComDBGetCurrentPortUsage: ERROR_INVALID_PARAMETER\n");
+            LeaveDB(ComPortsData, FALSE);
+            return ERROR_INVALID_PARAMETER;
+        }
+    }
+
+    if (ReportType == CDB_REPORT_BITS)
+    {
+        if (BufferSize > ComPortsData->ComDBSize)
+            Size = ComPortsData->ComDBSize;
+        else
+            Size = BufferSize;
+
+        CopyMemory(OutBuffer, ComPortsData->ComDB, Size);
+
+        if (OutMaxPortsReported)
+            *OutMaxPortsReported = (Size * BITS_PER_BYTE);
+
+        return LeaveDB(ComPortsData, FALSE);
+    }
+
+    if (ReportType != CDB_REPORT_BYTES)
+    {
+        ERR("ComDBGetCurrentPortUsage: ERROR_INVALID_PARAMETER (%p, %p, %X, %X)\n", ComPortsData, OutBuffer, BufferSize, ReportType);
+        LeaveDB(ComPortsData, FALSE);
+        return ERROR_INVALID_PARAMETER;
+    }
+
+    /* CDB_REPORT_BYTES */
+
+    if (BufferSize > (ComPortsData->ComDBSize * BITS_PER_BYTE))
+        Size = (ComPortsData->ComDBSize * BITS_PER_BYTE);
+    else
+        Size = BufferSize;
+
+    End = &OutBuffer[Size];
+    Byte = ComPortsData->ComDB;
+    Mask = 1;
+
+    while (OutBuffer != End)
+    {
+        if (*Byte & Mask)
+            *OutBuffer = 1;
+        else
+            *OutBuffer = 0;
+
+
+        if (Mask & 0x80)
+        {
+            Mask = 1;
+            Byte++;
+        }
+        else
+        {
+            Mask <<= 1;
+        }
+
+        OutBuffer++;
+    }
+
+    return LeaveDB(ComPortsData, FALSE);
+}
+
+DWORD
+WINAPI
+CreationFailure(_Out_ HCOMDB* OutHComDB,
+                _In_ PCOM_PORTS_DATA ComPortsData)
+{
+    if (ComPortsData->Mutex)
+        ReleaseMutex(ComPortsData->Mutex);
+
+    DestroyDBInfo(ComPortsData);
+
+    *OutHComDB = HCOMDB_INVALID_HANDLE_VALUE;
+
+    return ERROR_ACCESS_DENIED;
+}
+
+LONG
+WINAPI
+ComDBOpen(_Out_ HCOMDB* OutHComDB)
+{
+    PCOM_PORTS_DATA ComPortsData;
+    HKEY ServiceSerialKey;
+    DWORD Disposition = 0;
+    DWORD DataSize;
+    DWORD Type;
+    DWORD ix;
+    LONG Error;
+    BYTE MergeData[32];
+    BOOL IsNewDbFromSerial;
+
+    ERR("ComDBOpen: %p\n", OutHComDB);
 
     /* Allocate a new database */
-    pComDB = HeapAlloc(GetProcessHeap(),
-                       HEAP_ZERO_MEMORY,
-                       sizeof(COMDB));
-    if (pComDB == NULL)
+    ComPortsData = LocalAlloc(LMEM_ZEROINIT, sizeof(*ComPortsData));
+    if (!ComPortsData)
     {
-        ERR("Failed to allocate the database!\n");
-        *phComDB = HCOMDB_INVALID_HANDLE_VALUE;
+        ERR("ComDBOpen: Failed to allocate the database!\n");
+        *OutHComDB = HCOMDB_INVALID_HANDLE_VALUE;
         return ERROR_ACCESS_DENIED;
     }
 
     /* Create a mutex to protect the database */
-    pComDB->hMutex = CreateMutexW(NULL,
-                                  FALSE,
-                                  L"ComDBMutex");
-    if (pComDB->hMutex == NULL)
+    ComPortsData->Mutex = CreateMutexW(NULL, FALSE, L"ComPortNumberDatabaseMutexObject");
+    if (!ComPortsData->Mutex)
     {
-        ERR("Failed to create the mutex!\n");
-        HeapFree(GetProcessHeap(), 0, pComDB);
-        *phComDB = HCOMDB_INVALID_HANDLE_VALUE;
-        return ERROR_ACCESS_DENIED;
+        ERR("ComDBOpen: Failed to create the mutex!\n");
+        return CreationFailure(OutHComDB, ComPortsData);
     }
 
     /* Wait for the mutex */
-    WaitForSingleObject(pComDB->hMutex, INFINITE);
+    WaitForSingleObject(ComPortsData->Mutex, INFINITE);
 
     /* Create or open the database key */
-    lError = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+    Error = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
                              L"System\\CurrentControlSet\\Control\\COM Name Arbiter",
                              0,
                              NULL,
-                             0,
+                             REG_OPTION_NON_VOLATILE,
                              KEY_ALL_ACCESS,
                              NULL,
-                             &pComDB->hKey,
-                             &dwDisposition);
-    if (lError != ERROR_SUCCESS)
-        goto done;
+                             &ComPortsData->Key,
+                             &Disposition);
 
-    /* Get the required bitmap size */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              NULL,
-                              &dwSize);
-    if (lError == ERROR_FILE_NOT_FOUND)
+    if (Error == NO_ERROR)
     {
-        /* Allocate a new bitmap */
-        dwSize = COMDB_MIN_PORTS_ARBITRATED / BITS_PER_BYTE;
-        pBitmap = HeapAlloc(GetProcessHeap(),
-                            HEAP_ZERO_MEMORY,
-                            dwSize);
-        if (pBitmap == NULL)
-        {
-            ERR("Failed to allocate the bitmap!\n");
-            lError = ERROR_ACCESS_DENIED;
-            goto done;
-        }
-
-        /* Write the bitmap to the registry */
-        lError = RegSetValueExW(pComDB->hKey,
-                                L"ComDB",
-                                0,
-                                REG_BINARY,
-                                pBitmap,
-                                dwSize);
-
-        HeapFree(GetProcessHeap(), 0, pBitmap);
-    }
-
-done:;
-    /* Release the mutex */
-    ReleaseMutex(pComDB->hMutex);
-
-    if (lError != ERROR_SUCCESS)
-    {
-        /* Clean up in case of failure */
-        if (pComDB->hKey != NULL)
-            RegCloseKey(pComDB->hKey);
-
-        if (pComDB->hMutex != NULL)
-            CloseHandle(pComDB->hMutex);
-
-        HeapFree(GetProcessHeap(), 0, pComDB);
-
-        *phComDB = HCOMDB_INVALID_HANDLE_VALUE;
+        ComPortsData->Event = CreateEventW(NULL, TRUE, FALSE, NULL);
+        if (!ComPortsData->Event)
+            ComPortsData->Event = INVALID_HANDLE_VALUE;
     }
     else
     {
-        /* Return the database handle */
-        *phComDB = (HCOMDB)pComDB;
+        // Second call?
+        Error = RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+                                 L"System\\CurrentControlSet\\Control\\COM Name Arbiter",
+                                 0,
+                                 NULL,
+                                 REG_OPTION_NON_VOLATILE,
+                                 KEY_ALL_ACCESS,
+                                 NULL,
+                                 &ComPortsData->Key,
+                                 &Disposition);
+
+        if (Error == NO_ERROR)
+        {
+            ComPortsData->Event = INVALID_HANDLE_VALUE;
+        }
+        else
+        {
+            ERR("ComDBOpen: Error %lu\n", Error);
+            return CreationFailure(OutHComDB, ComPortsData);
+        }
     }
 
-    TRACE("done (Error %lu)\n", lError);
+    if (Disposition != REG_CREATED_NEW_KEY)
+    {
+        IsNewDbFromSerial = FALSE;
+    }
+    else
+    {
+        Error = RegOpenKeyExW(HKEY_LOCAL_MACHINE,
+                               L"System\\CurrentControlSet\\Services\\Serial",
+                               0,
+                               KEY_ALL_ACCESS,
+                               &ServiceSerialKey);
 
-    return lError;
+        if (Error != NO_ERROR)
+        {
+            IsNewDbFromSerial = FALSE;
+        }
+        else
+        {
+            Error = RegQueryValueExW(ServiceSerialKey, L"ComDB", 0, &Type, NULL, &ComPortsData->ComDBSize);
+
+            if (Error != NO_ERROR)
+                IsNewDbFromSerial = FALSE;
+            else
+                IsNewDbFromSerial = TRUE;
+        }
+    }
+
+    if (IsNewDbFromSerial)
+    {
+        ResizeDatabase(ComPortsData, (ComPortsData->ComDBSize * BITS_PER_BYTE));
+
+        DataSize = ComPortsData->ComDBSize;
+        RegQueryValueExW(ServiceSerialKey, L"ComDB", 0, &Type, ComPortsData->ComDB, &DataSize);
+
+        RegDeleteValueW(ServiceSerialKey, L"ComDB");
+
+        Error = RegSetValueExW(ComPortsData->Key, L"ComDB", 0, REG_BINARY, ComPortsData->ComDB, ComPortsData->ComDBSize);
+        if (Error != NO_ERROR)
+        {
+            ERR("ComDBOpen: Error %lu\n", Error);
+            RegCloseKey(ServiceSerialKey);
+            return CreationFailure(OutHComDB, ComPortsData);
+        }
+
+        RegCloseKey(ServiceSerialKey);
+    }
+    else
+    {
+        Error = RegQueryValueExW(ComPortsData->Key, L"ComDB", 0, &Type, NULL, &ComPortsData->ComDBSize);
+
+        if (Error == ERROR_FILE_NOT_FOUND)
+        {
+            ResizeDatabase(ComPortsData, 0x100);
+
+            Error = RegSetValueExW(ComPortsData->Key, L"ComDB", 0, REG_BINARY, ComPortsData->ComDB, ComPortsData->ComDBSize);
+            if (Error != NO_ERROR)
+            {
+                ERR("ComDBOpen: Error %lu\n", Error);
+                return CreationFailure(OutHComDB, ComPortsData);
+            }
+        }
+        else
+        {
+            if (Error == ERROR_MORE_DATA)
+            {
+                ERR("ComDBOpen: ERROR_MORE_DATA\n");
+                return CreationFailure(OutHComDB, ComPortsData);
+            }
+
+            if (Error != NO_ERROR)
+            {
+                ERR("ComDBOpen: Error %lu\n", Error);
+                return CreationFailure(OutHComDB, ComPortsData);
+            }
+
+            if (Type != REG_BINARY)
+            {
+                ERR("ComDBOpen: Type %lu\n", Type);
+                return CreationFailure(OutHComDB, ComPortsData);
+            }
+
+            ResizeDatabase(ComPortsData, (ComPortsData->ComDBSize * BITS_PER_BYTE));
+
+            DataSize = ComPortsData->ComDBSize;
+            RegQueryValueExW(ComPortsData->Key, L"ComDB", 0, &Type, ComPortsData->ComDB, &DataSize);
+        }
+    }
+
+    DataSize = 32;
+    Error = RegQueryValueExW(ComPortsData->Key, L"ComDB Merge", 0, &Type, MergeData, &DataSize);
+
+    if (Error == NO_ERROR && DataSize <= ComPortsData->ComDBSize)
+    {
+        ix = 0;
+        do
+        {
+            ComPortsData->ComDB[ix] |= MergeData[ix];
+            ix++;
+        }
+        while (ix < 32);
+
+        RegDeleteValueW(ComPortsData->Key, L"ComDB Merge");
+        RegSetValueExW(ComPortsData->Key, L"ComDB", 0, REG_BINARY, ComPortsData->ComDB, ComPortsData->ComDBSize);
+    }
+
+    if (ComPortsData->Event != INVALID_HANDLE_VALUE)
+        RegisterForNotification(ComPortsData);
+
+    /* Release the mutex */
+    ReleaseMutex(ComPortsData->Mutex);
+
+    *OutHComDB = (HCOMDB)ComPortsData;
+
+    return NO_ERROR;
 }
-
 
 LONG
 WINAPI
-ComDBReleasePort(IN HCOMDB hComDB,
-                 IN DWORD ComNumber)
+ComDBReleasePort(_In_ HCOMDB hComDB,
+                 _In_ DWORD ComNumber)
 {
-    PCOMDB pComDB;
-    DWORD dwByteIndex;
-    DWORD dwBitIndex;
-    DWORD dwType;
-    DWORD dwSize;
-    PBYTE pBitmap = NULL;
-    BYTE cMask;
-    LONG lError;
+    PCOM_PORTS_DATA ComPortsData;
+    PBYTE Byte;
+    BYTE BitMask;
 
-    TRACE("ComDBReleasePort(%p %lu)\n", hComDB, ComNumber);
+    ERR("ComDBReleasePort: %p, %lu\n", hComDB, ComNumber);
 
-    if (hComDB == INVALID_HANDLE_VALUE ||
-        ComNumber == 0 ||
-        ComNumber > COMDB_MAX_PORTS_ARBITRATED)
+    if (hComDB == HCOMDB_INVALID_HANDLE_VALUE)
+    {
+        ERR("ComDBReleasePort: ERROR_INVALID_PARAMETER\n");
         return ERROR_INVALID_PARAMETER;
-
-    pComDB = (PCOMDB)hComDB;
-
-    /* Wait for the mutex */
-    WaitForSingleObject(pComDB->hMutex, INFINITE);
-
-    /* Get the required bitmap size */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              NULL,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
-    {
-        ERR("Failed to query the bitmap size!\n");
-        goto done;
     }
 
-    /* Allocate the bitmap */
-    pBitmap = HeapAlloc(GetProcessHeap(),
-                        HEAP_ZERO_MEMORY,
-                        dwSize);
-    if (pBitmap == NULL)
+    ComPortsData = (PCOM_PORTS_DATA)hComDB;
+
+    if (!EnterDB(ComPortsData))
     {
-        ERR("Failed to allocate the bitmap!\n");
-        lError = ERROR_NOT_ENOUGH_MEMORY;
-        goto done;
+        ERR("ComDBReleasePort: ERROR_NOT_CONNECTED (%p, %lu)\n", ComPortsData, ComNumber);
+        return ERROR_NOT_CONNECTED;
     }
 
-    /* Read the bitmap */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              pBitmap,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
-        goto done;
-
-    /* Get the bit index */
-    dwBitIndex = ComNumber - 1;
-
-    /* Check if the bit to set fits into the bitmap */
-    if (dwBitIndex >= (dwSize * BITS_PER_BYTE))
+    if (ComNumber > (ComPortsData->ComDBSize * BITS_PER_BYTE))
     {
-        lError = ERROR_INVALID_PARAMETER;
-        goto done;
+        ERR("ComDBReleasePort: ERROR_INVALID_PARAMETER (%p, %lu, %lu)\n", ComPortsData, ComNumber, ComPortsData->ComDBSize);
+        LeaveDB(ComPortsData, FALSE);
+        return ERROR_INVALID_PARAMETER;
     }
 
-    /* Calculate the byte index and a mask for the affected bit */
-    dwByteIndex = dwBitIndex / BITS_PER_BYTE;
-    cMask = 1 << (dwBitIndex % BITS_PER_BYTE);
+    GetByteAndMask(ComPortsData, ComNumber, &Byte, &BitMask);
 
-    /* Release the port */
-    pBitmap[dwByteIndex] &= ~cMask;
+    *Byte &= ~BitMask;
 
-    lError = RegSetValueExW(pComDB->hKey,
-                            L"ComDB",
-                            0,
-                            REG_BINARY,
-                            pBitmap,
-                            dwSize);
-
-done:;
-    /* Release the mutex */
-    ReleaseMutex(pComDB->hMutex);
-
-    /* Release the bitmap */
-    if (pBitmap != NULL)
-        HeapFree(GetProcessHeap(), 0, pBitmap);
-
-    return lError;
+    return LeaveDB(ComPortsData, TRUE);
 }
-
 
 LONG
 WINAPI
-ComDBResizeDatabase(IN HCOMDB hComDB,
-                    IN DWORD NewSize)
+ComDBResizeDatabase(_In_ HCOMDB hComDB,
+                    _In_ DWORD NewSize)
 {
-    PCOMDB pComDB;
-    PBYTE pBitmap = NULL;
-    DWORD dwSize;
-    DWORD dwNewSize;
-    DWORD dwType;
-    LONG lError;
+    PCOM_PORTS_DATA ComPortsData;
 
-    TRACE("ComDBResizeDatabase(%p %lu)\n", hComDB, NewSize);
+    ERR("ComDBResizeDatabase: %p, %lu\n", hComDB, NewSize);
 
-    if (hComDB == INVALID_HANDLE_VALUE ||
-        hComDB == NULL ||
-        (NewSize & BITMAP_SIZE_INVALID_BITS))
+    if (hComDB == HCOMDB_INVALID_HANDLE_VALUE)
+    {
+        ERR("ComDBResizeDatabase: ERROR_INVALID_PARAMETER (%p, %lu)\n", hComDB, NewSize);
         return ERROR_INVALID_PARAMETER;
-
-    pComDB = (PCOMDB)hComDB;
-
-    /* Wait for the mutex */
-    WaitForSingleObject(pComDB->hMutex, INFINITE);
-
-    /* Get the required bitmap size */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              NULL,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
-        goto done;
-
-    /* Check the size limits */
-    if (NewSize > COMDB_MAX_PORTS_ARBITRATED ||
-        NewSize <= dwSize * BITS_PER_BYTE)
-    {
-        lError = ERROR_BAD_LENGTH;
-        goto done;
     }
 
-    /* Calculate the new bitmap size */
-    dwNewSize = NewSize / BITS_PER_BYTE;
+    ComPortsData = (PCOM_PORTS_DATA)hComDB;
 
-    /* Allocate the new bitmap */
-    pBitmap = HeapAlloc(GetProcessHeap(),
-                        HEAP_ZERO_MEMORY,
-                        dwSize);
-    if (pBitmap == NULL)
+    if (NewSize & BITMAP_SIZE_INVALID_BITS)
     {
-        ERR("Failed to allocate the bitmap!\n");
-        lError = ERROR_ACCESS_DENIED;
-        goto done;
+        ERR("ComDBResizeDatabase: ERROR_INVALID_PARAMETER (%p, %lu)\n", ComPortsData, NewSize);
+        return ERROR_INVALID_PARAMETER;
     }
 
-    /* Read the current bitmap */
-    lError = RegQueryValueExW(pComDB->hKey,
-                              L"ComDB",
-                              NULL,
-                              &dwType,
-                              pBitmap,
-                              &dwSize);
-    if (lError != ERROR_SUCCESS)
-        goto done;
+    if (!EnterDB(ComPortsData))
+    {
+        ERR("ComDBResizeDatabase: ERROR_NOT_CONNECTED (%p, %lu)\n", ComPortsData, NewSize);
+        return ERROR_NOT_CONNECTED;
+    }
 
-    /* Write the new bitmap */
-    lError = RegSetValueExW(pComDB->hKey,
-                            L"ComDB",
-                            0,
-                            REG_BINARY,
-                            pBitmap,
-                            dwNewSize);
+    if (NewSize > 4096)
+    {
+        ERR("ComDBResizeDatabase: ERROR_BAD_LENGTH (%p, %lu)\n", ComPortsData, NewSize);
+        LeaveDB(ComPortsData, FALSE);
+        return ERROR_BAD_LENGTH;
+    }
 
-done:;
-    /* Release the mutex */
-    ReleaseMutex(pComDB->hMutex);
+    if (NewSize < (ComPortsData->ComDBSize * BITS_PER_BYTE))
+    {
+        ERR("ComDBResizeDatabase: ERROR_BAD_LENGTH (%p, %lu, %lu)\n", ComPortsData, NewSize, ComPortsData->ComDBSize);
+        LeaveDB(ComPortsData, FALSE);
+        return ERROR_BAD_LENGTH;
+    }
 
-    if (pBitmap != NULL)
-        HeapFree(GetProcessHeap(), 0, pBitmap);
+    ResizeDatabase(ComPortsData, NewSize);
 
-    return lError;
+    return LeaveDB(ComPortsData, TRUE);
 }
-
 /* EOF */

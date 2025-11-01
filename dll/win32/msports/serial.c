@@ -620,8 +620,7 @@ SerialPortPropPageProvider(
     HPROPSHEETPAGE hPropSheetPage;
     PPORT_DATA pPortData;
 
-    TRACE("SerialPortPropPageProvider(%p %p %lx)\n",
-          lpPropSheetPageRequest, lpfnAddPropSheetPageProc, lParam);
+    ERR("SerialPortPropPageProvider: FIXME!? (%p %p %lx)\n", lpPropSheetPageRequest, lpfnAddPropSheetPageProc, lParam);
 
     pPortData = HeapAlloc(GetProcessHeap(),
                           HEAP_ZERO_MEMORY,

@@ -16,6 +16,7 @@
 #include <windowsx.h>
 #include <msports.h>
 #include <setupapi.h>
+#include <cfgmgr32.h>
 
 #include <wine/debug.h>
 

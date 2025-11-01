@@ -530,8 +530,7 @@ ParallelPortPropPageProvider(PSP_PROPSHEETPAGE_REQUEST lpPropSheetPageRequest,
     HPROPSHEETPAGE hPropSheetPage;
     PPORT_DATA pPortData;
 
-    TRACE("ParallelPortPropPageProvider(%p %p %lx)\n",
-          lpPropSheetPageRequest, lpfnAddPropSheetPageProc, lParam);
+    ERR("ParallelPortPropPageProvider: FIXME!? (%p %p %lx)\n", lpPropSheetPageRequest, lpfnAddPropSheetPageProc, lParam);
 
     pPortData = HeapAlloc(GetProcessHeap(),
                           HEAP_ZERO_MEMORY,
