@@ -1674,15 +1674,276 @@ UsbSerCleanup(IN PDEVICE_OBJECT DeviceObject,
     return STATUS_SUCCESS;
 }
 
+VOID
+NTAPI
+UsbSerPoRequestCompletion(IN PDEVICE_OBJECT DeviceObject,
+                          IN UCHAR MinorFunction,
+                          IN POWER_STATE PowerState,
+                          IN PVOID Context,
+                          IN PIO_STATUS_BLOCK IoStatus)
+{
+    PDEVICE_OBJECT PhysicalDevice = Context;
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIRP Irp;
+
+    DPRINT1("UsbSerPoRequestCompletion: %p, %X\n", DeviceObject, MinorFunction);
+
+    Extension = PhysicalDevice->DeviceExtension;
+    Irp = Extension->SetPwrIrp;
+
+    IoCopyCurrentIrpStackLocationToNext(Irp);
+    PoStartNextPowerIrp(Irp);
+    PoCallDriver(Extension->LowerDevice, Irp);
+
+    Extension->SetPwrIrp = NULL;
+}
+
+VOID
+NTAPI
+UsbSerSendWaitWake(IN PUSBSER_DEVICE_EXTENSION Extension)
+{
+    UNIMPLEMENTED_DBGBREAK();
+}
+
+BOOLEAN
+NTAPI
+UsbSerSetDevicePowerState(IN PDEVICE_OBJECT DeviceObject,
+                          IN POWER_STATE State)
+{
+    PUSBSER_DEVICE_EXTENSION Extension;
+    KIRQL Irql;
+    BOOLEAN Result;
+
+    DPRINT1("UsbSerSetDevicePowerState: %p\n", DeviceObject);
+
+    Extension = DeviceObject->DeviceExtension;
+
+    if (State.DeviceState == PowerDeviceD0)
+    {
+        DPRINT1("PowerDeviceD0\n");
+        Result = TRUE;
+    }
+    else if (State.DeviceState == PowerDeviceD1)
+    {
+        DPRINT1("PowerDeviceD1\n");
+
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+        Extension->DevicePowerState = State.DeviceState;
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+        UsbSerAbortPipes(DeviceObject);
+
+        if (Extension->IsWaitWake && State.DeviceState <= Extension->DeviceWake)
+            UsbSerSendWaitWake(Extension);
+
+        Result = FALSE;
+    }
+    else if (State.DeviceState == PowerDeviceD2)
+    {
+        DPRINT1("PowerDeviceD2\n");
+
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+        Extension->DevicePowerState = State.DeviceState;
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+        UsbSerAbortPipes(DeviceObject);
+
+        if (Extension->IsWaitWake && State.DeviceState <= Extension->DeviceWake)
+            UsbSerSendWaitWake(Extension);
+
+        Result = FALSE;
+    }
+    else if (State.DeviceState == PowerDeviceD3)
+    {
+        DPRINT1("PowerDeviceD3\n");
+
+        KeAcquireSpinLock(&Extension->SpinLock, &Irql);
+        Extension->DevicePowerState = State.DeviceState;
+        KeReleaseSpinLock(&Extension->SpinLock, Irql);
+
+        UsbSerAbortPipes(DeviceObject);
+
+        Result = FALSE;
+    }
+    else
+    {
+        DPRINT1("UsbSerSetDevicePowerState: DeviceState %X\n", State.DeviceState);
+        Result = FALSE;
+    }
+
+    PoSetPowerState(DeviceObject, DevicePowerState, State);
+
+    return Result;
+}
+
+NTSTATUS
+NTAPI
+UsbSerWaitWakeIrpCompletionRoutine(IN PDEVICE_OBJECT DeviceObject,
+                                   IN PIRP Irp,
+                                   IN PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
+NTSTATUS
+NTAPI
+UsbSerPowerIrpComplete(IN PDEVICE_OBJECT DeviceObject,
+                       IN PIRP Irp,
+                       IN PVOID Context)
+{
+    UNIMPLEMENTED_DBGBREAK();
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
 NTSTATUS
 NTAPI
 UsbSerProcessPowerIrp(IN PDEVICE_OBJECT DeviceObject,
                       IN PIRP Irp)
 {
-    DPRINT("UsbSerProcessPowerIrp: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
-    PAGED_CODE();
-    UNIMPLEMENTED;
-    return STATUS_NOT_IMPLEMENTED;
+    PUSBSER_DEVICE_EXTENSION Extension;
+    PIO_STACK_LOCATION IoStack;
+    SYSTEM_POWER_STATE SystemState;
+    POWER_STATE DesiredDevicePowerState;
+    ULONG ix;
+    BOOLEAN Result;
+    NTSTATUS Status = STATUS_SUCCESS;
+
+    DPRINT1("UsbSerProcessPowerIrp: %p, %p\n", DeviceObject, Irp);
+
+    Extension = DeviceObject->DeviceExtension;
+    IoStack = IoGetCurrentIrpStackLocation(Irp);
+
+    if (IoStack->MinorFunction == IRP_MN_WAIT_WAKE)
+    {
+        Extension->MinDeviceState = Extension->DeviceWake;
+
+        DPRINT1("UsbSerProcessPowerIrp: IRP_MN_WAIT_WAKE (%X, %X)\n", Extension->DevicePowerState, Extension->DeviceWake);
+
+        if (Extension->DevicePowerState != PowerDeviceD0 && Extension->DeviceWake <= Extension->DevicePowerState)
+        {
+            IoCopyCurrentIrpStackLocationToNext(Irp);
+            IoSetCompletionRoutine(Irp, UsbSerWaitWakeIrpCompletionRoutine, DeviceObject, TRUE, TRUE, TRUE);
+
+            DPRINT1("UsbSerProcessPowerIrp: Send down wait wake\n");
+
+            PoStartNextPowerIrp(Irp);
+            PoCallDriver(Extension->LowerDevice, Irp);
+            Status = STATUS_PENDING;
+        }
+        else
+        {
+            Irp->IoStatus.Status = STATUS_INVALID_DEVICE_STATE;
+            PoStartNextPowerIrp(Irp);
+            IoCompleteRequest(Irp, 0);
+            Status = STATUS_INVALID_DEVICE_STATE;
+        }
+    }
+    else if (IoStack->MinorFunction == IRP_MN_POWER_SEQUENCE)
+    {
+        DPRINT1("UsbSerProcessPowerIrp: IRP_MN_POWER_SEQUENCE\n");
+
+        IoCopyCurrentIrpStackLocationToNext(Irp);
+        PoStartNextPowerIrp(Irp);
+        Status = PoCallDriver(Extension->LowerDevice, Irp);
+    }
+    else if (IoStack->MinorFunction == IRP_MN_SET_POWER)
+    {
+        DPRINT1("UsbSerProcessPowerIrp: IRP_MN_SET_POWER\n");
+
+        if (IoStack->Parameters.Power.Type == SystemPowerState)
+        {
+            DPRINT1("UsbSerProcessPowerIrp: SystemPowerState\n");
+
+            SystemState = IoStack->Parameters.Power.State.SystemState;
+            DPRINT1("UsbSerProcessPowerIrp: SystemState %X\n", SystemState);
+
+            for (ix = 0; ix < 8; ix++)
+            {
+                DPRINT1("UsbSerProcessPowerIrp: DeviceState[%X] %X\n", ix, Extension->Capabilities.DeviceState[ix]);
+            }
+
+            DPRINT1("UsbSerProcessPowerIrp: DeviceWake %X SystemWake %X\n",
+                    Extension->Capabilities.DeviceWake, Extension->Capabilities.SystemWake);
+
+            if (SystemState == PowerSystemWorking)
+            {
+                DPRINT1("UsbSerProcessPowerIrp: Setting to D0\n");
+                DesiredDevicePowerState.DeviceState = PowerDeviceD0;
+            }
+            else if (Extension->IsWaitWake)
+            {
+                DPRINT1("UsbSerProcessPowerIrp: We want to send a wait wake Irp\n");
+                DesiredDevicePowerState.DeviceState = Extension->Capabilities.DeviceState[SystemState];
+            }
+            else
+            {
+                DPRINT1("UsbSerProcessPowerIrp: No wait wake Irp to send\n");
+                DesiredDevicePowerState.DeviceState = PowerDeviceD3;
+            }
+
+            DPRINT1("UsbSerProcessPowerIrp: DesiredDevicePowerState %X\n", DesiredDevicePowerState.SystemState);
+
+            if (DesiredDevicePowerState.DeviceState != Extension->DevicePowerState)
+            {
+                Extension->SetPwrIrp = Irp;
+                Status = PoRequestPowerIrp(Extension->PhysicalDevice,
+                                           IRP_MN_SET_POWER,
+                                           DesiredDevicePowerState,
+                                           UsbSerPoRequestCompletion,
+                                           DeviceObject,
+                                           NULL);
+            }
+            else
+            {
+                IoCopyCurrentIrpStackLocationToNext(Irp);
+                PoStartNextPowerIrp(Irp);
+                Status = PoCallDriver(Extension->LowerDevice, Irp);
+            }
+        }
+        else if (IoStack->Parameters.Power.Type == DevicePowerState)
+        {
+            DPRINT1("UsbSerProcessPowerIrp: DevicePowerState\n");
+
+            Result = UsbSerSetDevicePowerState(DeviceObject, IoStack->Parameters.Power.State);
+
+            IoCopyCurrentIrpStackLocationToNext(Irp);
+
+            if (Result)
+                IoSetCompletionRoutine(Irp, UsbSerPowerIrpComplete, DeviceObject, TRUE, TRUE, TRUE);
+
+            PoStartNextPowerIrp(Irp);
+            Status = PoCallDriver(Extension->LowerDevice, Irp);
+        }
+    }
+    else if (IoStack->MinorFunction == IRP_MN_QUERY_POWER)
+    {
+        DPRINT1("UsbSerProcessPowerIrp: IRP_MN_QUERY_POWER\n");
+
+        if (Extension->IsWaitWake &&
+            IoStack->Parameters.Power.Type == SystemPowerState &&
+            Extension->Capabilities.DeviceState[IoStack->Parameters.Power.State.DeviceState] > Extension->DeviceWake)
+        {
+            Irp->IoStatus.Status = STATUS_INVALID_DEVICE_STATE;
+            Status = STATUS_INVALID_DEVICE_STATE;
+            PoStartNextPowerIrp(Irp);
+            IoCompleteRequest(Irp, 0);
+        }
+        else
+        {
+            IoCopyCurrentIrpStackLocationToNext(Irp);
+            PoStartNextPowerIrp(Irp);
+            Status = PoCallDriver(Extension->LowerDevice, Irp);
+        }
+    }
+    else
+    {
+        IoCopyCurrentIrpStackLocationToNext(Irp);
+        PoStartNextPowerIrp(Irp);
+        Status = PoCallDriver(Extension->LowerDevice, Irp);
+    }
+
+    return Status;
 }
 
 NTSTATUS
@@ -1749,6 +2010,68 @@ UsbSerUnload(IN PDRIVER_OBJECT DriverObject)
 
 NTSTATUS
 NTAPI
+UsbSerIrpCompletionRoutine(IN PDEVICE_OBJECT DeviceObject,
+               IN PIRP Irp,
+               IN PVOID Context)
+{
+    PRKEVENT Event = Context;
+
+    DPRINT("UsbSerIrpCompletionRoutine: Irp %p\n", Irp);
+
+    KeSetEvent(Event, EVENT_INCREMENT, FALSE);
+
+    return STATUS_MORE_PROCESSING_REQUIRED;
+}
+
+NTSTATUS
+NTAPI
+UsbSerQueryCapabilities(IN PDEVICE_OBJECT DeviceObject,
+                        IN PDEVICE_CAPABILITIES Capabilities)
+{
+    PIO_STACK_LOCATION IoStack;
+    KEVENT Event; 
+    PIRP Irp;
+    NTSTATUS Status;
+
+    DPRINT("UsbSerQueryCapabilities\n");
+
+    Irp = IoAllocateIrp(DeviceObject->StackSize, FALSE);
+    if (!Irp)
+    {
+        DPRINT1("UsbSerQueryCapabilities: failed allocate irp\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    IoStack = IoGetNextIrpStackLocation(Irp);
+    IoStack->MajorFunction = IRP_MJ_PNP;
+    IoStack->MinorFunction = IRP_MN_QUERY_CAPABILITIES;
+
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    IoSetCompletionRoutine(Irp, UsbSerIrpCompletionRoutine, &Event, TRUE, TRUE, TRUE);
+    Irp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
+    RtlZeroMemory(Capabilities, sizeof(*Capabilities));
+
+    Capabilities->Size = sizeof(*Capabilities);
+    Capabilities->Version = 1;
+    Capabilities->SurpriseRemovalOK = 1;
+    Capabilities->Address = 0xFFFFFFFF;
+    Capabilities->UINumber = 0xFFFFFFFF;
+
+    IoStack->Parameters.DeviceCapabilities.Capabilities = Capabilities;
+
+    Status = IoCallDriver(DeviceObject, Irp);
+    if (Status == STATUS_PENDING)
+        KeWaitForSingleObject(&Event, Suspended, KernelMode, FALSE, NULL);
+
+    IoFreeIrp(Irp);
+
+    return Status;
+}
+
+NTSTATUS
+NTAPI
 UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
                    IN PDEVICE_OBJECT TargetDevice)
 {
@@ -1762,6 +2085,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     WCHAR CharSymLink[64];
     UNICODE_STRING SymLinkName;
     ULONG ExtSize;
+    ULONG ix;
 
     PAGED_CODE();
     DPRINT("UsbSerPnPAddDevice: DriverObject %p, TargetDevice %p\n", DriverObject, TargetDevice);
@@ -1871,6 +2195,16 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     NewDevice->Flags |= DO_BUFFERED_IO; // IO system copies the users data to and from system supplied buffers
     NewDevice->Flags |= DO_POWER_PAGABLE;
     NewDevice->Flags &= ~DO_DEVICE_INITIALIZING;
+
+    UsbSerQueryCapabilities(Extension->LowerDevice, &Extension->Capabilities);
+
+    Extension->MinDeviceState = 0;
+
+    for (ix = 2; ix < 5; ix++)
+    {
+        if (Extension->Capabilities.DeviceState[ix] < PowerDeviceD3)
+            Extension->MinDeviceState = Extension->Capabilities.DeviceState[ix];
+    }
 
     Extension->WmiLibInfo.GuidCount = 1;
     Extension->WmiLibInfo.GuidList = SerialWmiGuidList;

@@ -143,7 +143,10 @@ typedef struct _USBSER_DEVICE_EXTENSION
     DEVICE_POWER_STATE DeviceWake;
     PIRP WakeIrp;
     LONG OpenCount;
+    DEVICE_CAPABILITIES Capabilities;
     DEVICE_POWER_STATE DevicePowerState;
+    DEVICE_POWER_STATE MinDeviceState;
+    PIRP SetPwrIrp;
     PIRP CurrentReadIrp;
     LIST_ENTRY ReadQueueList;
     ULONG ReadLength;
