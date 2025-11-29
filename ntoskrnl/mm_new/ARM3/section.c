@@ -4421,7 +4421,7 @@ MiCheckProtoPtePageState(
         return TRUE;
     }
 
-    if (!TempPte.u.Soft.Prototype && TempPte.u.Soft.Transition)
+    if (TempPte.u.Soft.Prototype || TempPte.u.Soft.Transition)
         return FALSE;
 
     Pfn = MI_PFN_ELEMENT(TempPte.u.Trans.PageFrameNumber);
@@ -4431,9 +4431,7 @@ MiCheckProtoPtePageState(
 
     if (OldIrql != MM_NOIRQL)
     {
-        DPRINT1("MiCheckProtoPtePageState: FIXME\n");
-        ASSERT(FALSE);
-        //MiMakeSystemAddressValidPfn(SectionProto, OldIrql);
+        MiMakeSystemAddressValidPfn(SectionProto, OldIrql);
         *OutIsLock = TRUE;
     }
 
