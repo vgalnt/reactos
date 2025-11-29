@@ -162,7 +162,7 @@ MiAccessCheck(
         goto Exit;
 
     DPRINT1("MiAccessCheck: FIXME\n");
-    ASSERT(FALSE);
+    DbgBreakPoint();
 
 Exit:
 
@@ -414,7 +414,7 @@ MiCheckForUserStackOverflow(
 
     /* Fail, we couldn't move the guard page */
     DPRINT1("MiCheckForUserStackOverflow: Guard page failure: %X\n", Status);
-    ASSERT(FALSE);
+    DbgBreakPoint();
 
     return STATUS_STACK_OVERFLOW;
 }
@@ -728,7 +728,7 @@ MiCopyOnWrite(
     if (Address >= MmSessionBase)
     {
         DPRINT1("MiCopyOnWrite: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
     }
     else
     {
@@ -738,7 +738,7 @@ MiCopyOnWrite(
         if (CurrentProcess->ForkInProgress)
         {
             DPRINT1("MiCopyOnWrite: FIXME\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
         }
 
         if (!TempPte.u.Hard.CopyOnWrite)
@@ -770,7 +770,7 @@ MiCopyOnWrite(
     if (Session)
     {
         DPRINT1("MiCopyOnWrite: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
     }
     else
     {
@@ -785,7 +785,7 @@ MiCopyOnWrite(
                 !Pfn->u3.e1.WriteInProgress)
             {
                 DPRINT1("MiCopyOnWrite: FIXME\n");
-                ASSERT(FALSE);
+                DbgBreakPoint();
             }
         }
 
@@ -840,7 +840,7 @@ MiCopyOnWrite(
     if (!MappingPte)
     {
         DPRINT1("MiCopyOnWrite: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
     }
     else
     {
@@ -880,7 +880,7 @@ MiCopyOnWrite(
     if (!Session && CurrentProcess->CloneRoot)
     {
         DPRINT1("MiCopyOnWrite: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
     }
 
     MiUnlockPfnDb(OldIrql, APC_LEVEL);
@@ -930,7 +930,7 @@ MiResolveDemandZeroFault(
         {
             /* No forking yet */
             DPRINT1("MiResolveDemandZeroFault: FIXME MiWaitForForkToComplete()\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
         }
 
         /* Get process color */
@@ -1054,7 +1054,7 @@ MiResolveDemandZeroFault(
         if (!MiAddValidPageToWorkingSet(Address, Pte, Pfn, TempWsle))
         {
             DPRINT1("MiResolveDemandZeroFault: FIXME MiTrimPte()\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
             return STATUS_NO_MEMORY;
         }
     }
@@ -1148,7 +1148,7 @@ MiCompleteProtoPteFault(
             if (PageFileHigh && PageFileHigh != MI_PTE_LOOKUP_NEEDED)
             {
                 DPRINT1("MiCompleteProtoPteFault: FIXME. PageFileHigh %X\n", PageFileHigh);
-                ASSERT(FALSE);
+                DbgBreakPoint();
             }
 
             OriginalPte->u.Soft.PageFileHigh = 0;
@@ -1206,7 +1206,7 @@ MiCompleteProtoPteFault(
     }
 
     DPRINT1("MiCompleteProtoPteFault: FIXME MiTrimPte()\n");
-    ASSERT(FALSE);
+    DbgBreakPoint();
 
     Status = STATUS_NO_MEMORY;
 
@@ -1385,7 +1385,7 @@ MiInitializeReadInProgressPfn(
                 if (!NT_SUCCESS(MiCheckPdeForPagedPool(BasePte)))
                 {
                     DPRINT1("KeBugCheckEx()\n");
-                    ASSERT(FALSE);
+                    DbgBreakPoint();
                     //KeBugCheckEx();
                 }
             }
@@ -1467,7 +1467,21 @@ MiResolveMappedFileFault(
 
     if (Pte >= &Subsection->SubsectionBase[Subsection->PtesInSubsection])
     {
+        DPRINT1("MiResolveMappedFileFault: %p, %p [%p], %X\n", Process, Pte, Pte->u.Long, OldIrql);
         DPRINT1("MiResolveMappedFileFault: STATUS_ACCESS_VIOLATION\n");
+
+        DPRINT1("MiResolveMappedFileFault: %p, %p, %X, %X, %X, %p, %X, %X, %p\n", Subsection, Subsection->ControlArea,
+                Subsection->u.LongFlags, Subsection->StartingSector, Subsection->NumberOfFullSectors, Subsection->SubsectionBase,
+                Subsection->UnusedPtes, Subsection->PtesInSubsection, Subsection->NextSubsection);
+
+        DPRINT1("MiResolveMappedFileFault: %p, %X, %X, %X, %X, %X, %X, %p, %p, %X, %X, %X, %X\n", ControlArea->Segment,
+                ControlArea->NumberOfSectionReferences, ControlArea->NumberOfPfnReferences, ControlArea->NumberOfMappedViews,
+                ControlArea->NumberOfSystemCacheViews, ControlArea->NumberOfUserReferences, ControlArea->u.LongFlags,
+                ControlArea->FilePointer, ControlArea->WaitingForDeletion, ControlArea->ModifiedWriteCount,
+                ControlArea->FlushInProgressCount, ControlArea->WritableUserReferences, ControlArea->QuadwordPad);
+
+        DbgBreakPoint();
+
         return STATUS_ACCESS_VIOLATION;
     }
 
@@ -1479,7 +1493,7 @@ MiResolveMappedFileFault(
 
         /* Don't handle yet */
         DPRINT1("MiResolveMappedFileFault: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
         return STATUS_PAGE_FAULT_TRANSITION;
     }
 
@@ -1672,7 +1686,7 @@ MiResolveMappedFileFault(
     if (ReadSize > ((ClusterSize + 1) * PAGE_SIZE))
     {
         DPRINT1("KeBugCheckEx()\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
         KeBugCheckEx(0x1A, 0x777, (ULONG_PTR)Mdl, (ULONG_PTR)Subsection, TempOffset.LowPart);
     }
 
@@ -1708,7 +1722,7 @@ MiCompleteInPage(
     if (!PageBlock->Pfn->OriginalPte.u.Soft.Prototype)
     {
         DPRINT1("MiCompleteInPage: KeBugCheckEx()\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
         KeBugCheckEx(0x7A, 4, (ULONG_PTR)FaultAddress, (ULONG_PTR)PageBlock, 0);
     }
 
@@ -1816,12 +1830,12 @@ MiWaitForInPageComplete(
     if (Process == HYDRA_PROCESS)
     {
         DPRINT1("MiWaitForInPageComplete: FIXME! Process == HYDRA_PROCESS\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
     }
     else if (Process == (PEPROCESS)2)
     {
         DPRINT1("MiWaitForInPageComplete: FIXME! Process == (PEPROCESS)2\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
     }
     else if (Process)
     {
@@ -1889,13 +1903,13 @@ MiWaitForInPageComplete(
             {
                 Status = ReadStatus;
                 DPRINT1("MiWaitForInPageComplete: FIXME! ReadStatus %X\n", ReadStatus);
-                ASSERT(FALSE);
+                DbgBreakPoint();
                 return Status;
             }
 
             /* ReadStatus == STATUS_END_OF_FILE */
             DPRINT1("MiWaitForInPageComplete: FIXME! ReadStatus == STATUS_END_OF_FILE\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
         }
         else if (PageBlock->IoStatus.Information != Mdl->ByteCount)
         {
@@ -2085,7 +2099,7 @@ MiResolveTransitionFault(
     if (Pfn->u4.InPageError)
     {
         DPRINT1("MiResolveTransitionFault: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
     }
 
     /* See if we should wait before terminating the fault */
@@ -2240,7 +2254,7 @@ MiResolveTransitionFault(
         {
             /* This isn't yet supported */
             DPRINT1("MiResolveTransitionFault: Double transition fault not yet supported\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
         }
     }
 
@@ -2275,7 +2289,7 @@ MiResolveTransitionFault(
         if (!MiAddValidPageToWorkingSet(Address, Pte, Pfn, TempWsle))
         {
             DPRINT("MiResolveTransitionFault: FIXME MiTrimPte()\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
             return STATUS_NO_MEMORY;
         }
     }
@@ -2377,7 +2391,7 @@ MiResolveProtoPteFault(
                          Entry = Entry->Flink)
                     {
                         DPRINT1("MiResolveProtoPteFault: FIXME\n");
-                        ASSERT(FALSE);
+                        DbgBreakPoint();
                     }
                 }
 
@@ -2400,7 +2414,7 @@ MiResolveProtoPteFault(
         Process->CloneRoot)
     {
         DPRINT1("MiResolveProtoPteFault: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
         Protection = MM_WRITECOPY;
     }
 
@@ -2461,7 +2475,7 @@ MiResolveProtoPteFault(
     {
         /* We don't support paged out pages */
         DPRINT1("MiResolveProtoPteFault: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
 
         Status = STATUS_NOT_IMPLEMENTED;//MiResolvePageFileFault (Address, SectionProto, PteValue, OutPageBlock, Process, OldIrql);
 
@@ -2589,7 +2603,7 @@ MiDispatchFault(
                 if (Process == HYDRA_PROCESS)
                 {
                     DPRINT1("MiDispatchFault: FIXME! Process == HYDRA_PROCESS. SectionProto %X\n", SectionProto);
-                    ASSERT(FALSE);
+                    DbgBreakPoint();
                 }
 
                 goto OtherPteTypes;
@@ -2726,7 +2740,7 @@ MiDispatchFault(
             if (!SectionProtoPte->u.Hard.Valid)
             {
                 DPRINT1("MiDispatchFault: FIXME! SectionProtoPte %X\n", SectionProtoPte);
-                ASSERT(FALSE);
+                DbgBreakPoint();
             }
 
             /* Capture the PTE */
@@ -2735,7 +2749,7 @@ MiDispatchFault(
             if (Recursive)
             {
                 DPRINT1("MiDispatchFault: FIXME!\n");
-                ASSERT(FALSE);
+                DbgBreakPoint();
             }
 
             if (!(Flags & 0x04))
@@ -2866,7 +2880,7 @@ MiDispatchFault(
                             if (PageFileHigh && PageFileHigh != MI_PTE_LOOKUP_NEEDED)
                             {
                                 DPRINT1("MiCompleteProtoPteFault: FIXME. PageFileHigh %X\n", PageFileHigh);
-                                ASSERT(FALSE);
+                                DbgBreakPoint();
                             }
 
                             Pfn->OriginalPte.u.Soft.PageFileHigh = 0;
@@ -2980,7 +2994,7 @@ OtherPteTypes:
     else if (TempPte.u.Soft.PageFileHigh)
     {
         DPRINT1("MiDispatchFault: FIXME! TempPte.u.Soft.PageFileHigh %X\n", TempPte.u.Soft.PageFileHigh);
-        ASSERT(FALSE);Status = STATUS_NOT_IMPLEMENTED;
+        DbgBreakPoint();Status = STATUS_NOT_IMPLEMENTED;
     }
     else
     {
@@ -3010,7 +3024,7 @@ Finish:
         if (SessionWs)
         {
             DPRINT1("MiDispatchFault: FIXME! SessionWs %X\n", SessionWs);
-            ASSERT(FALSE);
+            DbgBreakPoint();
         }
 
         ASSERT(OldIrql == KeGetCurrentIrql());
@@ -3154,7 +3168,7 @@ Finish:
                         if (PfnClusterPage->u3.e1.PageLocation != FreePageList)
                         {
                             DPRINT1("MiDispatchFault: FIXME\n");
-                            ASSERT(FALSE);
+                            DbgBreakPoint();
                         }
                     }
                 }
@@ -3173,7 +3187,7 @@ Finish:
             if (SessionWs)
             {
                 DPRINT1("MiDispatchFault: FIXME\n");
-                ASSERT(FALSE);
+                DbgBreakPoint();
             }
 
             MiFreeInPageSupportBlock(pageBlock);
@@ -3215,7 +3229,7 @@ Finish:
         if (PageBlockPfn->u3.e1.CacheAttribute != CacheAttribute)
         {
             DPRINT("MiDispatchFault: FIXME Flushing\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
             PageBlockPfn->u3.e1.CacheAttribute = CacheAttribute;
         }
 
@@ -3250,7 +3264,7 @@ Finish:
         else
         {
             DPRINT1("MiDispatchFault: FIXME MiAddValidPageToWorkingSet()\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
         }
 
         MiFreeInPageSupportBlock(pageBlock);
@@ -3267,7 +3281,7 @@ Finish:
     if (SessionWs)
     {
         DPRINT1("MiDispatchFault: FIXME! SessionWs %X\n", SessionWs);
-        ASSERT(FALSE);
+        DbgBreakPoint();
     }
 
     if (LockedProtoPfn)
@@ -3312,7 +3326,7 @@ MiCheckPdeForSessionSpace(
         {
             /* This means there's no valid session, bail out */
             DbgPrint("MiCheckPdeForSessionSpace: No current session for PTE %p\n", Address);
-            ASSERT(FALSE); // MiDbgBreakPointEx(); 
+            DbgBreakPoint(); 
             return STATUS_ACCESS_VIOLATION;
         }
 
@@ -3335,7 +3349,7 @@ MiCheckPdeForSessionSpace(
 
         /* We don't seem to have allocated a page table for this address yet? */
         DbgPrint("MiCheckPdeForSessionSpace: No Session PDE for PTE %p, %p\n", Pde->u.Long, SessionAddress);
-        ASSERT(FALSE); // MiDbgBreakPointEx(); 
+        DbgBreakPoint(); 
         return STATUS_ACCESS_VIOLATION;
     }
 
@@ -3349,7 +3363,7 @@ MiCheckPdeForSessionSpace(
     {
         /* This means there's no valid session, bail out */
         DbgPrint("MiCheckPdeForSessionSpace: No current session for VA %p\n", Address);
-        ASSERT(FALSE); // MiDbgBreakPointEx(); 
+        DbgBreakPoint(); 
         return STATUS_ACCESS_VIOLATION;
     }
 
@@ -3365,7 +3379,7 @@ MiCheckPdeForSessionSpace(
 
         /* We had not allocated a page table for this session address yet, fail! */
         DbgPrint("MiCheckPdeForSessionSpace: No Session PDE for VA %p, %p\n", Pde->u.Long, Address);
-        ASSERT(FALSE); // MiDbgBreakPointEx(); 
+        DbgBreakPoint(); 
         return STATUS_ACCESS_VIOLATION;
     }
 
@@ -3401,7 +3415,7 @@ MiCheckPdeForPagedPool(
     {
         /* This is totally illegal */
         DPRINT1("MiCheckPdeForPagedPool: STATUS_ACCESS_VIOLATION. Address %p\n", Address);
-        //ASSERT(FALSE); // MiDbgBreakPointEx(); 
+        DbgBreakPoint();
         return STATUS_ACCESS_VIOLATION;
     }
     else
@@ -3500,6 +3514,7 @@ MmAccessFault(
                 !(Pfn->OriginalPte.u.Soft.Protection & MM_READWRITE))
             {
                 /* Crash with distinguished bugcheck code */
+                DPRINT1("KeBugCheckEx()\n");DbgBreakPoint();
                 KeBugCheckEx(ATTEMPTED_WRITE_TO_READONLY_MEMORY,
                              (ULONG_PTR)Address,
                              Pte->u.Long,
@@ -3543,6 +3558,7 @@ MmAccessFault(
                 }
 
                 /* PDE (still) not valid, kill the system */
+                DPRINT1("KeBugCheckEx()\n");DbgBreakPoint();
                 KeBugCheckEx(PAGE_FAULT_IN_NONPAGED_AREA,
                              (ULONG_PTR)Address,
                              FaultCode,
@@ -3553,7 +3569,7 @@ MmAccessFault(
         else if (MI_IS_PAGE_LARGE(Pde))
         {
             DPRINT1("MmAccessFault: FIXME! MI_IS_PAGE_LARGE(Pde) %p\n", Pde);
-            ASSERT(FALSE);//DbgBreakPoint();
+            DbgBreakPoint();
             return STATUS_SUCCESS;
         }
 
@@ -3583,6 +3599,7 @@ MmAccessFault(
                             !(Pfn->OriginalPte.u.Soft.Protection & MM_READWRITE))
                         {
                             /* Crash with distinguished bugcheck code */
+                            DPRINT1("KeBugCheckEx()\n");DbgBreakPoint();
                             KeBugCheckEx(ATTEMPTED_WRITE_TO_READONLY_MEMORY,
                                          (ULONG_PTR)Address,
                                          (ULONG_PTR)TempPte.u.Long,
@@ -3665,14 +3682,14 @@ MmAccessFault(
                 !TempPte.u.Hard.CopyOnWrite)
             {
                 DPRINT1("MmAccessFault: FIXME\n");
-                ASSERT(FALSE);//DbgBreakPoint();
+                DbgBreakPoint();
             }
 
             if (IsSessionAddress &&
                 MI_IS_WRITE_ACCESS(FaultCode) && !TempPte.u.Hard.Write)
             {
                 DPRINT1("MmAccessFault: FIXME\n");
-                ASSERT(FALSE);//DbgBreakPoint();
+                DbgBreakPoint();
             }
             else
             {
@@ -3705,12 +3722,12 @@ MmAccessFault(
                 if (KeInvalidAccessAllowed(TrapInformation))
                 {
                     DPRINT1("MmAccessFault: return STATUS_ACCESS_VIOLATION\n");
-                    ASSERT(FALSE); // DbgBreakPoint();
+                    DbgBreakPoint();
                     return STATUS_ACCESS_VIOLATION;
                 }
 
                 /* Bad boy, bad boy, whatcha gonna do, whatcha gonna do when ARM3 comes for you! */
-                DPRINT1("KeBugCheckEx()\n");ASSERT(FALSE);//DbgBreakPoint();
+                DPRINT1("KeBugCheckEx()\n");DbgBreakPoint();
                 KeBugCheckEx(DRIVER_CAUGHT_MODIFYING_FREED_POOL, (ULONG_PTR) Address, FaultCode, Mode, 4);
             }
 
@@ -3725,7 +3742,7 @@ MmAccessFault(
                 SectionProto = MiCheckVirtualAddress(Address, &ProtectionCode, &Vad);
                 if (!SectionProto)
                 {
-                    DPRINT1("MmAccessFault: FIXME!\n"); ASSERT(FALSE);//DbgBreakPoint();
+                    DPRINT1("MmAccessFault: FIXME!\n"); DbgBreakPoint();
                     return (STATUS_IN_PAGE_ERROR | 0x10000000);
                 }
             }
@@ -3739,13 +3756,13 @@ MmAccessFault(
             }
 
             DPRINT1("KeBugCheckEx()\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
             //KeBugCheckEx();
         }
         else if (TempPte.u.Soft.Protection == MM_NOACCESS)
         {
             DPRINT1("MmAccessFault: FIXME! Protection == MM_NOACCESS\n");
-            ASSERT(FALSE);//DbgBreakPoint();
+            DbgBreakPoint();
         }
 
         if (MI_IS_WRITE_ACCESS(FaultCode) &&
@@ -3879,7 +3896,7 @@ UserFault:
     else if (MI_IS_PAGE_LARGE(Pde))
     {
         DPRINT1("MmAccessFault: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
         Status = STATUS_SUCCESS;
         goto Exit3;
     }
@@ -3891,7 +3908,7 @@ UserFault:
         if (MI_IS_PAGE_LARGE(&TempPte))
         {
             DPRINT1("KeBugCheckEx()\n");
-            ASSERT(FALSE);//DbgBreakPoint();
+            DbgBreakPoint();
             KeBugCheckEx(PAGE_FAULT_IN_NONPAGED_AREA, (ULONG_PTR)Address, FaultCode, (ULONG_PTR)TrapInformation, 8);
         }
 
@@ -3900,7 +3917,7 @@ UserFault:
         if (!TempPte.u.Hard.Owner && Address <= MmHighestUserAddress)
         {
             DPRINT1("MmAccessFault: STATUS_ACCESS_VIOLATION\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
             Status = STATUS_ACCESS_VIOLATION;
             goto Exit2;
         }
@@ -3922,7 +3939,7 @@ UserFault:
         if (CurrentProcess->AweInfo)
         {
             DPRINT1("MmAccessFault: FIXME\n");
-            ASSERT(FALSE);
+            DbgBreakPoint();
             goto Exit2;
         }
 
@@ -3932,7 +3949,7 @@ UserFault:
             if (!MiSetDirtyBit(Address, Pte, FALSE))
             {
                 DPRINT1("MmAccessFault: STATUS_ACCESS_VIOLATION\n");
-                ASSERT(FALSE);
+                DbgBreakPoint();
                 Status = STATUS_ACCESS_VIOLATION;
             }
         }
@@ -4019,7 +4036,7 @@ UserFault:
             {
                 ASSERT(KeGetCurrentIrql() == PASSIVE_LEVEL);
                 DPRINT1("MmAccessFault: FIXME IoRetryIrpCompletions()\n");
-                ASSERT(FALSE);
+                DbgBreakPoint();
             }
 
             /* Handle stack expansion */
@@ -4117,7 +4134,7 @@ UserFault:
             {
                 DPRINT1("MmAccessFault: FIXME MiTrimPte()\n");
                 ASSERT(Pfn->u3.e1.PrototypePte == 0);
-                ASSERT(FALSE);
+                DbgBreakPoint();
             }
 
             DPRINT("MmAccessFault: return STATUS_PAGE_FAULT_DEMAND_ZERO\n");
@@ -4155,7 +4172,7 @@ UserFault:
                 if (!SectionProto)
                 {
                     DPRINT1("MmAccessFault: STATUS_ACCESS_VIOLATION\n");
-                    ASSERT(FALSE);
+                    DbgBreakPoint();
                     Status = STATUS_ACCESS_VIOLATION;
                     goto Exit3;
                 }
@@ -4204,14 +4221,14 @@ UserFault:
                 DPRINT1("MmAccessFault: %X, %p, %X, %p\n", FaultCode, Address, Mode, TrapInformation);
                 DPRINT1("MmAccessFault: %p [%p], %p [%p]\n", Pde, Pde->u.Long, Pte, TempPte.u.Long);
                 DPRINT1("MmAccessFault: STATUS_ACCESS_VIOLATION\n");
-                ASSERT(FALSE);
+                DbgBreakPoint();
             }
 
             /* Not supported */
             if (CurrentThread->ApcNeeded && !CurrentThread->ActiveFaultCount)
             {
                 DPRINT1("MmAccessFault: FIXME\n");
-                ASSERT(FALSE);
+                DbgBreakPoint();
             }
 
             /* Drop the working set lock */
@@ -4266,7 +4283,7 @@ Exit2:
         KeGetCurrentThread()->Priority >= 0x10)
     {
         DPRINT1("MmAccessFault: FIXME\n");
-        ASSERT(FALSE);
+        DbgBreakPoint();
     }
 
 Exit1:
@@ -4276,7 +4293,7 @@ Exit1:
 
     if (!NT_SUCCESS(Status))
     {
-        DPRINT1("MmAccessFault: Status %X\n", Status);
+        DPRINT1("MmAccessFault: Status %X (%X, %p, %X, %p)\n", Status, FaultCode, Address, Mode, TrapInformation);
 
         if (Status == STATUS_INSUFFICIENT_RESOURCES ||
             Status == STATUS_WORKING_SET_QUOTA ||
