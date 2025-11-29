@@ -6502,7 +6502,7 @@ MiCreateImageFileMap(
 
                 Pte = Segment->PrototypePte;
 
-                MI_MAKE_SUBSECTION_PTE(&ProtoTemplate, Subsection);
+                MI_MAKE_SUBSECTION_PTE(&ProtoTemplate, NewSubsection);
                 ProtoTemplate.u.Soft.Prototype = 1;
 
                 for (jx = 0; jx < Segment->TotalNumberOfPtes; jx++)
