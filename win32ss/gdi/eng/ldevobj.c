@@ -177,7 +177,7 @@ LDEVOBJ_bLoadImage(
     ASSERT(pldev && pldev->pGdiDriverInfo == NULL);
 
     /* Allocate a SYSTEM_GDI_DRIVER_INFORMATION structure */
-    cbSize = sizeof(SYSTEM_GDI_DRIVER_INFORMATION) + pustrPathName->Length;
+    cbSize = (sizeof(SYSTEM_GDI_DRIVER_INFORMATION) + pustrPathName->Length + sizeof(UNICODE_NULL));
     pDriverInfo = ExAllocatePoolWithTag(PagedPool, cbSize, GDITAG_LDEV);
     if (!pDriverInfo)
     {
@@ -188,7 +188,7 @@ LDEVOBJ_bLoadImage(
     /* Initialize the UNICODE_STRING and copy the driver name */
     RtlInitEmptyUnicodeString(&pDriverInfo->DriverName,
                               (PWSTR)(pDriverInfo + 1),
-                              pustrPathName->Length);
+                              (pustrPathName->Length + sizeof(UNICODE_NULL)));
     RtlCopyUnicodeString(&pDriverInfo->DriverName, pustrPathName);
 
     /* Try to load the driver */
