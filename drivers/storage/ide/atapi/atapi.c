@@ -5848,7 +5848,7 @@ IdeTranslateSrbStatus(
             break;
 
         default:
-            DPRINT1("IdeTranslateSrbStatus: STATUS_IO_DEVICE_ERROR. SrbStatus (%X)\n", Srb->SrbStatus);
+            DPRINT("IdeTranslateSrbStatus: STATUS_IO_DEVICE_ERROR. SrbStatus (%X)\n", Srb->SrbStatus);
             Status = STATUS_IO_DEVICE_ERROR;
             break;
     }
