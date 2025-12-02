@@ -1454,7 +1454,7 @@ UsbSerCreate(IN PDEVICE_OBJECT DeviceObject,
     KIRQL Irql;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    DPRINT("UsbSer_Create: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    DPRINT("UsbSerCreate: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
     PAGED_CODE();
 
     Extension = DeviceObject->DeviceExtension;
@@ -1508,7 +1508,7 @@ UsbSerClose(IN PDEVICE_OBJECT DeviceObject,
     PUSBSER_DEVICE_EXTENSION Extension;
     LONG OpenCount;
 
-    DPRINT("UsbSer_Close: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
+    DPRINT("UsbSerClose: DeviceObject %p, Irp %p\n", DeviceObject, Irp);
     PAGED_CODE();
 
     Extension = DeviceObject->DeviceExtension;
@@ -2101,7 +2101,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
 
     if (FreeIdx == USBSER_MAX_SLOT)
     {
-        DPRINT1("UsbSer_PnPAddDevice: FreeIdx == USBSER_MAX_SLOT\n");
+        DPRINT1("UsbSerPnPAddDevice: FreeIdx == USBSER_MAX_SLOT\n");
         return STATUS_INVALID_DEVICE_REQUEST;
     }
 
@@ -2121,7 +2121,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
                             &NewDevice);
     if (!NT_SUCCESS(Status))
     {
-        DPRINT("UsbSer_PnPAddDevice: Status %X\n", Status);
+        DPRINT("UsbSerPnPAddDevice: Status %X\n", Status);
         goto Exit;
     }
 
@@ -2132,7 +2132,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     Status = IoCreateUnprotectedSymbolicLink(&SymLinkName, &DeviceName);
     if (Status != STATUS_SUCCESS)
     {
-        DPRINT("UsbSer_PnPAddDevice: Status %X\n", Status);
+        DPRINT("UsbSerPnPAddDevice: Status %X\n", Status);
         goto Exit;
     }
 
@@ -2146,7 +2146,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
     if (!Extension->DeviceName.Buffer)
     {
         Status = STATUS_INSUFFICIENT_RESOURCES;
-        DPRINT("UsbSer_PnPAddDevice: Status %X\n", Status);
+        DPRINT("UsbSerPnPAddDevice: Status %X\n", Status);
         goto Exit;
     }
 
@@ -2172,7 +2172,7 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
 
     if (!TargetDevice)
     {
-        DPRINT1("UsbSer_PnPAddDevice: TargetDevice is NULL\n");
+        DPRINT1("UsbSerPnPAddDevice: TargetDevice is NULL\n");
         goto Exit;
     }
 
@@ -2181,12 +2181,12 @@ UsbSerPnPAddDevice(IN PDRIVER_OBJECT DriverObject,
 
     if (!Extension->LowerDevice)
     {
-        DPRINT1("UsbSer_PnPAddDevice: STATUS_NO_SUCH_DEVICE. Extension->LowerDevice is NULL\n");
+        DPRINT1("UsbSerPnPAddDevice: STATUS_NO_SUCH_DEVICE. Extension->LowerDevice is NULL\n");
         Status = STATUS_NO_SUCH_DEVICE;
         goto Exit;
     }
 
-    DPRINT("UsbSer_PnPAddDevice: TargetDevice %p, LowerDevice %p\n", TargetDevice, Extension->LowerDevice);
+    DPRINT("UsbSerPnPAddDevice: TargetDevice %p, LowerDevice %p\n", TargetDevice, Extension->LowerDevice);
 
     Extension->DevicePowerState = PowerDeviceD0;
 
@@ -2224,7 +2224,7 @@ Exit:
 
     if (Status != STATUS_SUCCESS && NewDevice)
     {
-        DPRINT("UsbSer_PnPAddDevice: Status %X, delete Device %p\n", Status, NewDevice);
+        DPRINT("UsbSerPnPAddDevice: Status %X, delete Device %p\n", Status, NewDevice);
         IoDeleteDevice(NewDevice);
     }
 
