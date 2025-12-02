@@ -18,6 +18,11 @@
 
 extern ERESOURCE IopSecurityResource;
 
+#if 0
+static int bOnce = 0;
+BOOLEAN IsDbgOn = FALSE;
+#endif
+
 /* PRIVATE FUNCTIONS *********************************************************/
 
 VOID
@@ -2548,6 +2553,33 @@ IoChangeFileObjectFilterContext(IN PFILE_OBJECT FileObject,
     return STATUS_SUCCESS;
 }
 
+#if 0
+static PWSTR NTAPI FindSubStr(PUNICODE_STRING String, PWSTR SearchString)
+{
+    WCHAR Buffer[260]={0};
+    PWSTR SubStr;
+    USHORT Length;
+
+    if (!String)
+        return NULL;
+
+    if (!String->Length)
+        return NULL;
+
+    Length = wcslen(String->Buffer);
+    if (Length > (String->Length / 2))
+        Length = (String->Length / 2);
+
+    RtlCopyMemory(Buffer, String->Buffer, (Length * 2));
+    Buffer[Length] = UNICODE_NULL;
+
+    //SubStr = wcsstr(_wcsupr(Buffer), _wcsupr(SearchString));
+    SubStr = wcsstr(_wcslwr(Buffer), SearchString);
+
+    return SubStr;
+}
+#endif
+
 NTSTATUS
 NTAPI
 IopCreateFile(OUT PHANDLE FileHandle,
@@ -2578,6 +2610,30 @@ IopCreateFile(OUT PHANDLE FileHandle,
 
     IOTRACE(IO_FILE_DEBUG, "FileName: %wZ\n", ObjectAttributes->ObjectName);
 
+#if 0
+    if (FindSubStr(ObjectAttributes->ObjectName, _wcslwr(L".inf")))               goto Start;
+    if (FindSubStr(ObjectAttributes->ObjectName, _wcslwr(L"\\Device\\Tcp")))      goto Start;
+    if (FindSubStr(ObjectAttributes->ObjectName, _wcslwr(L"manifest")))           goto Start;
+    if (FindSubStr(ObjectAttributes->ObjectName, _wcslwr(L"2982_none_deadbeef"))) goto Start;
+
+    DPRINT1("IopCreateFile: '%wZ'\n", ObjectAttributes->ObjectName);
+
+  #if 0
+    if (!FindSubStr(ObjectAttributes->ObjectName, _wcslwr(L"stop_name"))) goto Start;
+
+    if (!bOnce) {
+        bOnce++;
+        DPRINT1("IopCreateFile: IsDbgOn is TRUE\n");
+        IsDbgOn = TRUE;
+        //DbgBreakPoint();
+    }
+
+    //DbgBreakPoint();
+
+  #endif
+
+Start:
+#endif
 
     /* Check if we have no parameter checking to do */
     if (Options & IO_NO_PARAMETER_CHECKING)
