@@ -2026,6 +2026,8 @@ CM_Enumerate_Classes_Ex(
     if (ulFlags != 0)
         return CR_INVALID_FLAG;
 
+    RtlZeroMemory(ClassGuid, sizeof(GUID));
+
     if (hMachine != NULL)
     {
         BindingHandle = ((PMACHINE_INFO)hMachine)->BindingHandle;
