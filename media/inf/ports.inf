@@ -91,7 +91,7 @@ LoadOrderGroup = PNP Filter
 
 [Strings]
 ReactOS = "ReactOS Team"
-PortsClassName = "Serial and parallel ports"
+PortsClassName = "Ports (COM & LPT)"
 
 StdMfg = "(Standard ports)"
 *PNP0500.DeviceDesc = "Serial communication port"
@@ -100,8 +100,6 @@ StdMfg = "(Standard ports)"
 *PNP0401.DeviceDesc = "ECP printer port"
 
 [Strings.0405]
-PortsClassName = "Sériové a paralelní porty"
-
 StdMfg = "(Standardní porty)"
 *PNP0500.DeviceDesc = "Sériový port"
 *PNP0501.DeviceDesc = "Sériový port"
@@ -109,8 +107,6 @@ StdMfg = "(Standardní porty)"
 *PNP0401.DeviceDesc = "ECP port pro tiskárny"
 
 [Strings.0407]
-PortsClassName = "Serielle und parallele Anschlüsse"
-
 StdMfg = "(Standard-Anschlüsse)"
 *PNP0500.DeviceDesc = "Serieller Anschluss"
 *PNP0501.DeviceDesc = "Serieller Anschluss"
@@ -119,8 +115,6 @@ StdMfg = "(Standard-Anschlüsse)"
 
 [Strings.0a]
 ReactOS = "Equipo de ReactOS"
-PortsClassName = "Puertos (COM y LPT)"
-
 StdMfg = "(Puertos estándar)"
 *PNP0500.DeviceDesc = "Puerto de comunicaciones"
 *PNP0501.DeviceDesc = "Puerto de comunicaciones"
@@ -129,8 +123,6 @@ StdMfg = "(Puertos estándar)"
 
 
 [Strings.040C]
-PortsClassName = "Ports série et parallèle"
-
 StdMfg = "(Ports standards)"
 *PNP0500.DeviceDesc = "Port série"
 *PNP0501.DeviceDesc = "Port série"
@@ -138,8 +130,6 @@ StdMfg = "(Ports standards)"
 *PNP0401.DeviceDesc = "Port d'imprimante ECP"
 
 [Strings.0411]
-PortsClassName = "シリアルおよびパラレルポート"
-
 StdMfg = "(スタンダード ポート)"
 *PNP0500.DeviceDesc = "シリアル 通信ポート"
 *PNP0501.DeviceDesc = "シリアル 通信ポート"
@@ -148,8 +138,6 @@ StdMfg = "(スタンダード ポート)"
 
 [Strings.0415]
 ReactOS = "Zespół ReactOS"
-PortsClassName = "Porty (COM i LPT)"
-
 StdMfg = "(Standardowe porty)"
 *PNP0500.DeviceDesc = "Port szeregowy"
 *PNP0501.DeviceDesc = "Port szeregowy"
@@ -157,8 +145,6 @@ StdMfg = "(Standardowe porty)"
 *PNP0401.DeviceDesc = "Port drukarki ECP"
 
 [Strings.0416]
-PortsClassName = "Portas (COM & LPT)"
-
 StdMfg = "(Tipos de porta padrão)"
 *PNP0500.DeviceDesc = "Porta serial"
 *PNP0501.DeviceDesc = "Porta serial"
@@ -167,7 +153,6 @@ StdMfg = "(Tipos de porta padrão)"
 
 [Strings.0418]
 ReactOS = "Echipa ReactOS"
-PortsClassName = "Porturi seriale și paralele"
 StdMfg = "(port standard)"
 *PNP0500.DeviceDesc = "Port de comunicație serial"
 *PNP0501.DeviceDesc = "Port de comunicație serial"
@@ -176,8 +161,6 @@ StdMfg = "(port standard)"
 
 [Strings.0419]
 ReactOS = "Команда ReactOS"
-PortsClassName = "Порты (COM и LPT)"
-
 StdMfg = "(Стандартные порты)"
 *PNP0500.DeviceDesc = "Последовательный порт"
 *PNP0501.DeviceDesc = "Последовательный порт"
@@ -185,8 +168,6 @@ StdMfg = "(Стандартные порты)"
 *PNP0401.DeviceDesc = "ECP порт принтера"
 
 [Strings.041B]
-PortsClassName = "Sériové a paralelné porty"
-
 StdMfg = "(Štandardné porty)"
 *PNP0500.DeviceDesc = "Sériový komunikačný port"
 *PNP0501.DeviceDesc = "Sériový komunikačný port"
@@ -195,8 +176,6 @@ StdMfg = "(Štandardné porty)"
 
 [Strings.041f]
 ReactOS = "ReactOS Takımı"
-PortsClassName = "Dizilik ve Koşut Girişler"
-
 StdMfg = "(Ölçünlü Girişler)"
 *PNP0500.DeviceDesc = "Dizilik Bağlantı Girişi"
 *PNP0501.DeviceDesc = "Dizilik Bağlantı Girişi"
@@ -205,8 +184,6 @@ StdMfg = "(Ölçünlü Girişler)"
 
 [Strings.0422]
 ReactOS = "Команди ReactOS"
-PortsClassName = "Порти (COM і LPT)"
-
 StdMfg = "(Стандартні порти)"
 *PNP0500.DeviceDesc = "Послідовний порт"
 *PNP0501.DeviceDesc = "Послідовний порт"
@@ -214,8 +191,6 @@ StdMfg = "(Стандартні порти)"
 *PNP0401.DeviceDesc = "Порт принтера ECP"
 
 [Strings.0427]
-PortsClassName = "Nuosekliosios ir lygegrečiosios jungtys"
-
 StdMfg = "(Standartinė jungtis)"
 *PNP0500.DeviceDesc = "Nuoseklaus ryšio jungtis"
 *PNP0501.DeviceDesc = "Nuoseklaus ryšio jungtis"
