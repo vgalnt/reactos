@@ -899,6 +899,7 @@ BOOL WINAPI SetCommState( HANDLE handle, LPDCB lpdcb)
  *
  *  XonChar and XoffChar are not set.
  */
+#if 0
 BOOL WINAPI GetCommState(HANDLE handle, LPDCB lpdcb)
 {
     SERIAL_BAUD_RATE    sbr;
@@ -976,6 +977,182 @@ BOOL WINAPI GetCommState(HANDLE handle, LPDCB lpdcb)
 
     return TRUE;
 }
+#else
+BOOL WINAPI GetCommState(_In_ HANDLE hFile, _Out_ LPDCB OutDCB)
+{
+    IO_STATUS_BLOCK IoStatusBlock;
+    SERIAL_LINE_CONTROL Slc;
+    SERIAL_BAUD_RATE Sbr;
+    SERIAL_HANDFLOW Sh;
+    SERIAL_CHARS Sc;
+    HANDLE Event;
+    NTSTATUS Status;
+
+    TRACE("GetCommState: %IX\n", hFile);
+
+    if (!OutDCB)
+    {
+        ERR("GetCommState: OutDCB is NULL!!!\n");
+        return FALSE;
+    }
+    RtlZeroMemory(OutDCB, sizeof(*OutDCB));
+
+    OutDCB->fBinary = 1;
+    OutDCB->DCBlength = sizeof(*OutDCB);
+
+    Event = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (!Event)
+    {
+        ERR("GetCommState: Event is NULL\n");
+        return FALSE;
+    }
+
+    Status = NtDeviceIoControlFile(hFile, Event, NULL, NULL, &IoStatusBlock,
+                                   IOCTL_SERIAL_GET_BAUD_RATE, NULL, 0, &Sbr, sizeof(Sbr));
+    if (Status == STATUS_PENDING)
+    {
+        Status = NtWaitForSingleObject(Event, FALSE, NULL);
+        if (NT_SUCCESS(Status))
+            Status = IoStatusBlock.Status;
+    }
+    if (NT_ERROR(Status))
+    {
+        ERR("GetCommState: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    OutDCB->BaudRate = Sbr.BaudRate;
+
+    Status = NtDeviceIoControlFile(hFile, Event, NULL, NULL, &IoStatusBlock,
+                                   IOCTL_SERIAL_GET_LINE_CONTROL, NULL, 0, &Slc, sizeof(Slc));
+    if (Status == STATUS_PENDING)
+    {
+        Status = NtWaitForSingleObject(Event, FALSE, NULL);
+        if (NT_SUCCESS(Status))
+            Status = IoStatusBlock.Status;
+    }
+    if (NT_ERROR(Status))
+    {
+        ERR("GetCommState: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    OutDCB->Parity = Slc.Parity;
+    OutDCB->ByteSize = Slc.WordLength;
+    OutDCB->StopBits = Slc.StopBits;
+
+    Status = NtDeviceIoControlFile(hFile, Event, NULL, NULL, &IoStatusBlock,
+                                   IOCTL_SERIAL_GET_CHARS, NULL, 0, &Sc, sizeof(Sc));
+    if (Status == STATUS_PENDING)
+    {
+        Status = NtWaitForSingleObject(Event, FALSE, NULL);
+        if (NT_SUCCESS(Status))
+            Status = IoStatusBlock.Status;
+    }
+    if (NT_ERROR(Status))
+    {
+        ERR("GetCommState: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    OutDCB->XonChar = Sc.XonChar;
+    OutDCB->ErrorChar = Sc.ErrorChar;
+    OutDCB->EofChar = Sc.EofChar;
+    OutDCB->XoffChar = Sc.XoffChar;
+    OutDCB->EvtChar = Sc.EventChar;
+
+    Status = NtDeviceIoControlFile(hFile, Event, NULL, NULL, &IoStatusBlock,
+                                   IOCTL_SERIAL_GET_HANDFLOW, NULL, 0, &Sh, sizeof(Sh));
+    if (Status == STATUS_PENDING)
+    {
+        Status = NtWaitForSingleObject(Event, FALSE, NULL);
+        if (NT_SUCCESS(Status))
+            Status = IoStatusBlock.Status;
+    }
+    if (NT_ERROR(Status))
+    {
+        ERR("GetCommState: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    if (Sh.ControlHandShake & 0x08)
+        OutDCB->fOutxCtsFlow = 1;
+
+    if (Sh.ControlHandShake & 0x10)
+        OutDCB->fOutxDsrFlow = 1;
+
+    if (Sh.FlowReplace & 0x01)
+        OutDCB->fOutX = 1;
+
+    if (Sh.FlowReplace & 0x02)
+        OutDCB->fInX = 1;
+
+    if (Sh.FlowReplace & 0x08)
+        OutDCB->fNull = 1;
+
+    if (Sh.FlowReplace & 0x04)
+        OutDCB->fErrorChar = 1;
+
+    if (Sh.FlowReplace & 0x80000000)
+        OutDCB->fTXContinueOnXoff = 1;
+
+    if (Sh.ControlHandShake & 0x80000000)
+        OutDCB->fAbortOnError = 1;
+
+    switch (Sh.FlowReplace & 0xC0)
+    {
+        case 0x00:
+            OutDCB->fRtsControl = 0;
+            break;
+
+        case 0x40:
+            OutDCB->fRtsControl = 1;
+            break;
+
+        case 0x80:
+            OutDCB->fRtsControl = 2;
+            break;
+
+        case 0xC0:
+            OutDCB->fRtsControl = 3;
+            break;
+    }
+
+    switch (Sh.ControlHandShake & 3)
+    {
+        case 0:
+            OutDCB->fDtrControl = 0;
+            break;
+
+        case 1:
+            OutDCB->fDtrControl = 1;
+            break;
+
+        case 2:
+            OutDCB->fDtrControl = 2;
+            break;
+    }
+
+    if (Sh.ControlHandShake & 0x40)
+        OutDCB->fDsrSensitivity = 1;
+    else
+        OutDCB->fDsrSensitivity = 0;
+
+    OutDCB->XonLim = (Sh.XonLimit & 0xFFFF);
+    OutDCB->XoffLim = (Sh.XoffLimit & 0xFFFF);
+
+    CloseHandle(Event);
+    TRACE("GetCommState: ret TRUE\n");
+    dump_dcb(OutDCB);
+    return TRUE;
+
+ErrorExit:
+
+    CloseHandle(Event);
+    BaseSetLastNTError(Status);
+    return FALSE;
+}
+#endif
 
 /*****************************************************************************
  *	TransmitCommChar	(KERNEL32.@)
