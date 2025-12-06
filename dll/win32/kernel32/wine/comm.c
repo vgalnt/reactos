@@ -804,6 +804,7 @@ static void dump_dcb(const DCB* lpdcb)
  *
  *  True on success, false on failure, e.g., if the XonChar is equal to the XoffChar.
  */
+#if 0
 BOOL WINAPI SetCommState( HANDLE handle, LPDCB lpdcb)
 {
     SERIAL_BAUD_RATE           sbr;
@@ -880,7 +881,205 @@ BOOL WINAPI SetCommState( HANDLE handle, LPDCB lpdcb)
             DeviceIoControl(handle, IOCTL_SERIAL_SET_CHARS,
                             &sc, sizeof(sc), NULL, 0, &dwBytesReturned, NULL));
 }
+#else
+BOOL WINAPI SetCommState(_In_ HANDLE hFile, _In_ LPDCB lpDCB)
+{
+    IO_STATUS_BLOCK IoStatusBlock;
+    SERIAL_LINE_CONTROL Slc;
+    SERIAL_BAUD_RATE Sbr;
+    SERIAL_HANDFLOW Sh;
+    SERIAL_CHARS Sc;
+    DCB SavedDCB;
+    HANDLE Event;
+    NTSTATUS Status;
 
+    if (!lpDCB)
+    {
+        ERR("GetCommState: lpDCB is NULL\n");
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+
+    TRACE("SetCommState: hFile %IX\n", hFile);
+    dump_dcb(lpDCB);
+
+    if (!GetCommState(hFile, &SavedDCB))
+    {
+        ERR("SetCommState: GetCommState() failed\n");
+        return FALSE;
+    }
+
+    Event = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (!Event)
+    {
+        ERR("SetCommState: Event is NULL\n");
+        return FALSE;
+    }
+
+    Sbr.BaudRate = lpDCB->BaudRate;
+
+    Status = NtDeviceIoControlFile(hFile, Event, NULL, NULL, &IoStatusBlock,
+                                   IOCTL_SERIAL_SET_BAUD_RATE, &Sbr, sizeof(Sbr), NULL, 0);
+    if (Status == STATUS_PENDING)
+    {
+        Status = NtWaitForSingleObject(Event, FALSE, NULL);
+        if (NT_SUCCESS(Status))
+            Status = IoStatusBlock.Status;
+    }
+    if (NT_ERROR(Status))
+    {
+        ERR("SetCommState: Status %X\n", Status);
+        CloseHandle(Event);
+        BaseSetLastNTError(Status);
+        return FALSE;
+    }
+
+    Slc.StopBits = lpDCB->StopBits;
+    Slc.Parity = lpDCB->Parity;
+    Slc.WordLength = lpDCB->ByteSize;
+
+    Sc.XonChar = lpDCB->XonChar;
+    Sc.XoffChar = lpDCB->XoffChar;
+    Sc.ErrorChar = lpDCB->ErrorChar;
+    Sc.BreakChar = lpDCB->ErrorChar;
+    Sc.EofChar = lpDCB->EofChar;
+    Sc.EventChar = lpDCB->EvtChar;
+
+    RtlZeroMemory(&Sh, sizeof(Sh));
+
+    switch (lpDCB->fRtsControl)
+    {
+        case 0:
+            break;
+
+        case 1:
+            Sh.FlowReplace |= 0x40;
+            break;
+
+        case 2:
+            Sh.FlowReplace |= 0x80;
+            break;
+
+        case 3:
+            Sh.FlowReplace |= 0xC0;
+            break;
+
+        default:
+            ERR("SetCommState: not valid RtsControl %X\n", lpDCB->fRtsControl);
+            goto ErrorExit;
+    }
+
+    switch (lpDCB->fDtrControl)
+    {
+        case 0:
+            break;
+
+        case 1:
+            Sh.ControlHandShake |= 1;
+            break;
+
+        case 2:
+            Sh.ControlHandShake |= 2;
+            break;
+
+        default:
+            ERR("SetCommState: not valid DtrControl %X\n", lpDCB->fDtrControl);
+            goto ErrorExit;
+    }
+
+    if (lpDCB->fDsrSensitivity)
+        Sh.ControlHandShake |= 0x40;
+
+    if (lpDCB->fOutxCtsFlow)
+        Sh.ControlHandShake |= 0x08;
+
+    if (lpDCB->fOutxDsrFlow)
+        Sh.ControlHandShake |= 0x10;
+
+    if (lpDCB->fOutX)
+        Sh.FlowReplace |= 1;
+
+    if (lpDCB->fInX)
+        Sh.FlowReplace |= 2;
+
+    if (lpDCB->fNull)
+        Sh.FlowReplace |= 8;
+
+    if (lpDCB->fErrorChar)
+        Sh.FlowReplace |= 4;
+
+    if (lpDCB->fTXContinueOnXoff)
+        Sh.FlowReplace |= 0x80000000;
+
+    if (lpDCB->fAbortOnError)
+        Sh.ControlHandShake |= 0x80000000;
+
+    if (lpDCB->fRtsControl == 1)
+        EscapeCommFunction(hFile, 3);
+    else if (lpDCB->fRtsControl == 0)
+        EscapeCommFunction(hFile, 4);
+
+    if (lpDCB->fDtrControl == 1)
+        EscapeCommFunction(hFile, 5);
+    else if (lpDCB->fDtrControl == 0)
+        EscapeCommFunction(hFile, 6);
+
+    Sh.XonLimit = lpDCB->XonLim;
+    Sh.XoffLimit = lpDCB->XoffLim;
+
+    Status = NtDeviceIoControlFile(hFile, Event, NULL, NULL, &IoStatusBlock,
+                                   IOCTL_SERIAL_SET_LINE_CONTROL, &Slc, sizeof(Slc), NULL, 0);
+    if (Status == STATUS_PENDING)
+    {
+        Status = NtWaitForSingleObject(Event, FALSE, NULL);
+        if (NT_SUCCESS(Status))
+            Status = IoStatusBlock.Status;
+    }
+    if (NT_ERROR(Status))
+    {
+        ERR("SetCommState: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    Status = NtDeviceIoControlFile(hFile, Event, NULL, NULL, &IoStatusBlock,
+                                   IOCTL_SERIAL_SET_CHARS, &Sc, sizeof(Sc), NULL, 0);
+    if (Status == STATUS_PENDING)
+    {
+        Status = NtWaitForSingleObject(Event, FALSE, NULL);
+        if (NT_SUCCESS(Status))
+            Status = IoStatusBlock.Status;
+    }
+    if (NT_ERROR(Status))
+    {
+        ERR("SetCommState: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    Status = NtDeviceIoControlFile(hFile, Event, NULL, NULL, &IoStatusBlock,
+                                   IOCTL_SERIAL_SET_HANDFLOW, &Sh, sizeof(Sh), NULL, 0);
+    if (Status == STATUS_PENDING)
+    {
+        Status = NtWaitForSingleObject(Event, FALSE, NULL);
+        if (NT_SUCCESS(Status))
+            Status = IoStatusBlock.Status;
+    }
+    if (NT_ERROR(Status))
+    {
+        ERR("SetCommState: Status %X\n", Status);
+        goto ErrorExit;
+    }
+
+    CloseHandle(Event);
+    return TRUE;
+
+ErrorExit:
+
+    CloseHandle(Event);
+    SetCommState(hFile, &SavedDCB);
+    BaseSetLastNTError(Status);
+    return FALSE;
+}
+#endif
 
 /*****************************************************************************
  *	GetCommState	(KERNEL32.@)
