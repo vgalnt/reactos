@@ -10,7 +10,7 @@
 #include <windef.h>
 #include <winbase.h>
 
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 typedef INT (WINAPI *PINSTALL_REACTOS)(INT argc, WCHAR** argv);
@@ -18,34 +18,32 @@ typedef INT (WINAPI *PINSTALL_REACTOS)(INT argc, WCHAR** argv);
 /* FUNCTIONS ****************************************************************/
 
 static
-INT
+VOID
 RunInstallReactOS(INT argc, WCHAR* argv[])
 {
-    INT RetVal;
     HMODULE hDll;
     PINSTALL_REACTOS InstallReactOS;
 
     hDll = LoadLibraryW(L"syssetup.dll");
     if (hDll == NULL)
     {
-        DPRINT("Failed to load 'syssetup.dll'!\n");
-        return GetLastError();
+        DPRINT1("RunInstallReactOS: Failed to load 'syssetup.dll'!\n");
+        return;
     }
-    DPRINT("Loaded 'syssetup.dll'!\n");
+
+    DPRINT("RunInstallReactOS: Loaded 'syssetup.dll'!\n");
 
     /* Call the standard Windows-compatible export */
     InstallReactOS = (PINSTALL_REACTOS)GetProcAddress(hDll, "InstallWindowsNt");
+
     if (InstallReactOS == NULL)
     {
-        RetVal = GetLastError();
-        DPRINT("Failed to get address for 'InstallWindowsNt()'!\n");
+        DPRINT1("RunInstallReactOS: Failed to get address for 'InstallWindowsNt()'!\n");
     }
     else
     {
-        RetVal = InstallReactOS(argc, argv);
+        InstallReactOS(argc, argv);
     }
-
-    return RetVal;
 }
 
 
@@ -56,7 +54,7 @@ INT wmain(INT argc, WCHAR* argv[])
 
     // NOTE: Temporary, until we correctly use argc/argv.
     CmdLine = GetCommandLineW();
-    DPRINT("CmdLine: <%S>\n", CmdLine);
+    DPRINT("wmain: CmdLine: <%S>\n", CmdLine);
 
     p = wcschr(CmdLine, L'-');
     if (p == NULL)
