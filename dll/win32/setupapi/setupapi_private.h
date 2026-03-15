@@ -65,6 +65,22 @@ WINE_DEFAULT_DEBUG_CHANNEL(setupapi);
 
 #define CMP_MAGIC  0x01234567
 
+typedef DWORD
+(CALLBACK* CLASS_INSTALL_PROC) (
+    IN DI_FUNCTION InstallFunction,
+    IN HDEVINFO DeviceInfoSet,
+    IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL);
+typedef BOOL
+(WINAPI* DEFAULT_CLASS_INSTALL_PROC) (
+    IN HDEVINFO DeviceInfoSet,
+    IN OUT PSP_DEVINFO_DATA DeviceInfoData);
+typedef DWORD
+(CALLBACK* COINSTALLER_PROC) (
+    IN DI_FUNCTION InstallFunction,
+    IN HDEVINFO DeviceInfoSet,
+    IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL,
+    IN OUT PCOINSTALLER_CONTEXT_DATA Context);
+
 struct DeviceInterface /* Element of DeviceInfo.InterfaceListHead */
 {
     LIST_ENTRY ListEntry;

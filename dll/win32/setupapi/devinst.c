@@ -38,22 +38,6 @@ static const WCHAR REGSTR_DRIVER_VERSION[]  = {'D','r','i','v','e','r','V','e','
 static const WCHAR REGSTR_SECURITY[]  = {'S','e','c','u','r','i','t','y',0};
 static const WCHAR REGSTR_UI_NUMBER_DESC_FORMAT[]  = {'U','I','N','u','m','b','e','r','D','e','s','c','F','o','r','m','a','t',0};
 
-typedef DWORD
-(CALLBACK* CLASS_INSTALL_PROC) (
-    IN DI_FUNCTION InstallFunction,
-    IN HDEVINFO DeviceInfoSet,
-    IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL);
-typedef BOOL
-(WINAPI* DEFAULT_CLASS_INSTALL_PROC) (
-    IN HDEVINFO DeviceInfoSet,
-    IN OUT PSP_DEVINFO_DATA DeviceInfoData);
-typedef DWORD
-(CALLBACK* COINSTALLER_PROC) (
-    IN DI_FUNCTION InstallFunction,
-    IN HDEVINFO DeviceInfoSet,
-    IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL,
-    IN OUT PCOINSTALLER_CONTEXT_DATA Context);
-
 struct CoInstallerElement
 {
     LIST_ENTRY ListEntry;
