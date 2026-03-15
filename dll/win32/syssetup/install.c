@@ -23,7 +23,7 @@
 #include <rpcproxy.h>
 #include <ndk/cmfuncs.h>
 
-#define NDEBUG
+//#define NDEBUG
 #include <debug.h>
 
 DWORD WINAPI
@@ -37,6 +37,7 @@ SetupStartService(LPCWSTR lpServiceName, BOOL bWait);
 HINF hSysSetupInf = INVALID_HANDLE_VALUE; // 'SyssetupInf' for NT
 ADMIN_INFO AdminInfo;
 BOOL MiniSetup = FALSE;
+BOOL Upgrade = FALSE;
 
 /* FUNCTIONS ****************************************************************/
 
@@ -104,7 +105,6 @@ CreateShellLink(
     return hr;
 }
 
-
 static BOOL
 CreateShortcut(
     LPCWSTR pszFolder,
@@ -168,7 +168,6 @@ CreateShortcut(
                                      iIconNr,
                                      pszDescription));
 }
-
 
 static BOOL CreateShortcutsFromSection(HINF hinf, LPWSTR pszSection, LPCWSTR pszFolder)
 {
@@ -305,6 +304,7 @@ cleanup:
     RegCloseKey(hKey);
 }
 
+#if 0
 static BOOL
 InstallSysSetupInfDevices(VOID)
 {
@@ -340,7 +340,9 @@ InstallSysSetupInfDevices(VOID)
 
     return TRUE;
 }
+#endif
 
+#if 0
 static BOOL
 InstallSysSetupInfComponents(VOID)
 {
@@ -417,8 +419,7 @@ InstallSysSetupInfComponents(VOID)
 
     return TRUE;
 }
-
-
+#endif
 
 BOOL
 RegisterTypeLibraries(HINF hinf, LPCWSTR szSection)
@@ -431,6 +432,8 @@ RegisterTypeLibraries(HINF hinf, LPCWSTR szSection)
     LPWSTR p;
     HMODULE hmod;
     HRESULT hret;
+
+    DPRINT("RegisterTypeLibraries()\n");
 
     /* Begin iterating the entries in the inf section */
     res = SetupFindFirstLine(hinf, szSection, NULL, &InfContext);
@@ -472,6 +475,7 @@ RegisterTypeLibraries(HINF hinf, LPCWSTR szSection)
     return TRUE;
 }
 
+#if 0
 static BOOL
 EnableUserModePnpManager(VOID)
 {
@@ -524,7 +528,9 @@ cleanup:
         CloseServiceHandle(hSCManager);
     return bRet;
 }
+#endif
 
+#if 0
 static INT_PTR CALLBACK
 StatusMessageWindowProc(
     IN HWND hwndDlg,
@@ -548,7 +554,9 @@ StatusMessageWindowProc(
     }
     return FALSE;
 }
+#endif
 
+#if 0
 static DWORD WINAPI
 ShowStatusMessageThread(
     IN LPVOID lpParameter)
@@ -584,7 +592,9 @@ ShowStatusMessageThread(
 
     return 0;
 }
+#endif
 
+#if 0
 static LONG
 ReadRegSzKey(
     IN HKEY hKey,
@@ -620,7 +630,9 @@ ReadRegSzKey(
     *pValue = pwszValue;
     return ERROR_SUCCESS;
 }
+#endif
 
+#if 0
 static BOOL
 IsConsoleBoot(VOID)
 {
@@ -665,73 +677,110 @@ cleanup:
         HeapFree(GetProcessHeap(), 0, pwszSystemStartOptions);
     return bConsoleBoot;
 }
+#endif
+
+static BOOL
+CopySystemFiles(VOID)
+{
+    DPRINT("CopySystemFiles()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
 
 static BOOL
 CommonInstall(VOID)
 {
+  #if 0
     HANDLE hThread = NULL;
+  #endif
     BOOL bResult = FALSE;
 
-    hSysSetupInf = SetupOpenInfFileW(L"syssetup.inf",
-                                     NULL,
-                                     INF_STYLE_WIN4,
-                                     NULL);
+    DPRINT("CommonInstall()\n");
+    LogItem(L"BEGIN_SECTION", L"Common Initialiazation");
+
+    hSysSetupInf = SetupOpenInfFileW(L"syssetup.inf", NULL, INF_STYLE_WIN4, NULL);
     if (hSysSetupInf == INVALID_HANDLE_VALUE)
     {
-        FatalError("SetupOpenInfFileW() failed to open 'syssetup.inf' (Error: %lu)\n", GetLastError());
+        FatalError("SetupOpenInfFileW() failed to open 'syssetup.inf' (Error %d)\n", GetLastError());
         return FALSE;
     }
 
+  #if 0
     if (!InstallSysSetupInfDevices())
     {
-        FatalError("InstallSysSetupInfDevices() failed!\n");
+        FatalError("InstallSysSetupInfDevices() failed! (Error %d)\n", GetLastError());
         goto Exit;
     }
+  #endif
 
+  #if 0
     if(!InstallSysSetupInfComponents())
     {
-        FatalError("InstallSysSetupInfComponents() failed!\n");
+        FatalError("InstallSysSetupInfComponents() failed! (Error %d)\n", GetLastError());
         goto Exit;
     }
+  #endif
 
-    if (!IsConsoleBoot())
+    if (Upgrade)
     {
-        hThread = CreateThread(NULL,
-                               0,
-                               ShowStatusMessageThread,
-                               NULL,
-                               0,
-                               NULL);
+      #ifndef __REACTOS__
+        LogItemL"BEGIN_SECTION", L"Upgrading System Files");
+        UpgradeSystemFiles();
+        LogItem(L"END_SECTION", L"Upgrading System Files");
+      #endif
+    }
+    else
+    {
+        LogItem(L"BEGIN_SECTION", L"Copying System Files");
+        CopySystemFiles();
+        LogItem(L"END_SECTION", L"Copying System Files");
     }
 
+  #if 0
+    if (!IsConsoleBoot())
+    {
+        hThread = CreateThread(NULL, 0, ShowStatusMessageThread, NULL, 0, NULL);
+    }
+  #endif
+
+  #if 0
     if (!EnableUserModePnpManager())
     {
         FatalError("EnableUserModePnpManager() failed!\n");
         goto Exit;
     }
+  #endif
 
-    if (CMP_WaitNoPendingInstallEvents(INFINITE) != WAIT_OBJECT_0)
+    if (MiniSetup)
     {
-        FatalError("CMP_WaitNoPendingInstallEvents() failed!\n");
-        goto Exit;
+        DPRINT("CommonInstall(CMP_WaitNoPendingInstallEvents)\n");
+        CMP_WaitNoPendingInstallEvents(INFINITE);
     }
 
     bResult = TRUE;
+    DPRINT("CommonInstall: bResult is TRUE\n");
 
+  #if 0
 Exit:
+  #endif
 
     if (bResult == FALSE)
     {
         SetupCloseInfFile(hSysSetupInf);
     }
 
+  #if 0
     if (hThread != NULL)
     {
         PostThreadMessage(GetThreadId(hThread), WM_QUIT, 0, 0);
         WaitForSingleObject(hThread, INFINITE);
         CloseHandle(hThread);
     }
+  #endif
 
+    LogItem(L"END_SECTION", L"Common Initialiazation");
+
+    DPRINT("CommonInstall: bResult %X\n", bResult);
     return bResult;
 }
 
@@ -811,7 +860,6 @@ error:
     return 0;
 }
 
-
 static BOOL
 SetSetupType(DWORD dwSetupType)
 {
@@ -888,7 +936,6 @@ HotkeyThread(LPVOID Parameter)
     DPRINT("HotkeyThread terminate\n");
     return 0;
 }
-
 
 static
 BOOL
@@ -1004,7 +1051,6 @@ InitializeProgramFilesDir(VOID)
     return TRUE;
 }
 
-
 static
 VOID
 InitializeDefaultUserLocale(VOID)
@@ -1112,7 +1158,6 @@ done:
     RegCloseKey(hLocaleKey);
 }
 
-
 static
 DWORD
 SaveDefaultUserHive(VOID)
@@ -1185,7 +1230,6 @@ SaveDefaultUserHive(VOID)
     return dwError;
 }
 
-
 static
 DWORD
 InstallReactOS(VOID)
@@ -1197,6 +1241,8 @@ InstallReactOS(VOID)
     HINF hShortcutsInf;
     HANDLE hHotkeyThread;
     BOOL ret;
+
+    DPRINT("InstallReactOS()\n");
 
     InitializeSetupLog(FALSE);
     LogItem(NULL, L"Installing ReactOS");
@@ -1368,7 +1414,6 @@ InstallReactOS(VOID)
     return 0;
 }
 
-
 /*
  * Standard Windows-compatible export, which dispatches
  * to either 'InstallReactOS' or 'InstallLiveCD'.
@@ -1415,7 +1460,6 @@ InstallWindowsNt(INT argc, WCHAR** argv)
     DPRINT1("InstallWindowsNt: exit\n");
 }
 
-
 /*
  * @unimplemented
  */
@@ -1451,7 +1495,6 @@ SetupChangeLocale(HWND hWnd, LCID Lcid)
 {
     return SetupChangeLocaleEx(hWnd, Lcid, NULL, 0, 0, 0);
 }
-
 
 DWORD
 WINAPI
