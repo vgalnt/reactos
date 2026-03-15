@@ -25,6 +25,12 @@ typedef struct _ADMIN_INFO
     LPWSTR Password;
 } ADMIN_INFO, *PADMIN_INFO;
 
+typedef struct _QUEUE_CALLBACK_CONTEXT
+{
+    PVOID DefaultContext;
+    BOOL Skip;
+} QUEUE_CALLBACK_CONTEXT, *PQUEUE_CALLBACK_CONTEXT;
+
 extern HINSTANCE hDllInstance;
 extern HINF hSysSetupInf;
 extern ADMIN_INFO AdminInfo;

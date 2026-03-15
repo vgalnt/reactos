@@ -38,6 +38,7 @@ HINF hSysSetupInf = INVALID_HANDLE_VALUE; // 'SyssetupInf' for NT
 ADMIN_INFO AdminInfo;
 BOOL MiniSetup = FALSE;
 BOOL Upgrade = FALSE;
+HWND MainWindowHandle = NULL; // HACK
 
 /* FUNCTIONS ****************************************************************/
 
@@ -680,11 +681,121 @@ cleanup:
 #endif
 
 static BOOL
-CopySystemFiles(VOID)
+InstallPnpClassInstallers(
+    HWND WndHandle,
+    HINF InfHandle,
+    HSPFILEQ FileQueue)
 {
-    DPRINT("CopySystemFiles()\n");
+    DPRINT("InstallPnpClassInstallers()\n");
     ASSERT(FALSE);
     return FALSE;
+}
+
+static PQUEUE_CALLBACK_CONTEXT
+InitSysSetupQueueCallbackEx(
+    HWND OwnerWindow,
+    HWND AlternateProgressWindow,
+    UINT ProgressMessage,
+    DWORD Reserved1,
+    PVOID Reserved2)
+{
+    DPRINT("InitSysSetupQueueCallbackEx()\n");
+    ASSERT(FALSE);
+    return NULL;
+}
+
+static UINT
+WINAPI
+SysSetupQueueCallback(
+    PVOID InContext,
+    UINT Notification,
+    UINT_PTR Param1,
+    UINT_PTR Param2)
+{
+    DPRINT("SysSetupQueueCallback()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+static VOID
+WINAPI
+TermSysSetupQueueCallback(
+    PQUEUE_CALLBACK_CONTEXT CallbackCtx)
+{
+    DPRINT("TermSysSetupQueueCallback()\n");
+    ASSERT(FALSE);
+}
+
+static BOOL
+CopySystemFiles(VOID)
+{
+    PQUEUE_CALLBACK_CONTEXT CallbackCtx;
+    HSPFILEQ FileQueue;
+    DWORD QueueResult;
+    BOOL Result;
+  #ifndef __REACTOS__
+    PWCHAR SectionName;
+  #endif
+
+    DPRINT("CopySystemFiles()\n");
+
+    if (hSysSetupInf == INVALID_HANDLE_VALUE)
+    {
+        DPRINT1("CopySystemFiles: hSysSetupInf == INVALID_HANDLE_VALUE\n");
+        return FALSE;
+    }
+
+    FileQueue = SetupOpenFileQueue();
+    if (FileQueue == INVALID_HANDLE_VALUE)
+    {
+        DPRINT1("CopySystemFiles: FileQueue == INVALID_HANDLE_VALUE\n");
+        return FALSE;
+    }
+
+  #ifndef __REACTOS__
+    if (!Win31Upgrade)
+        SectionName = L"Files.Install.CleanInstall";
+    else
+        SectionName = L"Files.Install.CleanInstall.Win31";
+
+    Result = SetupInstallFilesFromInfSectionW(hSysSetupInf, NULL, FileQueue, SectionName, NULL, BaseCopyStyle);
+  #endif
+
+    InstallPnpClassInstallers(MainWindowHandle, hSysSetupInf, FileQueue);
+
+  #ifndef __REACTOS__
+    if (!Result)
+    {
+        goto Exit;
+    }
+  #endif
+
+    Result = FALSE;
+
+    CallbackCtx = InitSysSetupQueueCallbackEx(MainWindowHandle, INVALID_HANDLE_VALUE, 0, 0, NULL);
+    if (!CallbackCtx)
+    {
+        DPRINT("CopySystemFiles: CallbackCtx is NULL\n");
+        goto Exit;
+    }
+
+    if (!SetupScanFileQueueW(FileQueue, (SPQ_SCAN_PRUNE_COPY_QUEUE | SPQ_SCAN_FILE_VALIDITY), MainWindowHandle, NULL, NULL, &QueueResult))
+        QueueResult = 0;
+
+    if (QueueResult != 1)
+    {
+        DPRINT("CopySystemFiles: call SetupCommitFileQueueW()\n");
+        Result = SetupCommitFileQueueW(MainWindowHandle, FileQueue, SysSetupQueueCallback, CallbackCtx);
+    }
+
+    TermSysSetupQueueCallback(CallbackCtx);
+
+Exit:
+
+    SetupCloseFileQueue(FileQueue);
+
+    DPRINT("CopySystemFiles: ret %X\n", Result);
+    return Result;
 }
 
 static BOOL
