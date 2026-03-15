@@ -34,8 +34,9 @@ SetupStartService(LPCWSTR lpServiceName, BOOL bWait);
 
 /* GLOBALS ******************************************************************/
 
-HINF hSysSetupInf = INVALID_HANDLE_VALUE;
+HINF hSysSetupInf = INVALID_HANDLE_VALUE; // 'SyssetupInf' for NT
 ADMIN_INFO AdminInfo;
+BOOL MiniSetup = FALSE;
 
 /* FUNCTIONS ****************************************************************/
 
@@ -1372,12 +1373,15 @@ InstallReactOS(VOID)
  * Standard Windows-compatible export, which dispatches
  * to either 'InstallReactOS' or 'InstallLiveCD'.
  */
-INT
+VOID
 WINAPI
 InstallWindowsNt(INT argc, WCHAR** argv)
 {
     INT i;
     PWSTR p;
+
+    LogItem(L"BEGIN_SECTION", L"Installing ReactOS");
+    DPRINT1("InstallWindowsNt()\n");
 
     for (i = 0; i < argc; ++i)
     {
@@ -1386,18 +1390,29 @@ InstallWindowsNt(INT argc, WCHAR** argv)
         {
             p++;
 
-            // NOTE: On Windows, "mini" means "minimal UI", and can be used
-            // in addition to "newsetup"; these options are not exclusive.
+            /*
+               NOTE: On Windows, "mini" means "minimal UI", and can be used in addition to "newsetup";
+               these options are not exclusive.
+            */
+            if (_wcsicmp(p, L"mini") == 0)
+            {
+                MiniSetup = 1;
+                InstallLiveCD();
+                break;
+            }
+
             if (_wcsicmp(p, L"newsetup") == 0)
-                return (INT)InstallReactOS();
-            else if (_wcsicmp(p, L"mini") == 0)
-                return (INT)InstallLiveCD();
+            {
+                InstallReactOS();
+                break;
+            }
 
             /* Add support for other switches */
         }
     }
 
-    return 0;
+    LogItem(L"END_SECTION", L"Installing ReactOS");
+    DPRINT1("InstallWindowsNt: exit\n");
 }
 
 
