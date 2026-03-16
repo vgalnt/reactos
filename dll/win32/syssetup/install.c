@@ -1153,7 +1153,11 @@ TermSysSetupQueueCallback(
     PQUEUE_CALLBACK_CONTEXT CallbackCtx)
 {
     DPRINT("TermSysSetupQueueCallback()\n");
-    ASSERT(FALSE);
+
+    if (CallbackCtx->DefaultContext)
+        SetupTermDefaultQueueCallback(CallbackCtx->DefaultContext);
+
+    pSetupFree(CallbackCtx);
 }
 
 static BOOL
