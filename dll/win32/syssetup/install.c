@@ -35,6 +35,7 @@ HINF hSysSetupInf = INVALID_HANDLE_VALUE; // 'SyssetupInf' for NT
 ADMIN_INFO AdminInfo;
 BOOL MiniSetup = FALSE;
 BOOL Upgrade = FALSE;
+BOOL SkipMissingFiles = FALSE;
 HWND MainWindowHandle = NULL; // HACK
 
 /* FUNCTIONS ****************************************************************/
@@ -866,6 +867,30 @@ InitSysSetupQueueCallbackEx(
     return CallbackCtx;
 }
 
+static
+VOID
+WINAPI
+AssertFail_s(
+    LPSTR FileName,
+    UINT Line,
+    LPSTR Assertion)
+{
+    DPRINT("AssertFail_s()\n");
+    ASSERT(FALSE);
+}
+
+static
+BOOL
+WINAPI
+FileExists_s(
+    LPCWSTR lpFileName,
+    LPWIN32_FIND_DATAW lpFileFindData)
+{
+    DPRINT("FileExists_s()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
+
 static UINT
 WINAPI
 SysSetupQueueCallback(
@@ -874,9 +899,213 @@ SysSetupQueueCallback(
     UINT_PTR Param1,
     UINT_PTR Param2)
 {
-    DPRINT("SysSetupQueueCallback()\n");
-    ASSERT(FALSE);
-    return 0;
+    PQUEUE_CALLBACK_CONTEXT Context = InContext;
+    PFILEPATHS_W FilePathsW = (PFILEPATHS_W)Param1;
+    DWORD dwFileAttributes;
+    WCHAR lpFileName[260];
+    PWCHAR Ptr;
+    UINT Result;
+
+    DPRINT("SysSetupQueueCallback: %X, %X\n", Notification, Param1);
+
+    if ((Notification == SPFILENOTIFY_COPYERROR || Notification == SPFILENOTIFY_NEEDMEDIA) &&
+        SkipMissingFiles &&
+        (FilePathsW->Win32Error == ERROR_FILE_NOT_FOUND || FilePathsW->Win32Error == ERROR_PATH_NOT_FOUND))
+    {
+        if (Notification == SPFILENOTIFY_COPYERROR)
+        {
+            AssertFail_s(__FILE__, __LINE__, "FALSE");
+            //ReportError(..);
+        }
+        else
+        {
+            AssertFail_s(__FILE__, __LINE__, "FALSE");
+            //ReportError(..);
+        }
+
+        return FILEOP_SKIP;
+    }
+
+    if (Notification == SPFILENOTIFY_COPYERROR ||
+        Notification == SPFILENOTIFY_RENAMEERROR ||
+        Notification == SPFILENOTIFY_DELETEERROR)
+    {
+        if (FilePathsW->Win32Error == ERROR_DIRECTORY)
+        {
+            wcscpy(lpFileName, FilePathsW->Target);
+
+            Ptr = wcsrchr(lpFileName, '\\');
+            if (Ptr)
+                *Ptr = 0;
+
+            if (FileExists_s(lpFileName, NULL))
+            {
+                DeleteFileW(lpFileName);
+                LogItem(NULL, L"autochk turned directory %s into file, delete file and retry\n", lpFileName);
+                return FILEOP_RETRY;
+            }
+        }
+    }
+
+    if (Notification & (SPFILENOTIFY_TARGETNEWER | SPFILENOTIFY_TARGETEXISTS | SPFILENOTIFY_LANGMISMATCH))
+    {
+        AssertFail_s(__FILE__, __LINE__, "FALSE");
+        //ReportError(..);
+        return FILEOP_RETRY;
+    }
+
+    Result = SetupDefaultQueueCallbackW(Context->DefaultContext, Notification, (UINT_PTR)FilePathsW, Param2);
+
+    if (Notification == SPFILENOTIFY_ENDQUEUE)
+    {
+        if (!FilePathsW)
+        {
+            AssertFail_s(__FILE__, __LINE__, "FALSE");
+            //ReportError(..);
+        }
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_STARTDELETE ||
+        Notification == SPFILENOTIFY_STARTRENAME)
+    {
+        if (Result == FILEOP_SKIP)
+            Context->Skip = TRUE;
+        else
+            Context->Skip = FALSE;
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_ENDDELETE)
+    {
+        if (FilePathsW->Win32Error != ERROR_SUCCESS || Context->Skip)
+        {
+            if (FilePathsW->Win32Error == ERROR_FILE_NOT_FOUND || FilePathsW->Win32Error == ERROR_PATH_NOT_FOUND)
+            {
+                DPRINT1("SysSetupQueueCallback: FIXME\n");
+                //AssertFail_s(__FILE__, __LINE__, "FALSE");
+                //ReportError(..);
+            }
+            else if (FilePathsW->Win32Error != ERROR_SUCCESS)
+            {
+                DPRINT1("SysSetupQueueCallback: FIXME\n");
+                //AssertFail_s(__FILE__, __LINE__, "FALSE");
+                //ReportError(..);
+            }
+            else
+            {
+                DPRINT1("SysSetupQueueCallback: FIXME\n");
+                //AssertFail_s(__FILE__, __LINE__, "FALSE");
+                //ReportError(..);
+            }
+        }
+        else
+        {
+            AssertFail_s(__FILE__, __LINE__, "FALSE");
+            //ReportError(..);
+        }
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_DELETEERROR)
+    {
+        if (Result == FILEOP_SKIP)
+            Context->Skip = 1;
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_ENDRENAME)
+    {
+        if (FilePathsW->Win32Error != ERROR_SUCCESS)
+        {
+            AssertFail_s(__FILE__, __LINE__, "FALSE");
+            //ReportError(..);
+        }
+        else if (Context->Skip)
+        {
+            AssertFail_s(__FILE__, __LINE__, "FALSE");
+            //ReportError(..);
+        }
+        else
+        {
+            AssertFail_s(__FILE__, __LINE__, "FALSE");
+            //ReportError(..);
+        }
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_RENAMEERROR)
+    {
+        if (Result == FILEOP_SKIP)
+            Context->Skip = 1;
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_STARTCOPY)
+    {
+        if (Result == FILEOP_SKIP)
+            Context->Skip = TRUE;
+        else
+            Context->Skip = FALSE;
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_ENDCOPY)
+    {
+        if (FilePathsW->Win32Error == ERROR_SUCCESS && !Context->Skip)
+        {
+            //LogRepairInfo(FilePathsW->Source, FilePathsW->Target);
+            DPRINT("SysSetupQueueCallback: FIXME LogRepairInfo()\n");
+
+            //AssertFail_s(__FILE__, __LINE__, "FALSE");
+            //ReportError(..);
+
+            dwFileAttributes = GetFileAttributesW((LPCWSTR)FilePathsW->Target);
+            SetFileAttributesW((LPCWSTR)FilePathsW->Target, (dwFileAttributes & ~1));
+        }
+
+        DPRINT1("SysSetupQueueCallback: Win32Error %d, Skip %X, '%S'\n", FilePathsW->Win32Error, Context->Skip, FilePathsW->Target);
+        //AssertFail_s(__FILE__, __LINE__, "FALSE");
+        //ReportError(..);
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_COPYERROR)
+    {
+        if (Result == FILEOP_SKIP)
+            Context->Skip = 1;
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_NEEDMEDIA)
+    {
+        if (Result == FILEOP_SKIP)
+        {
+            AssertFail_s(__FILE__, __LINE__, "FALSE");
+            //ReportError(..);
+            Context->Skip = 1;
+        }
+
+        return Result;
+    }
+
+    if (Notification == SPFILENOTIFY_STARTREGISTRATION ||
+        Notification == SPFILENOTIFY_ENDREGISTRATION)
+    {
+        AssertFail_s(__FILE__, __LINE__, "FALSE");
+        //RegistrationQueueCallback(..);
+    }
+
+    return Result;
 }
 
 static VOID
