@@ -875,8 +875,23 @@ AssertFail_s(
     UINT Line,
     LPSTR Assertion)
 {
-    DPRINT("AssertFail_s()\n");
-    ASSERT(FALSE);
+    LPCSTR lpCaption;
+    CHAR lpText[4096];
+    CHAR DllFilename[260];
+
+    GetModuleFileNameA(hDllInstance, DllFilename, 260);
+
+    lpCaption = strrchr(DllFilename, '\\');
+
+    if (lpCaption)
+        lpCaption++;
+    else
+        lpCaption = DllFilename;
+
+    wsprintfA(lpText, "Assertion failure at line %u in file %s: %s\n\nCall DebugBreak()?", Line, FileName, Assertion);
+
+    if (MessageBoxA(NULL, lpText, lpCaption, 0x12014) == 6)
+        DebugBreak();
 }
 
 static
