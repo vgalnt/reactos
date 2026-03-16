@@ -31,6 +31,17 @@ typedef struct _QUEUE_CALLBACK_CONTEXT
     BOOL Skip;
 } QUEUE_CALLBACK_CONTEXT, *PQUEUE_CALLBACK_CONTEXT;
 
+typedef struct _PNP_DEVICES_THREAD_CONTEXT
+{
+    HWND hWndParent;
+    HWND hWndProgress;
+    DWORD ThreadId;
+    HINF hSetupInf;
+    ULONG StartProgress;
+    ULONG EndProgress;
+    BOOL IsOwnThread;
+} PNP_DEVICES_THREAD_CONTEXT, *PPNP_DEVICES_THREAD_CONTEXT;
+
 extern HINSTANCE hDllInstance;
 extern HINF hSysSetupInf;
 extern ADMIN_INFO AdminInfo;
@@ -61,5 +72,7 @@ PVOID WINAPI pSetupRealloc(PVOID, DWORD);
 VOID WINAPI pSetupFree(LPVOID lpMem);
 
 PWSTR WINAPI pSetupGetField(PINFCONTEXT context, DWORD index);
+DWORD WINAPI pSetupGetGlobalFlags(void);
+void WINAPI pSetupSetGlobalFlags(DWORD flags);
 
 /* EOF */

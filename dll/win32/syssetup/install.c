@@ -1434,6 +1434,7 @@ SetSetupType(DWORD dwSetupType)
     return TRUE;
 }
 
+#if 0
 static DWORD CALLBACK
 HotkeyThread(LPVOID Parameter)
 {
@@ -1481,6 +1482,7 @@ HotkeyThread(LPVOID Parameter)
     DPRINT("HotkeyThread terminate\n");
     return 0;
 }
+#endif
 
 static
 BOOL
@@ -1775,8 +1777,21 @@ SaveDefaultUserHive(VOID)
     return dwError;
 }
 
+VOID
+WINAPI
+InstallPnpDevices(
+    HWND hWndParent,
+    HINF SetupInf,
+    HWND hWndProgress,
+    ULONG StartProgress,
+    ULONG EndProgress)
+{
+    DPRINT("InstallPnpDevices()\n");
+    ASSERT(FALSE);
+}
+
 static
-DWORD
+VOID
 InstallReactOS(VOID)
 {
     WCHAR szBuffer[MAX_PATH];
@@ -1784,13 +1799,21 @@ InstallReactOS(VOID)
     TOKEN_PRIVILEGES privs;
     HKEY hKey;
     HINF hShortcutsInf;
+  #if 0
     HANDLE hHotkeyThread;
+  #endif
+    DWORD OldFlags;
     BOOL ret;
 
     DPRINT("InstallReactOS()\n");
 
     InitializeSetupLog(FALSE);
+
+    LogItem(L"BEGIN_SECTION", L"Initialization");
     LogItem(NULL, L"Installing ReactOS");
+
+    OldFlags = pSetupGetGlobalFlags();
+    pSetupSetGlobalFlags(OldFlags | (0x02 | 0x10));
 
     CreateTempDir(L"TEMP");
     CreateTempDir(L"TMP");
@@ -1798,38 +1821,23 @@ InstallReactOS(VOID)
     if (!InitializeProgramFilesDir())
     {
         FatalError("InitializeProgramFilesDir() failed");
-        return 0;
+        return;
     }
 
     if (!InitializeProfiles())
     {
         FatalError("InitializeProfiles() failed");
-        return 0;
+        return;
     }
 
     InitializeDefaultUserLocale();
 
     if (GetWindowsDirectoryW(szBuffer, ARRAYSIZE(szBuffer)))
     {
-        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE,
-                          L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
-                          0,
-                          KEY_WRITE,
-                          &hKey) == ERROR_SUCCESS)
+        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion", 0, KEY_WRITE, &hKey) == ERROR_SUCCESS)
         {
-            RegSetValueExW(hKey,
-                           L"PathName",
-                           0,
-                           REG_SZ,
-                           (LPBYTE)szBuffer,
-                           (wcslen(szBuffer) + 1) * sizeof(WCHAR));
-
-            RegSetValueExW(hKey,
-                           L"SystemRoot",
-                           0,
-                           REG_SZ,
-                           (LPBYTE)szBuffer,
-                           (wcslen(szBuffer) + 1) * sizeof(WCHAR));
+            RegSetValueExW(hKey, L"PathName", 0, REG_SZ, (LPBYTE)szBuffer, (wcslen(szBuffer) + 1) * sizeof(WCHAR));
+            RegSetValueExW(hKey, L"SystemRoot", 0, REG_SZ, (LPBYTE)szBuffer, (wcslen(szBuffer) + 1) * sizeof(WCHAR));
 
             RegCloseKey(hKey);
         }
@@ -1842,68 +1850,82 @@ InstallReactOS(VOID)
     if (SaveDefaultUserHive() != ERROR_SUCCESS)
     {
         FatalError("SaveDefaultUserHive() failed");
-        return 0;
+        return;
     }
 
     if (!CopySystemProfile(0))
     {
         FatalError("CopySystemProfile() failed");
-        return 0;
+        return;
     }
 
+  #if 0
     hHotkeyThread = CreateThread(NULL, 0, HotkeyThread, NULL, 0, NULL);
+  #endif
 
     if (!CommonInstall())
-        return 0;
+    {
+        DPRINT1("InstallReactOS: CommonInstall() failed \n");
+        return;
+    }
 
-    /* Install the TCP/IP protocol driver */
-    ret = InstallNetworkComponent(L"MS_TCPIP");
-    if (!ret && GetLastError() != ERROR_FILE_NOT_FOUND)
+    /* ? For NT, InstallPnpDevices() called from the Wizard... ? */
+    DPRINT("InstallReactOS: call InstallPnpDevices()\n");
+    InstallPnpDevices(NULL, hSysSetupInf, NULL, 30, 100);
+    DPRINT("InstallReactOS: InstallPnpDevices() end\n");
+
+    if (MiniSetup)
     {
-        DPRINT("InstallNetworkComponent() failed with error 0x%lx\n", GetLastError());
+        /* Install the TCP/IP protocol driver */
+        DPRINT1("InstallReactOS: call InstallNetworkComponent()\n");
+        ret = InstallNetworkComponent(L"MS_TCPIP");
+
+        if (!ret && GetLastError() != ERROR_FILE_NOT_FOUND)
+        {
+            DPRINT("InstallNetworkComponent() failed with error 0x%lx\n", GetLastError());
+        }
+        else
+        {
+            /* Start the TCP/IP protocol driver */
+            SetupStartService(L"Tcpip", FALSE);
+            SetupStartService(L"Dhcp", FALSE);
+            SetupStartService(L"Dnscache", FALSE);
+        }
     }
-    else
-    {
-        /* Start the TCP/IP protocol driver */
-        SetupStartService(L"Tcpip", FALSE);
-        SetupStartService(L"Dhcp", FALSE);
-        SetupStartService(L"Dnscache", FALSE);
-    }
+
+    LogItem(L"END_SECTION", L"Initialization");
+    DPRINT1("InstallReactOS: call InstallWizard()\n");
 
     InstallWizard();
 
+    DPRINT1("InstallReactOS: call InstallSecurity()\n");
     InstallSecurity();
 
+    DPRINT1("InstallReactOS: call SetAutoAdminLogon()\n");
     SetAutoAdminLogon();
 
-    hShortcutsInf = SetupOpenInfFileW(L"shortcuts.inf",
-                                      NULL,
-                                      INF_STYLE_WIN4,
-                                      NULL);
+    hShortcutsInf = SetupOpenInfFileW(L"shortcuts.inf", NULL, INF_STYLE_WIN4, NULL);
     if (hShortcutsInf == INVALID_HANDLE_VALUE)
     {
         FatalError("Failed to open shortcuts.inf");
-        return 0;
+        return;
     }
 
     if (!CreateShortcuts(hShortcutsInf, L"ShortcutFolders"))
     {
         FatalError("CreateShortcuts() failed");
-        return 0;
+        return;
     }
 
     SetupCloseInfFile(hShortcutsInf);
 
-    hShortcutsInf = SetupOpenInfFileW(L"rosapps_shortcuts.inf",
-                                       NULL,
-                                       INF_STYLE_WIN4,
-                                       NULL);
+    hShortcutsInf = SetupOpenInfFileW(L"rosapps_shortcuts.inf", NULL, INF_STYLE_WIN4, NULL);
     if (hShortcutsInf != INVALID_HANDLE_VALUE)
     {
         if (!CreateShortcuts(hShortcutsInf, L"ShortcutFolders"))
         {
             FatalError("CreateShortcuts(rosapps) failed");
-            return 0;
+            return;
         }
         SetupCloseInfFile(hShortcutsInf);
     }
@@ -1911,11 +1933,13 @@ InstallReactOS(VOID)
     SetupCloseInfFile(hSysSetupInf);
     SetSetupType(0);
 
+  #if 0
     if (hHotkeyThread)
     {
         PostThreadMessage(GetThreadId(hHotkeyThread), WM_QUIT, 0, 0);
         CloseHandle(hHotkeyThread);
     }
+  #endif
 
     LogItem(NULL, L"Installing ReactOS done");
     TerminateSetupActionLog();
@@ -1933,30 +1957,26 @@ InstallReactOS(VOID)
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &token))
     {
         FatalError("OpenProcessToken() failed!");
-        return 0;
+        return;
     }
-    if (!LookupPrivilegeValue(NULL,
-                              SE_SHUTDOWN_NAME,
-                              &privs.Privileges[0].Luid))
+
+    if (!LookupPrivilegeValue(NULL, SE_SHUTDOWN_NAME, &privs.Privileges[0].Luid))
     {
         FatalError("LookupPrivilegeValue() failed!");
-        return 0;
+        return;
     }
+
     privs.PrivilegeCount = 1;
     privs.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-    if (AdjustTokenPrivileges(token,
-                              FALSE,
-                              &privs,
-                              0,
-                              (PTOKEN_PRIVILEGES)NULL,
-                              NULL) == 0)
+
+    if (AdjustTokenPrivileges(token, FALSE, &privs, 0, (PTOKEN_PRIVILEGES)NULL, NULL) == 0)
     {
         FatalError("AdjustTokenPrivileges() failed!");
-        return 0;
+        return;
     }
 
     ExitWindowsEx(EWX_REBOOT, 0);
-    return 0;
+    return;
 }
 
 /*
