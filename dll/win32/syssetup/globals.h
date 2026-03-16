@@ -56,6 +56,10 @@ SetAutoAdminLogon(VOID);
 VOID InstallWizard (VOID);
 
 /* setupapi.dll */
+PVOID WINAPI pSetupMalloc(DWORD);
+PVOID WINAPI pSetupRealloc(PVOID, DWORD);
+VOID WINAPI pSetupFree(LPVOID lpMem);
+
 PWSTR WINAPI pSetupGetField(PINFCONTEXT context, DWORD index);
 
 /* EOF */

@@ -845,9 +845,25 @@ InitSysSetupQueueCallbackEx(
     DWORD Reserved1,
     PVOID Reserved2)
 {
-    DPRINT("InitSysSetupQueueCallbackEx()\n");
-    ASSERT(FALSE);
-    return NULL;
+    PQUEUE_CALLBACK_CONTEXT CallbackCtx;
+
+    DPRINT("InitSysSetupQueueCallbackEx: %X\n", ProgressMessage);
+
+    CallbackCtx = pSetupMalloc(sizeof(*CallbackCtx));
+    if (!CallbackCtx)
+    {
+        DPRINT1("InitSysSetupQueueCallbackEx: ret NULL\n");
+        return NULL;
+    }
+
+    CallbackCtx->Skip = 0;
+    CallbackCtx->DefaultContext = SetupInitDefaultQueueCallbackEx(OwnerWindow,
+                                                                  AlternateProgressWindow,
+                                                                  ProgressMessage,
+                                                                  Reserved1,
+                                                                  Reserved2);
+    DPRINT("InitSysSetupQueueCallbackEx: ret %X\n", CallbackCtx);
+    return CallbackCtx;
 }
 
 static UINT
