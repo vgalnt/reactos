@@ -682,9 +682,39 @@ GetClassGuidForInf(
     PWSTR InfName,
     LPGUID ClassGuid)
 {
-    DPRINT("GetClassGuidForInf()\n");
-    ASSERT(FALSE);
-    return FALSE;
+    DWORD RequiredSize;
+    WCHAR ClassName[0x20];
+
+    DPRINT("GetClassGuidForInf: '%ws'\n", InfName);
+
+    if (!SetupDiGetINFClassW(InfName, ClassGuid, ClassName, 0x20, NULL))
+    {
+        DPRINT1("GetClassGuidForInf: ret FALSE\n");
+        return FALSE;
+    }
+
+    if (!pSetupIsGuidNull(ClassGuid))
+    {
+        DPRINT1("GetClassGuidForInf: ret TRUE\n");
+        return TRUE;
+    }
+
+    DPRINT("GetClassGuidForInf: '%ws'\n", ClassName);
+
+    if (!SetupDiClassGuidsFromName(ClassName, ClassGuid, 1, &RequiredSize))
+    {
+        DPRINT1("GetClassGuidForInf: ret FALSE\n");
+        return FALSE;
+    }
+
+    if (!RequiredSize)
+    {
+        DPRINT1("GetClassGuidForInf: ret FALSE\n");
+        return FALSE;
+    }
+
+    DPRINT("GetClassGuidForInf: ret TRUE\n");
+    return TRUE;
 }
 
 static BOOL
