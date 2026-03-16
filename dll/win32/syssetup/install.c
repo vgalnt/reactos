@@ -901,9 +901,33 @@ FileExists_s(
     LPCWSTR lpFileName,
     LPWIN32_FIND_DATAW lpFileFindData)
 {
-    DPRINT("FileExists_s()\n");
-    ASSERT(FALSE);
-    return FALSE;
+    HANDLE hFind;
+    DWORD Error;
+    UINT uMode;
+    WIN32_FIND_DATAW FindFileData;
+
+    uMode = SetErrorMode(1);
+
+    hFind = FindFirstFileW(lpFileName, &FindFileData);
+
+    if (hFind == INVALID_HANDLE_VALUE)
+    {
+        Error = GetLastError();
+    }
+    else
+    {
+        FindClose(hFind);
+
+        if (lpFileFindData)
+            memcpy(lpFileFindData, &FindFileData, sizeof(*lpFileFindData));
+
+        Error = ERROR_SUCCESS;
+    }
+
+    SetErrorMode(uMode);
+    SetLastError(Error);
+
+    return (Error == ERROR_SUCCESS);
 }
 
 static UINT
