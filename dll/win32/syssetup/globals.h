@@ -55,4 +55,7 @@ SetAutoAdminLogon(VOID);
 /* wizard.c */
 VOID InstallWizard (VOID);
 
+/* setupapi.dll */
+PWSTR WINAPI pSetupGetField(PINFCONTEXT context, DWORD index);
+
 /* EOF */

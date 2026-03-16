@@ -14,6 +14,7 @@
 #include <winuser.h>
 #define NTOS_MODE_USER
 #include <ndk/rtlfuncs.h>
+#include <cfgmgr32.h>
 #include <setupapi.h>
 #include <syssetup/syssetup.h>
 #include <pseh/pseh2.h>

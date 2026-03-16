@@ -27,9 +27,6 @@
 #include <debug.h>
 
 DWORD WINAPI
-CMP_WaitNoPendingInstallEvents(DWORD dwTimeout);
-
-DWORD WINAPI
 SetupStartService(LPCWSTR lpServiceName, BOOL bWait);
 
 /* GLOBALS ******************************************************************/
@@ -681,14 +678,133 @@ cleanup:
 #endif
 
 static BOOL
+GetClassGuidForInf(
+    PWSTR InfName,
+    LPGUID ClassGuid)
+{
+    DPRINT("GetClassGuidForInf()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
+
+static BOOL
 InstallPnpClassInstallers(
     HWND WndHandle,
     HINF InfHandle,
     HSPFILEQ FileQueue)
 {
+    SERVICE_STATUS ServiceStatus;
+    SC_HANDLE hService;
+    INFCONTEXT Context;
+    SC_HANDLE hScm;
+    GUID ClassGuid;
+    PWSTR InfName;
+    HKEY phkClass;
+    LONG Count;
+    DWORD ix;
+    BOOL ret = FALSE;
+    BOOL Result = TRUE;
+
     DPRINT("InstallPnpClassInstallers()\n");
-    ASSERT(FALSE);
-    return FALSE;
+
+    hScm = OpenSCManagerW(NULL, NULL, GENERIC_READ);
+    if (hScm)
+    {
+        hService = OpenServiceW(hScm, L"PlugPlay", SERVICE_QUERY_STATUS);
+        if (hService)
+        {
+            while (TRUE)
+            {
+                if (!QueryServiceStatus(hService, &ServiceStatus))
+                {
+                    LogItem(NULL, L"SETUP: QueryServiceStatus() failed. Error = %d", GetLastError());
+                    DPRINT("InstallPnpClassInstallers: QueryServiceStatus() failed. Error = %d\n", GetLastError());
+
+                    LogItem(NULL, L"SETUP: Couldn't find out the status of the Plug&Play service");
+                    DPRINT("InstallPnpClassInstallers: Couldn't find out the status of the Plug&Play service\n");
+
+                    break;
+                }
+
+                if (ServiceStatus.dwCurrentState == SERVICE_RUNNING)
+                {
+                    DPRINT("InstallPnpClassInstallers: PlugPlay service is running\n");
+                    break;
+                }
+
+                LogItem(NULL, L"SETUP: PlugPlay service isn't running yet--sleeping 1 second...");
+                DPRINT("InstallPnpClassInstallers: PlugPlay service isn't running yet--sleeping 1 second...\n");
+
+                Sleep(1000);
+            }
+
+            CloseServiceHandle(hService);
+        }
+
+        CloseServiceHandle(hScm);
+    }
+
+    Count = SetupGetLineCountW(InfHandle, L"DeviceInfsToInstall");
+    if (Count > 0)
+    {
+        for (ix = 0; ix < Count; ix++)
+        {
+            if (!SetupGetLineByIndexW(InfHandle, L"DeviceInfsToInstall", ix, &Context))
+                continue;
+
+            InfName = pSetupGetField(&Context, 1);
+            if (!InfName)
+                continue;
+
+            DPRINT("InstallPnpClassInstallers: [%d] call SetupDiInstallClass('%ls')\n", ix, InfName);
+            ret = SetupDiInstallClassW(WndHandle, InfName, (DI_FORCECOPY | DI_NOVCP), FileQueue);
+            DPRINT("InstallPnpClassInstallers: ('%ls') ret %X\n", InfName, ret);
+
+            if (!ret)
+            {
+                LogItem(NULL, L"SETUP: SetupDiInstallClass() failed. Filename = %ls Error = %lx.", InfName, GetLastError());
+                DPRINT("InstallPnpClassInstallers: SetupDiInstallClass() failed. Filename = %ls Error = %lx.\n", InfName, GetLastError());
+
+                Result = FALSE;
+            }
+        }
+    }
+
+    Count = SetupGetLineCountW(InfHandle, L"DeviceInfsToInstallIfExists");
+    if (Count <= 0)
+    {
+        DPRINT("InstallPnpClassInstallers: ret Result %X\n", Result);
+        return Result;
+    }
+
+    for (ix = 0; ix < Count; ix++)
+    {
+        if (!SetupGetLineByIndexW(InfHandle, L"DeviceInfsToInstallIfExists", ix, &Context))
+            continue;
+
+        InfName = pSetupGetField(&Context, 1);
+        if (!InfName)
+            continue;
+
+        if (!GetClassGuidForInf(InfName, &ClassGuid))
+            continue;
+
+        if (CM_Open_Class_KeyW(&ClassGuid, NULL, KEY_READ, RegDisposition_OpenExisting, &phkClass, CM_OPEN_CLASS_KEY_INSTALLER))
+            continue;
+
+        RegCloseKey(phkClass);
+
+        if (!SetupDiInstallClassW(WndHandle, InfName, (DI_FORCECOPY | DI_NOVCP), FileQueue))
+        {
+            LogItem(NULL, L"SETUP: SetupDiInstallClass() failed. Filename = %ls Error = %lx.", InfName, GetLastError());
+            DPRINT("InstallPnpClassInstallers: SetupDiInstallClass() failed. Filename = %ls Error = %lx.\n", InfName, GetLastError());
+
+            Result = FALSE;
+        }
+    }
+
+    DPRINT("InstallPnpClassInstallers: ret Result %X\n", Result);
+    return Result;
 }
 
 static PQUEUE_CALLBACK_CONTEXT
