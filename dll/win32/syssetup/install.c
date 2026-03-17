@@ -1777,14 +1777,201 @@ SaveDefaultUserHive(VOID)
     return dwError;
 }
 
+BOOL
+WINAPI
+PrecompileInfFiles(
+    HWND hWndProgress,
+    ULONG StartProgress,
+    ULONG EndProgress)
+{
+    DPRINT("PrecompileInfFiles()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
+
+BOOL
+WINAPI
+GetDeviceConfigFlags(
+    HDEVINFO DeviceInfoSet,
+    PSP_DEVINFO_DATA DeviceInfoData,
+    PDWORD PropertyBuffer)
+{
+    DPRINT("GetDeviceConfigFlags()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
+
+BOOL
+WINAPI
+SetDeviceConfigFlags(
+    HDEVINFO DeviceInfoSet,
+    PSP_DEVINFO_DATA DeviceInfoData,
+    PDWORD PropertyBuffer)
+{
+    DPRINT("SetDeviceConfigFlags()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
+
+VOID
+WINAPI
+MarkPnpDevicesAsNeedReinstall(VOID)
+{
+    DPRINT("MarkPnpDevicesAsNeedReinstall()\n");
+    ASSERT(FALSE);
+}
+
+BOOL
+WINAPI
+InstallEnumeratedDevices(
+    HWND hWndParent,
+    HINF hSetupInf,
+    HWND hWndProgress,
+    ULONG StartProgress,
+    ULONG EndProgress)
+{
+    DPRINT("InstallEnumeratedDevices()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
+
+BOOL
+WINAPI
+CallRunOnceAndWait(VOID)
+{
+    DPRINT("CallRunOnceAndWait()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
+
+BOOL
+WINAPI
+InstallLegacyDevices(
+    HWND hWndParent,
+    HWND hWndProgress,
+    ULONG StartProgress,
+    ULONG EndProgress)
+{
+    DPRINT("InstallLegacyDevices()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
+
 DWORD
 WINAPI
 pInstallPnpDevicesThread(
     LPVOID InContext)
 {
-    DPRINT("InstallPnpDevices()\n");
-    ASSERT(FALSE);
-    return 0;
+    PPNP_DEVICES_THREAD_CONTEXT Context = InContext;
+    ULONG ProgressQuarter;
+    ULONG OldFlags;
+    BOOL Result=0;
+  #ifndef __REACTOS__
+    DWORD Error;
+  #endif
+
+    OldFlags = pSetupGetGlobalFlags();
+    pSetupSetGlobalFlags(OldFlags | 1);
+
+    DPRINT("pInstallPnpDevicesThread: OldFlags %X\n", OldFlags);
+
+    ProgressQuarter = ((Context->EndProgress - Context->StartProgress) / 4);
+
+  #ifndef __REACTOS__
+    RemainingTime = CalcTimeRemaining(2);
+    SetRemainingTime(RemainingTime);
+  #endif
+
+    LogItem(L"BEGIN_SECTION", L"Installing OEM infs");
+  #ifndef __REACTOS__
+    InstallOEMInfs();
+    SfcExcludeMigratedDrivers();
+  #endif
+    LogItem(L"END_SECTION", L"Installing OEM infs");
+
+    LogItem(L"BEGIN_SECTION", L"Precompiling infs");
+    PrecompileInfFiles(Context->hWndProgress, Context->StartProgress, (Context->StartProgress + ProgressQuarter));
+    LogItem(L"END_SECTION", L"Precompiling infs");
+
+    if (!MiniSetup)
+    {
+        LogItem(L"BEGIN_SECTION", L"Mark PnP devices for reinstall");
+        MarkPnpDevicesAsNeedReinstall();
+        LogItem(L"END_SECTION", L"Mark PnP devices for reinstall");
+    }
+
+    DPRINT1("pInstallPnpDevicesThread: FIXME PnPInitializationThread()\n");
+    //PnPInitializationThread(0);
+
+  #ifndef __REACTOS__
+    RemainingTime = CalcTimeRemaining(3);
+    SetRemainingTime(RemainingTime);
+  #endif
+
+    LogItem(L"BEGIN_SECTION", L"Installing enumerated devices");
+    Result = InstallEnumeratedDevices(Context->hWndParent,
+                                      Context->hSetupInf,
+                                      Context->hWndProgress,
+                                      (Context->StartProgress + (1 * ProgressQuarter)),
+                                      (Context->StartProgress + (2 * ProgressQuarter)));
+    DPRINT("pInstallPnpDevicesThread: Result %X\n", Result);
+    CallRunOnceAndWait();
+    LogItem(L"END_SECTION", L"Installing enumerated devices");
+    DPRINT("pInstallPnpDevicesThread: END_SECTION 'Installing enumerated devices'\n");
+
+    LogItem(L"BEGIN_SECTION", L"Installing legacy devices");
+  #ifndef __REACTOS__
+    RemainingTime = CalcTimeRemaining(4);
+    SetRemainingTime(RemainingTime);
+  #endif
+
+    Result = (InstallLegacyDevices(Context->hWndParent,
+                                   Context->hWndProgress,
+                                   (Context->StartProgress + (2 * ProgressQuarter)),
+                                   (Context->StartProgress + (3 * ProgressQuarter))) && Result);
+    DPRINT("pInstallPnpDevicesThread: Result %X\n", Result);
+    CallRunOnceAndWait();
+    LogItem(L"END_SECTION", L"Installing legacy devices");
+    DPRINT("pInstallPnpDevicesThread: END_SECTION 'Installing legacy devices'\n");
+
+    LogItem(L"BEGIN_SECTION", L"Install enumerated devices triggered by legacy devices");
+  #ifndef __REACTOS__
+    RemainingTime = CalcTimeRemaining(5);
+    SetRemainingTime(RemainingTime);
+  #endif
+    Result = (InstallEnumeratedDevices(Context->hWndParent,
+                                       Context->hSetupInf,
+                                       Context->hWndProgress,
+                                       (Context->StartProgress + (3 * ProgressQuarter)),
+                                       Context->EndProgress) && Result);
+    DPRINT("pInstallPnpDevicesThread: Result %X\n", Result);
+    OldFlags = pSetupGetGlobalFlags();
+    pSetupSetGlobalFlags(OldFlags & ~1);
+    CallRunOnceAndWait();
+    LogItem(L"END_SECTION", L"Install enumerated devices triggered by legacy devices");
+    DPRINT("pInstallPnpDevicesThread: END_SECTION 'Install enumerated devices triggered by legacy devices'\n");
+
+    if (!MiniSetup)
+        MarkPnpDevicesAsNeedReinstall();
+
+    DPRINT("pInstallPnpDevicesThread: MiniSetup %X\n", MiniSetup);
+
+  #ifndef __REACTOS__
+    if (!Context->IsOwnThread)
+        return Result;
+
+    for (Error = 0; Error;)
+    {
+        if (!PostThreadMessageW(Context->ThreadId, 0x12, Result, 0))
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: PostThreadMessage(WM_QUIT) failed. Error = %d", Error);
+        }
+    }
+  #endif
+
+    DPRINT("pInstallPnpDevicesThread: exit Result %X\n", Result);
+    return Result;
 }
 
 VOID
