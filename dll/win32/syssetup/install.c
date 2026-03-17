@@ -1777,6 +1777,16 @@ SaveDefaultUserHive(VOID)
     return dwError;
 }
 
+DWORD
+WINAPI
+pInstallPnpDevicesThread(
+    LPVOID InContext)
+{
+    DPRINT("InstallPnpDevices()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
 VOID
 WINAPI
 InstallPnpDevices(
@@ -1786,8 +1796,54 @@ InstallPnpDevices(
     ULONG StartProgress,
     ULONG EndProgress)
 {
-    DPRINT("InstallPnpDevices()\n");
-    ASSERT(FALSE);
+    PNP_DEVICES_THREAD_CONTEXT Context;
+  #ifndef __REACTOS__
+    DWORD ThreadId;
+    HANDLE Thread;
+    MSG Msg;
+  #endif
+
+    DPRINT("InstallPnpDevices: %d - %d\n", StartProgress, EndProgress);
+
+    Context.ThreadId = GetCurrentThreadId();
+    Context.StartProgress = StartProgress;
+    Context.EndProgress = EndProgress;
+    Context.hWndProgress = hWndProgress;
+    Context.hSetupInf = SetupInf;
+    Context.hWndParent = hWndParent;
+
+  #ifdef __REACTOS__
+
+    Context.IsOwnThread = FALSE;
+    pInstallPnpDevicesThread(&Context);
+    DPRINT("InstallPnpDevices: exit\n");
+    return;
+
+  #else
+
+    Context.IsOwnThread = TRUE;
+
+    Thread = CreateThread(NULL, 0, pInstallPnpDevicesThread, &Context, 0, &ThreadId);
+    if (!Thread)
+    {
+        Context.IsOwnThread = FALSE;
+        pInstallPnpDevicesThread(&Context);
+        return;
+    }
+
+    CloseHandle(Thread);
+    do
+    {
+        GetMessageW(&Msg, NULL, 0, 0);
+
+        if (Msg.message == 18)
+            break;
+
+        DispatchMessageW(&Msg);
+    }
+    while (Msg.message != 18);
+
+  #endif
 }
 
 static
