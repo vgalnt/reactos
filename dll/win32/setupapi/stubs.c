@@ -149,3 +149,13 @@ SetupVerifyInfFileW(
     return FALSE;
 }
 
+BOOL WINAPI
+pSetupInfCacheBuild(
+    IN DWORD BuildType)
+{
+    FIXME("pSetupInfCacheBuild: Stub (%x)\n", BuildType);
+    SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+    return FALSE;
+}
+
+/* EOF */

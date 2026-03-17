@@ -560,7 +560,7 @@
 @ stdcall pSetupGetVersionInfoFromImage(wstr ptr ptr)
 @ stdcall pSetupGuidFromString(wstr ptr)
 @ stub pSetupHandleFailedVerification
-@ stub pSetupInfCacheBuild
+@ stdcall pSetupInfCacheBuild(long)
 @ stub pSetupInfIsFromOemLocation
 @ stdcall pSetupInstallCatalog(wstr wstr ptr)
 @ stub pSetupInstallStopEx
