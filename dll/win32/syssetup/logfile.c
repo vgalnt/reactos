@@ -79,7 +79,7 @@ InitializeSetupLog (BOOL bDeleteOldLogFile)
 
 
 VOID WINAPI
-TerminateSetupActionLog(VOID)
+TerminateSetupLog(VOID)
 {
     if (hLogFile != NULL)
     {

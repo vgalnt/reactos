@@ -76,7 +76,7 @@ BOOL WINAPI
 InitializeSetupLog(IN BOOL bDeleteOldLogFile);
 
 VOID WINAPI
-TerminateSetupActionLog(VOID);
+TerminateSetupLog(VOID);
 
 VOID
 CDECL

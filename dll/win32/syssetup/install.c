@@ -1998,7 +1998,7 @@ InstallReactOS(VOID)
   #endif
 
     LogItem(NULL, L"Installing ReactOS done");
-    TerminateSetupActionLog();
+    TerminateSetupLog();
 
     if (AdminInfo.Name != NULL)
         RtlFreeHeap(RtlGetProcessHeap(), 0, AdminInfo.Name);

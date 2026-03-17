@@ -82,7 +82,7 @@
 @ stub SystemUpdateUserProfileDirectory
 @ stdcall TapeClassInstaller(long ptr ptr)
 @ stdcall TapePropPageProvider(ptr ptr long)
-@ stdcall TerminateSetupActionLog()
+@ stdcall TerminateSetupLog()
 @ stub UpdatePnpDeviceDrivers
 @ stub UpgradePrinters
 @ stub ViewSetupActionLog
