@@ -1960,8 +1960,26 @@ SetDeviceConfigFlags(
     PSP_DEVINFO_DATA DeviceInfoData,
     PDWORD PropertyBuffer)
 {
-    DPRINT("SetDeviceConfigFlags()\n");
-    ASSERT(FALSE);
+    DWORD Error;
+
+    DPRINT("SetDeviceConfigFlags: %X\n", DeviceInfoData);
+
+    if (SetupDiSetDeviceRegistryPropertyW(DeviceInfoSet,
+                                          DeviceInfoData,
+                                          SPDRP_CONFIGFLAGS,
+                                          (PBYTE)PropertyBuffer,
+                                          sizeof(*PropertyBuffer)))
+    {
+        return TRUE;
+    }
+
+    Error = GetLastError();
+
+    if ((INT)Error >= 0)
+        LogItem(NULL, L"SETUP:   SetDeviceConfigFlags failed. Error = %d", Error);
+    else
+        LogItem(NULL, L"SETUP:   SetDeviceConfigFlags failed. Error = %lx", Error);
+
     return FALSE;
 }
 
