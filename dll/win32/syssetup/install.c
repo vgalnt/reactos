@@ -1923,8 +1923,33 @@ GetDeviceConfigFlags(
     PSP_DEVINFO_DATA DeviceInfoData,
     PDWORD PropertyBuffer)
 {
-    DPRINT("GetDeviceConfigFlags()\n");
-    ASSERT(FALSE);
+    DWORD Error;
+
+    DPRINT("GetDeviceConfigFlags: %X\n", DeviceInfoData);
+
+    *PropertyBuffer = 0;
+
+    if (SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
+                                          DeviceInfoData,
+                                          SPDRP_CONFIGFLAGS,
+                                          NULL,
+                                          (PBYTE)PropertyBuffer,
+                                          sizeof(*PropertyBuffer),
+                                          NULL))
+    {
+        return TRUE;
+    }
+
+    Error = GetLastError();
+
+    if (Error == ERROR_INVALID_DATA)
+        return TRUE;
+
+    if ((INT)Error >= 0)
+        LogItem(NULL, L"SETUP:   GetDeviceConfigFlags failed. Error = %d", Error);
+    else
+        LogItem(NULL, L"SETUP:   GetDeviceConfigFlags failed. Error = %lx", Error);
+
     return FALSE;
 }
 
