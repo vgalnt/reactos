@@ -1784,9 +1784,136 @@ PrecompileInfFiles(
     ULONG StartProgress,
     ULONG EndProgress)
 {
-    DPRINT("PrecompileInfFiles()\n");
-    ASSERT(FALSE);
-    return FALSE;
+    WCHAR OsDirBuffer[MAX_PATH + 1];
+    WCHAR DirBuffer[MAX_PATH + 1];
+    WIN32_FIND_DATAW FindFileData;
+    PPRECOMPILE_INF LastEntry = NULL;
+    PPRECOMPILE_INF Entry;
+    HANDLE hFindFile;
+    HINF InfHandle;
+  #ifndef __REACTOS__
+    ULONG ProgressPerPercent;
+  #endif
+    ULONG FileCount;
+    ULONG ix;
+    DWORD Error;
+    BOOL Result;
+
+    DPRINT("PrecompileInfFiles: %d-%d\n", StartProgress, EndProgress);
+    LogItem(NULL, L"SETUP: Entering PrecompileInfFiles()");
+
+    GetCurrentDirectoryW((MAX_PATH + 1), DirBuffer);
+
+    if (!GetWindowsDirectoryW(OsDirBuffer, (MAX_PATH + 1)))
+    {
+        DPRINT("PrecompileInfFiles: GetWindowsDirectoryW() failed\n");
+        ASSERT(FALSE);
+        return FALSE;
+    }
+
+    wcscat(OsDirBuffer, L"\\inf");
+    SetCurrentDirectoryW(OsDirBuffer);
+
+    FileCount = 0;
+
+    hFindFile = FindFirstFileW(L"*.inf", &FindFileData);
+
+    if (hFindFile == INVALID_HANDLE_VALUE)
+    {
+        Error = GetLastError();
+        DPRINT("PrecompileInfFiles: FindFirstFile(*.inf) failed. Error = %d\n", Error);
+        LogItem(NULL, L"SETUP: FindFirstFile(*.inf) failed. Error = %d", Error);
+    }
+    else
+    {
+        do
+        {
+            if (!(FindFileData.dwFileAttributes & 0x10))
+            {
+                Entry = pSetupMalloc(sizeof(*Entry));
+                if (Entry)
+                {
+                    Entry->FileName = pSetupDuplicateString(FindFileData.cFileName);
+                    Entry->Next = LastEntry;
+                    LastEntry = Entry;
+                    FileCount++;
+                }
+            }
+        }
+        while (FindNextFileW(hFindFile, &FindFileData));
+
+        FindClose(hFindFile);
+    }
+
+  #ifndef __REACTOS__
+    ProgressPerPercent = ((FileCount + 1) * 100 / (EndProgress - StartProgress));
+    SendMessageW(hWndProgress, 0x800C, (FileCount + 1), 0);
+    SendMessageW(hWndProgress, 0x401, 0, ((WORD)ProgressPerPercent << 16));
+    SendMessageW(hWndProgress, 0x402, ((ULONG)ProgressPerPercent * StartProgress / 100), 0);
+    SendMessageW(hWndProgress, 0x404, 1, 0);
+  #endif
+
+    for (ix = 0; ; ix++)
+    {
+      #ifndef __REACTOS__
+        if (ix != 0)
+            SendMessageW(hWndProgress, 0x405, 0, 0);
+      #endif
+
+        if (ix >= FileCount)
+            break;
+
+        DPRINT("PrecompileInfFiles: Pre-compiling file: %ls\n", LastEntry->FileName);
+        LogItem(NULL, L"SETUP: Pre-compiling file: %ls", LastEntry->FileName);
+
+        InfHandle = SetupOpenInfFileW(LastEntry->FileName, NULL, INF_STYLE_WIN4, NULL);
+
+        if (InfHandle == INVALID_HANDLE_VALUE)
+        {
+            Error = GetLastError();
+
+            if ((LONG)Error >= 0)
+            {
+                DPRINT("PrecompileInfFiles: SetupOpenInfFile() failed. FileName = %ls, Error = %d\n", LastEntry->FileName, Error);
+                LogItem(NULL, L"SETUP: SetupOpenInfFile() failed. FileName = %ls, Error = %d", LastEntry->FileName, Error);
+            }
+            else
+            {
+                DPRINT("PrecompileInfFiles: SetupOpenInfFile() failed. FileName = %ls, Error = %lx\n", LastEntry->FileName, Error);
+                LogItem(NULL, L"SETUP: SetupOpenInfFile() failed. FileName = %ls, Error = %lx", LastEntry->FileName, Error);
+            }
+        }
+        else
+        {
+            SetupCloseInfFile(InfHandle);
+        }
+
+        Entry = LastEntry;
+        LastEntry = LastEntry->Next;
+
+        if (Entry->FileName)
+            pSetupFree(Entry->FileName);
+
+        pSetupFree(Entry);
+    }
+
+    DPRINT("PrecompileInfFiles: Total inf files = %d, total precompiled: %d\n", FileCount, ix);
+    LogItem(NULL, L"SETUP: Total inf files = %d, total precompiled: %d", FileCount, ix);
+
+    LogItem(NULL, L"SETUP: Calling pSetupInfCacheBuild()");
+    pSetupInfCacheBuild(1);
+
+  #ifndef __REACTOS__
+    SendMessageW(hWndProgress, 0x402, (EndProgress * ProgressPerPercent / 100), 0);
+  #endif
+
+    SetCurrentDirectoryW(DirBuffer);
+
+    LogItem(NULL, L"SETUP: Leaving PrecompileInfFiles()");
+
+    Result = (ix != 0);
+    DPRINT("PrecompileInfFiles: ret Result %X\n", Result);
+    return Result;
 }
 
 BOOL

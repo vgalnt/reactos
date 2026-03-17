@@ -42,6 +42,12 @@ typedef struct _PNP_DEVICES_THREAD_CONTEXT
     BOOL IsOwnThread;
 } PNP_DEVICES_THREAD_CONTEXT, *PPNP_DEVICES_THREAD_CONTEXT;
 
+typedef struct _PRECOMPILE_INF
+{
+    struct _PRECOMPILE_INF* Next;
+    PWSTR FileName;
+} PRECOMPILE_INF, *PPRECOMPILE_INF;
+
 extern HINSTANCE hDllInstance;
 extern HINF hSysSetupInf;
 extern ADMIN_INFO AdminInfo;
@@ -74,5 +80,8 @@ VOID WINAPI pSetupFree(LPVOID lpMem);
 PWSTR WINAPI pSetupGetField(PINFCONTEXT context, DWORD index);
 DWORD WINAPI pSetupGetGlobalFlags(void);
 void WINAPI pSetupSetGlobalFlags(DWORD flags);
+
+/* setupapi stub */
+BOOL WINAPI pSetupInfCacheBuild(DWORD BuildType);
 
 /* EOF */
