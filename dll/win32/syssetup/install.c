@@ -2057,9 +2057,56 @@ SelectBestDriver(
     PSP_DEVINFO_DATA DeviceInfoData,
     BOOL* OutIsOemDriver)
 {
-    DPRINT("SelectBestDriver()\n");
-    ASSERT(FALSE);
-    return 0;
+    SP_DRVINSTALL_PARAMS DriverInstallParams;
+    SP_DRVINFO_DATA_W DriverInfoData;
+    DWORD ix;
+
+    DPRINT("SelectBestDriver: %p\n", DeviceInfoData);
+
+    *OutIsOemDriver = FALSE;
+
+    DriverInfoData.cbSize = sizeof(DriverInfoData);
+
+    for (ix = 0; ; ix++)
+    {
+        if (!SetupDiEnumDriverInfoW(DeviceInfoSet, DeviceInfoData, 2, ix, &DriverInfoData))
+            break;
+
+        DriverInstallParams.cbSize = sizeof(DriverInstallParams);
+
+        if (!SetupDiGetDriverInstallParamsW(DeviceInfoSet, DeviceInfoData, &DriverInfoData, &DriverInstallParams))
+            continue;
+
+        if (!(DriverInstallParams.Flags & 0x4000))
+            continue;
+
+        LogItem(NULL, L"SETUP: Using Oem F6 driver for this device.");
+
+        *OutIsOemDriver = TRUE;
+
+        DriverInfoData.cbSize = sizeof(DriverInfoData);
+
+        for (ix = 0; ; ix++)
+        {
+            if (!SetupDiEnumDriverInfoW(DeviceInfoSet, DeviceInfoData, 2, ix, &DriverInfoData))
+                break;
+
+            DriverInstallParams.cbSize = sizeof(DriverInstallParams);
+
+            if (SetupDiGetDriverInstallParamsW(DeviceInfoSet, DeviceInfoData, &DriverInfoData, &DriverInstallParams) &&
+                !((DriverInstallParams.Flags & 0x4000)))
+            {
+                DPRINT1("SelectBestDriver: FIXME (Flags %X)\n", DriverInstallParams.Flags);
+                ASSERT(FALSE);
+                DriverInstallParams.Flags |= 0x800;
+                //SetupDiSetDriverInstallParamsW(DeviceInfoSet, DeviceInfoData, &DriverInfoData, &DriverInstallParams);
+            }
+        }
+
+        return SetupDiCallClassInstaller(DIF_SELECTBESTCOMPATDRV, DeviceInfoSet, DeviceInfoData);
+    }
+
+    return SetupDiCallClassInstaller(DIF_SELECTBESTCOMPATDRV, DeviceInfoSet, DeviceInfoData);
 }
 
 BOOL
