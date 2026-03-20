@@ -1987,8 +1987,65 @@ VOID
 WINAPI
 MarkPnpDevicesAsNeedReinstall(VOID)
 {
+    SP_DEVINFO_DATA DeviceInfoData;
+    HDEVINFO DeviceInfoSet;
+    DWORD ConfigFlags;
+    DWORD Error;
+    DWORD ix;
+    ULONG ulProblemNumber;
+    ULONG ulStatus;
+    BOOL Result;
+
     DPRINT("MarkPnpDevicesAsNeedReinstall()\n");
-    ASSERT(FALSE);
+    LogItem(NULL, L"SETUP: Entering MarkPnpDevicesAsNeedReinstall().");
+
+    DeviceInfoSet = SetupDiGetClassDevsW(NULL, NULL, NULL, DIGCF_ALLCLASSES);
+    if (DeviceInfoSet == INVALID_HANDLE_VALUE)
+    {
+        Error = GetLastError();
+
+        if ((INT)Error >= 0)
+            LogItem(NULL, L"SETUP: SetupDiGetClassDevs(DIGCF_ALLCLASSES) failed. Error = %d", Error);
+        else
+            LogItem(NULL, L"SETUP: SetupDiGetClassDevs(DIGCF_ALLCLASSES) failed. Error = %lx", Error);
+
+        LogItem(NULL, L"SETUP: Leaving MarkPnpDevicesAsNeedReinstall(). No devices marked.");
+
+        return;
+    }
+
+    DeviceInfoData.cbSize = sizeof(DeviceInfoData);
+
+    for (ix = 0; SetupDiEnumDeviceInfo(DeviceInfoSet, ix, &DeviceInfoData); ix++)
+    {
+        if (CM_Get_DevNode_Status(&ulStatus, &ulProblemNumber, DeviceInfoData.DevInst, 0) == CR_SUCCESS)
+            continue;
+
+        Result = GetDeviceConfigFlags(DeviceInfoSet, &DeviceInfoData, &ConfigFlags);
+        if (!Result)
+        {
+            LogItem(NULL, L"SETUP:   GetDeviceConfigFlags failed. Index = %d", ix);
+            continue;
+        }
+
+        ConfigFlags |= 0x20;
+
+        Result = SetDeviceConfigFlags(DeviceInfoSet, &DeviceInfoData, &ConfigFlags);
+        if (!Result)
+        {
+            LogItem(NULL, L"SETUP:   SetDeviceConfigFlags failed. Index = %d", ix);
+        }
+    }
+
+    Error = GetLastError();
+    if (Error != ERROR_NO_MORE_ITEMS)
+    {
+        LogItem(NULL, L"SETUP: Device = %d, SetupDiEnumDeviceInfo() failed. Error = %d", ix, Error);
+    }
+
+    LogItem(NULL, L"SETUP: Leaving MarkPnpDevicesAsNeedReinstall(). Devices marked = %d", ix);
+
+    SetupDiDestroyDeviceInfoList(DeviceInfoSet);
 }
 
 BOOL
