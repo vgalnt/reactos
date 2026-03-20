@@ -37,6 +37,8 @@ BOOL MiniSetup = FALSE;
 BOOL Upgrade = FALSE;
 BOOL SkipMissingFiles = FALSE;
 HWND MainWindowHandle = NULL; // HACK
+PWCHAR szPnpLogFile = L"pnplog.txt";
+PWCHAR szEnumDevSection = L"EnumeratedDevices";
 
 /* FUNCTIONS ****************************************************************/
 
@@ -2050,6 +2052,75 @@ MarkPnpDevicesAsNeedReinstall(VOID)
 
 BOOL
 WINAPI
+SelectBestDriver(
+    HDEVINFO DeviceInfoSet,
+    PSP_DEVINFO_DATA DeviceInfoData,
+    BOOL* OutIsOemDriver)
+{
+    DPRINT("SelectBestDriver()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+BOOL
+WINAPI
+SyssetupInstallNullDriver(
+    HDEVINFO DeviceInfoSet,
+    PSP_DEVINFO_DATA DeviceInfoData)
+{
+    DPRINT("SyssetupInstallNullDriver()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+BOOL
+WINAPI
+RebuildListWithoutOldInternetDrivers(
+    HDEVINFO DeviceInfoSet,
+    PSP_DEVINFO_DATA DeviceInfoData)
+{
+    DPRINT("RebuildListWithoutOldInternetDrivers()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+INT
+WINAPI
+SyssetupGetPnPFlags(
+    HDEVINFO DeviceInfoSet,
+    PSP_DEVINFO_DATA DeviceInfoData,
+    PSP_DRVINFO_DATA_W DriverInfoData)
+{
+    DPRINT("SyssetupGetPnPFlags()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+BOOL
+WINAPI
+SkipDeviceInstallation(
+    HDEVINFO DeviceInfoSet,
+    PSP_DEVINFO_DATA DeviceInfoData,
+    HINF InfHandle,
+    PWCHAR Key)
+{
+    DPRINT("SkipDeviceInstallation()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+DWORD
+WINAPI
+pInstallPnpEnumeratedDeviceThread(
+    LPVOID lpThreadParameter)
+{
+    DPRINT("pInstallPnpEnumeratedDeviceThread()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+BOOL
+WINAPI
 InstallEnumeratedDevices(
     HWND hWndParent,
     HINF hSetupInf,
@@ -2057,9 +2128,532 @@ InstallEnumeratedDevices(
     ULONG StartProgress,
     ULONG EndProgress)
 {
-    DPRINT("InstallEnumeratedDevices()\n");
-    ASSERT(FALSE);
-    return FALSE;
+    SP_DEVINSTALL_PARAMS_W DeviceInstallParams;
+    PPNP_ENUM_DEVICE_CONTEXT EnumDevContext;
+    SP_DRVINFO_DATA_W DriverInfoData;
+    PSP_DEVINFO_DATA DeviceInfoData = NULL;
+    HDEVINFO DeviceInfoSet = INVALID_HANDLE_VALUE;
+    HANDLE hPnpProcessedEvent = NULL;
+    HANDLE hPnpPipeEvent;
+    HANDLE hEvent;
+    HANDLE hNewHwPipe = INVALID_HANDLE_VALUE;
+    HANDLE hHandle;
+  #ifndef __REACTOS__
+    PVOID AnswerFileDriver;
+    PVOID AfDriverTable;
+  #endif
+    WCHAR ReturnedString[256 + 1];
+    WCHAR DeviceClass[256 + 1];
+    WCHAR DeviceId[MAX_PATH];
+    WCHAR PnpLogFileName[MAX_PATH + 1];
+    WCHAR Guid[64];
+    DWORD BytesRead = 0;
+    DWORD Milliseconds;
+    DWORD WaitResult;
+    DWORD ThreadId;
+    DWORD ExitCode;
+    DWORD Error;
+  #ifndef __REACTOS__
+    ULONG ProgressPerPercent = 100;
+  #endif
+    INT PnPFlags;
+    ULONG ix;
+    BOOLEAN IsInstallSuccess;
+    BOOLEAN IsCycleRun;
+    BOOLEAN Result = TRUE;
+    BOOL IsOemDriver;
+
+    DPRINT("InstallEnumeratedDevices: hWndParent %X\n", hWndParent);
+    LogItem(NULL, L"SETUP: Entering InstallEnumeratedDevices()");
+
+    if (!GetWindowsDirectoryW(PnpLogFileName, (MAX_PATH + 1)))
+    {
+        AssertFail_s(__FILE__, __LINE__, "FALSE");
+        return FALSE;
+    }
+
+    if (!pSetupConcatenatePaths(PnpLogFileName, szPnpLogFile, (MAX_PATH + 1), 0))
+    {
+        DPRINT1("InstallEnumeratedDevices: pSetupConcatenatePaths() is failed\n");
+        AssertFail_s(__FILE__, __LINE__, "FALSE");
+        return FALSE;
+    }
+
+  #ifndef __REACTOS__
+    AfDriverTable = CreateAfDriverTable();  // L"$winnt$.inf"
+  #endif
+
+    hPnpPipeEvent = CreateEventW(NULL, TRUE, FALSE, L"PNP_Create_Pipe_Event");
+    if (!hPnpPipeEvent)
+    {
+        Error = GetLastError();
+        if (Error != ERROR_ALREADY_EXISTS)
+        {
+            LogItem(NULL, L"SETUP: CreateEvent() failed. Error = %d", Error);
+            Result = FALSE;
+            goto Exit;
+        }
+
+        hPnpPipeEvent = OpenEventW(EVENT_MODIFY_STATE, FALSE, L"PNP_Create_Pipe_Event");
+        if (!hPnpPipeEvent)
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: OpenEvent() failed. Error = %d", Error);
+            Result = FALSE;
+            goto Exit;
+        }
+    }
+
+    hPnpProcessedEvent = CreateEventW(NULL, TRUE, FALSE, L"PNP_Batch_Processed_Event");
+    if (!hPnpProcessedEvent)
+    {
+        Error = GetLastError();
+        if (Error != 183)
+        {
+            LogItem(NULL, L"SETUP: CreateEvent() failed. Error = %d", Error);
+            Result = FALSE;
+            goto Exit;
+        }
+
+        hPnpProcessedEvent = OpenEventW(EVENT_MODIFY_STATE, FALSE, L"PNP_Batch_Processed_Event");
+        if (!hPnpProcessedEvent)
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: OpenEvent() failed. Error = %d", Error);
+            Result = FALSE;
+            goto Exit;
+        }
+    }
+
+    hNewHwPipe = CreateNamedPipeW(L"\\\\.\\pipe\\PNP_New_HW_Found",
+                                  PIPE_ACCESS_INBOUND,
+                                  (PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE),
+                                  1,
+                                  sizeof(DeviceId),
+                                  sizeof(DeviceId),
+                                  180000,
+                                  NULL);
+    SetEvent(hPnpPipeEvent);
+
+    if (hNewHwPipe == INVALID_HANDLE_VALUE)
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: CreateNamedPipe() failed. Error = %d", Error);
+        Result = FALSE;
+        goto Exit;
+    }
+
+    if (!ConnectNamedPipe(hNewHwPipe, 0) && GetLastError() != ERROR_PIPE_CONNECTED)
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: ConnectNamedPipe() failed. Error = %d", Error);
+        Result = FALSE;
+        goto Exit;
+    }
+
+  #ifndef __REACTOS__
+    ProgressPerPercent = 5000 / (EndProgress - StartProgress);
+
+    SendMessageW(hWndProgress, 0x800C, 50, 0);
+    SendMessageW(hWndProgress, 0x401, 0, (WORD)ProgressPerPercent << 16);
+    SendMessageW(hWndProgress, 0x402, (StartProgress * ProgressPerPercent / 100), 0);
+    SendMessageW(hWndProgress, 0x404, 1, 0);
+  #endif
+
+    for (ix = 0; ; ix++)
+    {
+        DPRINT("InstallEnumeratedDevices: ix %d\n", ix);
+
+      #ifndef __REACTOS__
+        if (ix && ix < 50)
+            SendMessageW(hWndProgress, 0x405, 0, 0);
+      #endif
+
+        if (!ReadFile(hNewHwPipe, DeviceId, sizeof(DeviceId), &BytesRead, 0))
+        {
+            if (GetLastError() != ERROR_BROKEN_PIPE)
+            {
+                Error = GetLastError();
+                LogItem(NULL, L"SETUP: ReadFile(hPipe) failed. Error = %d", Error);
+                Result = FALSE;
+            }
+
+            goto Exit;
+        }
+
+        if (!lstrlenW(DeviceId))
+        {
+            SetEvent(hPnpProcessedEvent);
+            continue;
+        }
+
+        LogItem(NULL, L"SETUP: ix = %d, DeviceId = %ls", ix, DeviceId);
+
+        ReturnedString[0] = 0;
+        if (GetPrivateProfileStringW(szEnumDevSection, DeviceId, L"", ReturnedString, (256 + 1), PnpLogFileName))
+        {
+            //wcslen(ReturnedString); ??
+        }
+
+        LogItem(L"BEGIN_SECTION", ReturnedString);
+
+        if (DeviceInfoSet == INVALID_HANDLE_VALUE)
+        {
+            DeviceInfoSet = SetupDiCreateDeviceInfoList(0, hWndParent);
+            if (DeviceInfoSet == INVALID_HANDLE_VALUE)
+            {
+                Result = FALSE;
+                Error = GetLastError();
+                LogItem(NULL, L"SETUP: SetupDiCreateDeviceInfoList() failed. Error = %d", Error);
+                goto Exit;
+            }
+
+            DeviceInfoData = pSetupMalloc(sizeof(*DeviceInfoData));
+            if (!DeviceInfoData)
+            {
+                Result = FALSE;
+                LogItem(NULL, L"SETUP: Unable to create pDeviceInfoData.  MyMalloc() failed.");
+                goto Exit;
+            }
+
+            DeviceInfoData->cbSize = sizeof(*DeviceInfoData);
+        }
+
+        if (!SetupDiOpenDeviceInfoW(DeviceInfoSet, DeviceId, hWndParent, 0, DeviceInfoData))
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP:             SetupDiOpenDeviceInfo() failed. Error = %d", Error);
+            Result = FALSE;
+            LogItem(L"END_SECTION", ReturnedString);
+            continue;
+        }
+
+      #ifndef __REACTOS__
+        if (SyssetupInstallAnswerFileDriver(AfDriverTable, DeviceInfoSet, DeviceInfoData, &AnswerFileDriver))
+        {
+            LogItem(NULL, L"SETUP:            Device was installed via answer file driver");
+        }
+        else
+      #endif
+        {
+            LogItem(NULL, L"SETUP:            Device was NOT installed via answer file driver");
+
+            if (!SetupDiBuildDriverInfoList(DeviceInfoSet, DeviceInfoData, 2))
+            {
+                Error = GetLastError();
+                LogItem(NULL, L"SETUP:         SetupDiBuildDriverInfoList() failed. Error = %d", Error);
+                Result = FALSE;
+                continue;
+            }
+
+            if (!SelectBestDriver(DeviceInfoSet, DeviceInfoData, &IsOemDriver))
+            {
+                Error = GetLastError();
+                if (Error == ERROR_NO_COMPAT_DRIVERS)
+                {
+                    LogItem(NULL, L"SETUP:            Compatible driver List is empty");
+                    LogItem(NULL, L"SETUP:            Installing the null driver for this device");
+
+                    if (!SyssetupInstallNullDriver(DeviceInfoSet, DeviceInfoData))
+                        LogItem(NULL, L"SETUP:            Unable to install null driver");
+
+                    LogItem(L"END_SECTION", ReturnedString);
+                    continue;
+                }
+
+                LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_SELECTBESTCOMPATDRV) failed. Error = %d", Error);
+
+                Result = FALSE;
+
+                LogItem(L"END_SECTION", ReturnedString);
+                continue;
+            }
+
+            if (RebuildListWithoutOldInternetDrivers(DeviceInfoSet, DeviceInfoData))
+            {
+                SetupDiDestroyDriverInfoList(DeviceInfoSet, DeviceInfoData, 2);
+
+                DeviceInstallParams.cbSize = sizeof(DeviceInstallParams);
+
+                if (SetupDiGetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+                {
+                    DeviceInstallParams.FlagsEx |= 0x800000;
+                    SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams);
+                }
+
+                if (!SetupDiBuildDriverInfoList(DeviceInfoSet, DeviceInfoData, 2))
+                {
+                    Error = GetLastError();
+                    LogItem(NULL, L"SETUP:         SetupDiBuildDriverInfoList() failed. Error = %d", Error);
+                    Result = FALSE;
+                    continue;
+                }
+
+                if (!SelectBestDriver(DeviceInfoSet, DeviceInfoData, &IsOemDriver))
+                {
+                    Error = GetLastError();
+                    if (Error == ERROR_NO_COMPAT_DRIVERS)
+                    {
+                        LogItem(NULL, L"SETUP:            Compatible driver List is empty");
+                        LogItem(NULL, L"SETUP:            Installing the null driver for this device");
+
+                        if (!SyssetupInstallNullDriver(DeviceInfoSet, DeviceInfoData))
+                            LogItem(NULL, L"SETUP:            Unable to install null driver");
+
+                        LogItem(L"END_SECTION", ReturnedString);
+                        continue;
+                    }
+
+                    LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_SELECTBESTCOMPATDRV) failed. Error = %d", Error);
+                    Result = FALSE;
+                    LogItem(L"END_SECTION", ReturnedString);
+                    continue;
+                }
+            }
+        }
+
+        DriverInfoData.cbSize = sizeof(DriverInfoData);
+
+        if (!SetupDiGetSelectedDriverW(DeviceInfoSet, DeviceInfoData, &DriverInfoData))
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP:            SetupDiGetSelectedDriver() failed. Error = %d", Error);
+            Result = FALSE;
+            continue;
+        }
+
+        Guid[0] = 0;
+        pSetupStringFromGuid(&DeviceInfoData->ClassGuid, Guid, 64);
+
+        LogItem(NULL, L"SETUP:            DriverType = %lx", DriverInfoData.DriverType);
+        LogItem(NULL, L"SETUP:            Description = %ls", DriverInfoData.Description);
+        LogItem(NULL, L"SETUP:            MfgName = %ls", DriverInfoData.MfgName);
+        LogItem(NULL, L"SETUP:            ProviderName = %ls", DriverInfoData.ProviderName);
+        LogItem(NULL, L"SETUP:            Guid = %ls", Guid);
+
+        DeviceClass[0] = 0;
+        if (!SetupDiGetClassDescriptionW(&DeviceInfoData->ClassGuid, DeviceClass, (256 + 1), 0))
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: SetupDiGetClassDescription() failed. Error = %lx", Error);
+            DeviceClass[0] = 0;
+        }
+
+        LogItem(NULL, L"SETUP:            DeviceClass = %ls", DeviceClass);
+
+        PnPFlags = SyssetupGetPnPFlags(DeviceInfoSet, DeviceInfoData, &DriverInfoData);
+
+        if (SkipDeviceInstallation(DeviceInfoSet, DeviceInfoData, hSetupInf, Guid))
+        {
+            LogItem(NULL, L"SETUP:            Skipping installation of this device");
+            LogItem(L"END_SECTION", ReturnedString);
+            continue;
+        }
+
+        if (PnPFlags & 1)
+        {
+            DeviceInstallParams.cbSize = sizeof(DeviceInstallParams);
+            if (SetupDiGetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+            {
+                DeviceInstallParams.Flags |= 0x20000;
+                if (!SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+                {
+                    Error = GetLastError();
+
+                    if ((LONG)Error >= 0)
+                        LogItem(NULL, L"SETUP:            SetupDiSetDeviceInstallParams() failed. Error = %d", Error);
+                    else
+                        LogItem(NULL, L"SETUP:            SetupDiSetDeviceInstallParams() failed. Error = %lx", Error);
+                }
+            }
+            else
+            {
+                Error = GetLastError();
+
+                if ((LONG)Error >= 0)
+                    LogItem(NULL, L"SETUP:            SetupDiGetDeviceInstallParams() failed. Error = %d", Error);
+                else
+                    LogItem(NULL, L"SETUP:            SetupDiGetDeviceInstallParams() failed. Error = %lx", Error);
+            }
+        }
+
+        EnumDevContext = pSetupMalloc(sizeof(*EnumDevContext));
+        EnumDevContext->Info = DeviceInfoSet;
+
+        RtlCopyMemory(&EnumDevContext->InfoData, DeviceInfoData, sizeof(EnumDevContext->InfoData));
+
+        EnumDevContext->Description = pSetupDuplicateString(DriverInfoData.Description);
+        EnumDevContext->DeviceId = pSetupDuplicateString(DeviceId);
+
+        IsInstallSuccess = FALSE;
+
+        hHandle = CreateThread(NULL, 0, pInstallPnpEnumeratedDeviceThread, EnumDevContext, 0, &ThreadId);
+        if (!hHandle)
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP:            CreateThread() failed (enumerated device). Error = %d", Error);
+
+            if (pInstallPnpEnumeratedDeviceThread(EnumDevContext))
+            {
+                LogItem(NULL, L"SETUP:            Device not successfully installed.");
+                Result = FALSE;
+            }
+            else
+            {
+                IsInstallSuccess = TRUE;
+            }
+
+            pSetupFree(EnumDevContext->Description);
+            pSetupFree(EnumDevContext->DeviceId);
+            pSetupFree(EnumDevContext);
+
+            if (IsInstallSuccess)
+            {
+              #ifndef __REACTOS__
+                if (AnswerFileDriver)
+                    SyssetupFixAnswerFileDriverPath(AnswerFileDriver, DeviceInfoSet, DeviceInfoData);
+              #endif
+
+                if (IsOemDriver)
+                {
+                  #ifndef __REACTOS__
+                    AddOemF6DriversToSfcIgnoreFilesList(DeviceInfoSet, DeviceInfoData);
+                  #else
+                    AssertFail_s(__FILE__, __LINE__, "FIXME IsOemDriver");
+                  #endif
+                }
+            }
+
+            LogItem(L"END_SECTION", ReturnedString);
+            continue;
+        }
+
+        for (IsCycleRun = TRUE; IsCycleRun; )
+        {
+            if (_wcsicmp(Guid, L"{4D36E972-E325-11CE-BFC1-08002BE10318}"))
+                Milliseconds = 120000;
+            else
+                Milliseconds = 600000;
+
+            WaitResult = WaitForSingleObject(hHandle, Milliseconds);
+            if (WaitResult == WAIT_TIMEOUT)
+            {
+                hEvent = OpenEventW(EVENT_MODIFY_STATE, FALSE, L"MS_SETUPAPI_DIALOG");
+                if (hEvent)
+                {
+                    IsCycleRun = TRUE;
+                    CloseHandle(hEvent);
+                    break;
+                }
+
+                LogItem(NULL, L"SETUP:    Class Installer appears to be hung. Device = %ls", DriverInfoData.Description);
+
+                WaitResult = WaitForSingleObject(hHandle, 0);
+                if (WaitResult != WAIT_OBJECT_0)
+                {
+                    IsCycleRun = FALSE;
+                    LogItem(NULL, L"SETUP:    Skipping installation of enumerated device. Device = %ls", DriverInfoData.Description);
+                    Result = FALSE;
+
+                    WritePrivateProfileStringW(szEnumDevSection, DeviceId, DriverInfoData.Description, PnpLogFileName);
+
+                    DeviceInfoSet = INVALID_HANDLE_VALUE;
+                    DeviceInfoData = NULL;
+                }
+            }
+            else if (WaitResult == WAIT_OBJECT_0)
+            {
+                IsCycleRun = FALSE;
+
+                pSetupFree(EnumDevContext->Description);
+                pSetupFree(EnumDevContext->DeviceId);
+                pSetupFree(EnumDevContext);
+
+                if (GetExitCodeThread(hHandle, &ExitCode))
+                {
+                    if (ExitCode != 0)
+                    {
+                        LogItem(NULL, L"SETUP:            Device not successfully installed.");
+                        Result = FALSE;
+                    }
+                    else
+                    {
+                        IsInstallSuccess = TRUE;
+                        LogItem(NULL, L"SETUP:            Device successfully installed.");
+                    }
+                }
+                else
+                {
+                    Error = GetLastError();
+                    LogItem(NULL, L"SETUP:            GetExitCode() failed. Error = %d", Error);
+                    LogItem(NULL, L"SETUP:            Unable to retrieve thread exit code. Assuming device successfully installed.");
+                }
+            }
+            else
+            {
+                IsCycleRun = FALSE;
+                LogItem(NULL, L"SETUP:            WaitForSingleObject() returned %d", WaitResult);
+                Result = FALSE;
+            }
+
+            CloseHandle(hHandle);
+
+            if (IsInstallSuccess)
+            {
+              #ifndef __REACTOS__
+                if (AnswerFileDriver)
+                    SyssetupFixAnswerFileDriverPath(AnswerFileDriver, DeviceInfoSet, DeviceInfoData);
+              #endif
+
+                if (IsOemDriver)
+                {
+                  #ifndef __REACTOS__
+                    AddOemF6DriversToSfcIgnoreFilesList(DeviceInfoSet, DeviceInfoData);
+                  #else
+                    DPRINT1("InstallEnumeratedDevices: IsOemDriver\n");
+                    AssertFail_s(__FILE__, __LINE__, "FIXME IsOemDriver");
+                  #endif
+                }
+            }
+
+            LogItem(L"END_SECTION", ReturnedString);
+        }
+    }
+
+Exit:
+
+    LogItem(L"BEGIN_SECTION", L"InstallEnumeratedDevices cleanup");
+
+  #ifndef __REACTOS__
+    SendMessageW(hWndProgress, 0x402, (EndProgress * ProgressPerPercent / 100), 0);
+  #endif
+
+    if (hNewHwPipe != INVALID_HANDLE_VALUE)
+    {
+        DisconnectNamedPipe(hNewHwPipe);
+        CloseHandle(hNewHwPipe);
+    }
+
+    if (hPnpPipeEvent)
+        CloseHandle(hPnpPipeEvent);
+
+    if (hPnpProcessedEvent)
+        CloseHandle(hPnpProcessedEvent);
+
+    if (DeviceInfoSet != INVALID_HANDLE_VALUE)
+        SetupDiDestroyDeviceInfoList(DeviceInfoSet);
+
+  #ifndef __REACTOS__
+    DestroyAfDriverTable(AfDriverTable);
+  #endif
+
+    if (DeviceInfoData)
+        pSetupFree(DeviceInfoData);
+
+    LogItem(NULL, L"SETUP: Leaving InstallEnumeratedDevices()");
+    LogItem(L"END_SECTION", L"InstallEnumeratedDevices cleanup");
+
+    return Result;
 }
 
 BOOL

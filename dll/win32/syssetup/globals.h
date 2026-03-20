@@ -48,6 +48,15 @@ typedef struct _PRECOMPILE_INF
     PWSTR FileName;
 } PRECOMPILE_INF, *PPRECOMPILE_INF;
 
+typedef struct _PNP_ENUM_DEVICE_CONTEXT
+{
+    HDEVINFO Info;
+    SP_DEVINFO_DATA InfoData;
+    PWSTR Description;
+    PWSTR DeviceId;
+    //PVOID StringTable;
+} PNP_ENUM_DEVICE_CONTEXT, *PPNP_ENUM_DEVICE_CONTEXT;
+
 extern HINSTANCE hDllInstance;
 extern HINF hSysSetupInf;
 extern ADMIN_INFO AdminInfo;
