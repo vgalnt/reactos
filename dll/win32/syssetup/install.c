@@ -2294,9 +2294,78 @@ RebuildListWithoutOldInternetDrivers(
     HDEVINFO DeviceInfoSet,
     PSP_DEVINFO_DATA DeviceInfoData)
 {
-    DPRINT("RebuildListWithoutOldInternetDrivers()\n");
-    ASSERT(FALSE);
-    return 0;
+    SP_DEVINSTALL_PARAMS_W DeviceInstallParams;
+    SP_DRVINSTALL_PARAMS DriverInstallParams;
+    SP_DRVINFO_DATA_W DriverInfoData;
+    HSPFILEQ FileQueue;
+    DWORD Result;
+    BOOL Ret;
+
+    DPRINT("RebuildListWithoutOldInternetDrivers: %p\n", DeviceInfoSet);
+
+    DriverInfoData.cbSize = sizeof(DriverInfoData);
+
+    if (!SetupDiGetSelectedDriverW(DeviceInfoSet, DeviceInfoData, &DriverInfoData))
+    {
+        DPRINT("RebuildListWithoutOldInternetDrivers: SetupDiGetSelectedDriverW() failed\n");
+        return FALSE;
+    }
+
+    DriverInstallParams.cbSize = sizeof(DriverInstallParams);
+    if (!SetupDiGetDriverInstallParamsW(DeviceInfoSet, DeviceInfoData, &DriverInfoData, &DriverInstallParams))
+    {
+        DPRINT("RebuildListWithoutOldInternetDrivers: SetupDiGetDriverInstallParamsW() failed\n");
+        return FALSE;
+    }
+
+    if (!(DriverInstallParams.Flags & 0x400))
+    {
+        DPRINT("RebuildListWithoutOldInternetDrivers: Flags %X\n", DriverInstallParams.Flags);
+        return FALSE;
+    }
+
+    Ret = TRUE;
+
+    FileQueue = SetupOpenFileQueue();
+    if (FileQueue == INVALID_HANDLE_VALUE)
+    {
+        return Ret;
+    }
+
+    DeviceInstallParams.cbSize = sizeof(DeviceInstallParams);
+
+    if (SetupDiGetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        DeviceInstallParams.Flags |= 8;
+        DeviceInstallParams.FileQueue = FileQueue;
+
+        if (SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+        {
+            Result = 0;
+
+            if (SetupDiCallClassInstaller(DIF_INSTALLDEVICEFILES, DeviceInfoSet, DeviceInfoData) &&
+                SetupScanFileQueueW(FileQueue, SPQ_SCAN_FILE_VALIDITY, NULL, NULL, NULL, &Result) &&
+                (Result == 1 || Result == 2))
+            {
+                DPRINT("RebuildListWithoutOldInternetDrivers: Ret is FALSE\n");
+                Ret = FALSE;
+            }
+        }
+    }
+
+    DeviceInstallParams.cbSize = sizeof(DeviceInstallParams);
+
+    if (SetupDiGetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        DeviceInstallParams.Flags &= ~8;
+        DeviceInstallParams.FileQueue = INVALID_HANDLE_VALUE;
+
+        SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams);
+    }
+
+    SetupCloseFileQueue(FileQueue);
+
+    return Ret;
 }
 
 INT
