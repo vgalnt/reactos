@@ -2375,9 +2375,49 @@ SyssetupGetPnPFlags(
     PSP_DEVINFO_DATA DeviceInfoData,
     PSP_DRVINFO_DATA_W DriverInfoData)
 {
-    DPRINT("SyssetupGetPnPFlags()\n");
-    ASSERT(FALSE);
-    return 0;
+    SP_DRVINFO_DETAIL_DATA_W DriverInfoDetailData;
+    WCHAR InfSectionWithExt[255];
+    INFCONTEXT Context;
+    HINF hInfFile;
+    INT PnPFlags = 0;
+
+    DPRINT("SyssetupGetPnPFlags: %p\n", DeviceInfoSet);
+
+    DriverInfoDetailData.cbSize = sizeof(DriverInfoDetailData);
+
+    if (!SetupDiGetDriverInfoDetailW(DeviceInfoSet, DeviceInfoData, DriverInfoData, &DriverInfoDetailData, sizeof(DriverInfoDetailData), NULL))
+    {
+        if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
+        {
+            AssertFail_s(__FILE__, __LINE__, "Err == ERROR_INSUFFICIENT_BUFFER");
+            return PnPFlags;
+        }
+    }
+
+    hInfFile = SetupOpenInfFileW(DriverInfoDetailData.InfFileName, NULL, INF_STYLE_WIN4, NULL);
+    if (hInfFile == INVALID_HANDLE_VALUE)
+    {
+        return PnPFlags;
+    }
+
+    if (SetupDiGetActualSectionToInstallW(hInfFile, DriverInfoDetailData.SectionName, InfSectionWithExt, 255, NULL, NULL))
+    {
+        if (SetupFindFirstLineW(hInfFile, InfSectionWithExt, L"SyssetupPnPFlags", &Context))
+        {
+            if (!SetupGetIntField(&Context, 1, &PnPFlags))
+            {
+                PnPFlags = 0;
+            }
+        }
+    }
+    else
+    {
+        AssertFail_s(__FILE__, __LINE__, "0");
+    }
+
+    SetupCloseInfFile(hInfFile);
+
+    return PnPFlags;
 }
 
 BOOL
