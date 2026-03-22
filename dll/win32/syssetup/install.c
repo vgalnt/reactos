@@ -2115,9 +2115,177 @@ SyssetupInstallNullDriver(
     HDEVINFO DeviceInfoSet,
     PSP_DEVINFO_DATA DeviceInfoData)
 {
-    DPRINT("SyssetupInstallNullDriver()\n");
-    ASSERT(FALSE);
-    return 0;
+    PWCHAR UnknownClassGuid = L"{4D36E97E-E325-11CE-BFC1-08002BE10318}";
+    SP_DEVINSTALL_PARAMS_W DeviceInstallParams;
+    WCHAR Guid[64];
+    INT Error;
+
+    DPRINT("SyssetupInstallNullDriver: %p, %p\n", DeviceInfoSet, DeviceInfoData);
+
+    if (IsEqualGUID(&DeviceInfoData->ClassGuid, &GUID_NULL))
+    {
+        LogItem(NULL, L"SETUP:            Setting GUID_DEVCLASS_UNKNOWN for this device");
+
+        if (!SetupDiSetDeviceRegistryPropertyW(DeviceInfoSet,
+                                               DeviceInfoData,
+                                               SPDRP_CLASSGUID,
+                                               (PBYTE)UnknownClassGuid,
+                                               ((wcslen(UnknownClassGuid) + 1) * sizeof(WCHAR))))
+        {
+            Error = GetLastError();
+
+            if (Error >= 0)
+            {
+                LogItem(NULL, L"SETUP:            SetupDiSetDeviceRegistryProperty(SPDRP_CLASSGUID) failed. Error = %d", Error);
+                DPRINT("SyssetupInstallNullDriver: SetupDiSetDeviceRegistryProperty(SPDRP_CLASSGUID) failed. Error = %d\n", Error);
+            }
+            else
+            {
+                LogItem(NULL, L"SETUP:            SetupDiSetDeviceRegistryProperty(SPDRP_CLASSGUID) failed. Error = %lx", Error);
+                DPRINT("SyssetupInstallNullDriver: SetupDiSetDeviceRegistryProperty(SPDRP_CLASSGUID) failed. Error = %lx\n", Error);
+            }
+        }
+    }
+    else
+    {
+        pSetupStringFromGuid(&DeviceInfoData->ClassGuid, Guid, 64);
+        LogItem(NULL, L"SETUP:            GUID = %ls", Guid);
+        DPRINT("SyssetupInstallNullDriver: GUID = %ls\n", Guid);
+    }
+
+    if (!SetupDiSetSelectedDriverW(DeviceInfoSet, DeviceInfoData, NULL))
+    {
+        Error = GetLastError();
+
+        if (Error >= 0)
+        {
+            LogItem(NULL, L"SETUP:            SetupDiSetSelectedDriver() failed. Error = %d", Error);
+            DPRINT("SyssetupInstallNullDriver: SetupDiSetSelectedDriver() failed. Error = %d\n", Error);
+        }
+        else
+        {
+            LogItem(NULL, L"SETUP:            SetupDiSetSelectedDriver() failed. Error = %lx", Error);
+            DPRINT("SyssetupInstallNullDriver: SetupDiSetSelectedDriver() failed. Error = %lx\n", Error);
+        }
+
+        return FALSE;
+    }
+
+    DeviceInstallParams.cbSize = sizeof(DeviceInstallParams);
+
+    if (SetupDiGetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        DeviceInstallParams.Flags |= 0x00800000;
+        DeviceInstallParams.FlagsEx |= 0x20000000;
+
+        if (!SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+        {
+            Error = GetLastError();
+
+            if (Error >= 0)
+            {
+                LogItem(NULL, L"SETUP:            SetupDiSetDeviceInstallParams() failed. Error = %d", Error);
+                DPRINT("SyssetupInstallNullDriver: SetupDiSetDeviceInstallParams() failed. Error = %d\n", Error);
+            }
+            else
+            {
+                LogItem(NULL, L"SETUP:            SetupDiSetDeviceInstallParams() failed. Error = %lx", Error);
+                DPRINT("SyssetupInstallNullDriver: SetupDiSetDeviceInstallParams() failed. Error = %lx\n", Error);
+            }
+        }
+    }
+    else
+    {
+        Error = GetLastError();
+
+        if (Error >= 0)
+        {
+            LogItem(NULL, L"SETUP:            SetupDiGetDeviceInstallParams() failed. Error = %d", Error);
+            DPRINT("SyssetupInstallNullDriver: SetupDiGetDeviceInstallParams() failed. Error = %d\n", Error);
+        }
+        else
+        {
+            LogItem(NULL, L"SETUP:            SetupDiGetDeviceInstallParams() failed. Error = %lx", Error);
+            DPRINT("SyssetupInstallNullDriver: SetupDiGetDeviceInstallParams() failed. Error = %lx\n", Error);
+        }
+    }
+
+    if (SetupDiCallClassInstaller(DIF_INSTALLDEVICE, DeviceInfoSet, DeviceInfoData))
+        return TRUE;
+
+    Error = GetLastError();
+
+    if (Error >= 0)
+    {
+        LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed on first attempt. Error = %d", Error);
+        DPRINT("SyssetupInstallNullDriver: SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed. Error = %d\n", Error);
+    }
+    else
+    {
+        LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed on first attempt. Error = %lx", Error);
+        DPRINT("SyssetupInstallNullDriver: SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed. Error = %lx\n", Error);
+    }
+
+    LogItem(NULL, L"SETUP:            Trying a second time with DI_FLAGSEX_SETFAILEDINSTALL set.");
+    DPRINT("SyssetupInstallNullDriver: Trying a second time with DI_FLAGSEX_SETFAILEDINSTALL set.\n");
+
+    DeviceInstallParams.cbSize = sizeof(DeviceInstallParams);
+
+    if (!SetupDiGetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        Error = GetLastError();
+
+        if (Error >= 0)
+        {
+            LogItem(NULL, L"SETUP:            SetupDiGetDeviceInstallParams() failed. Error = %d", Error);
+            DPRINT("SyssetupInstallNullDriver: SetupDiGetDeviceInstallParams() failed. Error = %d\n", Error);
+        }
+        else
+        {
+            LogItem(NULL, L"SETUP:            SetupDiGetDeviceInstallParams() failed. Error = %lx", Error);
+            DPRINT("SyssetupInstallNullDriver: SetupDiGetDeviceInstallParams() failed. Error = %lx\n", Error);
+        }
+
+        return FALSE;
+    }
+
+    DeviceInstallParams.FlagsEx |= 0x00000080;
+
+    if (!SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        Error = GetLastError();
+
+        if (Error >= 0)
+        {
+            LogItem(NULL, L"SETUP:            SetupDiSetDeviceInstallParams() failed. Error = %d", Error);
+            DPRINT("SyssetupInstallNullDriver: SetupDiSetDeviceInstallParams() failed. Error = %d\n", Error);
+        }
+        else
+        {
+            LogItem(NULL, L"SETUP:            SetupDiSetDeviceInstallParams() failed. Error = %lx", Error);
+            DPRINT("SyssetupInstallNullDriver: SetupDiSetDeviceInstallParams() failed. Error = %lx\n", Error);
+        }
+
+        return FALSE;
+    }
+
+    if (SetupDiCallClassInstaller(DIF_INSTALLDEVICE, DeviceInfoSet, DeviceInfoData))
+        return TRUE;
+
+    Error = GetLastError();
+
+    if (Error >= 0)
+    {
+        LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed. Error = %d", Error);
+        DPRINT("SyssetupInstallNullDriver: SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed. Error = %d\n", Error);
+    }
+    else
+    {
+        LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed. Error = %lx", Error);
+        DPRINT("SyssetupInstallNullDriver: SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed. Error = %lx\n", Error);
+    }
+
+    return FALSE;
 }
 
 BOOL
