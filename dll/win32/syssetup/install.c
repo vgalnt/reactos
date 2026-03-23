@@ -2428,9 +2428,26 @@ SkipDeviceInstallation(
     HINF InfHandle,
     PWCHAR Key)
 {
-    DPRINT("SkipDeviceInstallation()\n");
-    ASSERT(FALSE);
-    return 0;
+    HKEY hKey;
+    WCHAR ReturnBuffer[261];
+
+    DPRINT("SkipDeviceInstallation: %X\n", Key);
+
+    hKey = SetupDiOpenDevRegKey(DeviceInfoSet, DeviceInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DRV, 0x2000000);
+    if (hKey == INVALID_HANDLE_VALUE)
+    {
+        LogItem(NULL, L"SETUP:            Device not yet installed.");
+        return FALSE;
+    }
+
+    RegCloseKey(hKey);
+
+    LogItem(NULL, L"SETUP:            Device already installed.");
+
+    if (MiniSetup)
+        return TRUE;
+
+    return (SetupGetLineTextW(NULL, InfHandle, L"InstalledDevicesToSkip", Key, ReturnBuffer, 261, NULL) == TRUE);
 }
 
 DWORD
