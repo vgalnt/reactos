@@ -89,6 +89,7 @@ VOID WINAPI pSetupFree(LPVOID lpMem);
 PWSTR WINAPI pSetupGetField(PINFCONTEXT context, DWORD index);
 DWORD WINAPI pSetupGetGlobalFlags(void);
 void WINAPI pSetupSetGlobalFlags(DWORD flags);
+BOOL WINAPI SetupGetFileQueueFlags(HSPFILEQ handle, PDWORD flags);
 
 /* setupapi stub */
 BOOL WINAPI pSetupInfCacheBuild(DWORD BuildType);

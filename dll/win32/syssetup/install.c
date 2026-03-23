@@ -2450,14 +2450,401 @@ SkipDeviceInstallation(
     return (SetupGetLineTextW(NULL, InfHandle, L"InstalledDevicesToSkip", Key, ReturnBuffer, 261, NULL) == TRUE);
 }
 
+VOID
+WINAPI
+FlushFilesToDisk(
+    LPCWSTR lpFileName)
+{
+    DPRINT("FlushFilesToDisk()\n");
+    ASSERT(FALSE);
+}
+
+BOOL
+WINAPI
+MarkDeviceAsNeedsReinstallIfNeeded(
+    HDEVINFO DeviceInfoSet,
+    PSP_DEVINFO_DATA DeviceInfoData)
+{
+    DPRINT("FlushFilesToDisk()\n");
+    ASSERT(FALSE);
+    return FALSE;
+}
+
 DWORD
 WINAPI
 pInstallPnpEnumeratedDeviceThread(
     LPVOID lpThreadParameter)
 {
-    DPRINT("pInstallPnpEnumeratedDeviceThread()\n");
-    ASSERT(FALSE);
-    return 0;
+    PPNP_ENUM_DEVICE_CONTEXT EnumDevContext = lpThreadParameter;
+    SP_DRVINFO_DETAIL_DATA_W DriverInfoDetailData;
+    SP_DEVINSTALL_PARAMS_W DeviceInstallParams;
+    SP_DRVINFO_DATA_W DriverInfoData;
+    PQUEUE_CALLBACK_CONTEXT CallbackCtx;
+    PSP_DEVINFO_DATA DeviceInfoData;
+    HDEVINFO DeviceInfoSet;
+    HSPFILEQ OldFileQueue;
+    HSPFILEQ FileQueue2;
+    HSPFILEQ FileQueue;
+    HKEY phkClass;
+    PWSTR Device;
+    DWORD FileQueueFlags;
+    DWORD ConfigFlags;
+    DWORD OldFlags;
+    DWORD Result;
+    DWORD Error;
+    //ULONG pulProblemNumber;
+    //ULONG pulStatus;
+    WCHAR Buffer[262];
+    BOOL IsFqFlags4;
+    BOOL IsCommitFileQueue;
+
+    DPRINT("pInstallPnpEnumeratedDeviceThread: %X\n", EnumDevContext);
+
+    DeviceInfoSet = EnumDevContext->Info;
+    Device = EnumDevContext->Description;
+    DeviceInfoData = &EnumDevContext->InfoData;
+
+    Error = ERROR_SUCCESS;
+    IsCommitFileQueue = TRUE;
+    IsFqFlags4 = FALSE;
+
+    FileQueue = SetupOpenFileQueue();
+    if (FileQueue == INVALID_HANDLE_VALUE)
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: SetupOpenFileQueue() failed. Error = %d, Device = %ls", Error, Device);
+        DPRINT1("SETUP: SetupOpenFileQueue() failed. Error = %d, Device = %ls", Error, Device);
+        goto Exit;
+    }
+
+    DeviceInstallParams.cbSize = sizeof(DeviceInstallParams);
+    if (!SetupDiGetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: SetupDiGetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        DPRINT1("SETUP: SetupDiGetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        goto Finish;
+    }
+
+    DeviceInstallParams.Flags |= 0x00800000;
+    if (!SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: SetupDiSetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        DPRINT1("SETUP: SetupDiSetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        goto Finish;
+    }
+
+    if (!CM_Open_Class_KeyW(&DeviceInfoData->ClassGuid, NULL, KEY_READ, RegDisposition_OpenExisting, &phkClass, CM_OPEN_CLASS_KEY_INSTALLER))
+    {
+        RegCloseKey(phkClass);
+    }
+    else
+    {
+        FileQueue2 = SetupOpenFileQueue();
+        if (FileQueue2 == INVALID_HANDLE_VALUE)
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: SetupOpenFileQueue() failed. Error = %d, Device = %ls", Error, Device);
+            DPRINT1("SETUP: SetupOpenFileQueue() failed. Error = %d, Device = %ls", Error, Device);
+            goto Finish;
+        }
+
+        DriverInfoData.cbSize = sizeof(DriverInfoData);
+        if (!SetupDiGetSelectedDriverW(DeviceInfoSet, DeviceInfoData, &DriverInfoData))
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: SetupDiGetSelectedDriver() failed. Error = %d, Device = %ls", Error, Device);
+            DPRINT1("SETUP: SetupDiGetSelectedDriver() failed. Error = %d, Device = %ls", Error, Device);
+            goto Finish;
+        }
+
+        DriverInfoDetailData.cbSize = sizeof(DriverInfoDetailData);
+        if (!SetupDiGetDriverInfoDetailW(DeviceInfoSet, DeviceInfoData, &DriverInfoData, &DriverInfoDetailData, sizeof(DriverInfoDetailData), NULL))
+        {
+            if (GetLastError() != CM_OPEN_CLASS_KEY_INSTALLER)
+            {
+                Error = GetLastError();
+                LogItem(NULL, L"SETUP: SetupDiGetDriverInfoDetail() failed. Error = %d, Device = %ls", Error, Device);
+                DPRINT1("SETUP: SetupDiGetDriverInfoDetail() failed. Error = %d, Device = %ls", Error, Device);
+                goto Finish;
+            }
+        }
+
+        if (!SetupDiInstallClassW(NULL, DriverInfoDetailData.InfFileName, 0x02000008, FileQueue2))
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: SetupDiInstallClass(%s) failed. Error = %d, Device = %ls", DriverInfoDetailData.InfFileName, Error, Device);
+            DPRINT1("SETUP: SetupDiInstallClass(%s) failed. Error = %d, Device = %ls", DriverInfoDetailData.InfFileName, Error, Device);
+            goto Finish;
+        }
+
+        CallbackCtx = InitSysSetupQueueCallbackEx(NULL, INVALID_HANDLE_VALUE, 0, 0, NULL);
+        if (!CallbackCtx)
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: InitSysSetupQueueCallbackEx() failed. Error = %d", Error);
+            DPRINT1("SETUP: InitSysSetupQueueCallbackEx() failed. Error = %d", Error);
+            goto Finish;
+        }
+
+        if (!SetupCommitFileQueueW(NULL, FileQueue2, SysSetupQueueCallback, CallbackCtx))
+            Error = GetLastError();
+
+        TermSysSetupQueueCallback(CallbackCtx);
+        SetupCloseFileQueue(FileQueue2);
+
+        if (Error != ERROR_SUCCESS)
+        {
+            LogItem(NULL, L"SETUP: SetupCommitFileQueue(%s) failed while installing Class. Error = %d, Device = %ls", DriverInfoDetailData.InfFileName, Error, Device);
+            DPRINT1("SETUP: SetupCommitFileQueue(%s) failed while installing Class. Error = %d, Device = %ls", DriverInfoDetailData.InfFileName, Error, Device);
+            goto Finish;
+        }
+
+        LogItem(NULL, L"SETUP:            SetupDiInstallClass() succeeded. Device = %ls", Device);
+        DPRINT1("SETUP:            SetupDiInstallClass() succeeded. Device = %ls", Device);
+    }
+
+    if (!SetupDiCallClassInstaller(DIF_ALLOW_INSTALL, DeviceInfoSet, DeviceInfoData))
+    {
+        Error = GetLastError();
+        if (Error != ERROR_DI_DO_DEFAULT)
+        {
+            LogItem(NULL, L"SETUP: SetupDiCallClassInstaller(DIF_ALLOW_INSTALL) failed. Error = %d, Device = %ls", Error, Device);
+            DPRINT1("SETUP: SetupDiCallClassInstaller(DIF_ALLOW_INSTALL) failed. Error = %d, Device = %ls", Error, Device);
+            goto Finish;
+        }
+    }
+
+    LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_ALLOW_INSTALL) succeeded. Device = %ls", Device);
+    DPRINT1("SETUP:            SetupDiCallClassInstaller(DIF_ALLOW_INSTALL) succeeded. Device = %ls", Device);
+
+    DeviceInstallParams.cbSize = sizeof(DeviceInstallParams);
+    if (!SetupDiGetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: SetupDiGetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        DPRINT1("SETUP: SetupDiGetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        goto Finish;
+    }
+
+    DeviceInstallParams.Flags |= 0x02000000;
+
+    OldFileQueue = DeviceInstallParams.FileQueue;
+    DeviceInstallParams.FileQueue = FileQueue;
+
+    OldFlags = DeviceInstallParams.Flags;
+    DeviceInstallParams.Flags |= 8;
+
+  #ifndef __REACTOS__
+    WCHAR String[260];
+    String[0] = 0;
+    if (pDoesExistingDriverNeedBackup(DeviceInfoSet, DeviceInfoData, (LPBYTE)String, 260))
+    {
+        LogItem(NULL, L"SETUP:            Backing up 3rd party drivers for Device = %ls", Device);
+        DPRINT1("SETUP:            Backing up 3rd party drivers for Device = %ls", Device);
+        DeviceInstallParams.FlagsEx |= 0x00080000;
+    }
+  #endif
+
+    if (!SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: SetupDiSetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        DPRINT1("SETUP: SetupDiSetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        goto Finish;
+    }
+
+    if (!SetupDiCallClassInstaller(DIF_INSTALLDEVICEFILES, DeviceInfoSet, DeviceInfoData))
+    {
+        Error = GetLastError();
+        if (Error != ERROR_DI_DO_DEFAULT)
+        {
+            LogItem(NULL, L"SETUP: SetupDiCallClassInstaller(DIF_INSTALLDEVICEFILES) failed. Error = %lx, Device = %ls ", Error, Device);
+            DPRINT1("SETUP: SetupDiCallClassInstaller(DIF_INSTALLDEVICEFILES) failed. Error = %lx, Device = %ls ", Error, Device);
+            goto Finish;
+        }
+    }
+
+    LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_INSTALLDEVICEFILES) succeeded. Device = %ls", Device);
+    DPRINT1("SETUP:            SetupDiCallClassInstaller(DIF_INSTALLDEVICEFILES) succeeded. Device = %ls", Device);
+
+    CallbackCtx = InitSysSetupQueueCallbackEx(0, INVALID_HANDLE_VALUE, 0, 0, 0);
+
+  #ifndef __REACTOS__
+    if (pSetupVerifyQueuedCatalogs(FileQueue))
+    {
+        DriverInfoData.cbSize = sizeof(DriverInfoData);
+        if (!SetupDiGetSelectedDriverW(DeviceInfoSet, DeviceInfoData, &DriverInfoData))
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: SetupDiGetSelectedDriver() failed. Error = %d, Device = %ls", Error, Device);
+            DPRINT1("SETUP: SetupDiGetSelectedDriver() failed. Error = %d, Device = %ls", Error, Device);
+            goto Finish;
+        }
+
+        DriverInfoDetailData.cbSize = sizeof(DriverInfoDetailData);
+        if (!SetupDiGetDriverInfoDetailW(DeviceInfoSet, DeviceInfoData, &DriverInfoData, &DriverInfoDetailData, 0x622, 0))
+        {
+            Error = GetLastError();
+            if (Error != ERROR_INSUFFICIENT_BUFFER)
+            {
+                LogItem(NULL, L"SETUP: SetupDiGetDriverInfoDetail() failed. Error = %d, Device = %ls", Error, Device);
+                DPRINT1("SETUP: SetupDiGetDriverInfoDetail() failed. Error = %d, Device = %ls", Error, Device);
+                goto Finish;
+            }
+        }
+
+        if (Upgrade)
+        {
+            if (!pSetupInfIsFromOemLocation(DriverInfoDetailData.InfFileName, 1) &&
+                !IsInfInLayoutInf(DriverInfoDetailData.InfFileName))
+            {
+                PWCHAR FileTitle;
+
+                if (String[0])
+                    FileTitle = pSetupGetFileTitle(DriverInfoDetailData.InfFileName);
+
+                if (!String[0] || !lstrcmpiW(String, FileTitle)))
+                {
+                    if (SetupScanFileQueueW(FileQueue, 0x81, hwndParent, 0, 0, &Result) && Result == 1)
+                        IsCommitFileQueue = FALSE;
+                }
+            }
+        }
+    }
+    else
+  #endif
+    {
+        SetupScanFileQueueW(FileQueue, 0xA2, 0, 0, 0, &Result);
+    }
+
+    if (IsEqualGUID(&DeviceInfoData->ClassGuid, &GUID_DEVCLASS_COMPUTER))
+        IsCommitFileQueue = FALSE;
+
+    Error = ERROR_SUCCESS;
+
+    if (IsCommitFileQueue)
+    {
+        if (!SetupCommitFileQueueW(0, FileQueue, (PSP_FILE_CALLBACK_W)SysSetupQueueCallback, CallbackCtx))
+            Error = GetLastError();
+    }
+
+    if (SetupGetFileQueueFlags(FileQueue, &FileQueueFlags))
+    {
+        if (FileQueueFlags & 0x004) // ?
+            IsFqFlags4 = 1;
+    }
+
+    TermSysSetupQueueCallback(CallbackCtx);
+
+    if (Error != ERROR_SUCCESS)
+    {
+        LogItem(NULL, L"SETUP: SetupCommitFileQueue() failed. Error = %d, Device = %ls", Error, Device);
+        DPRINT1("SETUP: SetupCommitFileQueue() failed. Error = %d, Device = %ls", Error, Device);
+        goto Finish;
+    }
+
+    if (!IsFqFlags4)
+        DeviceInstallParams.FlagsEx |= 0x20000000;
+
+    DeviceInstallParams.FileQueue = OldFileQueue;
+    DeviceInstallParams.Flags = OldFlags | 0x1000000;
+
+    if (!SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: SetupDiSetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        DPRINT1("SETUP: SetupDiSetDeviceInstallParams() failed. Error = %d, Device = %ls", Error, Device);
+        goto Finish;
+    }
+
+    GetWindowsDirectoryW(Buffer, 261);
+    Buffer[3] = 0;
+
+    FlushFilesToDisk(Buffer);
+
+    if (!SetupDiCallClassInstaller(DIF_REGISTER_COINSTALLERS, DeviceInfoSet, DeviceInfoData))
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: SetupDiCallClassInstaller(DIF_REGISTER_COINSTALLERS) failed. Error = %d, Device = %ls", Error, Device);
+        DPRINT1("SETUP: SetupDiCallClassInstaller(DIF_REGISTER_COINSTALLERS) failed. Error = %d, Device = %ls", Error, Device);
+        goto Finish;
+    }
+
+    LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_REGISTER_COINSTALLERS) succeeded. Device = %ls", Device);
+    DPRINT1("SETUP:            SetupDiCallClassInstaller(DIF_REGISTER_COINSTALLERS) succeeded. Device = %ls", Device);
+    if (!SetupDiCallClassInstaller(DIF_INSTALLINTERFACES, DeviceInfoSet, DeviceInfoData))
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: SetupDiCallClassInstaller(DIF_REGISTER_INSTALLINTERFACES) failed. Error = %d, Device = %ls", Error, Device);
+        DPRINT1("SETUP: SetupDiCallClassInstaller(DIF_REGISTER_INSTALLINTERFACES) failed. Error = %d, Device = %ls", Error, Device);
+        goto Finish;
+    }
+
+    LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_INSTALLINTERFACES) succeeded. Device = %ls", Device);
+    DPRINT1("SETUP:            SetupDiCallClassInstaller(DIF_INSTALLINTERFACES) succeeded. Device = %ls", Device);
+
+    // ?? CM_Get_DevNode_Status(&pulStatus, &pulProblemNumber, DeviceInfoData->DevInst, 0);
+
+    Error = ERROR_SUCCESS;
+    if (!SetupDiCallClassInstaller(DIF_INSTALLDEVICE, DeviceInfoSet, DeviceInfoData))
+    {
+        Error = GetLastError();
+        if (Error != ERROR_DI_DO_DEFAULT)
+        {
+            LogItem(NULL, L"SETUP: SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed. Error = %lx, Device = %ls ", Error, Device);
+            DPRINT1("SETUP: SetupDiCallClassInstaller(DIF_INSTALLDEVICE) failed. Error = %lx, Device = %ls ", Error, Device);
+            goto Finish;
+        }
+    }
+
+    LogItem(NULL, L"SETUP:            SetupDiCallClassInstaller(DIF_INSTALLDEVICE) suceeded. Device = %ls ", Device);
+    DPRINT1("SETUP:            SetupDiCallClassInstaller(DIF_INSTALLDEVICE) suceeded. Device = %ls ", Device);
+
+    if (!MarkDeviceAsNeedsReinstallIfNeeded(DeviceInfoSet, DeviceInfoData))
+        Error = GetLastError();
+
+Finish:
+
+    if (SetupDiGetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams))
+    {
+        DeviceInstallParams.FileQueue = INVALID_HANDLE_VALUE;
+        DeviceInstallParams.Flags &= ~8;
+        SetupDiSetDeviceInstallParamsW(DeviceInfoSet, DeviceInfoData, &DeviceInstallParams);
+    }
+
+    SetupCloseFileQueue(FileQueue);
+
+Exit:
+
+    if (Error == ERROR_SUCCESS)
+        return Error;
+
+    if (IsEqualGUID(&DeviceInfoData->ClassGuid, &GUID_DEVCLASS_SCSIADAPTER))
+    {
+        LogItem(NULL, L"SETUP:            Not installing the null driver on this SCSI Adapter device");
+        DPRINT1("SETUP:            Not installing the null driver on this SCSI Adapter device");
+
+        ConfigFlags = 0;
+        GetDeviceConfigFlags(DeviceInfoSet, DeviceInfoData, &ConfigFlags);
+
+        ConfigFlags &= (ConfigFlags & ~0x420);
+        SetDeviceConfigFlags(DeviceInfoSet, DeviceInfoData, &ConfigFlags);
+
+        return Error;
+    }
+
+    LogItem(NULL, L"SETUP:            Installing the null driver for this device");
+    DPRINT1("SETUP:            Installing the null driver for this device");
+
+    if (!SyssetupInstallNullDriver(DeviceInfoSet, DeviceInfoData))
+    {
+        LogItem(NULL, L"SETUP:            Unable to install null driver");
+        DPRINT1("SETUP:            Unable to install null driver");
+    }
+
+    return Error;
 }
 
 BOOL
