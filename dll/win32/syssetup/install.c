@@ -2513,9 +2513,23 @@ MarkDeviceAsNeedsReinstallIfNeeded(
     HDEVINFO DeviceInfoSet,
     PSP_DEVINFO_DATA DeviceInfoData)
 {
-    DPRINT("FlushFilesToDisk()\n");
-    ASSERT(FALSE);
-    return FALSE;
+    BOOL Result = TRUE;
+
+    DPRINT("MarkDeviceAsNeedsReinstallIfNeeded: DeviceInfoSet %X\n", DeviceInfoSet);
+    DPRINT1("MarkDeviceAsNeedsReinstallIfNeeded: FIXME CheckIfDeviceHasWizardPages()\n");
+
+    if (1)//!CheckIfDeviceHasWizardPages(DeviceInfoSet, DeviceInfoData))
+    {
+        return Result;
+    }
+
+    DPRINT1("MarkDeviceAsNeedsReinstallIfNeeded: FIXME\n");
+    AssertFail_s(__FILE__, __LINE__, "FALSE");
+
+    //GetDeviceConfigFlags(..);
+    //SetDeviceConfigFlags(..);
+
+    return Result;
 }
 
 DWORD
