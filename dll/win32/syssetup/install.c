@@ -36,6 +36,7 @@ ADMIN_INFO AdminInfo;
 BOOL MiniSetup = FALSE;
 BOOL Upgrade = FALSE;
 BOOL SkipMissingFiles = FALSE;
+BOOL PrivilegeAlreadySet = FALSE;
 HWND MainWindowHandle = NULL; // HACK
 PWCHAR szPnpLogFile = L"pnplog.txt";
 PWCHAR szEnumDevSection = L"EnumeratedDevices";
@@ -2453,10 +2454,57 @@ SkipDeviceInstallation(
 VOID
 WINAPI
 FlushFilesToDisk(
-    LPCWSTR lpFileName)
+    LPWSTR lpFileName)
 {
-    DPRINT("FlushFilesToDisk()\n");
-    ASSERT(FALSE);
+    HANDLE hFile;
+    DWORD Error;
+
+    DPRINT("FlushFilesToDisk: '%S'\n", lpFileName);
+
+    if (!PrivilegeAlreadySet)
+    {
+        if (!pSetupEnablePrivilege(L"SeBackupPrivilege", TRUE))
+        {
+            PrivilegeAlreadySet = FALSE;
+        }
+        else if (!pSetupEnablePrivilege(L"SeRestorePrivilege", TRUE))
+        {
+            PrivilegeAlreadySet = FALSE;
+        }
+        else
+        {
+            PrivilegeAlreadySet = TRUE;
+        }
+    }
+
+    hFile = CreateFileW(lpFileName,
+                        (GENERIC_READ | GENERIC_WRITE),
+                        (FILE_SHARE_DELETE | FILE_SHARE_WRITE | FILE_SHARE_DELETE),
+                        NULL,
+                        OPEN_EXISTING,
+                        FILE_FLAG_BACKUP_SEMANTICS,
+                        0);
+
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: Failed to open %ls. Error = %d", lpFileName, Error);
+        DPRINT1("FlushFilesToDisk: Failed to open %ls. Error = %d\n", lpFileName, Error);
+        return;
+    }
+
+    if (FlushFileBuffers(hFile))
+        Error = ERROR_SUCCESS;
+    else
+        Error = GetLastError();
+
+    CloseHandle(hFile);
+
+    if (Error != ERROR_SUCCESS)
+    {
+        LogItem(NULL, L"SETUP: FlushFileBuffers() failed. Root = %ls, Error = %d", lpFileName, Error);
+        DPRINT1("FlushFilesToDisk: FlushFileBuffers() failed. Root = %ls, Error = %d\n", lpFileName, Error);
+    }
 }
 
 BOOL
