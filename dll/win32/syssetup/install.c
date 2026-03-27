@@ -3450,9 +3450,99 @@ BOOL
 WINAPI
 CallRunOnceAndWait(VOID)
 {
+    PROCESS_INFORMATION ProcessInfo;
+    STARTUPINFOW StartupInfo;
+    HKEY phkResult = NULL;
+    WCHAR pszDest[260];
+    DWORD NumberOfEntries = 0;
+    DWORD dwMilliseconds;
+    DWORD WaitResult;
+    DWORD Error;
+    LSTATUS lError;
+    BOOL Result = FALSE;
+
     DPRINT("CallRunOnceAndWait()\n");
-    ASSERT(FALSE);
-    return FALSE;
+    LogItem(NULL, L"SETUP: Entering CallRunOnceAndWait. ");
+
+    //_SEH2_TRY
+
+    lError = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", 0, KEY_QUERY_VALUE, &phkResult);
+    if (lError)
+    {
+        LogItem(NULL, L"SETUP: CallRunOnceAndWait: could not open RunOnce registry, assuming no entries. ");
+        Result = TRUE;
+        goto Exit;
+    }
+
+    lError = RegQueryInfoKeyW(phkResult, NULL, NULL, NULL, NULL, NULL, NULL, &NumberOfEntries, NULL, NULL, NULL, NULL);
+    if (lError)
+    {
+        LogItem(NULL, L"SETUP: CallRunOnceAndWait: could not get number of entries, assuming no entries. ");
+        NumberOfEntries = 0;
+    }
+
+    RegCloseKey(phkResult);
+
+    if (NumberOfEntries)
+    {
+        LogItem(NULL, L"SETUP: CallRunOnceAndWait: calling RunOnce (%u known entries). ", NumberOfEntries);
+        NumberOfEntries += 5;
+    }
+    else
+    {
+        LogItem(NULL, L"SETUP: CallRunOnceAndWait: calling RunOnce (no detected entries). ");
+        NumberOfEntries = 5;
+    }
+
+    if (NumberOfEntries >= 20)
+        dwMilliseconds = 2400000;
+    else
+        dwMilliseconds = (NumberOfEntries * 120000);
+
+    ZeroMemory(&StartupInfo, sizeof(StartupInfo));
+    ZeroMemory(&ProcessInfo, sizeof(ProcessInfo));
+
+    StartupInfo.cb = sizeof(StartupInfo);
+
+    lstrcpyW(pszDest, L"runonce -r");
+
+    if (!CreateProcessW(NULL, pszDest, NULL, NULL, FALSE, 0, NULL, NULL, &StartupInfo, &ProcessInfo))
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: CallRunOnceAndWait: start RunOnce failed. Error = %lx ", Error);
+        goto Exit;
+    }
+
+    do
+    {
+        WaitResult = WaitForSingleObjectEx(ProcessInfo.hProcess, dwMilliseconds, 1);
+    }
+    while (WaitResult == WAIT_IO_COMPLETION);
+
+    if (WaitResult == WAIT_TIMEOUT)
+    {
+        LogItem(NULL, L"SETUP: CallRunOnceAndWait: RunOnce may have hung and has been abandoned. ");
+    }
+    else if (WaitResult == WAIT_FAILED)
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP: CallRunOnceAndWait: WaitForSingleObjectEx failed. Error = %lx ", Error);
+    }
+    else
+    {
+        Result = TRUE;
+    }
+
+    CloseHandle(ProcessInfo.hThread);
+    CloseHandle(ProcessInfo.hProcess);
+
+    //_SEH2_END
+
+Exit:
+
+    LogItem(NULL, L"SETUP: Leaving CallRunOnceAndWait. ");
+
+    return Result;
 }
 
 BOOL
