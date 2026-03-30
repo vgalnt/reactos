@@ -57,6 +57,14 @@ typedef struct _PNP_ENUM_DEVICE_CONTEXT
     //PVOID StringTable;
 } PNP_ENUM_DEVICE_CONTEXT, *PPNP_ENUM_DEVICE_CONTEXT;
 
+typedef struct _PNP_ENUM_LEGACY_DEVICE_CONTEXT1
+{
+    HDEVINFO Info;
+    GUID Guid;
+    PWSTR Description;
+    HWND hWndParent;
+} PNP_ENUM_LEGACY_DEVICE_CONTEXT1, *PPNP_ENUM_LEGACY_DEVICE_CONTEXT1;
+
 extern HINSTANCE hDllInstance;
 extern HINF hSysSetupInf;
 extern ADMIN_INFO AdminInfo;

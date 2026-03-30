@@ -3545,6 +3545,48 @@ Exit:
     return Result;
 }
 
+VOID
+WINAPI
+SortClassGuidListForDetection(
+    LPGUID ClassGuidList,
+    LONG GuidCount,
+    ULONG* OutCount)
+{
+    DPRINT("SortClassGuidListForDetection()\n");
+    ASSERT(FALSE);
+}
+
+DWORD
+WINAPI
+pPhase1InstallPnpLegacyDevicesThread(
+    LPVOID lpThreadParameter)
+{
+    DPRINT("pPhase1InstallPnpLegacyDevicesThread()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+
+DWORD
+WINAPI
+pPhase2InstallPnpLegacyDevicesThread(
+    LPVOID lpThreadParameter)
+{
+    DPRINT("pPhase2InstallPnpLegacyDevicesThread()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+DWORD
+WINAPI
+pPhase3InstallPnpLegacyDevicesThread(
+    LPVOID lpThreadParameter)
+{
+    DPRINT("pPhase3InstallPnpLegacyDevicesThread()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
 BOOL
 WINAPI
 InstallLegacyDevices(
@@ -3553,9 +3595,343 @@ InstallLegacyDevices(
     ULONG StartProgress,
     ULONG EndProgress)
 {
-    DPRINT("InstallLegacyDevices()\n");
-    ASSERT(FALSE);
-    return FALSE;
+    PPNP_ENUM_LEGACY_DEVICE_CONTEXT1 EnumLegacyDev1;
+    //PPNP_ENUM_LEGACY_DEVICE_CONTEXT2 EnumLegacyDev2;
+    //PPNP_ENUM_LEGACY_DEVICE_CONTEXT3 EnumLegacyDev3;
+    PQUEUE_CALLBACK_CONTEXT CallbackCtx;
+    SP_DEVINFO_DATA DeviceInfoData;
+    HDEVINFO* DevInfoList;
+    HSPFILEQ FileQueue;
+    HANDLE hHandle;
+    HANDLE hEvent;
+    LPGUID ClassGuidList;
+    WCHAR ClassDescription[256 + 1];
+    WCHAR DeviceId[200];
+    WCHAR PathBuffer[MAX_PATH + 1];
+    WCHAR PnpLogFileName[MAX_PATH + 1];
+    WCHAR Guid[64];
+    DWORD ClassGuidListSize = 32;
+  #ifndef __REACTOS__
+    DWORD ProgressPerPercent;
+  #endif
+    DWORD Milliseconds;
+    DWORD ScanResult;
+    DWORD WaitResult;
+    DWORD GuidIndex;
+    DWORD ExitCode;
+    DWORD ThreadId;
+    ULONG Count;
+    DWORD Error;
+    DWORD Index;
+    DWORD ix;
+    BOOL Ret = TRUE;
+
+    DPRINT("InstallLegacyDevices: %IX\n", hWndParent);
+    LogItem(NULL, L"SETUP: Entering InstallLegacyDevices()");
+
+    if (!GetWindowsDirectoryW(PnpLogFileName, (MAX_PATH + 1)))
+    {
+        AssertFail_s(__FILE__, __LINE__, "FALSE");
+        return FALSE;
+    }
+
+    if (!pSetupConcatenatePaths(PnpLogFileName, szPnpLogFile, (MAX_PATH + 1), NULL))
+    {
+        AssertFail_s(__FILE__, __LINE__, "FALSE");
+        return FALSE;
+    }
+
+    ClassGuidList = pSetupMalloc(ClassGuidListSize * sizeof(GUID));
+    if (!ClassGuidList)
+    {
+        return FALSE;
+    }
+
+    if (!SetupDiBuildClassInfoList(0, ClassGuidList, ClassGuidListSize, &ClassGuidListSize))
+    {
+        Error = GetLastError();
+        if (Error != ERROR_INSUFFICIENT_BUFFER)
+        {
+            LogItem(NULL, L"SETUP: SetupDiBuildClassInfoList() failed. Error = %d", Error);
+            pSetupFree(ClassGuidList);
+          #ifndef __REACTOS__
+            SendMessageW(hWndProgress, 0x401, 0, 6553600);//0x640000
+            SendMessageW(hWndProgress, 0x402, 100 * EndProgress / 100, 0);
+          #endif
+            LogItem(NULL, L"SETUP: Leaving InstallLegacyDevices()");
+            return FALSE;
+        }
+
+        ClassGuidList = pSetupRealloc(ClassGuidList, (ClassGuidListSize * sizeof(GUID)));
+
+        if (!SetupDiBuildClassInfoList(0, ClassGuidList, ClassGuidListSize, &ClassGuidListSize))
+        {
+            pSetupFree(ClassGuidList);
+            LogItem(NULL, L"SETUP: SetupDiBuildClassInfoList() failed. ERROR_INSUFFICIENT_BUFFER");
+          #ifndef __REACTOS__
+            SendMessageW(hWndProgress, 0x401, 0, 0x640000);
+            SendMessageW(hWndProgress, 0x402, 100 * EndProgress / 100, 0);
+          #endif
+            LogItem(NULL, L"SETUP: Leaving InstallLegacyDevices()");
+            return FALSE;
+        }
+    }
+
+    SortClassGuidListForDetection(ClassGuidList, ClassGuidListSize, &Count);
+
+    DevInfoList = pSetupMalloc(ClassGuidListSize * sizeof(HDEVINFO));
+
+  #ifndef __REACTOS__
+    ProgressPerPercent = 200 * ClassGuidListSize / (EndProgress - StartProgress);
+
+    SendMessageW(hWndProgress, 0x800C, (ClassGuidListSize * 2), 0);
+    SendMessageW(hWndProgress, 0x401, 0, ((WORD)ProgressPerPercent << 16));
+    SendMessageW(hWndProgress, 0x402, (StartProgress * ProgressPerPercent / 100), 0);
+    SendMessageW(hWndProgress, 0x404, 1, 0);
+  #endif
+
+    for (ix = 0; ix < ClassGuidListSize; ix = Count)
+    {
+        FileQueue = SetupOpenFileQueue();
+        if (FileQueue == INVALID_HANDLE_VALUE)
+        {
+            Error = GetLastError();
+            LogItem(NULL, L"SETUP: Failed to create file queue. Error = %d", Error);
+        }
+
+        for (GuidIndex = ix; ;GuidIndex++)
+        {
+          #ifndef __REACTOS__
+            if (GuidIndex != ix)
+                SendMessageW(hWndProgress, 0x405, 0, 0);
+          #endif
+
+            if (GuidIndex > Count)
+                break;
+
+            DevInfoList[GuidIndex] = INVALID_HANDLE_VALUE;
+
+            ClassDescription[0] = 0;
+            if (!SetupDiGetClassDescriptionW(&ClassGuidList[GuidIndex], ClassDescription, (sizeof(ClassDescription) / sizeof(WCHAR)), NULL))
+            {
+                Error = GetLastError();
+                LogItem(NULL, L"SETUP: SetupDiGetClassDescription() failed. Error = %lx", Error);
+                ClassDescription[0] = 0;
+            }
+
+            pSetupStringFromGuid(&ClassGuidList[GuidIndex], Guid, (sizeof(Guid) / sizeof(WCHAR)));
+
+            LogItem(NULL, L"SETUP: Installing legacy devices of class: %ls ", ClassDescription);
+            LogItem(NULL, L"SETUP:     GuidIndex = %d, Guid = %ls", GuidIndex, Guid);
+
+            EnumLegacyDev1 = pSetupMalloc(sizeof(*EnumLegacyDev1));
+
+            EnumLegacyDev1->Info = INVALID_HANDLE_VALUE;
+            EnumLegacyDev1->Guid = ClassGuidList[GuidIndex];
+            EnumLegacyDev1->Description = pSetupDuplicateString(ClassDescription);
+            EnumLegacyDev1->hWndParent = hWndParent;
+
+            hHandle = CreateThread(NULL, 0, pPhase1InstallPnpLegacyDevicesThread, EnumLegacyDev1, 0, &ThreadId);
+
+            if (!hHandle)
+            {
+                Error = GetLastError();
+                LogItem(NULL, L"SETUP:    CreateThread() failed (phase1). Error = %d", Error);
+
+                if (pPhase1InstallPnpLegacyDevicesThread(EnumLegacyDev1))
+                    Ret = FALSE;
+                else
+                    DevInfoList[GuidIndex] = EnumLegacyDev1->Info;
+
+                pSetupFree(EnumLegacyDev1->Description);
+                pSetupFree(EnumLegacyDev1);
+            }
+            else
+            {
+                while (TRUE)
+                {
+                    if (_wcsicmp(Guid, L"{4D36E972-E325-11CE-BFC1-08002BE10318}"))
+                        Milliseconds = 240000;
+                    else
+                        Milliseconds = 600000;
+
+                    WaitResult = WaitForSingleObject(hHandle, Milliseconds);
+                    if (WaitResult != WAIT_TIMEOUT)
+                    {
+                        if (WaitResult != WAIT_OBJECT_0)
+                        {
+                            LogItem(NULL, L"SETUP:     WaitForSingleObject() returned %d", WaitResult);
+                            Ret = FALSE;
+                            break;
+                        }
+
+                        if (GetExitCodeThread(hHandle, &ExitCode))
+                        {
+                            if (ExitCode != ERROR_SUCCESS)
+                                Ret = FALSE;
+                            else
+                                DevInfoList[GuidIndex] = EnumLegacyDev1->Info;
+                        }
+                        else
+                        {
+                            DevInfoList[GuidIndex] = EnumLegacyDev1->Info;
+                            Error = GetLastError();
+
+                            LogItem(NULL, L"SETUP:     GetExitCode() failed. Error = %d", Error);
+                            LogItem(NULL, L"SETUP:     Unable to retrieve thread exit code. Assuming devices successfully installed (phase1).");
+                        }
+
+                        pSetupFree(EnumLegacyDev1->Description);
+                        pSetupFree(EnumLegacyDev1);
+
+                        break;
+                    }
+
+                    // WaitResult == WAIT_TIMEOUT
+
+                    hEvent = OpenEventW(EVENT_MODIFY_STATE, FALSE, L"MS_SETUPAPI_DIALOG");
+                    if (hEvent)
+                    {
+                        CloseHandle(hEvent);
+                        continue;
+                    }
+
+                    LogItem(NULL, L"SETUP:    Class Installer appears to be hung (phase1). ClassDescription = %ls", ClassDescription);
+
+                    if (WaitForSingleObject(hHandle, 0) != WAIT_OBJECT_0)
+                    {
+                        LogItem(NULL, L"SETUP:    Skipping installation of legacy devices of class: %ls", ClassDescription);
+                        WritePrivateProfileStringW(L"LegacyClasses", Guid, ClassDescription, PnpLogFileName);
+
+                        Ret = FALSE;
+                        break;
+                    }
+                }
+
+                CloseHandle(hHandle);
+            }
+
+            if (DevInfoList[GuidIndex] == INVALID_HANDLE_VALUE)
+                continue;
+
+            DeviceInfoData.cbSize = sizeof(DeviceInfoData);
+
+            for (Index = 0; ; Index++)
+            {
+                if (!SetupDiEnumDeviceInfo(DevInfoList[GuidIndex], Index, &DeviceInfoData))
+                    break;
+
+                DPRINT1("InstallLegacyDevices: [%d] FIXME\n", Index);
+                ASSERT(0);
+            }
+
+            Error = GetLastError();
+            if (Error == ERROR_NO_MORE_ITEMS)
+            {
+                if (!Index)
+                    LogItem(NULL, L"SETUP:     DeviceInfoSet is empty. ClassDescription = %ls", ClassDescription);
+            }
+            else
+            {
+                LogItem(NULL, L"SETUP:     Device = %d, SetupDiEnumDeviceInfo() failed. Error = %d", Index, Error);
+                Ret = FALSE;
+            }
+        }
+
+        if (FileQueue != INVALID_HANDLE_VALUE)
+        {
+            CallbackCtx = InitSysSetupQueueCallbackEx(hWndParent, INVALID_HANDLE_VALUE, 0, 0, NULL);
+            if (CallbackCtx)
+            {
+                if (!SetupScanFileQueueW(FileQueue, 0xA2, hWndParent, NULL, NULL, &ScanResult)) // ? SPQ_SCAN_
+                    ScanResult = 0;
+
+                if (ScanResult != 1)
+                {
+                    if (!SetupCommitFileQueueW(hWndParent, FileQueue, SysSetupQueueCallback, CallbackCtx))
+                         Ret = FALSE;
+                }
+
+                TermSysSetupQueueCallback(CallbackCtx);
+
+                GetWindowsDirectoryW(PathBuffer, (MAX_PATH + 1));
+                DPRINT("pInstallPnpEnumeratedDeviceThread: PathBuffer '%ws'\n", PathBuffer);
+
+                PathBuffer[3] = 0;
+                FlushFilesToDisk(PathBuffer);
+            }
+        }
+
+        for (GuidIndex = ix; ; GuidIndex++)
+        {
+          #ifndef __REACTOS__
+            if (GuidIndex != ix)
+                SendMessageW(hWndProgress, 0x405, 0, 0);
+          #endif
+
+            if (GuidIndex > Count)
+                break;
+
+            if (DevInfoList[GuidIndex] == INVALID_HANDLE_VALUE)
+                continue;
+
+            pSetupStringFromGuid(&ClassGuidList[GuidIndex], Guid, (sizeof(Guid) / sizeof(WCHAR)));
+
+            DeviceInfoData.cbSize = sizeof(DeviceInfoData);
+
+            for (Index = 0; ; Index++)
+            {
+                if (!SetupDiEnumDeviceInfo(DevInfoList[GuidIndex], Index, &DeviceInfoData))
+                    break;
+
+                DeviceId[0] = 0;
+                if (!SetupDiGetDeviceInstanceIdW(DevInfoList[GuidIndex], &DeviceInfoData, DeviceId, (sizeof(DeviceId) / sizeof(WCHAR)), 0))
+                {
+                    Error = GetLastError();
+                    LogItem(NULL, L"SETUP: SetupDiGetDeviceInstanceId() failed. Error = ", Error);
+                }
+
+                //InfoContex = NULL;
+
+                DPRINT1("InstallLegacyDevices: [%d] FIXME\n", Index);
+                ASSERT(0);
+            }
+
+            Error = GetLastError();
+            if (Error != ERROR_NO_MORE_ITEMS)
+            {
+                LogItem(NULL, L"SETUP: Device = %d, SetupDiEnumDeviceInfo() failed. Error = %d", Index, Error);
+                Ret = FALSE;
+            }
+        }
+
+        if (FileQueue != INVALID_HANDLE_VALUE)
+            SetupCloseFileQueue(FileQueue);
+
+        Count++;
+    }
+
+  #ifndef __REACTOS__
+    SendMessageW(hWndProgress, 0x402, (EndProgress * ProgressPerPercent / 100), 0);
+  #endif
+
+    if (ClassGuidList)
+        pSetupFree(ClassGuidList);
+
+    if (DevInfoList)
+    {
+        for (ix = 0; ix < ClassGuidListSize; ix++)
+        {
+            if (DevInfoList[ix] != INVALID_HANDLE_VALUE)
+                SetupDiDestroyDeviceInfoList(DevInfoList[ix]);
+        }
+
+        pSetupFree(DevInfoList);
+    }
+
+    LogItem(NULL, L"SETUP: Leaving InstallLegacyDevices()");
+
+    return Ret;
 }
 
 DWORD
