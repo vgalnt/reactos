@@ -3552,8 +3552,92 @@ SortClassGuidListForDetection(
     LONG GuidCount,
     ULONG* OutCount)
 {
-    DPRINT("SortClassGuidListForDetection()\n");
-    ASSERT(FALSE);
+    INFCONTEXT Context;
+    PCWSTR GuidString;
+    GUID Guid;
+    LONG NextTopmost;
+    LONG LineCount;
+    LONG ix;
+    LONG jx;
+
+    DPRINT("SortClassGuidListForDetection: %X\n", GuidCount);
+
+    if (!GuidCount)
+    {
+        DPRINT1("SortClassGuidListForDetection: GuidCount is 0\n");
+        AssertFail_s(__FILE__, __LINE__, "GuidCount > 0");
+    }
+
+    *OutCount = (GuidCount - 1);
+
+    LineCount = SetupGetLineCount(hSysSetupInf, L"DetectionOrder");
+
+    NextTopmost = 0;
+
+    for (ix = 0; ix < LineCount; ix++)
+    {
+        if (!SetupGetLineByIndex(hSysSetupInf, L"DetectionOrder", ix, &Context))
+            continue;
+
+        GuidString = pSetupGetField(&Context, 1);
+        if (!GuidString)
+            continue;
+
+        if (pSetupGuidFromString(GuidString, &Guid))
+            continue;
+
+        for (jx = 0; jx < GuidCount; jx++)
+        {
+            if (IsEqualGUID(&Guid, &ClassGuidList[jx]))
+            {
+                if (NextTopmost != jx)
+                {
+                    if (NextTopmost >= jx)
+                    {
+                        DPRINT1("SortClassGuidListForDetection: jx %d, NextTopmost %d\n", jx, NextTopmost);
+                        AssertFail_s(__FILE__, __LINE__, "NextTopmost < jx");
+                    }
+
+                    MoveMemory(&ClassGuidList[NextTopmost + 1], &ClassGuidList[NextTopmost], ((jx - NextTopmost) * sizeof(GUID)));
+                    CopyMemory(&ClassGuidList[NextTopmost], &Guid, sizeof(GUID));
+                }
+
+                NextTopmost++;
+                break;
+            }
+        }
+    }
+
+    LineCount = SetupGetLineCount(hSysSetupInf, L"NonBatchedDetection");
+
+    for (ix = 0; ix < LineCount; ix++)
+    {
+        if (!SetupGetLineByIndex(hSysSetupInf, L"NonBatchedDetection", ix, &Context))
+            continue;
+
+        GuidString = pSetupGetField(&Context, 1);
+        if (!GuidString)
+            continue;
+
+        if (pSetupGuidFromString(GuidString, &Guid))
+            continue;
+
+        for (jx = 0; jx < GuidCount; jx++)
+        {
+            if (IsEqualGUID(&Guid, &ClassGuidList[jx]))
+            {
+                --*OutCount;
+
+                if (jx < (GuidCount - 1))
+                {
+                    MoveMemory(&ClassGuidList[jx], &ClassGuidList[jx + 1], ((GuidCount - jx - 1) * sizeof(GUID)));
+                    CopyMemory(&ClassGuidList[GuidCount - 1], &Guid, sizeof(GUID));
+                }
+
+                break;
+            }
+        }
+    }
 }
 
 DWORD
