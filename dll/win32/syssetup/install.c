@@ -3645,11 +3645,47 @@ WINAPI
 pPhase1InstallPnpLegacyDevicesThread(
     LPVOID lpThreadParameter)
 {
-    DPRINT("pPhase1InstallPnpLegacyDevicesThread()\n");
-    ASSERT(FALSE);
-    return 0;
-}
+    PPNP_ENUM_LEGACY_DEVICE_CONTEXT1 EnumLegacyDev1 = lpThreadParameter;
+    PWSTR ClassDescription;
+    HDEVINFO DeviceInfoSet;
+    DWORD Error = ERROR_SUCCESS;
 
+    DPRINT("pPhase1InstallPnpLegacyDevicesThread: %IX\n", lpThreadParameter);
+
+    ClassDescription = EnumLegacyDev1->Description;
+    EnumLegacyDev1->Info = INVALID_HANDLE_VALUE;
+
+    DeviceInfoSet = SetupDiCreateDeviceInfoList(&EnumLegacyDev1->Guid, EnumLegacyDev1->hWndParent);
+
+    if (DeviceInfoSet == INVALID_HANDLE_VALUE)
+    {
+        Error = GetLastError();
+        LogItem(NULL, L"SETUP:     SetupDiCreateDeviceInfoList() failed (phase1). Error = %d, ClassDescription = %ls", Error, ClassDescription);
+        return Error;
+    }
+
+    if (SetupDiCallClassInstaller(DIF_FIRSTTIMESETUP, DeviceInfoSet, 0))
+    {
+        EnumLegacyDev1->Info = DeviceInfoSet;
+        LogItem(NULL, L"SETUP:     SetupDiCallClassInstaller(DIF_FIRSTTIMESETUP) succeeded (phase1). ClassDescription = %ls", ClassDescription);
+        return Error;
+    }
+
+    Error = GetLastError();
+
+    if (Error == ERROR_DI_DO_DEFAULT)
+    {
+        LogItem(NULL, L"SETUP:     SetupDiCallClassInstaller(DIF_FIRSTTIMESETUP) failed (phase1). Error = %lx, ClassDescription = %ls", Error, ClassDescription);
+    }
+    else
+    {
+        LogItem(NULL, L"SETUP:     SetupDiCallClassInstaller(DIF_FIRSTTIMESETUP) failed (phase1). Error = %lx, ClassDescription = %ls", Error, ClassDescription);
+    }
+
+    SetupDiDestroyDeviceInfoList(DeviceInfoSet);
+
+    return Error;
+}
 
 DWORD
 WINAPI
