@@ -568,11 +568,35 @@ StorageCoInstaller(
     IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL,
     IN OUT PCOINSTALLER_CONTEXT_DATA Context)
 {
+    DPRINT1("StorageCoInstaller: InstallFunction %u\n", InstallFunction);
+
     switch (InstallFunction)
     {
-        default:
-            DPRINT1("Install function %u ignored\n", InstallFunction);
+        case DIF_INSTALLDEVICE:
+        {
+            if (Context->PostProcessing)
+            {
+                DPRINT1("StorageCoInstaller: PostProcessing %X\n", Context->PostProcessing);
+                UNIMPLEMENTED;
+                return Context->InstallResult;
+            }
+
+            if (!DeviceInfoData)
+            {
+                DPRINT1("StorageCoInstaller: DeviceInfoData is NULL\n", InstallFunction);
+                return ERROR_SUCCESS;
+            }
+
+            UNIMPLEMENTED;
+            //return ERROR_DI_POSTPROCESSING_REQUIRED;
             return ERROR_SUCCESS;
+        }
+        default:
+        {
+            DPRINT1("StorageCoInstaller: Install function %u ignored\n", InstallFunction);
+            ASSERT(!Context->PostProcessing);
+            return ERROR_SUCCESS;
+        }
     }
 }
 
