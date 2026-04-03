@@ -51,9 +51,67 @@ OpenCDDRegistryKey(
     PWCHAR DeviceId,
     BOOL IsCreate)
 {
-    DPRINT1("OpenCDDRegistryKey()\n");
-    ASSERT(FALSE);
-    return 0;
+    WCHAR DeviceIdBuffer[200];
+    HKEY hDatabaseKey;
+    HKEY hDeviceKey;
+    DWORD dwError;
+
+    DPRINT("OpenCDDRegistryKey: IsCreate %X ('%ls')\n", IsCreate, DeviceId);
+
+    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+                        L"System\\CurrentControlSet\\Control\\CriticalDeviceDatabase",
+                        0,
+                        NULL,
+                        REG_OPTION_NON_VOLATILE,
+                        (KEY_READ | KEY_WRITE),
+                        NULL,
+                        &hDatabaseKey,
+                        NULL))
+    {
+        DPRINT1("OpenCDDRegistryKey: INVALID_HANDLE_VALUE\n");
+        return INVALID_HANDLE_VALUE;
+    }
+
+    lstrcpyW(DeviceIdBuffer, DeviceId);
+    ReplaceSlashWithHash(DeviceIdBuffer);
+
+    if (IsCreate)
+    {
+        dwError = RegCreateKeyExW(hDatabaseKey,
+                                  DeviceIdBuffer,
+                                  0,
+                                  NULL,
+                                  REG_OPTION_NON_VOLATILE,
+                                  (KEY_READ | KEY_WRITE),
+                                  NULL,
+                                  &hDeviceKey,
+                                  NULL);
+
+        if (dwError != ERROR_SUCCESS)
+        {
+            DPRINT1("OpenCDDRegistryKey: dwError %X ('%ls')\n", dwError, DeviceId);
+        }
+    }
+    else
+    {
+        dwError = RegOpenKeyExW(hDatabaseKey,
+                                DeviceIdBuffer,
+                                0,
+                                (KEY_READ | KEY_WRITE),
+                                &hDeviceKey);
+
+        if (dwError != ERROR_SUCCESS)
+        {
+            DPRINT1("OpenCDDRegistryKey: dwError %X ('%ls')\n", dwError, DeviceId);
+        }
+    }
+
+    if (dwError != ERROR_SUCCESS)
+        hDeviceKey = INVALID_HANDLE_VALUE;
+
+    RegCloseKey(hDatabaseKey);
+
+    return hDeviceKey;
 }
 
 typedef struct
