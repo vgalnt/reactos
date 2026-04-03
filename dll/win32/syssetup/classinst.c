@@ -29,6 +29,32 @@ ComputerClassInstaller(
     }
 }
 
+PWCHAR
+WINAPI
+ReplaceSlashWithHash(
+    PWCHAR DeviceId)
+{
+    DPRINT1("ReplaceSlashWithHash()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+HKEY
+WINAPI
+OpenCDDRegistryKey(
+    PWCHAR DeviceId,
+    BOOL IsCreate)
+{
+    DPRINT1("OpenCDDRegistryKey()\n");
+    ASSERT(FALSE);
+    return 0;
+}
+
+typedef struct
+{
+    WCHAR DeviceId[200];
+    WCHAR ServiceName[256];
+} PRIVATE_BUFFER, *PPRIVATE_BUFFER;
 
 /*
  * @implemented
@@ -41,210 +67,301 @@ CriticalDeviceCoInstaller(
     IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL,
     IN OUT PCOINSTALLER_CONTEXT_DATA Context)
 {
-    WCHAR szDeviceId[256];
+    PPRIVATE_BUFFER ServiceString;
+    PPRIVATE_BUFFER PrivateData;
+    WCHAR szDeviceId[200];
     WCHAR szServiceName[256];
-    WCHAR szClassGUID[64];
+    WCHAR szClassGUID[39];
     DWORD dwRequiredSize;
     HKEY hDriverKey = NULL;
-    HKEY hDatabaseKey = NULL, hDeviceKey = NULL;
-    DWORD dwDisposition;
-    PWSTR Ptr;
-    DWORD dwError = ERROR_SUCCESS;
+    HKEY hDeviceKey = NULL;
+    LPWSTR LowerFilters;
+    LPWSTR UpperFilters;
+    DWORD RequiredSize;
+    DWORD UpperFiltersSize;
+    DWORD LowerFiltersSize;
+    DWORD ClassGuidResult;
+    DWORD ServiceNameSize;
+    DWORD ClassGuidSize;
+    DWORD dwError;
+    DWORD cbData;
+    DWORD Size;
+    BOOL IsUpperFilters;
+    BOOL ServiceResult;
+    BOOL IsCddKey;
 
-    DPRINT("CriticalDeviceCoInstaller(%lu %p %p %p)\n",
-           InstallFunction, DeviceInfoSet, DeviceInfoData, Context);
+    DPRINT1("CriticalDeviceCoInstaller(%lu %p %p %p)\n", InstallFunction, DeviceInfoSet, DeviceInfoData, Context);
 
     if (InstallFunction != DIF_INSTALLDEVICE)
-        return ERROR_SUCCESS;
-
-    /* Get the MatchingDeviceId property */
-    hDriverKey = SetupDiOpenDevRegKey(DeviceInfoSet,
-                                      DeviceInfoData,
-                                      DICS_FLAG_GLOBAL,
-                                      0,
-                                      DIREG_DRV,
-                                      KEY_READ);
-    if (hDriverKey == INVALID_HANDLE_VALUE)
     {
-        if (Context->PostProcessing)
+        ASSERT(!Context->PostProcessing);
+        return ERROR_SUCCESS;
+    }
+
+    if (!Context->PostProcessing)
+    {
+        /* Get the MatchingDeviceId property */
+        hDriverKey = SetupDiOpenDevRegKey(DeviceInfoSet, DeviceInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_READ);
+        if (hDriverKey == INVALID_HANDLE_VALUE)
         {
-            dwError = GetLastError();
-            DPRINT1("Failed to open the driver key! (Error %lu)\n", dwError);
-            goto done;
-        }
-        else
-        {
-            DPRINT("Failed to open the driver key! Postprocessing required!\n");
+            DPRINT("CriticalDeviceCoInstaller: Failed to open the driver key! Postprocessing required!\n");
             return ERROR_DI_POSTPROCESSING_REQUIRED;
+        }
+
+        dwRequiredSize = sizeof(szDeviceId);
+        dwError = RegQueryValueExW(hDriverKey, L"MatchingDeviceId", NULL, NULL, (PBYTE)szDeviceId, &dwRequiredSize);
+        RegCloseKey(hDriverKey);
+        if (dwError != ERROR_SUCCESS)
+        {
+            DPRINT1("CriticalDeviceCoInstaller: Failed to read the MatchingDeviceId value! Postprocessing required!\n");
+            return ERROR_DI_POSTPROCESSING_REQUIRED;
+        }
+
+        DPRINT1("CriticalDeviceCoInstaller: MatchingDeviceId: %S\n", szDeviceId);
+
+        hDeviceKey = OpenCDDRegistryKey(szDeviceId, FALSE);
+        if (hDeviceKey == INVALID_HANDLE_VALUE)
+        {
+            DPRINT("CriticalDeviceCoInstaller: OpenCDDRegistryKey() ret INVALID_HANDLE_VALUE\n");
+            return ERROR_DI_POSTPROCESSING_REQUIRED;
+        }
+
+        PrivateData = pSetupMalloc(sizeof(*PrivateData));
+        if (!PrivateData)
+        {
+            RegCloseKey(hDeviceKey);
+            return ERROR_NOT_ENOUGH_MEMORY;
+        }
+
+        lstrcpyW(PrivateData->DeviceId, szDeviceId);
+
+        RequiredSize = sizeof(PrivateData->ServiceName);
+
+        if (RegQueryValueExW(hDeviceKey, L"Service", NULL, NULL, (LPBYTE)PrivateData->ServiceName, &RequiredSize))
+            PrivateData->ServiceName[0] = 0;
+        else
+            RegDeleteValueW(hDeviceKey, L"Service");
+
+        RegCloseKey(hDeviceKey);
+
+        Context->PrivateData = PrivateData;
+
+        return ERROR_DI_POSTPROCESSING_REQUIRED;
+    }
+
+    IsCddKey = FALSE;
+    LowerFilters = NULL;
+    szDeviceId[0] = 0;
+
+    ServiceString = Context->PrivateData;
+
+    if (Context->InstallResult != ERROR_SUCCESS)
+    {
+        goto Finish;
+    }
+
+    ServiceResult = SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
+                                                      DeviceInfoData,
+                                                      SPDRP_SERVICE,
+                                                      NULL,
+                                                      (PBYTE)szServiceName,
+                                                      0x200,
+                                                      &RequiredSize);
+    if (ServiceResult)
+    {
+        Size = wcslen(L"\\Driver");
+        ServiceNameSize = wcslen(szServiceName);
+
+        if ((ServiceNameSize >= Size) && _wcsnicmp(szServiceName, L"\\Driver", Size))
+        {
+            goto Finish;
         }
     }
 
-    dwRequiredSize = sizeof(szDeviceId);
-    dwError = RegQueryValueExW(hDriverKey,
-                               L"MatchingDeviceId",
-                               NULL,
-                               NULL,
-                               (PBYTE)szDeviceId,
-                               &dwRequiredSize);
+    LowerFilters = NULL;
+    UpperFilters = NULL;
+
+    ClassGuidResult = SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
+                                                        DeviceInfoData,
+                                                        SPDRP_CLASSGUID,
+                                                        NULL,
+                                                        (PBYTE)szClassGUID,
+                                                        78,
+                                                        &ClassGuidSize);
+    if (ClassGuidResult)
+    {
+        DPRINT("CriticalDeviceCoInstaller: szClassGUID '%S'\n", szClassGUID);
+    }
+
+    if (!SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
+                                           DeviceInfoData,
+                                           SPDRP_LOWERFILTERS,
+                                           NULL,
+                                           NULL,
+                                           0,
+                                           &LowerFiltersSize))
+    {
+        if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && LowerFiltersSize > 2)
+        {
+            Size = 1;
+
+            LowerFilters = pSetupMalloc(LowerFiltersSize);
+            if (!LowerFilters)
+            {
+                DPRINT1("CriticalDeviceCoInstaller: pSetupMalloc() is failed\n");
+                goto Finish;
+            }
+
+            if (!SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
+                                                   DeviceInfoData,
+                                                   SPDRP_LOWERFILTERS,
+                                                   NULL,
+                                                   (PBYTE)LowerFilters,
+                                                   LowerFiltersSize,
+                                                   NULL))
+            {
+                goto done;
+            }
+
+            DPRINT("CriticalDeviceCoInstaller: LowerFilters '%S'\n", LowerFilters);
+        }
+    }
+    else
+    {
+        Size = 0;
+    }
+
+    if (!SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
+                                           DeviceInfoData,
+                                           SPDRP_UPPERFILTERS,
+                                           NULL,
+                                           NULL,
+                                           0,
+                                           &UpperFiltersSize))
+    {
+        if (GetLastError() == ERROR_INSUFFICIENT_BUFFER && UpperFiltersSize > 2)
+        {
+            IsUpperFilters = TRUE;
+
+            UpperFilters = pSetupMalloc(UpperFiltersSize);
+            if (!UpperFilters)
+            {
+                goto done;
+            }
+
+            if (!SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
+                                                   DeviceInfoData,
+                                                   SPDRP_UPPERFILTERS,
+                                                   NULL,
+                                                   (PBYTE)UpperFilters,
+                                                   UpperFiltersSize,
+                                                   NULL))
+            {
+                goto done;
+            }
+
+            DPRINT("CriticalDeviceCoInstaller: UpperFilters '%S'\n", UpperFilters);
+        }
+    }
+    else
+    {
+        IsUpperFilters = FALSE;
+    }
+
+    hDriverKey = SetupDiOpenDevRegKey(DeviceInfoSet, DeviceInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DRV, KEY_READ);
+    if (hDriverKey == INVALID_HANDLE_VALUE)
+    {
+        DPRINT1("CriticalDeviceCoInstaller: INVALID_HANDLE_VALUE\n");
+        goto done;
+    }
+
+    cbData = sizeof(szDeviceId);
+    dwError = RegQueryValueExW(hDriverKey, L"MatchingDeviceId", NULL, NULL, (LPBYTE)szDeviceId, &cbData);
     RegCloseKey(hDriverKey);
     if (dwError != ERROR_SUCCESS)
     {
-        if (Context->PostProcessing)
-        {
-            dwError = GetLastError();
-            DPRINT1("Failed to read the MatchingDeviceId value! (Error %lu)\n", dwError);
-            goto done;
-        }
-        else
-        {
-            DPRINT("Failed to read the MatchingDeviceId value! Postprocessing required!\n");
-            return ERROR_DI_POSTPROCESSING_REQUIRED;
-        }
+        DPRINT1("CriticalDeviceCoInstaller: dwError %X\n", dwError);
+        szDeviceId[0] = 0;
+        goto done;
     }
+    DPRINT("CriticalDeviceCoInstaller: szDeviceId '%S'\n", szDeviceId);
 
-    DPRINT("MatchingDeviceId: %S\n", szDeviceId);
-
-    /* Get the ClassGUID property */
-    dwRequiredSize = 0;
-    if (!SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
-                                           DeviceInfoData,
-                                           SPDRP_CLASSGUID,
-                                           NULL,
-                                           (PBYTE)szClassGUID,
-                                           sizeof(szClassGUID),
-                                           &dwRequiredSize))
+    hDeviceKey = OpenCDDRegistryKey(szDeviceId, TRUE);
+    if (hDeviceKey == INVALID_HANDLE_VALUE)
     {
-        if (Context->PostProcessing)
-        {
-            dwError = GetLastError();
-            DPRINT1("Failed to read the ClassGUID! (Error %lu)\n", dwError);
-            goto done;
-        }
-        else
-        {
-            DPRINT("Failed to read the ClassGUID! Postprocessing required!\n");
-            return ERROR_DI_POSTPROCESSING_REQUIRED;
-        }
-    }
-
-    DPRINT("ClassGUID %S\n", szClassGUID);
-
-    /* Get the Service property (optional) */
-    dwRequiredSize = 0;
-    if (!SetupDiGetDeviceRegistryPropertyW(DeviceInfoSet,
-                                           DeviceInfoData,
-                                           SPDRP_SERVICE,
-                                           NULL,
-                                           (PBYTE)szServiceName,
-                                           sizeof(szServiceName),
-                                           &dwRequiredSize))
-    {
-        if (Context->PostProcessing)
-        {
-            dwError = GetLastError();
-            if (dwError != ERROR_FILE_NOT_FOUND)
-            {
-                DPRINT1("Failed to read the Service name! (Error %lu)\n", dwError);
-                goto done;
-            }
-            else
-            {
-                szServiceName[0] = UNICODE_NULL;
-                dwError = ERROR_SUCCESS;
-            }
-        }
-        else
-        {
-            DPRINT("Failed to read the Service name! Postprocessing required!\n");
-            return ERROR_DI_POSTPROCESSING_REQUIRED;
-        }
-    }
-
-    DPRINT("Service %S\n", szServiceName);
-
-    /* Replace the first backslash by a number sign */
-    Ptr = wcschr(szDeviceId, L'\\');
-    if (Ptr != NULL)
-    {
-        *Ptr = L'#';
-
-        /* Terminate the device id at the second backslash */
-        Ptr = wcschr(Ptr, L'\\');
-        if (Ptr != NULL)
-            *Ptr = UNICODE_NULL;
-    }
-
-    DPRINT("DeviceId: %S\n", szDeviceId);
-
-    /* Open the critical device database key */
-    dwError = RegOpenKeyExW(HKEY_LOCAL_MACHINE,
-                            L"SYSTEM\\CurrentControlSet\\Control\\CriticalDeviceDatabase",
-                            0,
-                            KEY_WRITE,
-                            &hDatabaseKey);
-    if (dwError != ERROR_SUCCESS)
-    {
-        DPRINT1("RegOpenKeyExW failed (Error %lu)\n", dwError);
+        DPRINT1("CriticalDeviceCoInstaller: INVALID_HANDLE_VALUE\n");
         goto done;
     }
 
-    /* Create a new key for the device */
-    dwError = RegCreateKeyExW(hDatabaseKey,
-                              szDeviceId,
-                              0,
-                              NULL,
-                              REG_OPTION_NON_VOLATILE,
-                              KEY_WRITE,
-                              NULL,
-                              &hDeviceKey,
-                              &dwDisposition);
-    if (dwError != ERROR_SUCCESS)
-    {
-        DPRINT1("RegCreateKeyExW failed (Error %lu)\n", dwError);
-        goto done;
-    }
+    if (ServiceResult)
+        RegSetValueExW(hDeviceKey, L"Service", 0, REG_SZ, (PBYTE)szServiceName, RequiredSize);
+    else
+        RegDeleteValueW(hDeviceKey, L"Service");
 
-    /* Set the ClassGUID value */
-    dwError = RegSetValueExW(hDeviceKey,
-                             L"ClassGUID",
-                             0,
-                             REG_SZ,
-                             (PBYTE)szClassGUID,
-                             (wcslen(szClassGUID) + 1) * sizeof(WCHAR));
-    if (dwError != ERROR_SUCCESS)
-    {
-        DPRINT1("RegSetValueExW failed (Error %lu)\n", dwError);
-        goto done;
-    }
+    if (ClassGuidResult)
+        RegSetValueExW(hDeviceKey, L"ClassGUID", 0, REG_SZ, (PBYTE)szClassGUID, ClassGuidSize);
+    else
+        RegDeleteValueW(hDeviceKey, L"ClassGUID");
 
-    /* If available, set the Service value */
-    if (szServiceName[0] != UNICODE_NULL)
-    {
-        dwError = RegSetValueExW(hDeviceKey,
-                                 L"Service",
-                                 0,
-                                 REG_SZ,
-                                 (PBYTE)szServiceName,
-                                 (wcslen(szServiceName) + 1) * sizeof(WCHAR));
-        if (dwError != ERROR_SUCCESS)
-        {
-            DPRINT1("RegSetValueExW failed (Error %lu)\n", dwError);
-            goto done;
-        }
-    }
+    if (Size)
+        RegSetValueExW(hDeviceKey, L"LowerFilters", 0, REG_MULTI_SZ, (PBYTE)LowerFilters, LowerFiltersSize);
+    else
+        RegDeleteValueW(hDeviceKey, L"LowerFilters");
+
+    if (IsUpperFilters)
+        RegSetValueExW(hDeviceKey, L"UpperFilters", 0, REG_MULTI_SZ, (PBYTE)UpperFilters, UpperFiltersSize);
+    else
+        RegDeleteValueW(hDeviceKey, L"UpperFilters");
+
+    RegCloseKey(hDeviceKey);
+
+    IsCddKey = TRUE;
 
 done:
-    if (hDeviceKey != NULL)
-        RegCloseKey(hDeviceKey);
 
-    if (hDatabaseKey != NULL)
-        RegCloseKey(hDatabaseKey);
+    if (LowerFilters)
+        pSetupFree(LowerFilters);
 
-    DPRINT("CriticalDeviceCoInstaller() done (Error %lu)\n", dwError);
+    if (UpperFilters)
+        pSetupFree(UpperFilters);
 
-    return dwError;
+Finish:
+
+    if (!ServiceString)
+        return Context->InstallResult;
+
+    if (!lstrcmpiW(szDeviceId, ServiceString->DeviceId) && IsCddKey)
+        goto Exit;
+
+    hDeviceKey = OpenCDDRegistryKey(ServiceString->DeviceId, FALSE);
+    if (hDeviceKey == INVALID_HANDLE_VALUE)
+    {
+        DPRINT1("CriticalDeviceCoInstaller: INVALID_HANDLE_VALUE\n");
+        goto Exit;
+    }
+
+    if (ServiceString->ServiceName[0])
+    {
+        RegSetValueExW(hDeviceKey,
+                       L"Service",
+                       0,
+                       REG_SZ,
+                       (PBYTE)ServiceString->ServiceName,
+                       ((lstrlenW(ServiceString->ServiceName) + 1) * sizeof(WCHAR)));
+    }
+    else
+    {
+        RegDeleteValueW(hDeviceKey, L"Service");
+    }
+
+    RegCloseKey(hDeviceKey);
+
+Exit:
+
+    pSetupFree(ServiceString);
+
+    return Context->InstallResult;
 }
-
 
 /*
  * @unimplemented
