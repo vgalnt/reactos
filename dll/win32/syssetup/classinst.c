@@ -34,9 +34,15 @@ WINAPI
 ReplaceSlashWithHash(
     PWCHAR DeviceId)
 {
-    DPRINT1("ReplaceSlashWithHash()\n");
-    ASSERT(FALSE);
-    return 0;
+    PWCHAR Ptr;
+
+    for (Ptr = DeviceId; *Ptr; Ptr++)
+    {
+        if (*Ptr == '\\')
+            *Ptr = '#';
+    }
+
+    return Ptr;
 }
 
 HKEY
