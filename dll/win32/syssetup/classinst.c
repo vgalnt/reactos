@@ -465,7 +465,6 @@ EisaUpHalCoInstaller(
     }
 }
 
-
 /*
  * @implemented
  */
@@ -476,10 +475,13 @@ HdcClassInstaller(
     IN HDEVINFO DeviceInfoSet,
     IN PSP_DEVINFO_DATA DeviceInfoData OPTIONAL)
 {
-    DPRINT("HdcClassInstaller()\n");
-    return ERROR_DI_DO_DEFAULT;
+    switch (InstallFunction)
+    {
+        default:
+            DPRINT1("HdcClassInstaller: Install function %u ignored\n", InstallFunction);
+            return ERROR_DI_DO_DEFAULT;
+    }
 }
-
 
 /*
  * @unimplemented
