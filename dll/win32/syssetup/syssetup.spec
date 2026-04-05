@@ -77,7 +77,7 @@
 @ stub SetupSetSetupInfo
 @ stub SetupShellSettings
 @ stdcall SetupStartService(wstr long)
-@ stub SetupUnregisterOsComponent
+@ stub SetupUnRegisterOsComponent
 @ stdcall StorageCoInstaller(long ptr ptr ptr)
 @ stub SystemUpdateUserProfileDirectory
 @ stdcall TapeClassInstaller(long ptr ptr)
