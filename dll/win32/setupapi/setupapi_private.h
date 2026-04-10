@@ -199,6 +199,13 @@ struct DeviceInfo /* Element of DeviceInfoSet.ListHead */
     HMODULE hmodDevicePropPageProvider;
     PVOID pDevicePropPageProvider;
 
+    HMODULE ClassInstallerLibrary;
+    CLASS_INSTALL_PROC ClassInstaller;
+    LIST_ENTRY ClassCoInstallersListHead;
+    LIST_ENTRY DeviceCoInstallersListHead;
+    LONG CoInstallerCount;
+    ULONG Context;
+
     /* Variable size array (contains data for instanceId, UniqueId, DeviceDescription) */
     WCHAR Data[ANYSIZE_ARRAY];
 };
@@ -235,6 +242,13 @@ struct DeviceInfoSet /* HDEVINFO */
      * or NULL if related to local machine. Points into szData field at the
      * end of the structure */
     PCWSTR MachineName;
+
+    HMODULE ClassInstallerLibrary;
+    CLASS_INSTALL_PROC ClassInstaller;
+    LIST_ENTRY ClassCoInstallersListHead;
+    LIST_ENTRY DeviceCoInstallersListHead;
+    LONG CoInstallerCount;
+    ULONG Context;
 
     /* Variable size array (contains data for MachineName) */
     WCHAR szData[ANYSIZE_ARRAY];
