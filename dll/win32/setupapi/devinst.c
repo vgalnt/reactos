@@ -3461,29 +3461,65 @@ BOOL WINAPI IntSetupDiSetDeviceRegistryPropertyAW(
         HDEVINFO DeviceInfoSet,
         PSP_DEVINFO_DATA DeviceInfoData,
         DWORD Property,
-        const BYTE *PropertyBuffer,
+        const BYTE* PropertyBuffer,
         DWORD PropertyBufferSize,
         BOOL isAnsi)
 {
-    BOOL ret = FALSE;
-    struct DeviceInfoSet *set = (struct DeviceInfoSet *)DeviceInfoSet;
-    struct DeviceInfo *deviceInfo;
+    struct DeviceInfoSet* set = (struct DeviceInfoSet*)DeviceInfoSet;
+    struct DeviceInfo* deviceInfo;
+    WCHAR ClassName[32];
+    PWSTR pGuidString;
+    GUID ClassGuid;
+    DWORD ErrorCode;
+    DWORD RequiredSize;
+    ULONG ulProperty;
+    CONFIGRET Cr;
+    BOOL IsNullClassGuid;
 
-    TRACE("%s(%p %p %d %p %d)\n", __FUNCTION__, DeviceInfoSet, DeviceInfoData, Property,
-        PropertyBuffer, PropertyBufferSize);
+    ERR("IntSetupDiSetDeviceRegistryPropertyAW: %p %p %d %p %d\n", DeviceInfoSet, DeviceInfoData, Property, PropertyBuffer, PropertyBufferSize);
+
+    //_SEH2_TRY
+
+    if (Property >= SPDRP_MAXIMUM_PROPERTY)
+    {
+        ERR("IntSetupDiSetDeviceRegistryPropertyAW: Property %X not valid\n", Property);
+        SetLastError(ERROR_INVALID_REG_PROPERTY);
+        return FALSE;
+    }
+
+    if (Property == SPDRP_CLASS)
+    {
+        ERR("IntSetupDiSetDeviceRegistryPropertyAW: Property SPDRP_CLASS not valid\n");
+        SetLastError(ERROR_INVALID_REG_PROPERTY);
+        return FALSE;
+    }
+
+    if (!DeviceInfoSet || DeviceInfoSet == INVALID_HANDLE_VALUE)
+    {
+        ERR("IntSetupDiSetDeviceRegistryPropertyAW: Property 0x%lx not valid\n", Property);
+        SetLastError(ERROR_INVALID_HANDLE);
+        return FALSE;
+    }
 
     if (!DeviceInfoSet || DeviceInfoSet == INVALID_HANDLE_VALUE)
     {
         SetLastError(ERROR_INVALID_HANDLE);
         return FALSE;
     }
+
     if (set->magic != SETUP_DEVICE_INFO_SET_MAGIC)
     {
         SetLastError(ERROR_INVALID_HANDLE);
         return FALSE;
     }
-    if (!DeviceInfoData || DeviceInfoData->cbSize != sizeof(SP_DEVINFO_DATA)
-            || !DeviceInfoData->Reserved)
+
+    if (!DeviceInfoData || DeviceInfoData->cbSize != sizeof(SP_DEVINFO_DATA))
+    {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+
+    if (!DeviceInfoData->Reserved)
     {
         SetLastError(ERROR_INVALID_PARAMETER);
         return FALSE;
@@ -3491,45 +3527,162 @@ BOOL WINAPI IntSetupDiSetDeviceRegistryPropertyAW(
 
     deviceInfo = (struct DeviceInfo *)DeviceInfoData->Reserved;
 
-    if (Property < sizeof(PropertyMap) / sizeof(PropertyMap[0])
-        && PropertyMap[Property].nameW
-        && PropertyMap[Property].nameA)
-    {
-        HKEY hKey;
-        LONG l;
-        hKey = SETUPDI_OpenDevKey(set->HKLM, deviceInfo, KEY_SET_VALUE);
-        if (hKey == INVALID_HANDLE_VALUE)
-            return FALSE;
-        /* Write new data */
-        if (isAnsi)
-        {
-            l = RegSetValueExA(
-                hKey, PropertyMap[Property].nameA, 0,
-                    PropertyMap[Property].regType, PropertyBuffer,
-                    PropertyBufferSize);
-        } 
-        else
-        {
-            l = RegSetValueExW(
-                hKey, PropertyMap[Property].nameW, 0,
-                    PropertyMap[Property].regType, PropertyBuffer,
-                    PropertyBufferSize);
-        }
-        if (!l)
-            ret = TRUE;
-        else
-            SetLastError(l);
-        RegCloseKey(hKey);
-    }
-    else
+    if (!PropertyMap[Property].nameW && !PropertyMap[Property].nameA)
     {
         ERR("Property 0x%lx not implemented\n", Property);
         SetLastError(ERROR_NOT_SUPPORTED);
+        return FALSE;
     }
 
-    TRACE("Returning %d\n", ret);
-    return ret;
+    ulProperty = (Property + 1); // FIXME (convert table (CM_DRP->SPDRP property map))
+
+    if (ulProperty == CM_DRP_CLASSGUID)
+    {
+        ERR("IntSetupDiSetDeviceRegistryPropertyAW: CM_DRP_CLASSGUID\n");
+
+        if (!PropertyBuffer)
+        {
+            ERR("IntSetupDiSetDeviceRegistryPropertyAW: PropertyBuffer is NULL\n");
+
+            if (PropertyBufferSize)
+            {
+                ERR("IntSetupDiSetDeviceRegistryPropertyAW: PropertyBufferSize, but PropertyBuffer is NULL\n");
+                ErrorCode = ERROR_INVALID_PARAMETER;
+                goto Exit;
+            }
+
+            IsNullClassGuid = TRUE;
+        }
+        else
+        {
+            if (isAnsi)
+            {
+                ERR("IntSetupDiSetDeviceRegistryPropertyAW: FIXME isAnsi == TRUE\n");
+                ASSERT(FALSE);pGuidString = NULL;
+
+              #ifndef __REACTOS__
+                pGuidString = pSetupMultiByteToUnicode(PropertyBuffer, 0);
+                if (!pGuidString)
+                {
+                    ErrorCode = ERROR_NOT_ENOUGH_MEMORY;
+                    goto Exit;
+                }
+              #endif
+            }
+            else
+            {
+                pGuidString = (PWSTR)PropertyBuffer;
+            }
+
+            ErrorCode = pSetupGuidFromString(pGuidString, &ClassGuid);
+
+            if ((const BYTE*)pGuidString != PropertyBuffer)
+                MyFree(pGuidString);
+
+            if (ErrorCode != ERROR_SUCCESS)
+            {
+                ERR("IntSetupDiSetDeviceRegistryPropertyAW: ErrorCode %d\n", ErrorCode);
+                goto Exit;
+            }
+
+            IsNullClassGuid = FALSE;
+        }
+
+        if (IsEqualGUID(&deviceInfo->ClassGuid, (IsNullClassGuid ? &GUID_NULL : &ClassGuid)))
+        {
+            goto Exit;
+        }
+
+      #ifndef __REACTOS__
+        if (DeviceInfoSet->IsClassGuid)
+        {
+            ErrorCode = ERROR_CLASS_MISMATCH;
+            goto Exit;
+        }
+      #endif
+
+      #ifndef __REACTOS__
+        ERR("IntSetupDiSetDeviceRegistryPropertyAW: FIXME InvalidateHelperModules()\n");
+        ASSERT(FALSE);
+
+        ErrorCode = InvalidateHelperModules(DeviceInfoSet, DeviceInfoData, 0);
+        if (ErrorCode)
+        {
+            goto Exit;
+        }
+      #else
+        ErrorCode = 0;
+      #endif
+
+        pSetupDeleteDevRegKeys(deviceInfo->dnDevInst, (DICS_FLAG_CONFIGSPECIFIC | DICS_FLAG_GLOBAL), 0xFFFFFFFF, DIREG_DRV, TRUE);
+
+        CM_Set_DevNode_Registry_PropertyW(deviceInfo->dnDevInst, CM_DRP_DRIVER, NULL, 0, 0);
+    }
+
+    if (isAnsi)
+    {
+        Cr = CM_Set_DevNode_Registry_PropertyA(deviceInfo->dnDevInst, ulProperty, PropertyBuffer, PropertyBufferSize, 0);
+    }
+    else
+    {
+        Cr = CM_Set_DevNode_Registry_PropertyW(deviceInfo->dnDevInst, ulProperty, PropertyBuffer, PropertyBufferSize, 0);
+    }
+
+    if (Cr != CR_SUCCESS)
+    {
+        if (Cr == CR_INVALID_DEVINST)
+        {
+            ErrorCode = ERROR_NO_SUCH_DEVINST;
+            goto Exit;
+        }
+
+        if (Cr == CR_INVALID_DATA)
+        {
+            ErrorCode = ERROR_INVALID_PARAMETER;
+            goto Exit;
+        }
+
+        if (Cr == CR_INVALID_PROPERTY)
+        {
+            ErrorCode = ERROR_INVALID_REG_PROPERTY;
+            goto Exit;
+        }
+
+        ErrorCode = ERROR_INVALID_DATA;
+        goto Exit;
+    }
+
+    if (ulProperty != CM_DRP_CLASSGUID)
+    {
+        goto Exit;
+    }
+
+    ERR("IntSetupDiSetDeviceRegistryPropertyAW: CM_DRP_CLASSGUID\n");
+
+    if (IsNullClassGuid || !SetupDiClassNameFromGuid(&ClassGuid, ClassName, 32, &RequiredSize))
+    {
+        RequiredSize = 0;
+    }
+
+    CM_Set_DevNode_Registry_PropertyW(deviceInfo->dnDevInst, CM_DRP_CLASS, (RequiredSize ? ClassName : NULL), (RequiredSize * sizeof(WCHAR)), 0);
+
+    CopyMemory(&deviceInfo->ClassGuid, (IsNullClassGuid ? &GUID_NULL : &ClassGuid), sizeof(GUID));
+    CopyMemory(&DeviceInfoData->ClassGuid, (IsNullClassGuid ? &GUID_NULL : &ClassGuid), sizeof(GUID));
+
+Exit:
+
+    //_SEH2_END
+
+  #ifndef __REACTOS__
+    DeviceInfoSet->LockRefCount--;
+    EndSynchronizedAccess(&DeviceInfoSet->Lock);
+  #endif
+
+    SetLastError(ErrorCode);
+
+    return (ErrorCode == ERROR_SUCCESS);
 }
+
 /***********************************************************************
  *		SetupDiSetDeviceRegistryPropertyA (SETUPAPI.@)
  */
