@@ -3347,6 +3347,113 @@ BOOL WINAPI SetupDiGetDeviceRegistryPropertyW(
     return (lError == ERROR_SUCCESS);
 }
 
+DWORD WINAPI
+pSetupDeleteDevRegKeys(
+    DEVNODE DevNode,
+    DWORD ScopeFlags,
+    DWORD HwProfile,
+    DWORD KeyType,
+    BOOL Type)
+{
+    CONFIGRET Cr = CR_SUCCESS;
+    CONFIGRET CfgRet;
+
+    ERR("pSetupDeleteDevRegKeys: %X %X %X %d %d\n", DevNode, ScopeFlags, HwProfile, KeyType, Type);
+
+    if (ScopeFlags & DICS_FLAG_GLOBAL)
+    {
+        if (KeyType == DIREG_DEV || KeyType == DIREG_BOTH)
+        {
+            CfgRet = CM_Delete_DevNode_Key(DevNode, 0, 0);
+
+            if (CfgRet != CR_SUCCESS && CfgRet != CR_NO_SUCH_REGISTRY_KEY)
+            {
+                Cr = CfgRet;
+                ERR("pSetupDeleteDevRegKeys: Cr %X\n", Cr);
+            }
+        }
+
+        if (KeyType == DIREG_DRV || KeyType == DIREG_BOTH)
+        {
+            CfgRet = CM_Delete_DevNode_Key(DevNode, 0, 1);
+
+            if (Cr == CR_SUCCESS && CfgRet != CR_SUCCESS && CfgRet != CR_NO_SUCH_REGISTRY_KEY)
+            {
+                Cr = CfgRet;
+                ERR("pSetupDeleteDevRegKeys: Cr %X\n", Cr);
+            }
+        }
+    }
+
+    if (ScopeFlags & DICS_FLAG_CONFIGSPECIFIC)
+    {
+        if (KeyType == DIREG_DEV || KeyType == DIREG_BOTH)
+        {
+            CfgRet = CM_Delete_DevNode_Key(DevNode, HwProfile, 0x200);
+
+            if (Cr == CR_SUCCESS && CfgRet != CR_SUCCESS && CfgRet != CR_NO_SUCH_REGISTRY_KEY)
+            {
+                Cr = CfgRet;
+                ERR("pSetupDeleteDevRegKeys: Cr %X\n", Cr);
+            }
+        }
+
+        if (KeyType == DIREG_DRV || KeyType == DIREG_BOTH)
+        {
+            CfgRet = CM_Delete_DevNode_Key(DevNode, HwProfile, 0x201);
+
+            if (Cr == CR_SUCCESS && CfgRet != CR_SUCCESS && CfgRet != CR_NO_SUCH_REGISTRY_KEY)
+            {
+                Cr = CfgRet;
+                ERR("pSetupDeleteDevRegKeys: Cr %X\n", Cr);
+            }
+        }
+    }
+
+    if (Type == TRUE)
+    {
+        if (KeyType == DIREG_DEV || KeyType == DIREG_BOTH)
+        {
+            CfgRet = CM_Delete_DevNode_Key(DevNode, 0, 0x100);
+
+            if (Cr == CR_SUCCESS && CfgRet != CR_SUCCESS && CfgRet != CR_NO_SUCH_REGISTRY_KEY)
+            {
+                Cr = CfgRet;
+                ERR("pSetupDeleteDevRegKeys: Cr %X\n", Cr);
+            }
+        }
+
+        if (KeyType == DIREG_DRV || KeyType == DIREG_BOTH)
+        {
+            CfgRet = CM_Delete_DevNode_Key(DevNode, 0, 0x101);
+
+            if (Cr == CR_SUCCESS && CfgRet != CR_SUCCESS && CfgRet != CR_NO_SUCH_REGISTRY_KEY)
+            {
+                Cr = CfgRet;
+                ERR("pSetupDeleteDevRegKeys: Cr %X\n", Cr);
+            }
+        }
+    }
+
+    if (Cr == CR_SUCCESS)
+        return NO_ERROR;
+
+    if (Cr == CR_INVALID_DEVINST)
+    {
+        ERR("pSetupDeleteDevRegKeys: ret ERROR_NO_SUCH_DEVINST\n");
+        return ERROR_NO_SUCH_DEVINST;
+    }
+
+    if (Cr == CR_REGISTRY_ERROR)
+    {
+        ERR("pSetupDeleteDevRegKeys: return ERROR_ACCESS_DENIED\n");
+        return ERROR_ACCESS_DENIED;
+    }
+
+    ERR("pSetupDeleteDevRegKeys: return ERROR_INVALID_DATA\n");
+    return ERROR_INVALID_DATA;
+}
+
 /***********************************************************************
  *		Internal for SetupDiSetDeviceRegistryPropertyA/W
  */
