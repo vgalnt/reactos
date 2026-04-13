@@ -4970,14 +4970,18 @@ CheckDeviceInstallParameters(
         DI_NODI_DEFAULTACTION |               /* 0x00200000 */
         DI_QUIETINSTALL |                     /* 0x00800000 */
         DI_NOFILECOPY |                       /* 0x01000000 */
-        DI_DRIVERPAGE_ADDED;                  /* 0x04000000 */
+        DI_FORCECOPY |                        /* 0x02000000 */
+        DI_DRIVERPAGE_ADDED |                 /* 0x04000000 */
+        DI_PROPS_NOCHANGEUSAGE;               /* 0x20000000 */
     DWORD SupportedFlagsEx =
         DI_FLAGSEX_CI_FAILED |                /* 0x00000004 */
         DI_FLAGSEX_DIDINFOLIST |              /* 0x00000010 */
         DI_FLAGSEX_DIDCOMPATINFO |            /* 0x00000020 */
+        DI_FLAGSEX_SETFAILEDINSTALL |         /* 0x00000080 */
         DI_FLAGSEX_ALLOWEXCLUDEDDRVS |        /* 0x00000800 */
         DI_FLAGSEX_NO_DRVREG_MODIFY |         /* 0x00008000 */
-        DI_FLAGSEX_INSTALLEDDRIVER;           /* 0x04000000 */
+        DI_FLAGSEX_INSTALLEDDRIVER |          /* 0x04000000 */
+        DI_FLAGSEX_RESTART_DEVICE_ONLY;       /* 0x20000000 */
     BOOL ret = FALSE;
 
     /* FIXME: add support for more flags */
@@ -4996,9 +5000,13 @@ CheckDeviceInstallParameters(
         FIXME("Unknown FlagsEx: 0x%08lx\n", DeviceInstallParams->FlagsEx & ~SupportedFlagsEx);
         SetLastError(ERROR_INVALID_FLAGS);
     }
-    else if ((DeviceInstallParams->Flags & DI_NOVCP)
-        && (DeviceInstallParams->FileQueue == NULL || DeviceInstallParams->FileQueue == (HSPFILEQ)INVALID_HANDLE_VALUE))
+    else if ((DeviceInstallParams->Flags & DI_NOVCP) &&
+             (DeviceInstallParams->FileQueue == NULL || DeviceInstallParams->FileQueue == (HSPFILEQ)INVALID_HANDLE_VALUE))
+    {
         SetLastError(ERROR_INVALID_USER_BUFFER);
+        ERR("CheckDeviceInstallParameters: DeviceInstallParams->FileQueue %X\n", DeviceInstallParams->FileQueue);
+        ASSERT(FALSE);
+    }
     else
     {
         /* FIXME: check Reserved field */
