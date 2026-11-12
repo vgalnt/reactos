@@ -153,8 +153,8 @@ LpcpMoveMessage(IN PPORT_MESSAGE Destination,
     Destination->u1.Length = Origin->u1.Length;
 
     /* Set the Message Type */
-    Destination->u2.s2.Type = !MessageType ?
-                              Origin->u2.s2.Type : MessageType & 0xFFFF;
+    Destination->u2.s2.Type = (!MessageType ? Origin->u2.s2.Type : (MessageType & 0xFFFF));
+    Destination->u2.s2.DataInfoOffset = Origin->u2.s2.DataInfoOffset;
 
     /* Check if we have a Client ID */
     if (ClientId)
